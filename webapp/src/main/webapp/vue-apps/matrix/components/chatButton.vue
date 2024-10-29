@@ -3,16 +3,8 @@
     <div class="v-application v-application--is-ltr theme--light">
       <div class="v-application--wrap">
         <v-btn
-            id="btnChatButton"
-            :title="$t('exo.mattermost.chat.button.tooltip')"
-            @click="openMatrixRoom($event)"
-            :color="color"
-            icon>
-          <v-icon size="22" class="my-auto icon-default-color fas fa-comments" />
-        </v-btn>
-        <v-btn
             id="btnChatButtonNew"
-            :title="$t('exo.mattermost.chat.button.tooltip')"
+            :title="$t('exo.matrix.chat.button.tooltip')"
             @click="openDrawer"
             :color="color"
             icon>

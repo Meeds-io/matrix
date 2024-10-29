@@ -52,7 +52,7 @@ public class MatrixService implements Startable {
   @Override
   public void start() {
     try {
-      String jwtAccessToken = this.getJWTSessionToken(MATRIX_ADMIN_USERNAME);
+      String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
       matrixAccessToken = MatrixHttpClient.getAdminAccessToken(jwtAccessToken);
     } catch (JsonException e) {
       throw new RuntimeException(e);
@@ -147,10 +147,9 @@ public class MatrixService implements Startable {
    * @param userName the username of the current user
    * @return String
    */
-  public String getJWTSessionToken(String userName) {
-    Identity identity = this.identityManager.getOrCreateUserIdentity(userName);
+  public String getJWTSessionToken(String userNameOnMatrix) {
     return Jwts.builder()
-            .setSubject((String)identity.getProfile().getProperty(MatrixConstants.USER_MATRIX_ID))
+            .setSubject(userNameOnMatrix)
             .signWith(Keys.hmacShaKeyFor(PropertyManager.getProperty(MatrixConstants.MATRIX_JWT_SECRET).getBytes()))
             .setExpiration(Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant()))
             .compact();
