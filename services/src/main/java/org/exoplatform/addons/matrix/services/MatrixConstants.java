@@ -11,7 +11,7 @@ public class MatrixConstants {
 
   public static final String MATRIX_ADMIN_USERNAME         = "meeds.matrix.user.name";
 
-  public static final String SERVER_NAME                   = "meeds.matrix.server.name";
+  public static final String MATRIX_SERVER_NAME            = "meeds.matrix.server.name";
 
   public static final String SHARED_SECRET_REGISTRATION    = "meeds.matrix.shared_secret_registration";
 
@@ -46,6 +46,8 @@ public class MatrixConstants {
 
   // User roles on Matrix
   public static final String ADMIN_ROLE                    = "100";
+
+  public static final String MANAGER_ROLE                    = "50";
 
   public static final String SIMPLE_USER_ROLE              = "0";
 

@@ -2,9 +2,11 @@ package org.exoplatform.addons.matrix.listeners;
 
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.addons.matrix.model.MatrixRoomPermissions;
+import org.exoplatform.addons.matrix.model.MatrixUserPermission;
 import org.exoplatform.addons.matrix.services.MatrixHttpClient;
 import org.exoplatform.addons.matrix.services.MatrixService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
+import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.space.SpaceListenerPlugin;
@@ -107,28 +109,44 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   @Override
   public void grantedLead(SpaceLifeCycleEvent event) {
     Space space = event.getSpace();
-    String roomId ="undefined";
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
-    try {
-      roomId = matrixService.getRoomBySpace(space);
-      MatrixHttpClient.makeUserAdminInRoom(roomId, matrixIdOfUser, matrixService.getMatrixAccessToken());
-    } catch (ObjectNotFoundException e) {
-      LOG.error("Could not revoke administrator role from user {}, on Matrix room {}", matrixIdOfUser, roomId);
-    }
+    updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
   }
 
   @Override
   public void revokedLead(SpaceLifeCycleEvent event) {
     Space space = event.getSpace();
-    String roomId ="undefined";
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
+    updateMemberRoleInSpace(space, matrixIdOfUser, SIMPLE_USER_ROLE);
+  }
+
+  private boolean updateMemberRoleInSpace(Space space, String matrixIdOfUser, String userRole) {
+    String roomId = null;
     try {
       roomId = matrixService.getRoomBySpace(space);
-      // There is no API to revoke manager role from a user, then we kick out the user from the room then re-adds him as simple user
-      //MatrixHttpClient.kickUserFromRoom(roomId, matrixIdOfUser, "Revoke manager role of user");
-      MatrixHttpClient.joinUserToRoom(roomId, matrixIdOfUser, matrixService.getMatrixAccessToken());
+
+      if(StringUtils.isNotBlank(roomId)) {
+        // Disable inviting user but for Moderators
+        MatrixRoomPermissions matrixRoomPermissions = MatrixHttpClient.getRoomSettings(roomId, matrixService.getMatrixAccessToken());
+        if (matrixRoomPermissions != null) {
+          if(SIMPLE_USER_ROLE.equals(userRole)) {
+            for (MatrixUserPermission userPermission : matrixRoomPermissions.getUsers()) {
+              String fullMatrixUserId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
+              if (fullMatrixUserId.equals(userPermission.getUserName())) {
+                userPermission.setUserRole(userRole);
+              }
+            }
+          } else {
+            MatrixUserPermission matrixUserPermission = new MatrixUserPermission("@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME)), userRole);
+            matrixRoomPermissions.getUsers().add(matrixUserPermission);
+          }
+        }
+        return MatrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, matrixService.getMatrixAccessToken()) != null;
+      }
+      return false;
     } catch (ObjectNotFoundException e) {
       LOG.error("Could not revoke administrator role from user {}, on Matrix room {}", matrixIdOfUser, roomId);
+      return false;
     }
   }
 
