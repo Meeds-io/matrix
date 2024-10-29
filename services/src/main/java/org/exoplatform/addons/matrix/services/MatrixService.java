@@ -144,7 +144,7 @@ public class MatrixService implements Startable {
 
   /**
    * Returns the JWT for user authentication
-   * @param userName the username of the current user
+   * @param userNameOnMatrix the username of the current user
    * @return String
    */
   public String getJWTSessionToken(String userNameOnMatrix) {
