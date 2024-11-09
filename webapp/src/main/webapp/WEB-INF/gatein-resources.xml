@@ -18,10 +18,23 @@
   Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 -->
-<gatein-resources
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://www.exoplatform.org/xml/ns/gatein_resources_1_4 http://www.exoplatform.org/xml/ns/gatein_resources_1_4"
-    xmlns="http://www.exoplatform.org/xml/ns/gatein_resources_1_4">
+<gatein-resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://www.exoplatform.org/xml/ns/gatein_resources_1_5 http://www.exoplatform.org/xml/ns/gatein_resources_1_5"
+                  xmlns="http://www.exoplatform.org/xml/ns/gatein_resources_1_5">
+  <portal-skin>
+    <skin-name>Enterprise</skin-name>
+    <skin-module>matrix</skin-module>
+    <css-path>/css/matrix.css</css-path>
+    <css-priority>120</css-priority>
+    <filtered>true</filtered>
+  </portal-skin>
+
+  <portlet-skin>
+    <application-name>matrix</application-name>
+    <portlet-name>Matrix</portlet-name>
+    <skin-name>Enterprise</skin-name>
+    <additional-module>matrix</additional-module>
+  </portlet-skin>
 
   <portlet>
     <name>Matrix</name>
@@ -51,11 +64,4 @@
       </depends>
     </module>
   </portlet>
-  <module>
-    <name>spaceCreatedListener</name>
-    <load-group>baseGRP</load-group>
-    <script>
-      <path>/js/spaceCreatedListener.js</path>
-    </script>
-  </module>
 </gatein-resources>

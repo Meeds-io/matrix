@@ -21,35 +21,31 @@
 <script>
   export default {
     props: {
-      roomId: {
-        type: String,
-        default: '',
-      },
-      serverName: {
-        type: String,
-        default: '',
-      },
     },
     data: () => ({
       color: 'green',
-      open: false,
+      open: false
     }),
     created() {
-      this.$matrixService.checkAuthenticationTypes().then(enabled => {
-        if(enabled) {
-          this.$matrixService.authenticate().then(resp => {
-            if(resp.user_id) {
-              localStorage.setItem("matrix_user_id", resp.user_id);
-              localStorage.setItem("matrix_access_token", resp.access_token);
-            } else {
-              this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
-              this.$root.$emit('matrix-login-failed');
-            }
-          });
-        } else {
-          this.$root.$emit('alert-message', `${this.$t('exo.matrix.jwt.disabled')}`, 'error');
-        }
-      });
+      const matrixInfos = localStorage.getItem('matrix_user_id');
+
+      if(!matrixInfos) {
+        this.$matrixService.checkAuthenticationTypes().then(enabled => {
+          if(enabled) {
+            this.$matrixService.authenticate().then(resp => {
+              if(resp.user_id) {
+                localStorage.setItem("matrix_user_id", resp.user_id);
+                localStorage.setItem("matrix_access_token", resp.access_token);
+              } else {
+                this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
+                this.$root.$emit('matrix-login-failed');
+              }
+            });
+          } else {
+            this.$root.$emit('alert-message', `${this.$t('exo.matrix.jwt.disabled')}`, 'error');
+          }
+        });
+      }
     },
     watch: {
       open() {
@@ -68,7 +64,6 @@
         window.open(url, '_blank');
       },
       openDrawer() {
-        console.log('open chat drawer');
         this.$root.initialized = false;
         this.open = true;
       }

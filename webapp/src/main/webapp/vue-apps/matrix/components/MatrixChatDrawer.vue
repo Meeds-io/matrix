@@ -25,7 +25,6 @@
     class="chat-drawer"
     body-classes="hide-scroll"
     attached
-    allow-expand
     right
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
@@ -38,21 +37,7 @@
         class="d-flex light-grey-background-color fill-height">
         <div
           class="singlePageApplication pa-0 d-flex fill-height">
-          <v-card
-            v-if="expanded"
-            class="card-border-radius"
-            height="fit-content"
-            min-width="270"
-            width="270"
-            max-width="30%"
-            flat>
-            </v-card>
-          <v-expand-x-transition>
-            <v-card
-              :min-width="separatorWidth"
-              :class="expanded && 'me-4'" />
-          </v-expand-x-transition>
-          <matrix-chat-rooms />
+          <matrix-chat-rooms :contacts="rooms"/>
         </div>
       </div>
     </template>
@@ -65,6 +50,10 @@ export default {
       type: Number,
       default: () => 0,
     },
+    rooms: {
+      type: Array,
+      default: function() { return [];}
+    }
   },
   data: () =>({
     loading: 0,
