@@ -1,12 +1,12 @@
 <template>
-  <div class="room-list">
+  <div class="room-list full-width">
     <div
-        v-if="roomsIds"
-        v-for="(room, i) in roomsIds"
+        v-if="rooms"
+        v-for="(room, i) in rooms"
         :key="i">
       <matrix-chat-room
           :id="'room-'+i"
-          :room-id="room" />
+          :room="room" />
     </div>
     <div v-else>
       {{ $t('chat.no.discussions') }}
@@ -17,7 +17,7 @@
 <script>
   export default {
     data: () => ({
-      roomsIds: Array
+      rooms: Array
     }),
     watch : {
     },
@@ -26,7 +26,7 @@
     },
     methods: {
       loadRooms () {
-        this.$matrixService.loadChatRooms().then(rooms => this.roomsIds = rooms.joined_rooms);
+        this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(rooms => this.rooms = rooms);
       }
     }
   }
