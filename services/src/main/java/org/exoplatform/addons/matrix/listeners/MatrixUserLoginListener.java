@@ -29,9 +29,10 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
   private MatrixService matrixService;
 
   private OrganizationService organizationService;
-  public MatrixUserLoginListener(IdentityManager identityManager, OrganizationService organizationService) {
+  public MatrixUserLoginListener(IdentityManager identityManager, OrganizationService organizationService, MatrixService matrixService) {
     this.identityManager = identityManager;
     this.organizationService = organizationService;
+    this.matrixService = matrixService;
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {
