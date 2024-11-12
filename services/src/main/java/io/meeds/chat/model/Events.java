@@ -1,4 +1,4 @@
-package org.exoplatform.addons.matrix.model;
+package io.meeds.chat.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -1,4 +1,4 @@
-package org.exoplatform.addons.matrix.services;
+package io.meeds.chat.service.utils;
 
 import java.security.SecureRandom;
 import java.util.Random;

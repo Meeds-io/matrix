@@ -1,4 +1,4 @@
-package org.exoplatform.addons.matrix.services;
+package io.meeds.chat.service.utils;
 
 public class MatrixConstants {
 
@@ -14,10 +14,6 @@ public class MatrixConstants {
   public static final String MATRIX_SERVER_NAME            = "meeds.matrix.server.name";
 
   public static final String SHARED_SECRET_REGISTRATION    = "meeds.matrix.shared_secret_registration";
-
-  public static final String MATRIX_METADATA_TYPE          = "matrixSpaceIntegration";
-
-  public static final String MATRIX_METADATA_NAME          = "MatrixTeamMetadata";
 
   public static final String MATRIX_ROOM_ID                = "MatrixRoomId";
 

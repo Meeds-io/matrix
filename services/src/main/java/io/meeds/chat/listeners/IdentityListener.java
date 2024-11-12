@@ -1,25 +1,34 @@
-package org.exoplatform.addons.matrix.listeners;
+package io.meeds.chat.listeners;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.services.MatrixConstants;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.service.utils.MatrixConstants;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.social.core.identity.model.Profile;
+import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.profile.ProfileLifeCycleEvent;
 import org.exoplatform.social.core.profile.ProfileListenerPlugin;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-
+@Component
 public class IdentityListener extends ProfileListenerPlugin {
 
-  private final IdentityStorage identityStorage;
+  @Autowired
+  private IdentityStorage identityStorage;
 
-  private final MatrixService   matrixService;
+  @Autowired
+  private IdentityManager identityManager;
 
-  public IdentityListener(IdentityStorage identityStorage, MatrixService matrixService) {
-    this.identityStorage = identityStorage;
-    this.matrixService = matrixService;
+  @Autowired
+  private MatrixService   matrixService;
+
+  @PostConstruct
+  public void init() {
+    this.identityManager.registerProfileListener(this);
   }
 
   @Override

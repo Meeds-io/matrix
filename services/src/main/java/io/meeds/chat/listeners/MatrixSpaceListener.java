@@ -1,10 +1,11 @@
-package org.exoplatform.addons.matrix.listeners;
+package io.meeds.chat.listeners;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.model.MatrixRoomPermissions;
-import org.exoplatform.addons.matrix.model.MatrixUserPermission;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
@@ -12,20 +13,30 @@ import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.space.SpaceListenerPlugin;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
+import org.exoplatform.social.core.space.spi.SpaceService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.*;
+import static io.meeds.chat.service.utils.MatrixConstants.*;
 
+@Component
 public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   private static final Log LOG = ExoLogger.getLogger(MatrixSpaceListener.class);
 
-  private MatrixService matrixService;
+  @Autowired
+  private MatrixService    matrixService;
 
-  public MatrixSpaceListener(MatrixService matrixService) {
-    this.matrixService = matrixService;
+  @Autowired
+  private SpaceService     spaceService;
+
+  @PostConstruct
+  public void init() {
+     spaceService.registerSpaceListenerPlugin(this);
   }
+
 
   @Override
   public void spaceCreated(SpaceLifeCycleEvent event) {
@@ -36,7 +47,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       String matrixRoomId = MatrixHttpClient.createRoom(teamDisplayName, description, matrixService.getMatrixAccessToken());
 
       if (StringUtils.isNotBlank(matrixRoomId)) {
-        matrixService.addMatrixMetadata(space, matrixRoomId);
+        matrixService.createSpaceRoomAssociation(space, matrixRoomId);
         List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
         for(String manager : space.getManagers()) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);

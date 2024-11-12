@@ -1,13 +1,11 @@
-import org.exoplatform.addons.matrix.model.MatrixRoomPermissions;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
+import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.service.utils.MatrixHttpClient;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.idm.UserImpl;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.Date;
 import java.util.Random;
 

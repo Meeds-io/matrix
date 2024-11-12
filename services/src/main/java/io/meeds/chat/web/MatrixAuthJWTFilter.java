@@ -8,15 +8,14 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.services.MatrixConstants;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.web.filter.Filter;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.MATRIX_JWT_COOKIE;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_JWT_COOKIE;
 
 public class MatrixAuthJWTFilter implements Filter {
 

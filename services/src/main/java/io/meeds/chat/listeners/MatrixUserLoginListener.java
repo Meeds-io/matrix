@@ -1,13 +1,14 @@
-package org.exoplatform.addons.matrix.listeners;
+package io.meeds.chat.listeners;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.component.RequestLifeCycle;
-import org.exoplatform.services.listener.Asynchronous;
 import org.exoplatform.services.listener.Event;
 import org.exoplatform.services.listener.Listener;
+import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.OrganizationService;
@@ -16,23 +17,31 @@ import org.exoplatform.services.security.ConversationRegistry;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.USER_MATRIX_ID;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
-@Asynchronous
+@Component
 public class MatrixUserLoginListener extends Listener<ConversationRegistry, ConversationState> {
 
-  private static final Log LOG = ExoLogger.getLogger(MatrixUserLoginListener.class);
+  private static final Log    LOG = ExoLogger.getLogger(MatrixUserLoginListener.class);
 
-  private IdentityManager identityManager;
+  @Autowired
+  private IdentityManager     identityManager;
 
-  private MatrixService matrixService;
+  @Autowired
+  private MatrixService       matrixService;
 
+  @Autowired
   private OrganizationService organizationService;
-  public MatrixUserLoginListener(IdentityManager identityManager, OrganizationService organizationService, MatrixService matrixService) {
-    this.identityManager = identityManager;
-    this.organizationService = organizationService;
-    this.matrixService = matrixService;
+
+  @Autowired
+  private ListenerService     listenerService;
+
+  @PostConstruct
+  public void init() {
+    listenerService.addListener("exo.core.security.ConversationRegistry.register", this);
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {

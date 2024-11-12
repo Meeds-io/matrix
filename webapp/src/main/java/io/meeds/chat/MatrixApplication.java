@@ -1,0 +1,24 @@
+package io.meeds.chat;
+
+import io.meeds.spring.AvailableIntegration;
+import io.meeds.spring.kernel.PortalApplicationContextInitializer;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+
+@SpringBootApplication(scanBasePackages = {
+        MatrixApplication.MODULE_NAME,
+        AvailableIntegration.KERNEL_MODULE,
+        AvailableIntegration.JPA_MODULE,
+        AvailableIntegration.LIQUIBASE_MODULE,
+        AvailableIntegration.WEB_MODULE,
+})
+@EnableJpaRepositories(basePackages = MatrixApplication.MODULE_NAME)
+@PropertySource("classpath:application.properties")
+@PropertySource("classpath:application-common.properties")
+@PropertySource("classpath:matrix.properties")
+public class MatrixApplication extends PortalApplicationContextInitializer {
+
+  public static final String MODULE_NAME = "io.meeds.chat";
+
+}
