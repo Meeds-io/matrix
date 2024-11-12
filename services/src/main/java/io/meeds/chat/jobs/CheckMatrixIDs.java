@@ -1,9 +1,9 @@
-package org.exoplatform.addons.matrix.jobs;
+package io.meeds.chat.jobs;
 
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.services.MatrixConstants;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.service.utils.MatrixConstants;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.container.ExoContainerContext;
@@ -14,15 +14,13 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
-import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
-import org.exoplatform.social.core.profile.ProfileFilter;
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.USER_MATRIX_ID;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
 @DisallowConcurrentExecution
 public class CheckMatrixIDs implements Job {

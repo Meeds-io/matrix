@@ -6,26 +6,8 @@
     id="matrixChatButton">
     <script type="text/javascript">
       require(['PORTLET/matrix/Matrix'], app => {
-        const serverName = '<%= PropertyManager.getProperty(org.exoplatform.addons.matrix.services.MatrixConstants.MATRIX_SERVER_NAME)%>';
-        if(eXo.env.portal.spaceId) {
-          fetch('/portal/rest/matrix?spaceId='+eXo.env.portal.spaceId, {
-            method: 'GET',
-            credentials: 'include',
-          }).then(respMatrix => {
-            if (!respMatrix || !respMatrix.ok) {
-              console.warn('Could not link the space to a Matrix room !');
-            } else {
-              return respMatrix.text();
-            }
-          }).then(respMatrixText => {
-        	  if(respMatrixText) {
-        		  console.log(respMatrixText);
-        		  if(respMatrixText) {
-        		    app.init(respMatrixText, serverName);
-			        }
-            }
-          });
-        }
+        const serverName = '<%= PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME)%>';
+        app.init(serverName);
       });
     </script>
   </div>

@@ -1,26 +1,36 @@
-package org.exoplatform.addons.matrix.listeners;
+package io.meeds.chat.listeners;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.services.MatrixConstants;
-import org.exoplatform.addons.matrix.services.MatrixHttpClient;
-import org.exoplatform.addons.matrix.services.MatrixService;
+import io.meeds.chat.service.utils.MatrixConstants;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.PropertyManager;
+import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserEventListener;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.USER_MATRIX_ID;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
+@Component
 public class MatrixUserListener extends UserEventListener {
 
+  @Autowired
   private IdentityManager identityManager;
 
+  @Autowired
   private MatrixService   matrixService;
 
-  public MatrixUserListener(IdentityManager identityManager, MatrixService matrixService) {
-    this.identityManager = identityManager;
-    this.matrixService = matrixService;
+  @Autowired
+  private OrganizationService organizationService;
+
+  @PostConstruct
+  public void init() {
+    this.organizationService.getUserHandler().addUserEventListener(this);
   }
 
   @Override

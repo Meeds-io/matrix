@@ -25,4 +25,23 @@
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
 
+  <!-- Managing both DB that use sequences and db that use auto increment -->
+  <property name="autoIncrement" value="true" dbms="mysql,mssql,h2,sybase,db2,hsqldb"/>
+  <property name="autoIncrement" value="false" dbms="oracle,postgresql"/>
+
+  <changeSet author="matrix" id="1.0.0-1">
+    <createSequence sequenceName="SEQ_SPACE_MATRIX_ROOM_ID" startValue="1" />
+    <createTable tableName="SPACE_MATRIX_ROOM">
+      <column name="ID" type="BIGINT" autoIncrement="${autoIncrement}" startWith="1">
+        <constraints nullable="false" primaryKey="true" primaryKeyName="PK_SPACE_MATRIX_ROOM_ID"/>
+      </column>
+      <column name="SPACE_ID" type="BIGINT"/>
+      <column name="MATRIX_ROOM_ID" type="VARCHAR(255)"/>
+    </createTable>
+    <modifySql dbms="mysql">
+      <append value=" ENGINE=INNODB CHARSET=UTF8MB4 COLLATE utf8mb4_0900_ai_ci" />
+    </modifySql>
+  </changeSet>
+
+
 </databaseChangeLog>

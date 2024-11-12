@@ -1,9 +1,9 @@
-package org.exoplatform.addons.matrix.services;
+package io.meeds.chat.service.utils;
 
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.exoplatform.addons.matrix.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixRoomPermissions;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -21,7 +21,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-import static org.exoplatform.addons.matrix.services.MatrixConstants.*;
+import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 public class MatrixHttpClient {
   private static final Log    LOG                           = ExoLogger.getLogger(MatrixHttpClient.class.toString());

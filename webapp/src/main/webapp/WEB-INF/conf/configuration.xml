@@ -4,47 +4,6 @@
     xsi:schemaLocation="http://www.exoplatform.org/xml/ns/kernel_1_2.xsd http://www.exoplatform.org/xml/ns/kernel_1_2.xsd"
     xmlns="http://www.exoplatform.org/xml/ns/kernel_1_2.xsd">
 
-  <component>
-    <key>org.exoplatform.addons.matrix.rest.MatrixRest</key>
-    <type>org.exoplatform.addons.matrix.rest.MatrixRest</type>
-  </component>
-
-  <component>
-    <key>org.exoplatform.addons.matrix.services.MatrixService</key>
-    <type>org.exoplatform.addons.matrix.services.MatrixService</type>
-  </component>
-
-  <external-component-plugins>
-    <target-component>org.exoplatform.social.metadata.MetadataService</target-component>
-    <component-plugin>
-      <name>MattermostMetadataPlugin</name>
-      <set-method>addMetadataTypePlugin</set-method>
-      <type>org.exoplatform.social.metadata.MetadataTypePlugin</type>
-      <init-params>
-        <value-param>
-          <name>shareable</name>
-          <description>Whether to share metadatas when an associated object has been shared to a different space or to a user</description>
-          <value>false</value>
-        </value-param>
-        <value-param>
-          <name>allowMultipleItemsPerObject</name>
-          <description>Whether to allow adding the same object to the same Metadata or not</description>
-          <value>false</value>
-        </value-param>
-        <object-param>
-          <name>metadataType</name>
-          <object type="org.exoplatform.social.metadata.model.MetadataType">
-            <field name="id">
-              <int>22551144</int>
-            </field>
-            <field name="name">
-              <string>matrixSpaceIntegration</string>
-            </field>
-          </object>
-        </object-param>
-      </init-params>
-    </component-plugin>
-  </external-component-plugins>
   <external-component-plugins>
     <target-component>org.exoplatform.commons.addons.AddOnService</target-component>
     <component-plugin>
@@ -88,24 +47,6 @@
           </object>
         </object-param>
       </init-params>
-    </component-plugin>
-  </external-component-plugins>
-
-  <external-component-plugins>
-    <target-component>org.exoplatform.services.organization.OrganizationService</target-component>
-    <component-plugin>
-      <name>matrix.new.user.event.listener</name>
-      <set-method>addListenerPlugin</set-method>
-      <type>org.exoplatform.addons.matrix.listeners.MatrixUserListener</type>
-    </component-plugin>
-  </external-component-plugins>
-
-  <external-component-plugins>
-    <target-component>org.exoplatform.social.core.space.spi.SpaceService</target-component>
-    <component-plugin>
-      <name>matrix.space.listener</name>
-      <set-method>addSpaceListener</set-method>
-      <type>org.exoplatform.addons.matrix.listeners.MatrixSpaceListener</type>
     </component-plugin>
   </external-component-plugins>
 
@@ -170,25 +111,6 @@
   </external-component-plugins>
 
   <external-component-plugins>
-  <target-component>org.exoplatform.services.listener.ListenerService</target-component>
-  <component-plugin>
-    <name>exo.core.security.ConversationRegistry.register</name>
-    <set-method>addListener</set-method>
-    <type>org.exoplatform.addons.matrix.listeners.MatrixUserLoginListener</type>
-    <description>Update Last Login Time for user profile</description>
-  </component-plugin>
-  </external-component-plugins>
-
-  <external-component-plugins>
-    <target-component>org.exoplatform.social.core.manager.IdentityManager</target-component>
-    <component-plugin>
-      <name>MatrixIdentityProfileListener</name>
-      <set-method>addProfileListener</set-method>
-      <type>org.exoplatform.addons.matrix.listeners.IdentityListener</type>
-    </component-plugin>
-  </external-component-plugins>
-
-  <external-component-plugins>
     <target-component>org.exoplatform.services.scheduler.JobSchedulerService</target-component>
     <component-plugin>
       <name>AddCronJob</name>
@@ -201,7 +123,7 @@
           <description>Configuration for the check IDs cron Job</description>
           <property name="jobName" value="CheckMatrixIds"/>
           <property name="groupName" value="Matrix"/>
-          <property name="job" value="org.exoplatform.addons.matrix.jobs.CheckMatrixIDs"/>
+          <property name="job" value="io.meeds.chat.jobs.CheckMatrixIDs"/>
           <property name="expression" value="${meeds.matrix.CheckMatrixIds.expression:59 59 21 * * ? *}"/><!-- Runs every day at 22:00 -->
         </properties-param>
       </init-params>
