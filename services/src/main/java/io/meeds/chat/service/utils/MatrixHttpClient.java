@@ -4,6 +4,7 @@ import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
+import org.apache.commons.text.StringEscapeUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -11,6 +12,7 @@ import org.exoplatform.services.organization.User;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.jsoup.Jsoup;
 
 import java.io.IOException;
 import java.net.URI;
@@ -60,7 +62,7 @@ public class MatrixHttpClient {
   }
 
 
-    public static String createRoom(String name, String description, String token) throws JsonException, IOException, InterruptedException {
+    public static String createRoom(String name, String description, String token) throws Exception {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -82,7 +84,7 @@ public class MatrixHttpClient {
             }
           ]
         }
-        """.formatted(name, description);
+        """.formatted(name, Jsoup.parse(description).text());
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
@@ -92,7 +94,13 @@ public class MatrixHttpClient {
         return roomId.substring(0, roomId.indexOf(":" + PropertyManager.getProperty(MATRIX_SERVER_NAME)));
       } else {
         LOG.error("Error creating a team, Matrix server returned HTTP {} error {}", String.valueOf(response.statusCode()), response.body());
-        return null;
+        if(response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("retry_after_ms").getLongValue();
+          Thread.sleep(sleepInMs);
+          return createRoom(name, description, token);
+        } else {
+          throw new Exception("Error creating a team, Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),response.body()));
+        }
       }
     } catch (Exception e) {
       LOG.error("Could not create a team on Matrix", e);
@@ -430,8 +438,14 @@ public class MatrixHttpClient {
         LOG.info("User {} successfully joined the room {}", matrixIdOfUser, matrixRoomId);
         return true;
       } else {
-        LOG.error("Error joining user {} to the room {}, Matrix server returned HTTP {} error {}", matrixIdOfUser, matrixRoomId, String.valueOf(response.statusCode()), response.body());
-        return false;
+        if (response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("retry_after_ms").getLongValue();
+          Thread.sleep(sleepInMs);
+          return joinUserToRoom(matrixRoomId, matrixIdOfUser, token);
+        } else {
+          LOG.error("Error joining user {} to the room {}, Matrix server returned HTTP {} error {}", matrixIdOfUser, matrixRoomId, String.valueOf(response.statusCode()), response.body());
+          return false;
+        }
       }
     } catch (Exception e) {
       LOG.error("Could not join a user to a room on Matrix", e);

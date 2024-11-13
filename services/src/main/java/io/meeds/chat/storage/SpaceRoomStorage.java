@@ -3,6 +3,7 @@ package io.meeds.chat.storage;
 import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.dao.SpaceRoomAssociationDAO;
 import io.meeds.chat.entity.SpaceRoomEntity;
+import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.space.model.Space;
@@ -53,4 +54,7 @@ public class SpaceRoomStorage {
     return spaceRoomModel;
   }
 
+  public long getSpaceRoomCount() {
+    return spaceRoomAssociationDAO.count();
+  }
 }

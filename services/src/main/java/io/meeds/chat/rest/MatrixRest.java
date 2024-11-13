@@ -62,11 +62,7 @@ public class MatrixRest implements ResourceContainer {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User " + userName + " is not allowed to get information from space" + space.getPrettyName());
     }
 
-    try {
-      return matrixService.getRoomBySpace(space);
-    } catch (ObjectNotFoundException e) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There are no recording of room ID for the space" + space.getPrettyName());
-    }
+    return matrixService.getRoomBySpace(space);
   }
 
   @GetMapping("linkroom")

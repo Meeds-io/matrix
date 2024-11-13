@@ -37,7 +37,7 @@ public class MatrixUserListener extends UserEventListener {
   public void postSave(User user, boolean isNew) throws Exception {
     if(identityManager != null) {
       Profile userProfile = identityManager.getProfile(identityManager.getOrCreateUserIdentity(user.getUserName()));
-      String matrixId = MatrixHttpClient.saveUserAccount(user, user.getUserName(), isNew, matrixService.getMatrixAccessToken());
+      String matrixId = matrixService.saveUserAccount(user, isNew);
       if(StringUtils.isNotBlank(matrixId) && userProfile.getProperty(USER_MATRIX_ID) == null || StringUtils.isBlank(userProfile.getProperty(USER_MATRIX_ID).toString())) {
         userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
         identityManager.updateProfile(userProfile);
@@ -48,7 +48,7 @@ public class MatrixUserListener extends UserEventListener {
   @Override
   public void postSetEnabled(User user) throws Exception {
     String matrixUsername = "@" + user.getUserName() + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
-     MatrixHttpClient.disableAccount(matrixUsername, false, matrixService.getMatrixAccessToken());
+    matrixService.disableAccount(matrixUsername);
   }
 
 

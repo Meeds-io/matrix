@@ -24,12 +24,6 @@
           } else {
             return resp.text();
           }
-        }).then(data => {
-          if(!data) {
-            return this.createRoom();
-          } else {
-            this.mattermostTeamUrl = data || '';
-          }
         });
       }
     }

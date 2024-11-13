@@ -12,11 +12,8 @@ import java.util.Random;
 import static org.junit.Assert.*;
 
 /**
- * This test class requires an available mattermost server
+ * This test class requires an available matrix server
  * You can configure the connection inside the setUp function
- * with the server using the System properties : - exo.addon.mattermost.userName
- *                                               - exo.addon.mattermost.password
- *                                               - exo.addon.mattermost.url
  */
 
 public class MatrixUtilsTest {
@@ -62,13 +59,13 @@ public class MatrixUtilsTest {
     String roomId = null;
     try {
       roomId = MatrixHttpClient.createRoom("new room", "new room description", access_token);
-    } catch (JsonException | IOException | InterruptedException e) {
-
+    } catch (Exception e) {
+      //nothing
     }
     assertNotNull(MatrixHttpClient.renameRoom(roomId, "new room renamed" + new Date().getTime(), access_token));
   }
 
-  public void testInviteUser() throws JsonException, IOException, InterruptedException {
+  public void testInviteUser() throws Exception {
     String randomKey = String.valueOf(Math.round(Math.random() * 10000));
     User user = new UserImpl("testUser" + randomKey);
     user.setEmail("test" + randomKey + "@exo.com");

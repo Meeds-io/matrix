@@ -30,7 +30,7 @@
   </parent>
   <artifactId>exo-matrix-services</artifactId>
   <packaging>jar</packaging>
-  <name>eXo Matrix - Services</name>
+  <name>eXo Add-on :: Matrix integration Services</name>
   <build>
     <finalName>exo-matrix-services</finalName>
   </build>

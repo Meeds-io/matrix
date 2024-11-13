@@ -40,10 +40,10 @@ public class IdentityListener extends ProfileListenerPlugin {
       if(!"application/octet-stream".equals(avatarFileItem.getFileInfo().getMimetype())) {
         mimeType = avatarFileItem.getFileInfo().getMimetype();
       }
-      String userAvatarUrl = MatrixHttpClient.uploadFile("avatar-of-" + event.getUsername(), mimeType, avatarFileItem.getAsByte(), matrixService.getMatrixAccessToken());
       String userMatrixID = (String) profile.getProperty(MatrixConstants.USER_MATRIX_ID);
+      String userAvatarUrl = matrixService.uploadFileOnMatrix("avatar-of-" + event.getUsername(), mimeType, avatarFileItem.getAsByte());
       if(StringUtils.isNotBlank(userMatrixID) && StringUtils.isNotBlank(userAvatarUrl)) {
-        MatrixHttpClient.updateUserAvatar(userMatrixID, userAvatarUrl, matrixService.getMatrixAccessToken());
+        matrixService.updateUserAvatar(userMatrixID, userAvatarUrl);
       }
     }
   }

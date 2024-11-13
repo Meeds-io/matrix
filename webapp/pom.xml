@@ -30,7 +30,7 @@
   </parent>
   <artifactId>exo-matrix-webapp</artifactId>
   <packaging>war</packaging>
-  <name>eXo Matrix addon - Webapp</name>
+  <name>eXo Add-on :: Matrix integration Webapp</name>
   <dependencies>
     <dependency>
       <groupId>org.exoplatform.addons.matrix</groupId>
