@@ -10,7 +10,7 @@
   </parent>
   <artifactId>exo-matrix-packaging</artifactId>
   <packaging>pom</packaging>
-  <name>eXo Matrix - Packaging</name>
+  <name>eXo Add-on :: Matrix integration Packaging</name>
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
