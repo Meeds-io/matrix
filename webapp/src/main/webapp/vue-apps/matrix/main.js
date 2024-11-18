@@ -4,7 +4,9 @@ import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MatrixChatMessages from './components/MatrixChatMessages.vue';
+import PopoverChatButton from './components/PopoverChatButton.vue';
 import * as matrixService from './js/MatrixService.js';
+import {registerChatExtensions} from './extension.js';
 
 const components = {
   'matrix-component': MatrixComponent,
@@ -13,6 +15,7 @@ const components = {
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
   'matrix-chat-messages': MatrixChatMessages,
+  'popover-chat-button': PopoverChatButton,
 };
 
 for (const key in components) {
@@ -29,6 +32,7 @@ const i18NUrl = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/lo
 
 export function init(roomId, serverName) {
   exoi18n.loadLanguageAsync(lang, i18NUrl).then(i18n => {
+    registerChatExtensions(i18n.messages[lang]['meeds.chat.open']);
     Vue.createApp({
       template: `<matrix-chat-button id="matrixChatButton" roomId="${roomId}" serverName="${serverName}"/>`,
       vuetify: Vue.prototype.vuetifyOptions,
