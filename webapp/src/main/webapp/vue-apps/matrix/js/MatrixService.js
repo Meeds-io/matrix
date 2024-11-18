@@ -1,6 +1,5 @@
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
-const USER_JWT='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGkifQ.NDQLX7q8nSbr32SFjRa_AkzzvF1B4N0WmOPdYe81kQw';
 const JWT_COOKIE_NAME = 'matrix_jwt_token';
 
 
@@ -14,7 +13,6 @@ export function checkAuthenticationTypes() {
       return resp.json();
     }
   }).then(resp => {
-    console.log(resp);
     return resp.flows.some(flow => flow.type === 'org.matrix.login.jwt');
   });
 }
@@ -75,4 +73,25 @@ export function loadRoom(roomId) {
       return resp.json();
     }
   });
+}
+
+export function getDMRoom(matrixIDUserOne, matrixIdUserTwo) {
+  const payLoad = {
+                     "preset": "trusted_private_chat",
+                     "visibility": "private",
+                     "invite": [
+                       "@jdubois:matrix-dev.exoplatform.org"
+                     ],
+                     "is_direct": true,
+                     "initial_state": [
+                       {
+                         "type": "m.room.guest_access",
+                         "state_key": "",
+                         "content": {
+                           "guest_access": "forbidden"
+                         }
+                       }
+                     ]
+                   };
+
 }
