@@ -165,5 +165,5 @@ export function toRoomObject(rooms, currentMemberId) {
 }
 
 export function getRedirectURLOfRoom(roomId, serverName) {
-  return 'https://matrix.to/#/' + roomId + '?via=${serverName}';
+  return 'https://matrix.to/#/' + roomId + '?via=' + serverName;
 }
