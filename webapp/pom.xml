@@ -38,6 +38,11 @@
       <classifier>sources</classifier>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.exoplatform.addons.matrix</groupId>
+      <artifactId>exo-matrix-services</artifactId>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
   <build>
     <finalName>matrix</finalName>

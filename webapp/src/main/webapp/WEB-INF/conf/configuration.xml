@@ -191,5 +191,23 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
+
+
+  <external-component-plugins>
+    <target-component>org.exoplatform.groovyscript.text.TemplateService</target-component>
+    <component-plugin>
+      <name>UIPortalApplication-Start-head</name>
+      <set-method>addTemplateExtension</set-method>
+      <type>org.exoplatform.groovyscript.text.TemplateExtensionPlugin</type>
+      <init-params>
+        <values-param>
+          <name>templates</name>
+          <description>A template that will be imported in head of pages to add matrix properties as JS variables</description>
+          <value>war:/groovy/template/UIMatrixHeadTemplate.gtmpl</value>
+        </values-param>
+      </init-params>
+    </component-plugin>
+  </external-component-plugins>
+
 </configuration>
 

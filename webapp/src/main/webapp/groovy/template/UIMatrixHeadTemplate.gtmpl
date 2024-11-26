@@ -1,12 +1,6 @@
 <%
-  import org.exoplatform.social.webui.Utils;
-
-  def space = SpaceUtils.getSpaceByContext();
-  String matrixRoom = "";
-  if (space != null) {
-    matrixRoom = matrixService.getRoomBySpace();
-  }
+  import org.exoplatform.commons.utils.PropertyManager;
 %>
 <script type="text/javascript">
-  matrixRoom = '<% matrixRoom %>';
+  matrixServerName = '<%= PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME)%>';
 </script>

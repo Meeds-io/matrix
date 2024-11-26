@@ -29,7 +29,7 @@
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
     <template slot="title">
-      {{ $t('chat.discussions') }}
+      {{ $t('matrix.chat.discussions') }}
     </template>
     <template #content>
       <div

@@ -4,7 +4,7 @@
       <div class="v-application--wrap">
         <v-btn
             id="btnChatButtonNew"
-            :title="$t('exo.matrix.chat.button.tooltip')"
+            :title="$t('matrix.chat.button.tooltip')"
             @click="openDrawer"
             :color="color"
             icon>

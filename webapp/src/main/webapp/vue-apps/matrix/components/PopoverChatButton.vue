@@ -32,26 +32,31 @@ export default {
   },
   data: () => ({
     contactMatrixId: String,
+    matrixDMRoom: String
   }),
   created() {
-    const currentUserMatrixId = localStorage.getItem("matrix_user_id");
-    this.$identityService.getIdentityById(identityId).then(data => this.contactMatrixId = data?.profile.matrixId);
-    if(this.contactMatrixId) {
-      this.$matrixService.getDMRoom(currentUserMatrixId, this.contactMatrixId).then();
-    }
+
   },
   methods: {
     openChatDrawer(event) {
       event.preventDefault();
       event.stopPropagation();
-//      const chatType =  this.identityType === 'space' ? 'space-id' : 'username';
-//      const chatRoomName = this.identityId;
-//
-//      document.dispatchEvent(
-//        new CustomEvent(chatConstants.ACTION_ROOM_OPEN_CHAT, { detail: {
-//          name: chatRoomName,
-//          type: chatType,
-//        }}));
+      const matrixRoom = '';
+      console.log('open chat drawer from popover');
+      const currentUserMatrixId = localStorage.getItem("matrix_user_id");
+      this.$userService.getUser(this.identityId, 'settings').then(data => {
+        const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();
+
+        if(matrixIdProperty) {
+          this.contactMatrixId = matrixIdProperty.value;
+          if(this.contactMatrixId) {
+            this.$matrixService.openDMRoom(eXo.env.portal.userName, this.identityId, matrixServerName);
+          }
+        }
+      });
+      if(matrixRoom) {
+        document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, this.matrixDMRoom));
+      }
     },
   }
 };
