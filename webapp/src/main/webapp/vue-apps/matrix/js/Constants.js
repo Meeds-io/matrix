@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-export const chatConstants = {
-  DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg'
-}
+DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg'
+
+// Static String for action names
+ACTION_OPEN_CHAT_ROOM: 'open-chat-room'

@@ -8,6 +8,7 @@ import PopoverChatButton from './components/PopoverChatButton.vue';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import * as chatConstants from './js/Constants.js';
+import * as timeUtils from './js/timeUtils.js';
 
 const components = {
   'matrix-component': MatrixComponent,
@@ -29,6 +30,9 @@ window.Object.defineProperty(Vue.prototype, '$matrixService', {
 window.Object.defineProperty(Vue.prototype, '$chatConstants', {
   value: chatConstants,
 });
+window.Object.defineProperty(Vue.prototype, '$timeUtils', {
+  value: timeUtils,
+});
 
 const appId = 'matrixChatButton';
 const lang = window?.eXo?.env?.portal?.language || 'fr';
@@ -36,7 +40,7 @@ const i18NUrl = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/lo
 
 export function init(serverName) {
   exoi18n.loadLanguageAsync(lang, i18NUrl).then(i18n => {
-    registerChatExtensions(i18n.messages[lang]['meeds.chat.open']);
+    registerChatExtensions(i18n.messages[lang]['matrix.chat.open']);
     Vue.createApp({
       template: `<matrix-chat-button id="matrixChatButton" serverName="${serverName}"/>`,
       vuetify: Vue.prototype.vuetifyOptions,

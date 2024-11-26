@@ -3,6 +3,8 @@ import * as chatConstants from './Constants.js';
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
 const JWT_COOKIE_NAME = 'matrix_jwt_token';
+const DEFAULT_ROOM_AVATAR = '/matrix/img/room-default.jpg';
+
 
 
 export function checkAuthenticationTypes() {
@@ -79,12 +81,12 @@ export function loadRoom(roomId) {
   });
 }
 
-export function getDMRoom(matrixIDUserOne, matrixIdUserTwo) {
+export function createMatrixDMRoom(matrixIDUserOne, matrixIdUserTwo, serverName) {
   const payLoad = {
                      "preset": "trusted_private_chat",
                      "visibility": "private",
                      "invite": [
-                       "@jdubois:matrix-dev.exoplatform.org"
+                       "@" + matrixIdUserTwo + ":" + serverName
                      ],
                      "is_direct": true,
                      "initial_state": [
@@ -97,8 +99,51 @@ export function getDMRoom(matrixIDUserOne, matrixIdUserTwo) {
                        }
                      ]
                    };
-
+  return fetch(`/_matrix/client/v3/createRoom?`, {
+      method: 'POST',
+      headers: {
+        'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      },
+      body: JSON.stringify(payLoad),
+    }).then(resp => {
+      if (!resp || !resp.ok) {
+        throw new Error('Response code indicates a server error', resp);
+      } else {
+        return resp.json();
+      }
+    });
 }
+
+export function getDMRoomsAccountData(userName) {
+  return fetch(`/matrix/rest/matrix/dmRooms?user=${userName}`, {
+      method: 'GET',
+    }).then(resp => {
+      if (!resp || !resp.ok) {
+        throw new Error('Response code indicates a server error', resp);
+      } else {
+        return resp.json();
+      }
+    });
+}
+
+export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
+  const encodedMatrixId = encodeURIComponent(matrixIDUser);
+  return fetch(`/_matrix/client/v3/user/${encodedMatrixId}/account_data/m.direct`, {
+      method: 'PUT',
+      headers: {
+        'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      },
+      body: JSON.stringify(matrixUserDMRooms)
+    }).then(resp => {
+      console.log(resp);
+      if (!resp || !resp.ok) {
+        throw new Error('Response code indicates a server error', resp);
+      } else {
+        return true;
+      }
+    });
+}
+
 export function sync(filter, since, timeout) {
   const formData = new FormData();
 
@@ -132,7 +177,7 @@ export function toRoomObject(rooms, currentMemberId) {
   for (const property in rooms) {
     let roomItem = {};
     let members = [];
-    const roomEvents = rooms[property].state.events.length ? rooms[property].state.events : rooms[property].timeline.events;
+    const roomEvents = rooms[property].timeline.events.length ? rooms[property].timeline.events : rooms[property].state.events;
     roomEvents.forEach(e => {
       if(e.type === 'm.room.topic'){
         roomItem.topic = e.content.topic;
@@ -140,30 +185,91 @@ export function toRoomObject(rooms, currentMemberId) {
       if(e.type === 'm.room.name'){
         roomItem.name = e.content.name;
       }
-      if(e.type === 'm.room.member' && e.content.membership === 'join'){
-        let member = {};
-        member.id = e.sender;
-        member.name = e.content.displayname;
-        members.push(member)
+      if(e.type === 'm.room.avatar'){
+        const avatarUrl = e.content.url ? e.content.url.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
+        roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
       }
+      if(e.type === 'm.room.member'){
+        if(e.content.membership === 'invite' && e.content.is_direct) {
+          roomItem.isDirectChat = true;
+          roomItem.name = e.content.displayname;
+        }
+        if(e.content.membership === 'join') {
+          let member = {};
+          member.id = e.sender;
+          member.name = e.content.displayname;
+          members.push(member);
+        }
+      }
+      if(e.type === 'm.room.message') {
+        if(e.content.msgtype === 'm.text') {
+          roomItem.lastMessage = e.content.body;
+        }
+      }
+      roomItem.updated = roomItem.updated >= e.origin_server_ts ? roomItem.updated : e.origin_server_ts;
     });
     roomItem.members = members;
-    if(!roomItem.name && members.length == 2) {
-      roomItem.name = members.find(m => m.id !== currentMemberId).name;
-    }
+
     roomItem.id = property;
     roomItem.type = 'space';
     roomItem.isEnabledUser = true;
     roomItem.isExternal = false;
     roomItem.isFavorite = false;
-    roomItem.lastMessage = '';
-    roomItem.unreadTotal = 0;
-    roomItem.avatarUrl = chatConstants.chatConstants.DEFAULT_ROOM_AVATAR;
+    roomItem.unreadTotal = rooms[property].unread_notifications.notification_count;
+    if(!roomItem.avatarUrl) {
+      roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
+    }
     myRooms.push(roomItem);
   }
-  return myRooms;
+  return myRooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
 }
 
 export function getRedirectURLOfRoom(roomId, serverName) {
   return 'https://matrix.to/#/' + roomId + '?via=' + serverName;
+}
+
+export function getDMRoom(firstParticipant, secondParticipant, serverName) {
+  return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
+    method: 'GET',
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      if(resp.status === 404) {
+        return createMatrixDMRoom(firstParticipant, secondParticipant, serverName).then(data => {
+          const payload = {
+                            "roomId": data.room_id,
+                            "firstParticipant": firstParticipant,
+                            "secondParticipant": secondParticipant
+                          };
+          return fetch(`/matrix/rest/matrix`, {
+            credentials: 'include',
+            method: 'POST',
+            headers: {
+            Accept: 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+            }).then(createdRoom => {
+              if (!createdRoom || !createdRoom.ok) {
+                throw new Error('Response code indicates a server error', resp);
+              } else {
+                return getDMRoomsAccountData(firstParticipant).then(accountData => updateDMRoomsAccountData(`${localStorage.getItem('matrix_user_id')}`, accountData))
+                                           .then(dataResp => {  return createdRoom.json(); });
+              }
+            });
+        });
+      } else {
+        throw new Error('Response code indicates a server error', resp);
+      }
+    } else {
+      return resp.json();
+    }
+  });
+}
+
+export function openDMRoom(firstParticipant, secondParticipant, matrixServerName) {
+  getDMRoom(firstParticipant, secondParticipant, matrixServerName).then(data => {
+    window.open('https://matrix.to/#/' + data.roomId + '?via=' + matrixServerName);
+  }).catch(e => {
+    console.log(e)
+  });
 }

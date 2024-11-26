@@ -6,12 +6,18 @@
         class="chat-contact-avatar">
       <i v-if="type=='user' && isEnabled" class="uiIconStatus"></i>
     </div>
-    <div class="overflow-hidden ps-3"
+    <div class="contact-name overflow-hidden ps-3 flex-grow-1"
          @click="openRoom">
       {{ room.name }}
+        <div v-if="room.lastMessage" class="text-capitalize-first-letter text-subtitle text-truncate">
+          {{ room.lastMessage }}
+        </div>
     </div>
     <div class="last-message-timestamp flex-row align-end">
-      10:10
+      {{ getLastMessageTime(room) }}
+    </div>
+    <div v-if="room.unreadTotal" class="unread-messages">
+      {{ room.unreadTotal }}
     </div>
   </div>
 </template>
@@ -35,7 +41,20 @@
     methods: {
       openRoom() {
         window.open(this.roomURL);
-      }
+      },
+      getLastMessageTime(room) {
+        const timestamp = room.updated;
+        if (timestamp) {
+          if (this.$timeUtils.isSameDay(timestamp, new Date().getTime())) {
+            return this.$timeUtils.getTimeString(timestamp);
+          } else if (timestamp === -1){
+            return '';
+          } else {
+            return this.$timeUtils.getDayDateString(timestamp);
+          }
+        }
+        return '';
+      },
     }
   }
 </script>

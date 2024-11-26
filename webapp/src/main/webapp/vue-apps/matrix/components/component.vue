@@ -1,6 +1,6 @@
 <template>
   <span>
-      {{ $t('exo.matrix.description') }}
+      {{ $t('matrix.description') }}
   </span>
 </template>
 <script>
