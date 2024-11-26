@@ -4,7 +4,6 @@ import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
-import org.apache.commons.text.StringEscapeUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -380,36 +379,35 @@ public class MatrixHttpClient {
 
   /**
    * Kicks a user out of a specific room on Matrix
-   * @param roomId the Id of the room
-   * @param userMatrixId the Matrix id of the user
+   *
+   * @param roomId        the Id of the room
+   * @param userMatrixId  the Matrix id of the user
    * @param raisonMessage the raison message
-   * @return
    */
-  public static boolean kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
+  public static void kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
+
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/kick";
     String payload = """
          {
            "reason": "%s",
            "user_id": "%s"
          }
-       """.formatted(raisonMessage, userMatrixId);
+       """.formatted(raisonMessage, fullMatrixUserId);
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
       if(response.statusCode() >= 200 && response.statusCode() < 300) {
         LOG.info("User {} successfully kicked out of room {}", userMatrixId, roomId);
-        return true;
       } else {
         LOG.error("Error kicking user {} from room {}, Matrix server returned HTTP {} error {}", userMatrixId, roomId, String.valueOf(response.statusCode()), response.body());
-        return false;
       }
     } catch (Exception e) {
       LOG.error("Could not kick out a user from the room on Matrix", e);
-      return false;
     }
   }
 

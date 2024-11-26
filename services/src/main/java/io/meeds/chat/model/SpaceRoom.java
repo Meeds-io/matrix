@@ -10,8 +10,4 @@ public class SpaceRoom {
   private String spaceId;
 
   private String roomId;
-
-  private String firstParticipant;
-
-  private String secondParticipant;
 }

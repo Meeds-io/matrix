@@ -2,17 +2,14 @@ package io.meeds.chat.service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.service.utils.MatrixHttpClient;
-import io.meeds.chat.storage.SpaceRoomStorage;
+import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
-import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.text.StringEscapeUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
-import org.exoplatform.commons.exception.ObjectNotFoundException;
-import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
 import org.exoplatform.services.log.ExoLogger;
@@ -30,6 +27,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
@@ -39,7 +37,7 @@ public class MatrixService {
   private static final Log LOG = ExoLogger.getLogger(MatrixService.class);
 
   @Autowired
-  private SpaceRoomStorage spaceRoomStorage;
+  private MatrixRoomStorage matrixRoomStorage;
 
   @Autowired
   private IdentityManager  identityManager;
@@ -70,7 +68,7 @@ public class MatrixService {
    * @return the roomId linked to the space
    */
   public String getRoomBySpace(Space space) {
-    return spaceRoomStorage.getMatrixRoomBySpaceId(space.getId());
+    return matrixRoomStorage.getMatrixRoomBySpaceId(space.getId());
   }
 
   /**
@@ -79,7 +77,7 @@ public class MatrixService {
    * @return the roomId linked to the space
    */
   public Space getSpaceByRoomId(String roomId) {
-    return spaceRoomStorage.getSpaceIdByMatrixRoomId(roomId);
+    return matrixRoomStorage.getSpaceIdByMatrixRoomId(roomId);
   }
 
   /**
@@ -89,8 +87,8 @@ public class MatrixService {
    * @param roomId the ID of the matrix room
    * @return the room ID
    */
-  public SpaceRoom createSpaceRoomAssociation(Space space, String roomId) {
-    return spaceRoomStorage.createSpaceRoomAssociation(space.getId(), roomId);
+  public SpaceRoom createMatrixRoom(Space space, String roomId) {
+    return matrixRoomStorage.saveRoomForSpace(space.getId(), roomId);
   }
 
   /**
@@ -194,6 +192,31 @@ public class MatrixService {
   }
 
   public long getAllLinkedRooms() {
-    return spaceRoomStorage.getSpaceRoomCount();
+    return matrixRoomStorage.getSpaceRoomCount();
+  }
+
+  public DirectMessagingRoom getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
+    return matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
+  }
+
+  public DirectMessagingRoom createDirectMessagingRoom(DirectMessagingRoom directMessagingRoom) throws ObjectAlreadyExistsException {
+    String firstParticipant = directMessagingRoom.getFirstParticipant();
+    String secondParticipant = directMessagingRoom.getSecondParticipant();
+    if(StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
+      throw new IllegalArgumentException("The ids of the room participants should not be null");
+    }
+    if (identityManager.getOrCreateUserIdentity(directMessagingRoom.getFirstParticipant()) == null || identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()) == null) {
+      throw new IllegalArgumentException("The ids of the room participants should be valid user identity ids");
+    }
+    DirectMessagingRoom matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
+    if(matrixRoom == null) {
+      return matrixRoomStorage.saveDirectMessagingRoom(directMessagingRoom.getFirstParticipant(), directMessagingRoom.getSecondParticipant(), directMessagingRoom.getRoomId());
+    } else {
+      throw new ObjectAlreadyExistsException("A direct messaging room is already created for the users %s and %s".formatted(firstParticipant, secondParticipant));
+    }
+  }
+
+  public List<DirectMessagingRoom> getMatrixDMRoomsOfUser(String user) {
+    return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
 }

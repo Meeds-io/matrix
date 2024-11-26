@@ -3,12 +3,13 @@ package io.meeds.chat.entity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.DynamicUpdate;
 
+import java.io.Serial;
 import java.io.Serializable;
 
-@Entity(name = "SpaceRoom")
+@Entity(name = "MatrixRoom")
 @DynamicUpdate
-@Table(name = "SPACE_MATRIX_ROOM")
-public class SpaceRoomEntity implements Serializable {
+@Table(name = "MATRIX_ROOM")
+public class RoomEntity implements Serializable {
 
   private static final long serialVersionUID = -4268296851540773942L;
 
@@ -18,11 +19,19 @@ public class SpaceRoomEntity implements Serializable {
   @Column(name = "ID")
   private Long              id;
 
-  @Column(name = "SPACE_ID", nullable = false)
-  public String             spaceId;
-
   @Column(name = "MATRIX_ROOM_ID", nullable = false)
   public String             roomId;
+
+  @Column(name = "SPACE_ID")
+  public String             spaceId;
+
+  @Column(name = "FIRST_PARTICIPANT")
+  public String             firstParticipant;
+
+  @Column(name = "SECOND_PARTICIPANT")
+  public String             secondParticipant;
+
+
 
   public Long getId() {
     return id;
@@ -46,5 +55,21 @@ public class SpaceRoomEntity implements Serializable {
 
   public void setRoomId(String roomId) {
     this.roomId = roomId;
+  }
+
+  public String getFirstParticipant() {
+    return firstParticipant;
+  }
+
+  public void setFirstParticipant(String firstParticipant) {
+    this.firstParticipant = firstParticipant;
+  }
+
+  public String getSecondParticipant() {
+    return secondParticipant;
+  }
+
+  public void setSecondParticipant(String secondParticipant) {
+    this.secondParticipant = secondParticipant;
   }
 }
