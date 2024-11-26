@@ -42,6 +42,14 @@
       <append value=" ENGINE=INNODB CHARSET=UTF8MB4 COLLATE utf8mb4_0900_ai_ci" />
     </modifySql>
   </changeSet>
-
+  <changeSet id="1.0.0-2" author="matrix">
+    <renameTable oldTableName="SPACE_MATRIX_ROOM" newTableName="MATRIX_ROOM"/>
+  </changeSet>
+  <changeSet id="1.0.0-3" author="matrix">
+    <addColumn tableName="MATRIX_ROOM">
+      <column name="FIRST_PARTICIPANT" type="VARCHAR(255)"/>
+      <column name="SECOND_PARTICIPANT" type="VARCHAR(255)"/>
+    </addColumn>
+  </changeSet>
 
 </databaseChangeLog>

@@ -47,7 +47,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       String matrixRoomId = matrixService.createRoom(teamDisplayName, description);
 
       if (StringUtils.isNotBlank(matrixRoomId)) {
-        matrixService.createSpaceRoomAssociation(space, matrixRoomId);
+        matrixService.createMatrixRoom(space, matrixRoomId);
         List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
         for(String manager : space.getManagers()) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
