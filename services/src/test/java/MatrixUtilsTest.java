@@ -42,7 +42,7 @@ public class MatrixUtilsTest {
     user.setEmail("test@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    MatrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token);
+    MatrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
   }
 
   public void testDisableUserAccount() {
@@ -51,7 +51,7 @@ public class MatrixUtilsTest {
     user.setEmail("test" + randomKey + "@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    String username = MatrixHttpClient.saveUserAccount(user, user.getUserName(),true, access_token);
+    String username = MatrixHttpClient.saveUserAccount(user, user.getUserName(),true, access_token, false);
     MatrixHttpClient.disableAccount(username, false, access_token);
   }
 
@@ -71,7 +71,7 @@ public class MatrixUtilsTest {
     user.setEmail("test" + randomKey + "@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    String invitee = MatrixHttpClient.saveUserAccount(user,user.getUserName(),  true, access_token);
+    String invitee = MatrixHttpClient.saveUserAccount(user,user.getUserName(),  true, access_token, false);
     String roomId = MatrixHttpClient.createRoom("Football game", "Description of Football team", access_token);
     MatrixHttpClient.inviteUserToRoom(roomId, invitee, "Welcome to Football game room !", access_token);
   }

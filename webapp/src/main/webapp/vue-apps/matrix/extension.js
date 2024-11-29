@@ -2,7 +2,7 @@ import * as matrixService from './js/MatrixService.js';
 
 export function registerChatExtensions(chatTitle) {
   const profileExtensionAction = {
-    id: 'profile-chat',
+    id: 'profile-matrix-chat',
     title: chatTitle,
     icon: 'fas fa-comments',
     class: 'fas fa-comments',
@@ -15,10 +15,8 @@ export function registerChatExtensions(chatTitle) {
       if(matrixProperty && matrixProperty.length) {
         matrixService.openDMRoom(eXo.env.portal.userName, profile.userName, matrixServerName);
       }
-      console.log(profile);
     },
   };
-
 
   if (extensionRegistry) {
     extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
@@ -27,13 +25,13 @@ export function registerChatExtensions(chatTitle) {
   document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
 
   extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
-    id: 'chat',
+    id: 'matrix-chat',
     vueComponent: Vue.options.components['popover-chat-button'],
     rank: 40,
   });
 
   extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
-    id: 'chat',
+    id: 'matrix-chat',
     vueComponent: Vue.options.components['popover-chat-button'],
     rank: 40,
   });

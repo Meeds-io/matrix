@@ -49,7 +49,7 @@ public class CheckMatrixIDs implements Job {
           Profile userProfile = userIdentity.getProfile();
           String userMatrixId = (String) userProfile.getProperty(MatrixConstants.USER_MATRIX_ID);
           if(StringUtils.isBlank(userMatrixId)) {
-            String matrixId = matrixService.saveUserAccount(user, false);
+            String matrixId = matrixService.saveUserAccount(user, false, false);
             userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
             identityManager.updateProfile(userProfile);
           }

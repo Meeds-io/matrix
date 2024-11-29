@@ -53,7 +53,7 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
         String matrixUserId = (String) userProfile.getProperty(USER_MATRIX_ID);
         if(StringUtils.isBlank(matrixUserId)) {
           User user = organizationService.getUserHandler().findUserByName(userId);
-          String matrixId = matrixService.saveUserAccount(user, true);
+          String matrixId = matrixService.saveUserAccount(user, true, false);
           userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
           identityManager.updateProfile(userProfile);
         }

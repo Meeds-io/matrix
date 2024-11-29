@@ -139,8 +139,8 @@ public class MatrixService {
    * @param isNew boolean if the user is new, then true
    * @return String the matrix user ID
    */
-  public String saveUserAccount(User user, boolean isNew) {
-    return MatrixHttpClient.saveUserAccount(user, user.getUserName(), isNew, this.getMatrixAccessToken());
+  public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) {
+    return MatrixHttpClient.saveUserAccount(user, user.getUserName(), isNew, this.getMatrixAccessToken(), isEnableUserOperation);
   }
 
   public String uploadFileOnMatrix(String fileName, String mimeType, byte[] fileBytes) {
