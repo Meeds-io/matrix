@@ -199,7 +199,7 @@ public class MatrixHttpClient {
     }
   }
 
-  public static String saveUserAccount(User user, String matrixUserId, boolean isNew, String token) {
+  public static String saveUserAccount(User user, String matrixUserId, boolean isNew, String token, boolean isEnableUserOperation) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -227,10 +227,11 @@ public class MatrixHttpClient {
                 "user_type": null,
                 "locked": false
               }
-               """.formatted(password, user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
-    } else {
+              """.formatted(password, user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
+    } else if(isEnableUserOperation && user.isEnabled()){
       payload = """
                {
+                "password": "%s",
                 "displayname": "%s",
                 "threepids": [
                     {
@@ -240,6 +241,19 @@ public class MatrixHttpClient {
                 ],
                 "deactivated": %s
                 }
+               """.formatted(PasswordGenerator.generatePassword(10), user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
+    } else {
+      payload = """
+               {
+                 "displayname": "%s",
+                 "threepids": [
+                   {
+                     "medium": "email",
+                     "address": "%s"
+                   }
+                 ],
+                 "deactivated": %s
+               }
                """.formatted(user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
     }
     try {

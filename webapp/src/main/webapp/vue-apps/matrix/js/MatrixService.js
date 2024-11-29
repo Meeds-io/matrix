@@ -192,13 +192,14 @@ export function toRoomObject(rooms, currentMemberId) {
       if(e.type === 'm.room.member'){
         if(e.content.membership === 'invite' && e.content.is_direct) {
           roomItem.isDirectChat = true;
-          roomItem.name = e.content.displayname;
         }
         if(e.content.membership === 'join') {
-          let member = {};
-          member.id = e.sender;
-          member.name = e.content.displayname;
-          members.push(member);
+        if(!members.some(element => element.id == e.sender)) {
+            let member = {};
+            member.id = e.sender;
+            member.name = e.content.displayname;
+            members.push(member);
+          }
         }
       }
       if(e.type === 'm.room.message') {
@@ -216,6 +217,12 @@ export function toRoomObject(rooms, currentMemberId) {
     roomItem.isExternal = false;
     roomItem.isFavorite = false;
     roomItem.unreadTotal = rooms[property].unread_notifications.notification_count;
+    if(roomItem.isDirectChat && roomItem.members.length == 2) {
+      roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
+    }
+    if(roomItem.members == 1) {
+      roomItem.name = 'Empty Room';
+    }
     if(!roomItem.avatarUrl) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }

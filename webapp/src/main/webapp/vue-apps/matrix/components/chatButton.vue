@@ -29,7 +29,7 @@
     created() {
       const matrixInfos = localStorage.getItem('matrix_user_id');
 
-      if(!matrixInfos) {
+      if(!matrixInfos || matrixInfos !== matrixUserId) {
         this.$matrixService.checkAuthenticationTypes().then(enabled => {
           if(enabled) {
             this.$matrixService.authenticate().then(resp => {
