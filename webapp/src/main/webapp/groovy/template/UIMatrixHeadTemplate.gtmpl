@@ -4,6 +4,7 @@
   import org.exoplatform.social.core.manager.IdentityManager;
   import org.exoplatform.social.core.identity.model.Identity;
   import org.exoplatform.social.core.identity.model.Profile;
+  import io.meeds.chat.service.utils.MatrixConstants;
 
   IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
   def requestContext = _ctx.getRequestContext();
@@ -12,10 +13,10 @@
   String userMatrixId = "";
   if(userIdentity != null) {
     Profile userProfile = userIdentity.getProfile();
-    userMatrixId = (String) userProfile.getProperty(MatrixConstants.USER_MATRIX_ID);
+    userMatrixId = "@" + userProfile.getProperty(MatrixConstants.USER_MATRIX_ID) + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
   }
 %>
 <script type="text/javascript">
-  matrixServerName = '<%= PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME) %>';
+  matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
   matrixUserId = '<%= userMatrixId %>';
 </script>
