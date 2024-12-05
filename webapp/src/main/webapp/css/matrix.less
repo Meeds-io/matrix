@@ -2,19 +2,18 @@
 @import 'mixins.less';
 
 .chat-contact-avatar {
-  width: 35px;
-  height: 35px;
+  width: 45px;
+  height: 45px;
   background-size: cover;
   background-position: center;
   margin: auto;
+  border-radius: 50%;
 }
 
 .last-message-timestamp {
 }
 
 .chat-room-item {
-  height: 60px;
-  line-height: 60px;
   padding: 5px 20px;
   position: relative;
 
@@ -26,10 +25,17 @@
     width: 20px;
     height: 20px;
     line-height: 20px;
-    text-align: center
+    text-align: center;
+    margin-top: 20px;
   }
 }
 
 .contact-name {
   cursor: pointer;
+}
+#matrixChatButton {
+ .v-badge__badge{
+   height: 12px !important;
+   min-width: 12px !important;
+ }
 }
