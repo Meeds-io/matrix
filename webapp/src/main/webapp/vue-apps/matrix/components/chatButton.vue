@@ -23,6 +23,7 @@
       <matrix-chat-drawer
         v-if="open"
         ref="drawer"
+        :rooms="rooms"
         @closed="open = false" />
     </div>
   </div>
@@ -34,7 +35,8 @@
     data: () => ({
       color: 'green',
       open: false,
-      totalUnreadMessages: 0
+      totalUnreadMessages: 0,
+      rooms: []
     }),
     created() {
       const matrixInfos = localStorage.getItem('matrix_user_id');
@@ -59,6 +61,7 @@
       this.$root.$on('chat-event-total-unread-updated',e => {
         this.totalUnreadMessages = e;
       });
+      this.loadRooms();
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
       this.$matrixService.longPollingSync();
     },
@@ -87,11 +90,14 @@
         this.open = true;
       },
       messageReceived(event) {
-        console.log('Chat button: Message received');
-        console.log(event.roomId);
-        console.log(event.message);
-        console.log('Chat button: End message received');
-      }
+        this.totalUnreadMessages ++;
+      },
+      loadRooms() {
+         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
+           this.rooms = matrixRoomsObject.rooms || [];
+           this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
+         });
+       },
     }
   };
 </script>

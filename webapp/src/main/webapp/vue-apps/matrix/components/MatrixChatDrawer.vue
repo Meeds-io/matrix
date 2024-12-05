@@ -17,7 +17,7 @@
         class="d-flex light-grey-background-color fill-height">
         <div
           class="singlePageApplication pa-0 d-flex fill-height">
-          <matrix-chat-rooms />
+          <matrix-chat-rooms :rooms="rooms"/>
         </div>
       </div>
     </template>
@@ -50,7 +50,6 @@ export default {
     },
   },
   created() {
-    console.log('drawer started to appear')
     this.$root.$on('chat-loading-start', this.incrementLoading);
     this.$root.$on('chat-loading-end', this.decrementLoading);
   },

@@ -20,30 +20,25 @@
 </template>
 <script>
   export default {
-    data: () => ({
-      rooms: []
-    }),
+    props: {
+      rooms: {
+        type: Array,
+        default: function() { return [];}
+      }
+    },
     watch : {
       rooms() {
         console.log(this.rooms);
       }
     },
     created() {
-      this.loadRooms();
-      document.addEventListener(this.$matrixService.MATRIX_ACTION_MESSAGE_RECEIVED, event => this.messageReceived(event));
+      document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     },
     methods: {
-      loadRooms() {
-        this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
-          this.rooms = matrixRoomsObject.rooms || [];
-          this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
-        });
-      },
       messageReceived(event) {
-        console.log('Message received');
-        console.log(event.roomId);
-        console.log(event.message);
-        console.log('End message received');
+        const updatedRoom = this.rooms.find(room => room.id === event.detail.roomId);
+        updatedRoom.unreadMessages += 1;
+        updatedRoom.lastMessage = event.detail.message;
       }
     }
   }

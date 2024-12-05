@@ -186,7 +186,7 @@ export function processEvents(response) {
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
             console.log('event sent START');
-            document.dispatchEvent(new CustomEvent('matrix-message-received', {roomId: roomId, message: e.content.body}));
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, message: e.content.body}}));
             console.log('event sent END');
           }
         }
@@ -238,7 +238,7 @@ export function toRoomObject(rooms, currentMemberId) {
     roomItem.isEnabledUser = true;
     roomItem.isExternal = false;
     roomItem.isFavorite = false;
-    roomItem.unreadTotal = rooms[property].unread_notifications.notification_count;
+    roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
     if(!roomItem.name && roomItem.members.length == 2) {
       roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
       roomItem.isDirectChat = true;
@@ -249,7 +249,7 @@ export function toRoomObject(rooms, currentMemberId) {
     if(!roomItem.avatarUrl) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
-    myRooms.totalUnreadMessages += roomItem.unreadTotal;
+    myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
   myRooms.rooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
@@ -321,7 +321,6 @@ export async function longPollingSync() {
   } else {
     // Get and show the message
     let message = await response.json();
-    console.log(message);
     processEvents(message);
     localStorage.setItem(MATRIX_SYNC_SINCE, message.next_batch);
     // call again to get the next batch of data

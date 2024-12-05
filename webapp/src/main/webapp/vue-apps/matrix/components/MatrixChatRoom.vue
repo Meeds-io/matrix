@@ -16,8 +16,8 @@
     <div class="last-message-timestamp flex-row align-end my-2">
       {{ getLastMessageTime(room) }}
     </div>
-    <div v-if="room.unreadTotal" class="unread-messages">
-      {{ room.unreadTotal }}
+    <div v-if="room.unreadMessages" class="unread-messages my-2">
+      {{ room.unreadMessages }}
     </div>
   </div>
 </template>
