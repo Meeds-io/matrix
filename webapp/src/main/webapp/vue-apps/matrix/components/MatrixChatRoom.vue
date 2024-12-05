@@ -6,14 +6,14 @@
         class="chat-contact-avatar">
       <i v-if="type=='user' && isEnabled" class="uiIconStatus"></i>
     </div>
-    <div class="contact-name overflow-hidden ps-3 flex-grow-1"
+    <div class="contact-name overflow-hidden ps-3 flex-grow-1 my-2"
          @click="openRoom">
       {{ room.name }}
         <div v-if="room.lastMessage" class="text-capitalize-first-letter text-subtitle text-truncate">
           {{ room.lastMessage }}
         </div>
     </div>
-    <div class="last-message-timestamp flex-row align-end">
+    <div class="last-message-timestamp flex-row align-end my-2">
       {{ getLastMessageTime(room) }}
     </div>
     <div v-if="room.unreadTotal" class="unread-messages">

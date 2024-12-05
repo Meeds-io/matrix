@@ -4,7 +4,10 @@ import * as chatConstants from './Constants.js';
 const MATRIX_SERVER_URL='http://localhost:8008';
 const JWT_COOKIE_NAME = 'matrix_jwt_token';
 const DEFAULT_ROOM_AVATAR = '/matrix/img/room-default.jpg';
-
+const MATRIX_SYNC_SINCE = 'matrix-sync-since';
+const MATRIX_SYNC_TIMEOUT = 30000;
+const MATRIX_EMPTY_FILTER = 0;
+const MATRIX_ACTION_MESSAGE_RECEIVED = 'matrix-message-received';
 
 
 export function checkAuthenticationTypes() {
@@ -49,6 +52,8 @@ export function authenticate() {
     throw new Error('Could not find the JWT token');
   }
 }
+
+// change this function and make it aAsync
 export function loadChatRooms(currentMemberId) {
   const filter = {
                     "room":{
@@ -62,8 +67,14 @@ export function loadChatRooms(currentMemberId) {
                     }
                   };
   return sync(filter).then(resp => {
-    console.log(resp.rooms);
-    return toRoomObject(resp.rooms.join, currentMemberId);
+    if (!resp || !resp.ok) {
+      throw new Error('Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  }).then(resp => {
+    localStorage.setItem(MATRIX_SYNC_SINCE, resp?.next_batch);
+      return toRoomObject(resp?.rooms?.join, currentMemberId);
   });
 }
 export function loadRoom(roomId) {
@@ -135,7 +146,6 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
       },
       body: JSON.stringify(matrixUserDMRooms)
     }).then(resp => {
-      console.log(resp);
       if (!resp || !resp.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
@@ -164,20 +174,35 @@ export function sync(filter, since, timeout) {
     headers: {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     }
-  }).then(resp => {
-    if (!resp || !resp.ok) {
-      throw new Error('Response code indicates a server error', resp);
-    } else {
-      return resp.json();
-    }
   });
 }
+
+export function processEvents(response) {
+  const updatedRooms = response?.rooms?.join;
+  if(updatedRooms) {
+    for (const roomId in response.rooms.join) {
+      const roomEvents = response.rooms.join[roomId].timeline?.events;
+      roomEvents.forEach(e => {
+        if(e.type === 'm.room.message') {
+          if(e.content.msgtype === 'm.text') {
+            console.log('event sent START');
+            document.dispatchEvent(new CustomEvent('matrix-message-received', {roomId: roomId, message: e.content.body}));
+            console.log('event sent END');
+          }
+        }
+      });
+    }
+  }
+}
+
 export function toRoomObject(rooms, currentMemberId) {
-  let myRooms = [];
+  let myRooms = {};
+  myRooms.rooms = [];
+  myRooms.totalUnreadMessages = 0;
   for (const property in rooms) {
     let roomItem = {};
     let members = [];
-    const roomEvents = rooms[property].timeline.events.length ? rooms[property].timeline.events : rooms[property].state.events;
+    const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
     roomEvents.forEach(e => {
       if(e.type === 'm.room.topic'){
         roomItem.topic = e.content.topic;
@@ -190,11 +215,8 @@ export function toRoomObject(rooms, currentMemberId) {
         roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
       }
       if(e.type === 'm.room.member'){
-        if(e.content.membership === 'invite' && e.content.is_direct) {
-          roomItem.isDirectChat = true;
-        }
         if(e.content.membership === 'join') {
-        if(!members.some(element => element.id == e.sender)) {
+          if(!members.some(element => element.id == e.sender)) {
             let member = {};
             member.id = e.sender;
             member.name = e.content.displayname;
@@ -202,12 +224,12 @@ export function toRoomObject(rooms, currentMemberId) {
           }
         }
       }
-      if(e.type === 'm.room.message') {
-        if(e.content.msgtype === 'm.text') {
+      if(e.type === 'm.room.message') {;
+        if(e.content.msgtype === 'm.text' && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+          roomItem.updated = e.origin_server_ts;
           roomItem.lastMessage = e.content.body;
         }
       }
-      roomItem.updated = roomItem.updated >= e.origin_server_ts ? roomItem.updated : e.origin_server_ts;
     });
     roomItem.members = members;
 
@@ -217,8 +239,9 @@ export function toRoomObject(rooms, currentMemberId) {
     roomItem.isExternal = false;
     roomItem.isFavorite = false;
     roomItem.unreadTotal = rooms[property].unread_notifications.notification_count;
-    if(roomItem.isDirectChat && roomItem.members.length == 2) {
+    if(!roomItem.name && roomItem.members.length == 2) {
       roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
+      roomItem.isDirectChat = true;
     }
     if(roomItem.members == 1) {
       roomItem.name = 'Empty Room';
@@ -226,9 +249,11 @@ export function toRoomObject(rooms, currentMemberId) {
     if(!roomItem.avatarUrl) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
-    myRooms.push(roomItem);
+    myRooms.totalUnreadMessages += roomItem.unreadTotal;
+    myRooms.rooms.push(roomItem);
   }
-  return myRooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
+  myRooms.rooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
+  return myRooms;
 }
 
 export function getRedirectURLOfRoom(roomId, serverName) {
@@ -279,4 +304,27 @@ export function openDMRoom(firstParticipant, secondParticipant, matrixServerName
   }).catch(e => {
     console.log(e)
   });
+}
+
+export async function longPollingSync() {
+  const since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
+  let response = await sync(MATRIX_EMPTY_FILTER, since, MATRIX_SYNC_TIMEOUT);
+
+  if (response.status == 502) {
+    // Status 502 is a connection timeout error, let's retry
+    await longPollingSync();
+  } else if (response.status != 200) {
+    console.error(response.statusText);
+    // Reconnect in five second
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    await longPollingSync();
+  } else {
+    // Get and show the message
+    let message = await response.json();
+    console.log(message);
+    processEvents(message);
+    localStorage.setItem(MATRIX_SYNC_SINCE, message.next_batch);
+    // call again to get the next batch of data
+    await longPollingSync();
+  }
 }
