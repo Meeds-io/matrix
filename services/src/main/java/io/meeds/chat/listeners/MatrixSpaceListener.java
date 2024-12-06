@@ -53,7 +53,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
           if(StringUtils.isNotBlank(matrixRoomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
-            matrixService.makeUserAdminInRoom(matrixRoomId, matrixIdOfUser);
+            updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
             members.remove(manager);
           }
         }
