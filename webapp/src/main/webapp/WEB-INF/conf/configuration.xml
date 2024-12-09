@@ -110,26 +110,7 @@
     </component-plugin>
   </external-component-plugins>
 
-  <external-component-plugins>
-    <target-component>org.exoplatform.services.scheduler.JobSchedulerService</target-component>
-    <component-plugin>
-      <name>AddCronJob</name>
-      <set-method>addCronJob</set-method>
-      <type>org.exoplatform.services.scheduler.CronJob</type>
-      <description>This job checks all users and adds Matrix IDs if it does not exist</description>
-      <init-params>
-        <properties-param>
-          <name>cronjob.info</name>
-          <description>Configuration for the check IDs cron Job</description>
-          <property name="jobName" value="CheckMatrixIds"/>
-          <property name="groupName" value="Matrix"/>
-          <property name="job" value="io.meeds.chat.jobs.CheckMatrixIDs"/>
-          <property name="expression" value="${meeds.matrix.CheckMatrixIds.expression:59 59 21 * * ? *}"/><!-- Runs every day at 22:00 -->
-        </properties-param>
-      </init-params>
-    </component-plugin>
-  </external-component-plugins>
-  <external-component-plugins>
+<external-component-plugins>
     <target-component>org.exoplatform.web.filter.ExtensibleFilter</target-component>
     <component-plugin>
       <name>Filter useful to set a JWT for authentication o Matrix</name>
@@ -158,9 +139,9 @@
   <external-component-plugins>
     <target-component>org.exoplatform.commons.upgrade.UpgradeProductService</target-component>
     <component-plugin>
-      <name>SpaceMatrixRoomCreator</name>
+      <name>MatrixRoomAndAccountsUpgradePlugin</name>
       <set-method>addUpgradePlugin</set-method>
-      <type>io.meeds.chat.upgrade.SpaceMatrixRoomUpgradePlugin</type>
+      <type>io.meeds.chat.upgrade.MatrixRoomAndAccountsUpgradePlugin</type>
       <description>Create Matrix rooms for existing spaces</description>
       <init-params>
         <value-param>

@@ -4,22 +4,27 @@ import io.meeds.chat.service.MatrixService;
 import io.meeds.chat.service.utils.MatrixConstants;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
+import org.exoplatform.container.ExoContainerContext;
+import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.container.xml.InitParams;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
-import org.exoplatform.social.core.identity.SpaceMemberFilterListAccess;
+import org.exoplatform.services.organization.OrganizationService;
+import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.model.Identity;
-import org.exoplatform.social.core.jpa.storage.dao.SpaceMemberDAO;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.SpaceFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.social.core.storage.api.IdentityStorage;
 
-public class SpaceMatrixRoomUpgradePlugin extends UpgradeProductPlugin {
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
-  private static final Log LOG              = ExoLogger.getExoLogger(SpaceMatrixRoomUpgradePlugin.class);
+public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
+
+  private static final Log LOG                = ExoLogger.getExoLogger(MatrixRoomAndAccountsUpgradePlugin.class);
 
   private SpaceService     spaceService;
 
@@ -27,9 +32,12 @@ public class SpaceMatrixRoomUpgradePlugin extends UpgradeProductPlugin {
 
   private IdentityManager  identityManager;
 
-  private int              SPACES_THRESHOLD = 20;
+  private int              SPACES_THRESHOLD   = 20;
 
-  public SpaceMatrixRoomUpgradePlugin(InitParams initParams, SpaceService spaceService, MatrixService matrixService, IdentityManager identityManager) {
+  private int              LOADED_USERS_COUNT = 3;
+
+
+  public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams, SpaceService spaceService, MatrixService matrixService, IdentityManager identityManager) {
     super(initParams);
     this.spaceService = spaceService;
     this.matrixService = matrixService;
@@ -38,6 +46,11 @@ public class SpaceMatrixRoomUpgradePlugin extends UpgradeProductPlugin {
 
   @Override
   public void processUpgrade(String s, String s1) {
+    synchronizeUsers();
+    synchronizeSpaces();
+  }
+
+  private void synchronizeSpaces() {
     long startupTime = System.currentTimeMillis();
 
     LOG.info("Start:: create Matrix rooms for spaces");
@@ -52,7 +65,7 @@ public class SpaceMatrixRoomUpgradePlugin extends UpgradeProductPlugin {
       int loadedSpaces = 0;
       while (loadedSpaces < spacesCount) {
         int actualSpacesToLoadCount =
-                                    loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
+                loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
         Space[] spacesToMigrate = spaces.load(loadedSpaces, actualSpacesToLoadCount);
         for (Space space : spacesToMigrate) {
           String roomId = matrixService.getRoomBySpace(space);
@@ -104,5 +117,50 @@ public class SpaceMatrixRoomUpgradePlugin extends UpgradeProductPlugin {
       LOG.debug("Could not get the number of spaces", e);
       return false;
     }
+  }
+
+  private void synchronizeUsers() {
+    LOG.info("Start:: Check users for their Matrix IDs");
+    long startupTime = System.currentTimeMillis();
+    IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
+    MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
+    OrganizationService organizationService = CommonsUtils.getService(OrganizationService.class);
+
+    int checkedUsers = 0;
+    int usersCount = 0;
+
+    RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
+    try {
+      ListAccess<User> users = organizationService.getUserHandler().findAllUsers();
+      usersCount = users.getSize();
+      while(checkedUsers < usersCount) {
+        int usersToCheck = usersCount > checkedUsers + LOADED_USERS_COUNT ? LOADED_USERS_COUNT : (usersCount - checkedUsers);
+        User[] usersArray = users.load(checkedUsers, usersToCheck);
+        for (User user : usersArray) {
+          Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+          Profile userProfile = userIdentity.getProfile();
+          String userMatrixId = (String) userProfile.getProperty(MatrixConstants.USER_MATRIX_ID);
+          if(StringUtils.isBlank(userMatrixId)) {
+            String matrixId = matrixService.saveUserAccount(user, true, false);
+            userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
+            identityManager.updateProfile(userProfile);
+          }
+        }
+        checkedUsers += usersArray.length;
+        LOG.info("Checked {} of {} user profiles for Matrix id", checkedUsers, usersCount);
+      }
+    } catch (Exception e) {
+      LOG.error("Error while loading user identities", e);
+    } finally {
+      RequestLifeCycle.end();
+    }
+    LOG.info("Summary :: create Matrix accounts for {} users, {} users were checked with their Matrix accounts, {} accounts failed to be created !",
+            checkedUsers,
+            usersCount,
+            usersCount - checkedUsers);
+    if(usersCount - checkedUsers > 0) {
+      throw new RuntimeException("Some user accounts were not synchronized with Matrix!");
+    }
+    LOG.info("End:: Check users for their Matrix IDs", System.currentTimeMillis() - startupTime);
   }
 }
