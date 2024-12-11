@@ -13,6 +13,8 @@ public class MatrixConstants {
 
   public static final String MATRIX_SERVER_NAME                = "meeds.matrix.server.name";
 
+  public static final String MATRIX_RESTRICTED_USERS_GROUP     = "meeds.matrix.restricted.users.groupId";
+
   public static final String SHARED_SECRET_REGISTRATION        = "meeds.matrix.shared_secret_registration";
 
   public static final String MATRIX_SERVER_URL_IS_REQUIRED     =

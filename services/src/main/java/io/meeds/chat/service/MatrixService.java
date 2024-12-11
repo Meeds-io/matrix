@@ -10,10 +10,13 @@ import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
+import org.exoplatform.services.organization.Membership;
+import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
@@ -34,16 +38,18 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 @Service
 public class MatrixService {
 
-  private static final Log LOG = ExoLogger.getLogger(MatrixService.class);
+  private static final Log    LOG = ExoLogger.getLogger(MatrixService.class);
 
   @Autowired
-  private MatrixRoomStorage matrixRoomStorage;
+  private MatrixRoomStorage   matrixRoomStorage;
 
   @Autowired
-  private IdentityManager  identityManager;
+  private IdentityManager     identityManager;
 
+  @Autowired
+  private OrganizationService organizationService;
 
-  private String           matrixAccessToken;
+  private String              matrixAccessToken;
 
   @PostConstruct
   public void init() {
@@ -51,7 +57,7 @@ public class MatrixService {
   }
 
   private String getMatrixAccessToken() {
-    if(StringUtils.isBlank(this.matrixAccessToken)) {
+    if (StringUtils.isBlank(this.matrixAccessToken)) {
       try {
         String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
         this.matrixAccessToken = MatrixHttpClient.getAdminAccessToken(jwtAccessToken);
@@ -64,6 +70,7 @@ public class MatrixService {
 
   /**
    * Returns the ID of the room linked to a space
+   * 
    * @param space
    * @return the roomId linked to the space
    */
@@ -73,6 +80,7 @@ public class MatrixService {
 
   /**
    * Returns the ID of the room linked to a space
+   * 
    * @param roomId the Matrix room ID
    * @return the roomId linked to the space
    */
@@ -83,7 +91,7 @@ public class MatrixService {
   /**
    * records the matrix ID of the room linked top the space
    *
-   * @param space  the Space
+   * @param space the Space
    * @param roomId the ID of the matrix room
    * @return the room ID
    */
@@ -93,6 +101,7 @@ public class MatrixService {
 
   /**
    * Creates a room for predefined space
+   * 
    * @param space the space
    * @return String representing the room id
    * @throws JsonException
@@ -107,13 +116,14 @@ public class MatrixService {
 
   /**
    * Get the matrix ID of a defined user
+   * 
    * @param userName of the user
    * @return the matrix ID
    */
   public String getMatrixIdForUser(String userName) {
     Identity newMember = identityManager.getOrCreateUserIdentity(userName);
     Profile newMemberProfile = newMember.getProfile();
-    if(StringUtils.isNotBlank((String) newMemberProfile.getProperty(USER_MATRIX_ID))) {
+    if (StringUtils.isNotBlank((String) newMemberProfile.getProperty(USER_MATRIX_ID))) {
       return newMemberProfile.getProperty(USER_MATRIX_ID).toString();
     }
     return null;
@@ -121,20 +131,22 @@ public class MatrixService {
 
   /**
    * Returns the JWT for user authentication
+   * 
    * @param userNameOnMatrix the username of the current user
    * @return String
    */
   public String getJWTSessionToken(String userNameOnMatrix) {
     return Jwts.builder()
-            .setSubject(userNameOnMatrix)
-            .signWith(Keys.hmacShaKeyFor(PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes()))
-            .setExpiration(Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant()))
-            .compact();
+               .setSubject(userNameOnMatrix)
+               .signWith(Keys.hmacShaKeyFor(PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes()))
+               .setExpiration(Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant()))
+               .compact();
 
   }
 
   /**
    * Saves a new user on Matrix
+   * 
    * @param user the user to create on Matrix
    * @param isNew boolean if the user is new, then true
    * @return String the matrix user ID
@@ -202,21 +214,32 @@ public class MatrixService {
   public DirectMessagingRoom createDirectMessagingRoom(DirectMessagingRoom directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();
-    if(StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
+    if (StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
       throw new IllegalArgumentException("The ids of the room participants should not be null");
     }
-    if (identityManager.getOrCreateUserIdentity(directMessagingRoom.getFirstParticipant()) == null || identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()) == null) {
+    if (identityManager.getOrCreateUserIdentity(directMessagingRoom.getFirstParticipant()) == null
+        || identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()) == null) {
       throw new IllegalArgumentException("The ids of the room participants should be valid user identity ids");
     }
     DirectMessagingRoom matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
-    if(matrixRoom == null) {
-      return matrixRoomStorage.saveDirectMessagingRoom(directMessagingRoom.getFirstParticipant(), directMessagingRoom.getSecondParticipant(), directMessagingRoom.getRoomId());
+    if (matrixRoom == null) {
+      return matrixRoomStorage.saveDirectMessagingRoom(directMessagingRoom.getFirstParticipant(),
+                                                       directMessagingRoom.getSecondParticipant(),
+                                                       directMessagingRoom.getRoomId());
     } else {
-      throw new ObjectAlreadyExistsException("A direct messaging room is already created for the users %s and %s".formatted(firstParticipant, secondParticipant));
+      throw new ObjectAlreadyExistsException("A direct messaging room is already created for the users %s and %s".formatted(firstParticipant,
+                                                                                                                            secondParticipant));
     }
   }
 
   public List<DirectMessagingRoom> getMatrixDMRoomsOfUser(String user) {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
+  }
+
+  public boolean isUserMemberOfGroup(String userName, String groupId) throws Exception {
+    this.organizationService = CommonsUtils.getOrganizationService();
+    Collection<Membership> userMemberships = this.organizationService.getMembershipHandler()
+                                                                     .findMembershipsByUserAndGroup(userName, groupId);
+    return !userMemberships.isEmpty();
   }
 }

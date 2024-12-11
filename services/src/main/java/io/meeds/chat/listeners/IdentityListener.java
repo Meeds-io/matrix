@@ -34,16 +34,18 @@ public class IdentityListener extends ProfileListenerPlugin {
   @Override
   public void avatarUpdated(ProfileLifeCycleEvent event) {
     Profile profile = event.getProfile();
-    FileItem avatarFileItem = identityStorage.getAvatarFile(profile.getIdentity());
-    String mimeType = "image/jpg";
-    if (avatarFileItem != null && avatarFileItem.getFileInfo() != null) {
-      if(!"application/octet-stream".equals(avatarFileItem.getFileInfo().getMimetype())) {
-        mimeType = avatarFileItem.getFileInfo().getMimetype();
-      }
-      String userMatrixID = (String) profile.getProperty(MatrixConstants.USER_MATRIX_ID);
-      String userAvatarUrl = matrixService.uploadFileOnMatrix("avatar-of-" + event.getUsername(), mimeType, avatarFileItem.getAsByte());
-      if(StringUtils.isNotBlank(userMatrixID) && StringUtils.isNotBlank(userAvatarUrl)) {
-        matrixService.updateUserAvatar(userMatrixID, userAvatarUrl);
+    String userMatrixID = (String) profile.getProperty(MatrixConstants.USER_MATRIX_ID);
+    if (StringUtils.isNotBlank(userMatrixID)) {
+      FileItem avatarFileItem = identityStorage.getAvatarFile(profile.getIdentity());
+      String mimeType = "image/jpg";
+      if (avatarFileItem != null && avatarFileItem.getFileInfo() != null) {
+        if (!"application/octet-stream".equals(avatarFileItem.getFileInfo().getMimetype())) {
+          mimeType = avatarFileItem.getFileInfo().getMimetype();
+        }
+        String userAvatarUrl = matrixService.uploadFileOnMatrix("avatar-of-" + event.getUsername(), mimeType, avatarFileItem.getAsByte());
+        if (StringUtils.isNotBlank(userMatrixID) && StringUtils.isNotBlank(userAvatarUrl)) {
+          matrixService.updateUserAvatar(userMatrixID, userAvatarUrl);
+        }
       }
     }
   }

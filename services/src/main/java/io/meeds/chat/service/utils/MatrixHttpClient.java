@@ -2,6 +2,7 @@ package io.meeds.chat.service.utils;
 
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
+import org.apache.commons.codec.language.MatchRatingApproachEncoder;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import org.exoplatform.commons.utils.PropertyManager;
@@ -20,9 +21,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
+import static java.lang.Character.toLowerCase;
 
 public class MatrixHttpClient {
   private static final Log LOG = ExoLogger.getLogger(MatrixHttpClient.class.toString());
@@ -232,7 +235,7 @@ public class MatrixHttpClient {
            "admin": false,
            "mac": "%s"
           }
-        """.formatted(nonce, user.getUserName(), user.getDisplayName(), user.getUserName(), hmac);
+        """.formatted(nonce, cleanMatrixUsername(user.getUserName()), user.getDisplayName(), user.getUserName(), hmac);
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
@@ -261,7 +264,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
 
-    String fullMatrixUserId = "@%s:%s".formatted(matrixUserId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
+    String fullMatrixUserId = "@%s:%s".formatted(cleanMatrixUsername(matrixUserId), PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + fullMatrixUserId;
 
     String payload;
@@ -802,5 +805,23 @@ public class MatrixHttpClient {
       return false;
     }
 
+  }
+
+  public static String cleanMatrixUsername(String userName) {
+    String matrixAllowedCharacters = "_-./=+";
+    StringBuilder formattedMatrixUserId = new StringBuilder();
+    if (StringUtils.isNotBlank(userName)) {
+      // remove accents if exists
+      String normalizedUserName = Normalizer.normalize(userName, Normalizer.Form.NFKD).replaceAll("\\p{M}", "");
+      for (int i = 0; i < normalizedUserName.length(); ++i) {
+        final int codePoint = normalizedUserName.codePointAt(i);
+        if (Character.isAlphabetic(codePoint) || Character.isDigit(codePoint) || matrixAllowedCharacters.indexOf(normalizedUserName.charAt(i)) >= 0) {
+          formattedMatrixUserId.append(toLowerCase(normalizedUserName.charAt(i)));// Matrix usernames should be lowercased
+        } else {
+          formattedMatrixUserId.append("-");
+        }
+      }
+    }
+    return formattedMatrixUserId.toString();
   }
 }
