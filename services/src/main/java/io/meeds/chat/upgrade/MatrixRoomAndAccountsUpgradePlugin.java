@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
+import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.container.xml.InitParams;
@@ -20,6 +21,7 @@ import org.exoplatform.social.core.space.SpaceFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
 public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
@@ -36,8 +38,10 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
   private int              LOADED_USERS_COUNT = 3;
 
-
-  public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams, SpaceService spaceService, MatrixService matrixService, IdentityManager identityManager) {
+  public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams,
+                                            SpaceService spaceService,
+                                            MatrixService matrixService,
+                                            IdentityManager identityManager) {
     super(initParams);
     this.spaceService = spaceService;
     this.matrixService = matrixService;
@@ -65,7 +69,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
       int loadedSpaces = 0;
       while (loadedSpaces < spacesCount) {
         int actualSpacesToLoadCount =
-                loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
+                                    loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
         Space[] spacesToMigrate = spaces.load(loadedSpaces, actualSpacesToLoadCount);
         for (Space space : spacesToMigrate) {
           String roomId = matrixService.getRoomBySpace(space);
@@ -73,10 +77,11 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
             try {
               roomId = this.matrixService.createMatrixRoomForSpace(space);
               matrixService.createMatrixRoom(space, roomId);
-              for(String member : space.getMembers()) {
+              for (String member : space.getMembers()) {
                 Identity memberIdentity = identityManager.getOrCreateUserIdentity(member);
-                if(memberIdentity != null && StringUtils.isNotBlank((String) memberIdentity.getProfile().getProperty(MatrixConstants.USER_MATRIX_ID))) {
-                  String matrixIdOfUser = (String) memberIdentity.getProfile().getProperty(MatrixConstants.USER_MATRIX_ID);
+                if (memberIdentity != null
+                    && StringUtils.isNotBlank((String) memberIdentity.getProfile().getProperty(USER_MATRIX_ID))) {
+                  String matrixIdOfUser = (String) memberIdentity.getProfile().getProperty(USER_MATRIX_ID);
                   matrixService.joinUserToRoom(roomId, matrixIdOfUser);
                 }
               }
@@ -96,11 +101,11 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
       throw new RuntimeException("Error while retrieving spaces", e);
     }
     LOG.info("Summary :: create Matrix rooms for spaces, {} created rooms for {} spaces, {} ignored spaces, {} rooms failed to be created !",
-            successfullyMigratedSpaces,
-            spacesCount,
-            ignoredSpaces,
-            failedToMigrateSpaces);
-    if(failedToMigrateSpaces > 0) {
+             successfullyMigratedSpaces,
+             spacesCount,
+             ignoredSpaces,
+             failedToMigrateSpaces);
+    if (failedToMigrateSpaces > 0) {
       throw new RuntimeException("Some spaces were not upgraded!");
     }
     LOG.info("End:: create Matrix rooms for spaces in {}", System.currentTimeMillis() - startupTime);
@@ -108,15 +113,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
   @Override
   public boolean shouldProceedToUpgrade(String newVersion, String previousVersion) {
-    if (!this.isEnabled()) {
-      return false;
-    }
-    try {
-      return spaceService.getAllSpacesByFilter(new SpaceFilter()).getSize() > matrixService.getAllLinkedRooms();
-    } catch (Exception e) {
-      LOG.debug("Could not get the number of spaces", e);
-      return false;
-    }
+    return this.isEnabled();
   }
 
   private void synchronizeUsers() {
@@ -129,18 +126,36 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
     int checkedUsers = 0;
     int usersCount = 0;
 
+    ListAccess<User> users = null;
     RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
     try {
-      ListAccess<User> users = organizationService.getUserHandler().findAllUsers();
+      if (StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP))) {
+        users =
+              organizationService.getUserHandler().findUsersByGroupId(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP));
+      } else {
+        users = organizationService.getUserHandler().findAllUsers();
+      }
       usersCount = users.getSize();
-      while(checkedUsers < usersCount) {
+    } catch (Exception e) {
+      LOG.error("Error while checking users", e);
+    } finally {
+      RequestLifeCycle.end();
+    }
+
+    if (usersCount == 0) {
+      throw new IllegalStateException("No users to migrate, please check the value of the property matrix.restricted.users.groupId or remove it to select all users.");
+    }
+
+    RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
+    try {
+      while (checkedUsers < usersCount) {
         int usersToCheck = usersCount > checkedUsers + LOADED_USERS_COUNT ? LOADED_USERS_COUNT : (usersCount - checkedUsers);
         User[] usersArray = users.load(checkedUsers, usersToCheck);
         for (User user : usersArray) {
           Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
           Profile userProfile = userIdentity.getProfile();
-          String userMatrixId = (String) userProfile.getProperty(MatrixConstants.USER_MATRIX_ID);
-          if(StringUtils.isBlank(userMatrixId)) {
+          String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
+          if (StringUtils.isBlank(userMatrixId)) {
             String matrixId = matrixService.saveUserAccount(user, true, false);
             userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
             identityManager.updateProfile(userProfile);
@@ -155,10 +170,10 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
       RequestLifeCycle.end();
     }
     LOG.info("Summary :: create Matrix accounts for {} users, {} users were checked with their Matrix accounts, {} accounts failed to be created !",
-            checkedUsers,
-            usersCount,
-            usersCount - checkedUsers);
-    if(usersCount - checkedUsers > 0) {
+             checkedUsers,
+             usersCount,
+             usersCount - checkedUsers);
+    if (usersCount - checkedUsers > 0) {
       throw new RuntimeException("Some user accounts were not synchronized with Matrix!");
     }
     LOG.info("End:: Check users for their Matrix IDs", System.currentTimeMillis() - startupTime);

@@ -62,8 +62,9 @@
         this.totalUnreadMessages = e;
       });
       this.loadRooms();
+      this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-      this.$matrixService.longPollingSync();
+
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
@@ -91,13 +92,16 @@
       },
       messageReceived(event) {
         this.totalUnreadMessages ++;
+        const updatedRoom = this.rooms.find(room => room.id === event.detail.roomId);
+        updatedRoom.unreadMessages += 1;
+        updatedRoom.lastMessage = event.detail.message;
       },
       loadRooms() {
-         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
-           this.rooms = matrixRoomsObject.rooms || [];
-           this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
-         });
-       },
+        this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
+          this.rooms = matrixRoomsObject.rooms || [];
+          this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
+        });
+      },
     }
   };
 </script>

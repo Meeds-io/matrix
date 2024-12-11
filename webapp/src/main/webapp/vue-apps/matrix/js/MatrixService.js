@@ -6,7 +6,6 @@ const JWT_COOKIE_NAME = 'matrix_jwt_token';
 const DEFAULT_ROOM_AVATAR = '/matrix/img/room-default.jpg';
 const MATRIX_SYNC_SINCE = 'matrix-sync-since';
 const MATRIX_SYNC_TIMEOUT = 30000;
-const MATRIX_EMPTY_FILTER = 0;
 const MATRIX_ACTION_MESSAGE_RECEIVED = 'matrix-message-received';
 
 
@@ -158,7 +157,11 @@ export function sync(filter, since, timeout) {
   const formData = new FormData();
 
   if(filter) {
-    formData.append('filter', JSON.stringify(filter));
+    if(!isNaN(parseFloat(filter))) {
+      formData.append('filter', Number(filter));
+    } else {
+      formData.append('filter', JSON.stringify(filter));
+    }
   } else {
     formData.append('filter', "0");
   }
@@ -306,9 +309,9 @@ export function openDMRoom(firstParticipant, secondParticipant, matrixServerName
   });
 }
 
-export async function longPollingSync() {
+export async function longPollingSync(matrixFilterId) {
   const since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
-  let response = await sync(MATRIX_EMPTY_FILTER, since, MATRIX_SYNC_TIMEOUT);
+  let response = await sync(matrixFilterId || '0', since, MATRIX_SYNC_TIMEOUT);
 
   if (response.status == 502) {
     // Status 502 is a connection timeout error, let's retry
@@ -326,4 +329,22 @@ export async function longPollingSync() {
     // call again to get the next batch of data
     await longPollingSync();
   }
+}
+
+export function saveFilter() {
+  const payload = {"room":{"timeline":{"unread_thread_notifications":true},"state":{"lazy_load_members":true}}};
+  const matrixUserId = localStorage.getItem("matrix_user_id");
+  return fetch(`/_matrix/client/v3/user/${matrixUserId}/filter`, {
+    method: 'POST',
+    headers: {
+     'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Save Filter : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
 }

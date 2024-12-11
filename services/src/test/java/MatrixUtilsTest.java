@@ -4,6 +4,7 @@ import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.idm.UserImpl;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Date;
@@ -109,7 +110,16 @@ public class MatrixUtilsTest {
       String imageStored = MatrixHttpClient.uploadFile("image.png", "image/png", resource, access_token);
       assertTrue(MatrixHttpClient.updateUserAvatar(roomId, imageStored, access_token));
     } catch (IOException e) {
+      fail();
+    }
+  }
 
+  @Test
+  public void testCleanMatrixUsername() {
+    String[] usernames = new String[] {"Samueâl", "fre@d", "Shazia", "gorkef/", "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}"};
+    for(String username: usernames) {
+      String result = MatrixHttpClient.cleanMatrixUsername(username);
+      assertNotNull(result);
     }
   }
 }

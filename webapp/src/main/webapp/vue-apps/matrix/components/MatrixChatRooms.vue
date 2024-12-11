@@ -26,20 +26,5 @@
         default: function() { return [];}
       }
     },
-    watch : {
-      rooms() {
-        console.log(this.rooms);
-      }
-    },
-    created() {
-      document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-    },
-    methods: {
-      messageReceived(event) {
-        const updatedRoom = this.rooms.find(room => room.id === event.detail.roomId);
-        updatedRoom.unreadMessages += 1;
-        updatedRoom.lastMessage = event.detail.message;
-      }
-    }
   }
 </script>
