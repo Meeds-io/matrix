@@ -62,10 +62,18 @@ public class MatrixHttpClient {
         JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
         return jsonGenerator.createJsonObjectFromString(response.body()).getElement("access_token").getStringValue();
       } else {
-        LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
+        if (response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                  .getElement("retry_after_ms")
+                  .getLongValue();
+          Thread.sleep(sleepInMs);
+          return getAdminAccessToken(userJWTToken);
+        } else {
+          LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
                   String.valueOf(response.statusCode()),
                   response.body());
-        return null;
+          return null;
+        }
       }
     } catch (Exception e) {
       LOG.error("Could not authenticate Admin account with JWT on Matrix", e);
@@ -102,10 +110,19 @@ public class MatrixHttpClient {
         JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
         return jsonGenerator.createJsonObjectFromString(response.body()).getElement("access_token").getStringValue();
       } else {
-        LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
-                String.valueOf(response.statusCode()),
-                response.body());
-        return null;
+        if (response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                  .getElement("retry_after_ms")
+                  .getLongValue();
+          Thread.sleep(sleepInMs);
+          return authenticateUser(userName, password);
+        } else {
+          LOG.error("Error Authenticating user {} with a password, Matrix server returned HTTP {} error {}",
+                  userName,
+                  String.valueOf(response.statusCode()),
+                  response.body());
+          return null;
+        }
       }
     } catch (Exception e) {
       LOG.error("Could not authenticate Admin account with JWT on Matrix", e);
@@ -145,9 +162,6 @@ public class MatrixHttpClient {
         String roomId = jsonGenerator.createJsonObjectFromString(response.body()).getElement("room_id").getStringValue();
         return roomId.substring(0, roomId.indexOf(":" + PropertyManager.getProperty(MATRIX_SERVER_NAME)));
       } else {
-        LOG.error("Error creating a team, Matrix server returned HTTP {} error {}",
-                  String.valueOf(response.statusCode()),
-                  response.body());
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                                                   .getElement("retry_after_ms")
@@ -155,6 +169,10 @@ public class MatrixHttpClient {
           Thread.sleep(sleepInMs);
           return createRoom(name, description, token);
         } else {
+          LOG.error("Error creating a team, Matrix server returned HTTP {} error {}",
+                  String.valueOf(response.statusCode()),
+                  response.body());
+
           throw new Exception("Error creating a team, Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
                                                                                                          response.body()));
         }
