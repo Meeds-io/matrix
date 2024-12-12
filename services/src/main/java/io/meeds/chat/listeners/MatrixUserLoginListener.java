@@ -60,15 +60,10 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
       return;
     }
     try {
-      if (identityManager != null) {
-        Profile userProfile = identityManager.getProfile(identityManager.getOrCreateUserIdentity(userId));
-        String matrixUserId = (String) userProfile.getProperty(USER_MATRIX_ID);
-        if (StringUtils.isBlank(matrixUserId)) {
-          User user = organizationService.getUserHandler().findUserByName(userId);
-          String matrixId = matrixService.saveUserAccount(user, true, false);
-          userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
-          identityManager.updateProfile(userProfile);
-        }
+      String matrixUserId = matrixService.getMatrixIdForUser(userId);
+      if (StringUtils.isBlank(matrixUserId)) {
+        User user = organizationService.getUserHandler().findUserByName(userId);
+        matrixService.saveUserAccount(user, true, false);
       }
     } catch (Exception e) {
       LOG.error("Could not add matrix information for user {}", userId, e);

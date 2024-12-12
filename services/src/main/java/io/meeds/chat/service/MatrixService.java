@@ -152,7 +152,19 @@ public class MatrixService {
    * @return String the matrix user ID
    */
   public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) {
-    return MatrixHttpClient.saveUserAccount(user, user.getUserName(), isNew, this.getMatrixAccessToken(), isEnableUserOperation);
+    String matrixId = MatrixHttpClient.saveUserAccount(user,
+                                                       user.getUserName(),
+                                                       isNew,
+                                                       this.getMatrixAccessToken(),
+                                                       isEnableUserOperation);
+    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+    Profile userProfile = userIdentity.getProfile();
+    if (StringUtils.isNotBlank(matrixId) && (userProfile.getProperty(USER_MATRIX_ID) == null
+        || StringUtils.isBlank(userProfile.getProperty(USER_MATRIX_ID).toString()))) {
+      userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
+      identityManager.updateProfile(userProfile);
+    }
+    return matrixId;
   }
 
   public String uploadFileOnMatrix(String fileName, String mimeType, byte[] fileBytes) {
