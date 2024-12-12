@@ -1,12 +1,15 @@
 <%@page import="org.exoplatform.commons.utils.PropertyManager"%>
-<%@page import="io.meeds.chat.service.MatrixService"%>
 <%@page import="io.meeds.chat.service.utils.MatrixConstants"%>
 <%@page import="org.apache.commons.lang3.StringUtils"%>
 <%@page import="org.exoplatform.commons.utils.CommonsUtils"%>
+<%@page import="org.exoplatform.portal.config.UserACL"%>
+<%@page import="org.exoplatform.services.security.ConversationState"%>
+<%@page import="org.exoplatform.services.security.Identity"%>
 <%
 String matrixRestrictedGroup = PropertyManager.getProperty(MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP);
-MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
-if (StringUtils.isBlank(matrixRestrictedGroup) || matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup)) {
+UserACL userACL = CommonsUtils.getService(UserACL.class);
+Identity userIdentity = ConversationState.getCurrent().getIdentity();
+if (StringUtils.isBlank(matrixRestrictedGroup) || userACL.isUserInGroup(userIdentity, matrixRestrictedGroup)) {
 %>
 <div class="VuetifyApp">
   <div data-app="true"
