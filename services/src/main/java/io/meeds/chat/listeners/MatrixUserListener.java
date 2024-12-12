@@ -39,15 +39,7 @@ public class MatrixUserListener extends UserEventListener {
     if (StringUtils.isNotBlank(matrixRestrictedGroup) && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup)) {
       return;
     }
-    if (identityManager != null) {
-      Profile userProfile = identityManager.getProfile(identityManager.getOrCreateUserIdentity(user.getUserName()));
-      String matrixId = matrixService.saveUserAccount(user, isNew, false);
-      if (StringUtils.isNotBlank(matrixId) && userProfile.getProperty(USER_MATRIX_ID) == null
-          || StringUtils.isBlank(userProfile.getProperty(USER_MATRIX_ID).toString())) {
-        userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
-        identityManager.updateProfile(userProfile);
-      }
-    }
+    matrixService.saveUserAccount(user, isNew, false);
   }
 
   @Override

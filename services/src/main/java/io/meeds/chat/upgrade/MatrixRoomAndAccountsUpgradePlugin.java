@@ -36,7 +36,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
   private int              SPACES_THRESHOLD   = 20;
 
-  private int              LOADED_USERS_COUNT = 3;
+  private int              LOADED_USERS_COUNT = 10;
 
   public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams,
                                             SpaceService spaceService,
@@ -117,7 +117,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
   }
 
   private void synchronizeUsers() {
-    LOG.info("Start:: Check users for their Matrix IDs");
+    LOG.info("Start:: create Matrix accounts for users");
     long startupTime = System.currentTimeMillis();
     IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
     MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
@@ -156,13 +156,11 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
           Profile userProfile = userIdentity.getProfile();
           String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
           if (StringUtils.isBlank(userMatrixId)) {
-            String matrixId = matrixService.saveUserAccount(user, true, false);
-            userProfile.getProperties().put(USER_MATRIX_ID, matrixId);
-            identityManager.updateProfile(userProfile);
+            matrixService.saveUserAccount(user, true, false);
           }
         }
         checkedUsers += usersArray.length;
-        LOG.info("Checked {} of {} user profiles for Matrix id", checkedUsers, usersCount);
+        LOG.info("Created a Matrix account for {} of {} users", checkedUsers, usersCount);
       }
     } catch (Exception e) {
       LOG.error("Error while loading user identities", e);
@@ -176,6 +174,6 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
     if (usersCount - checkedUsers > 0) {
       throw new RuntimeException("Some user accounts were not synchronized with Matrix!");
     }
-    LOG.info("End:: Check users for their Matrix IDs", System.currentTimeMillis() - startupTime);
+    LOG.info("End:: create Matrix accounts for users took {}", System.currentTimeMillis() - startupTime);
   }
 }

@@ -66,6 +66,8 @@ public class MatrixHttpClient {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                   .getElement("retry_after_ms")
                   .getLongValue();
+
+          LOG.warn("Too many requests on Matrix server, retrying the authentication of the admin after {}ms", sleepInMs);
           Thread.sleep(sleepInMs);
           return getAdminAccessToken(userJWTToken);
         } else {
@@ -114,6 +116,7 @@ public class MatrixHttpClient {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                   .getElement("retry_after_ms")
                   .getLongValue();
+          LOG.warn("Too many requests on Matrix server, retrying the authentication of {} after {}ms", userName, sleepInMs);
           Thread.sleep(sleepInMs);
           return authenticateUser(userName, password);
         } else {
@@ -166,6 +169,7 @@ public class MatrixHttpClient {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                                                   .getElement("retry_after_ms")
                                                   .getLongValue();
+          LOG.warn("Too many requests on Matrix server, retrying the creation of the room of {} after {}ms", name, sleepInMs);
           Thread.sleep(sleepInMs);
           return createRoom(name, description, token);
         } else {
@@ -289,8 +293,6 @@ public class MatrixHttpClient {
     String password = null;
     if (isNew) {
       password = PasswordGenerator.generatePassword(10);
-      // TODO removes this unneeded logging
-      LOG.debug("User {} password on Matrix is {}", user.getUserName().toLowerCase(), password);
       payload = """
            {
             "password": "%s",
@@ -348,8 +350,7 @@ public class MatrixHttpClient {
         // If the user is a new user, we need to authenticate him
         if(isNew) {
           String accessTokenOfCreatedUser = authenticateUser(matrixUserId, password);
-          //TODO remove this
-          LOG.info("User {} authenticated successfully : {}", user.getUserName(), accessTokenOfCreatedUser);
+          LOG.info("User {} authenticated successfully", user.getUserName());
         }
         return fullMatrixID.substring(1, fullMatrixID.indexOf(":"));
       } else {
@@ -560,6 +561,7 @@ public class MatrixHttpClient {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                                                   .getElement("retry_after_ms")
                                                   .getLongValue();
+          LOG.warn("Too many requests on Matrix server, retrying to join the user {} on the room {} after {}ms", matrixIdOfUser, matrixRoomId, sleepInMs);
           Thread.sleep(sleepInMs);
           return joinUserToRoom(matrixRoomId, matrixIdOfUser, token);
         } else {
