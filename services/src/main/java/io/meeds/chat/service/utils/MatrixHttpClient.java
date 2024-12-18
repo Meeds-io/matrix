@@ -156,7 +156,7 @@ public class MatrixHttpClient {
             }
           ]
         }
-        """.formatted(name, Jsoup.parse(description).text());
+        """.formatted(name, cleanDescription(description));
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
@@ -185,6 +185,10 @@ public class MatrixHttpClient {
       LOG.error("Could not create a team on Matrix", e);
       throw e;
     }
+  }
+
+  private static String cleanDescription(String description) {
+    return Jsoup.parse(description.replace("\"", "\\\"")).text();
   }
 
   protected static HttpResponse<String> sendHttpGetRequest(String url, String token) throws IOException, InterruptedException {
