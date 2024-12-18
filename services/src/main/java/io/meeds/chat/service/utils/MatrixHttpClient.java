@@ -64,16 +64,16 @@ public class MatrixHttpClient {
       } else {
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
-                  .getElement("retry_after_ms")
-                  .getLongValue();
+                                                  .getElement("retry_after_ms")
+                                                  .getLongValue();
 
           LOG.warn("Too many requests on Matrix server, retrying the authentication of the admin after {}ms", sleepInMs);
           Thread.sleep(sleepInMs);
           return getAdminAccessToken(userJWTToken);
         } else {
           LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
-                  String.valueOf(response.statusCode()),
-                  response.body());
+                    String.valueOf(response.statusCode()),
+                    response.body());
           return null;
         }
       }
@@ -86,11 +86,13 @@ public class MatrixHttpClient {
 
   /**
    * Authenticates a user using his userName and password
+   * 
    * @param userName the username
    * @param password the user password
    * @return String : access token for the authenticated user
    */
-  public static String authenticateUser(String userName, String password) throws JsonException, IOException, InterruptedException {
+  public static String authenticateUser(String userName,
+                                        String password) throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -102,7 +104,7 @@ public class MatrixHttpClient {
               "user": "%s"
             },
             "password": "%s",
-            "type": "m.login.password"
+              "type": "m.login.password"
           }
 
         """.formatted(userName, password);
@@ -114,16 +116,16 @@ public class MatrixHttpClient {
       } else {
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
-                  .getElement("retry_after_ms")
-                  .getLongValue();
+                                                  .getElement("retry_after_ms")
+                                                  .getLongValue();
           LOG.warn("Too many requests on Matrix server, retrying the authentication of {} after {}ms", userName, sleepInMs);
           Thread.sleep(sleepInMs);
           return authenticateUser(userName, password);
         } else {
           LOG.error("Error Authenticating user {} with a password, Matrix server returned HTTP {} error {}",
-                  userName,
-                  String.valueOf(response.statusCode()),
-                  response.body());
+                    userName,
+                    String.valueOf(response.statusCode()),
+                    response.body());
           return null;
         }
       }
@@ -174,8 +176,8 @@ public class MatrixHttpClient {
           return createRoom(name, description, token);
         } else {
           LOG.error("Error creating a team, Matrix server returned HTTP {} error {}",
-                  String.valueOf(response.statusCode()),
-                  response.body());
+                    String.valueOf(response.statusCode()),
+                    response.body());
 
           throw new Exception("Error creating a team, Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
                                                                                                          response.body()));
@@ -239,6 +241,18 @@ public class MatrixHttpClient {
     return client.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  protected static HttpResponse<String> sendHttpDeleteRequest(String url,
+                                                              String token,
+                                                              String contentAsJson) throws IOException, InterruptedException {
+    HttpClient client = HttpClient.newHttpClient();
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .method("DELETE", HttpRequest.BodyPublishers.ofString(contentAsJson))
+                                     .build();
+    return client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   public static void sendInvitationToMembers(ArrayList<String> strings, String matrixRoomId) {
 
   }
@@ -290,7 +304,8 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
 
-    String fullMatrixUserId = "@%s:%s".formatted(cleanMatrixUsername(matrixUserId), PropertyManager.getProperty(MATRIX_SERVER_NAME));
+    String fullMatrixUserId = "@%s:%s".formatted(cleanMatrixUsername(matrixUserId),
+                                                 PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + fullMatrixUserId;
 
     String payload;
@@ -352,7 +367,7 @@ public class MatrixHttpClient {
         JsonValue userAccount = jsonGenerator.createJsonObjectFromString(response.body());
         String fullMatrixID = userAccount.getElement("name").getStringValue();
         // If the user is a new user, we need to authenticate him
-        if(isNew) {
+        if (isNew) {
           String accessTokenOfCreatedUser = authenticateUser(matrixUserId, password);
           LOG.info("User {} authenticated successfully", user.getUserName());
         }
@@ -565,7 +580,10 @@ public class MatrixHttpClient {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
                                                   .getElement("retry_after_ms")
                                                   .getLongValue();
-          LOG.warn("Too many requests on Matrix server, retrying to join the user {} on the room {} after {}ms", matrixIdOfUser, matrixRoomId, sleepInMs);
+          LOG.warn("Too many requests on Matrix server, retrying to join the user {} on the room {} after {}ms",
+                   matrixIdOfUser,
+                   matrixRoomId,
+                   sleepInMs);
           Thread.sleep(sleepInMs);
           return joinUserToRoom(matrixRoomId, matrixIdOfUser, token);
         } else {
@@ -831,6 +849,45 @@ public class MatrixHttpClient {
 
   }
 
+  /**
+   * Deletes a Matrix room
+   * 
+   * @param matrixRoomId the ID of the room
+   * @param accessToken the access token
+   * @return boolean True if the deletion is successful otherwise False
+   */
+  public static boolean deleteRoom(String matrixRoomId, String accessToken) {
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/rooms/"
+        + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8);
+    String payload = """
+          {
+          }
+        """;
+    try {
+      HttpResponse<String> response = sendHttpDeleteRequest(url, accessToken, payload);
+      if (response.statusCode() >= 200 && response.statusCode() < 300) {
+        LOG.info("The room {} was deleted successfully !", matrixRoomId);
+        return true;
+      } else {
+        LOG.error("Error deleting the room {} ,Matrix server returned HTTP {} error {}",
+                  matrixRoomId,
+                  String.valueOf(response.statusCode()),
+                  response.body());
+        return false;
+      }
+    } catch (Exception e) {
+      LOG.error("Could not delete the room on Matrix", e);
+      return false;
+    }
+  }
+
+  /**
+   * Cleans the username to be compatible with the usernames on Matrix server
+   * 
+   * @param userName the user identifier
+   * @return String the cleaned username
+   */
   public static String cleanMatrixUsername(String userName) {
     String matrixAllowedCharacters = "_-./=+";
     StringBuilder formattedMatrixUserId = new StringBuilder();
@@ -839,7 +896,8 @@ public class MatrixHttpClient {
       String normalizedUserName = Normalizer.normalize(userName, Normalizer.Form.NFKD).replaceAll("\\p{M}", "");
       for (int i = 0; i < normalizedUserName.length(); ++i) {
         final int codePoint = normalizedUserName.codePointAt(i);
-        if (Character.isAlphabetic(codePoint) || Character.isDigit(codePoint) || matrixAllowedCharacters.indexOf(normalizedUserName.charAt(i)) >= 0) {
+        if (Character.isAlphabetic(codePoint) || Character.isDigit(codePoint)
+            || matrixAllowedCharacters.indexOf(normalizedUserName.charAt(i)) >= 0) {
           formattedMatrixUserId.append(toLowerCase(normalizedUserName.charAt(i)));// Matrix usernames should be lowercased
         } else {
           formattedMatrixUserId.append("-");
