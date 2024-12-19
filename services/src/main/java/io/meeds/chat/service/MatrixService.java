@@ -223,6 +223,18 @@ public class MatrixService {
     return matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
   }
 
+  /**
+   * Delete a Matrix room
+   *
+   * @param roomId the room identifier
+   */
+  public void deleteRoom(String roomId) {
+    boolean success =  MatrixHttpClient.deleteRoom(roomId, getMatrixAccessToken());
+    if(success) {
+      matrixRoomStorage.removeMatrixRoom(roomId);
+    }
+  }
+
   public DirectMessagingRoom createDirectMessagingRoom(DirectMessagingRoom directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();

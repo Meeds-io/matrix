@@ -187,4 +187,13 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       matrixService.updateRoomDescription(roomId, space.getDescription());
     }
   }
+
+  @Override
+  public void spaceRemoved(SpaceLifeCycleEvent event) {
+    Space space = event.getSpace();
+    String roomId = matrixService.getRoomBySpace(space);
+    if (StringUtils.isNotBlank(roomId)) {
+      matrixService.deleteRoom(roomId);
+    }
+  }
 }
