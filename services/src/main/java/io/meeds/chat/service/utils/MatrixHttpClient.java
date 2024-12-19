@@ -156,7 +156,7 @@ public class MatrixHttpClient {
             }
           ]
         }
-        """.formatted(name, cleanDescription(description));
+        """.formatted(name.replace("\"", "\\\""), cleanDescription(description));
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
