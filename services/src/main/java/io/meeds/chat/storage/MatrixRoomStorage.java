@@ -93,4 +93,9 @@ public class MatrixRoomStorage {
   private List<DirectMessagingRoom> toDirectMessagingRoomModelList(List<RoomEntity> roomEntities) {
     return roomEntities.stream().map(roomEntity -> toDirectMessagingRoomModel(roomEntity)).toList();
   }
+
+  public void removeMatrixRoom(String roomId) {
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
+    matrixRoomDAO.delete(roomEntity);
+  }
 }

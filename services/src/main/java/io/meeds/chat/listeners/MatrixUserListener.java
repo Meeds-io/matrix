@@ -16,8 +16,9 @@ import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
-import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
+import java.util.List;
+
+import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
 public class MatrixUserListener extends UserEventListener {

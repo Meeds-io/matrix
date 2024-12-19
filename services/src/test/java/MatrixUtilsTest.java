@@ -19,13 +19,13 @@ import static org.junit.Assert.*;
 
 public class MatrixUtilsTest {
 
-  private String access_token = System.setProperty("exo.matrix.access_token", "syt_cm9vdA_HxkqWHDpGLbuvKoCYucM_1WlWyy");
+  private String access_token = "syt_ZXhv_BDVYgRelgkgjGduvVCyz_1iXdtf";
 
   @Before
   public void setUp() {
-    System.setProperty("exo.matrix.server.url", "http://localhost:8008");
-    System.setProperty("exo.matrix.shared_secret_registration", "4fzT.7xvkyp1EA-*bX#fzpVgOc_cb0y9z6*uOCUht1DO5ksad8");
-    System.setProperty("exo.matrix.server.name", "matrix.exo.tn");
+    System.setProperty("meeds.matrix.server.url", "http://localhost:8008");
+    System.setProperty("meeds.matrix.shared_secret_registration", "4fzT.7xvkyp1EA-*bX#fzpVgOc_cb0y9z6*uOCUht1DO5ksad8");
+    System.setProperty("meeds.matrix.server.name", "matrix.exo.tn");
   }
 
   public void testCreateUserAccount() {
@@ -121,5 +121,11 @@ public class MatrixUtilsTest {
       String result = MatrixHttpClient.cleanMatrixUsername(username);
       assertNotNull(result);
     }
+  }
+
+  public void testDeleteSpace() throws Exception {
+    long currentTime = System.currentTimeMillis();
+    String matrixRoomId = MatrixHttpClient.createRoom("test space" + currentTime, "test description " + currentTime, access_token);
+    MatrixHttpClient.deleteRoom(matrixRoomId, access_token);
   }
 }
