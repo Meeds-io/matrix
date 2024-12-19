@@ -4,12 +4,14 @@ import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.utils.MatrixConstants;
 import io.meeds.chat.service.MatrixService;
+import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserEventListener;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -60,6 +62,15 @@ public class MatrixUserListener extends UserEventListener {
           matrixService.disableAccount(matrixUsername);
         } else {
           matrixService.saveUserAccount(user, false, true);
+          ListAccess<Space> spaces = spaceService.getMemberSpaces(user.getUserName());
+          Space[] spacesArray = spaces.load(0, spaces.getSize());
+          for (Space space : spacesArray) {
+            String roomId = matrixService.getRoomBySpace(space);
+            if (StringUtils.isNotBlank(roomId)) {
+              matrixService.joinUserToRoom(roomId, matrixUserId);
+            }
+          }
+
         }
       }
     }
