@@ -28,7 +28,7 @@
   </parent>
   <groupId>org.exoplatform.addons.matrix</groupId>
   <artifactId>exo-matrix-addon-parent</artifactId>
-  <version>1.0.x-SNAPSHOT</version>
+  <version>1.0.0-M02</version>
   <packaging>pom</packaging>
   <name>eXo Add-on :: Matrix integration</name>
   <description>Integration addon for eXo and Matrix</description>
@@ -70,4 +70,8 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <scm>
+    <tag>1.0.0-M02</tag>
+  </scm>
 </project>
