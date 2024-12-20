@@ -190,7 +190,11 @@ public class MatrixHttpClient {
   }
 
   private static String cleanDescription(String description) {
-    return Jsoup.parse(description.replace("\"", "\\\"")).text();
+    String plainTextDescription = Jsoup.parse(description).text();
+    if(StringUtils.isNotBlank(plainTextDescription)) {
+      return plainTextDescription.replace("\"", "\\\"");
+    }
+    return "";
   }
 
   protected static HttpResponse<String> sendHttpGetRequest(String url, String token) throws IOException, InterruptedException {
