@@ -124,6 +124,26 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+
+  @PostMapping("notify")
+  @Operation(
+          summary = "Receives push notification from Matrix",
+          method = "POST",
+          description = "Receives push notification from Matrix")
+  @ApiResponses(value = {
+          @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+          @ApiResponse(responseCode = "400", description = "Invalid query input"),
+          @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public String notify(
+          @RequestBody(description = "Notification received from Matrix", required = true)
+          @org.springframework.web.bind.annotation.RequestBody
+          String notification) {
+    LOG.info("######################################################################");
+    LOG.info(notification);
+    LOG.info("######################################################################");
+    return notification;
+  }
+
   @GetMapping("linkRoom")
   @Secured("users")
   @Operation(summary = "Set the matrix room bound to the current space", method = "POST", description = "Set the id of the matrix room bound to the current space")

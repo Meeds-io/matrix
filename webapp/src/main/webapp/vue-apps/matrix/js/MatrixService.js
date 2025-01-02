@@ -351,3 +351,35 @@ export function saveFilter() {
     }
   });
 }
+
+
+export function savePushGateway() {
+  const payload =
+  {
+    "app_display_name":"eXo platform",
+    "app_id":"exo.matrix.app",
+    "append":false,
+    "data":{
+       "format": "event_id_only",
+       "url": window.location.protocol + "//" + window.location.hostname + "/_matrix/push/v1/notify"
+    },
+    "device_display_name":"My eXo instance",
+    "kind":"http",
+    "lang":eXo.env.portal.language,
+    "profile_tag":"UserProfile",
+    "pushkey":eXo.env.portal.userName
+  }
+  return fetch(`/_matrix/client/v3/pushers/set`, {
+    method: 'POST',
+    headers: {
+     'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Save Push gateway : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
+}
