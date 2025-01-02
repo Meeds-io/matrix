@@ -52,17 +52,18 @@ public class MatrixService {
   private String              matrixAccessToken;
 
   @PostConstruct
-  public void init() {
+  public void init() throws JsonException, IOException, InterruptedException {
     this.getMatrixAccessToken();
   }
 
-  private String getMatrixAccessToken() {
+  private String getMatrixAccessToken() throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(this.matrixAccessToken)) {
       try {
         String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
         this.matrixAccessToken = MatrixHttpClient.getAdminAccessToken(jwtAccessToken);
       } catch (JsonException | IOException | InterruptedException e) {
         LOG.error("Could not get Matrix Access token for the administrator account !");
+        throw e;
       }
     }
     return this.matrixAccessToken;
@@ -151,7 +152,7 @@ public class MatrixService {
    * @param isNew boolean if the user is new, then true
    * @return String the matrix user ID
    */
-  public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) {
+  public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) throws JsonException, IOException, InterruptedException {
     String matrixId = MatrixHttpClient.saveUserAccount(user,
                                                        user.getUserName(),
                                                        isNew,
@@ -167,47 +168,47 @@ public class MatrixService {
     return matrixId;
   }
 
-  public String uploadFileOnMatrix(String fileName, String mimeType, byte[] fileBytes) {
+  public String uploadFileOnMatrix(String fileName, String mimeType, byte[] fileBytes) throws JsonException, IOException, InterruptedException {
     return MatrixHttpClient.uploadFile(fileName, mimeType, fileBytes, this.getMatrixAccessToken());
   }
 
-  public void updateUserAvatar(String userMatrixID, String userAvatarUrl) {
+  public void updateUserAvatar(String userMatrixID, String userAvatarUrl) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.updateUserAvatar(userMatrixID, userAvatarUrl, this.getMatrixAccessToken());
   }
 
-  public void disableAccount(String matrixUsername) {
+  public void disableAccount(String matrixUsername) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.disableAccount(matrixUsername, false, this.getMatrixAccessToken());
   }
 
-  public boolean updateRoomDescription(String roomId, String description) {
+  public boolean updateRoomDescription(String roomId, String description) throws JsonException, IOException, InterruptedException {
     return MatrixHttpClient.updateRoomDescription(roomId, description, this.getMatrixAccessToken());
   }
 
-  public void updateRoomAvatar(String roomId, String avatarURL) {
+  public void updateRoomAvatar(String roomId, String avatarURL) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.updateRoomAvatar(roomId, avatarURL, this.getMatrixAccessToken());
   }
 
-  public MatrixRoomPermissions getRoomSettings(String roomId) {
+  public MatrixRoomPermissions getRoomSettings(String roomId) throws JsonException, IOException, InterruptedException {
     return MatrixHttpClient.getRoomSettings(roomId, this.getMatrixAccessToken());
   }
 
-  public boolean updateRoomSettings(String roomId, MatrixRoomPermissions matrixRoomPermissions) {
+  public boolean updateRoomSettings(String roomId, MatrixRoomPermissions matrixRoomPermissions) throws JsonException, IOException, InterruptedException {
     return MatrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, this.getMatrixAccessToken()) != null;
   }
 
-  public void kickUserFromRoom(String roomId, String matrixIdOfUser, String message) {
+  public void kickUserFromRoom(String roomId, String matrixIdOfUser, String message) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.kickUserFromRoom(roomId, matrixIdOfUser, message, this.getMatrixAccessToken());
   }
 
-  public void joinUserToRoom(String roomId, String matrixIdOfUser) {
+  public void joinUserToRoom(String roomId, String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.joinUserToRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
-  public void renameRoom(String roomId, String spaceDisplayName) {
+  public void renameRoom(String roomId, String spaceDisplayName) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.renameRoom(roomId, spaceDisplayName, this.getMatrixAccessToken());
   }
 
-  public void makeUserAdminInRoom(String matrixRoomId, String matrixIdOfUser) {
+  public void makeUserAdminInRoom(String matrixRoomId, String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
     MatrixHttpClient.makeUserAdminInRoom(matrixRoomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
@@ -228,7 +229,7 @@ public class MatrixService {
    *
    * @param roomId the room identifier
    */
-  public void deleteRoom(String roomId) {
+  public void deleteRoom(String roomId) throws JsonException, IOException, InterruptedException {
     boolean success =  MatrixHttpClient.deleteRoom(roomId, getMatrixAccessToken());
     if(success) {
       matrixRoomStorage.removeMatrixRoom(roomId);

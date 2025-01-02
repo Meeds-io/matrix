@@ -84,7 +84,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     String spaceDisplayName = space.getDisplayName();
     String roomId = matrixService.getRoomBySpace(space);
     if (StringUtils.isNotBlank(roomId)) {
-      matrixService.renameRoom(roomId, spaceDisplayName);
+      try {
+        matrixService.renameRoom(roomId, spaceDisplayName);
+      } catch (Exception e) {
+        LOG.error("Could not rename the room linked to the space {}", space.getDisplayName(), e);
+      }
     }
   }
 
@@ -106,7 +110,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     String roomId = matrixService.getRoomBySpace(space);
     if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
-      matrixService.joinUserToRoom(roomId, matrixIdOfUser);
+      try {
+        matrixService.joinUserToRoom(roomId, matrixIdOfUser);
+      } catch (Exception e) {
+        LOG.error("Could not join the user {} to the room of the space {} on Matrix", userId, space.getDisplayName(), e);
+      }
     }
   }
 
@@ -117,7 +125,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     String roomId = matrixService.getRoomBySpace(space);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
-      matrixService.kickUserFromRoom(roomId, matrixIdOfUser, MESSAGE_USER_KICKED_SPACE.formatted(space.getDisplayName()));
+      try {
+        matrixService.kickUserFromRoom(roomId, matrixIdOfUser, MESSAGE_USER_KICKED_SPACE.formatted(space.getDisplayName()));
+      } catch (Exception e) {
+        LOG.error("Could not kick the user {] from the room of the space {}", userId, space.getDisplayName(), e);
+      }
     }
   }
 
@@ -140,25 +152,29 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     roomId = matrixService.getRoomBySpace(space);
 
     if (StringUtils.isNotBlank(roomId)) {
-      // Disable inviting user but for Moderators
-      MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(roomId);
-      if (matrixRoomPermissions != null) {
-        if (SIMPLE_USER_ROLE.equals(userRole)) {
-          for (MatrixUserPermission userPermission : matrixRoomPermissions.getUsers()) {
-            String fullMatrixUserId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-            if (fullMatrixUserId.equals(userPermission.getUserName())) {
-              userPermission.setUserRole(userRole);
+      try {
+        // Disable inviting user but for Moderators
+        MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(roomId);
+        if (matrixRoomPermissions != null) {
+          if (SIMPLE_USER_ROLE.equals(userRole)) {
+            for (MatrixUserPermission userPermission : matrixRoomPermissions.getUsers()) {
+              String fullMatrixUserId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
+              if (fullMatrixUserId.equals(userPermission.getUserName())) {
+                userPermission.setUserRole(userRole);
+              }
             }
+          } else {
+            MatrixUserPermission matrixUserPermission =
+                    new MatrixUserPermission("@%s:%s".formatted(matrixIdOfUser,
+                            PropertyManager.getProperty(MATRIX_SERVER_NAME)),
+                            userRole);
+            matrixRoomPermissions.getUsers().add(matrixUserPermission);
           }
-        } else {
-          MatrixUserPermission matrixUserPermission =
-                                                    new MatrixUserPermission("@%s:%s".formatted(matrixIdOfUser,
-                                                                                                PropertyManager.getProperty(MATRIX_SERVER_NAME)),
-                                                                             userRole);
-          matrixRoomPermissions.getUsers().add(matrixUserPermission);
         }
+        return matrixService.updateRoomSettings(roomId, matrixRoomPermissions);
+      } catch (Exception e) {
+        LOG.error("Could not update member roles in the space {}", space.getDisplayName(), e);
       }
-      return matrixService.updateRoomSettings(roomId, matrixRoomPermissions);
     }
     return false;
   }
@@ -168,14 +184,18 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     Space space = event.getSpace();
     String mimeType = "image/jpg";
     String roomId = matrixService.getRoomBySpace(space);
-    if (StringUtils.isNotBlank(roomId) && space.getAvatarAttachment() != null
-        && space.getAvatarAttachment().getImageBytes() != null) {
-      byte[] imageBytes = space.getAvatarAttachment().getImageBytes();
-      if (!"application/octet-stream".equals(space.getAvatarAttachment().getMimeType())) {
-        mimeType = space.getAvatarAttachment().getMimeType();
+    try {
+      if (StringUtils.isNotBlank(roomId) && space.getAvatarAttachment() != null
+              && space.getAvatarAttachment().getImageBytes() != null) {
+        byte[] imageBytes = space.getAvatarAttachment().getImageBytes();
+        if (!"application/octet-stream".equals(space.getAvatarAttachment().getMimeType())) {
+          mimeType = space.getAvatarAttachment().getMimeType();
+        }
+        String avatarURL = matrixService.uploadFileOnMatrix(space.getAvatarAttachment().getFileName(), mimeType, imageBytes);
+        matrixService.updateRoomAvatar(roomId, avatarURL);
       }
-      String avatarURL = matrixService.uploadFileOnMatrix(space.getAvatarAttachment().getFileName(), mimeType, imageBytes);
-      matrixService.updateRoomAvatar(roomId, avatarURL);
+    } catch (Exception e) {
+      LOG.error("Could not save the avatar of the space {}", space.getDisplayName(), e);
     }
   }
 
@@ -183,8 +203,12 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   public void spaceDescriptionEdited(SpaceLifeCycleEvent event) {
     Space space = event.getSpace();
     String roomId = matrixService.getRoomBySpace(space);
-    if (StringUtils.isNotBlank(roomId)) {
-      matrixService.updateRoomDescription(roomId, space.getDescription());
+    try {
+      if (StringUtils.isNotBlank(roomId)) {
+        matrixService.updateRoomDescription(roomId, space.getDescription());
+      }
+    } catch (Exception e) {
+      LOG.error("Could not save the description of space {} ", space.getDisplayName(), e);
     }
   }
 
@@ -193,7 +217,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     Space space = event.getSpace();
     String roomId = matrixService.getRoomBySpace(space);
     if (StringUtils.isNotBlank(roomId)) {
-      matrixService.deleteRoom(roomId);
+      try {
+        matrixService.deleteRoom(roomId);
+      } catch (Exception e) {
+        LOG.error("Could not delete the room {} linked to the space {}", roomId, space.getDisplayName());
+      }
     }
   }
 }

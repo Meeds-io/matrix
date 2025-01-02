@@ -163,7 +163,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
         LOG.info("Created a Matrix account for {} of {} users", checkedUsers, usersCount);
       }
     } catch (Exception e) {
-      LOG.error("Error while loading user identities", e);
+      throw new RuntimeException("Error while creating accounts for users on Matrix", e);
     } finally {
       RequestLifeCycle.end();
     }
