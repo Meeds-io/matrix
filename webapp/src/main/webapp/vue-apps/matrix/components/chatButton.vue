@@ -48,6 +48,8 @@
               if(resp.user_id) {
                 localStorage.setItem("matrix_user_id", resp.user_id);
                 localStorage.setItem("matrix_access_token", resp.access_token);
+                this.loadRooms();
+                this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
               } else {
                 this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
                 this.$root.$emit('matrix-login-failed');
@@ -61,10 +63,7 @@
       this.$root.$on('chat-event-total-unread-updated',e => {
         this.totalUnreadMessages = e;
       });
-      this.loadRooms();
-      this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
