@@ -59,6 +59,9 @@
             this.$root.$emit('alert-message', `${this.$t('exo.matrix.jwt.disabled')}`, 'error');
           }
         });
+      } else {
+        this.loadRooms();
+        this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
       }
       this.$root.$on('chat-event-total-unread-updated',e => {
         this.totalUnreadMessages = e;
