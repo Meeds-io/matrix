@@ -74,7 +74,7 @@ public class MatrixHttpClient {
           LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
                     String.valueOf(response.statusCode()),
                     response.body());
-          return null;
+          throw new IllegalStateException("Could not authenticate Admin account on Matrix");
         }
       }
     } catch (Exception e) {
@@ -377,14 +377,10 @@ public class MatrixHttpClient {
         }
         return fullMatrixID.substring(1, fullMatrixID.indexOf(":"));
       } else {
-        LOG.error("Error creating a user account, Matrix server returned HTTP {} error {}",
-                  String.valueOf(response.statusCode()),
-                  response.body());
-        return null;
+        throw new RuntimeException("Error creating a user account, Matrix server returned HTTP {} error {}");
       }
     } catch (Exception e) {
-      LOG.error("Could not create a user account on Matrix", e);
-      return null;
+      throw new RuntimeException("Could not create a user account on Matrix", e);
     }
   }
 

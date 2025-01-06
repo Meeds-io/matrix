@@ -252,6 +252,9 @@ export function toRoomObject(rooms, currentMemberId) {
     if(!roomItem.avatarUrl) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
+    if(!roomItem.updated) {
+      roomItem.updated = 0;
+    }
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }

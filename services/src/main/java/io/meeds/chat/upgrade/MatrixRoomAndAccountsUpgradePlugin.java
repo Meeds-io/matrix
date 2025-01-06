@@ -1,7 +1,6 @@
 package io.meeds.chat.upgrade;
 
 import io.meeds.chat.service.MatrixService;
-import io.meeds.chat.service.utils.MatrixConstants;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
 import org.exoplatform.commons.utils.CommonsUtils;
@@ -36,7 +35,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
   private int              SPACES_THRESHOLD   = 20;
 
-  private int              LOADED_USERS_COUNT = 10;
+  private int              LOADED_USERS_COUNT = 50;
 
   public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams,
                                             SpaceService spaceService,
@@ -156,14 +155,25 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
           Profile userProfile = userIdentity.getProfile();
           String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
           if (StringUtils.isBlank(userMatrixId)) {
-            matrixService.saveUserAccount(user, true, false);
+            userMatrixId = matrixService.saveUserAccount(user, true, false);
+            ListAccess<Space> userSpaces = spaceService.getMemberSpaces(user.getUserName());
+            Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
+            for(Space space : spaceArray) {
+              String spaceRoomId = matrixService.getRoomBySpace(space);
+              if(StringUtils.isNotBlank(spaceRoomId)) {
+                matrixService.joinUserToRoom(spaceRoomId, userMatrixId);
+              }
+            }
+          }
+          if(StringUtils.isNotBlank(userMatrixId)) {
+            matrixService.updateUserAvatar(userProfile, userMatrixId);
           }
         }
         checkedUsers += usersArray.length;
-        LOG.info("Created a Matrix account for {} of {} users", checkedUsers, usersCount);
+        LOG.info("Checked Matrix account for {} of {} users", checkedUsers, usersCount);
       }
     } catch (Exception e) {
-      LOG.error("Error while loading user identities", e);
+      throw new RuntimeException("Error while creating accounts for users on Matrix", e);
     } finally {
       RequestLifeCycle.end();
     }
