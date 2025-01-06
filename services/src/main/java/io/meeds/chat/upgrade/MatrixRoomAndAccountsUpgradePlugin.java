@@ -1,7 +1,6 @@
 package io.meeds.chat.upgrade;
 
 import io.meeds.chat.service.MatrixService;
-import io.meeds.chat.service.utils.MatrixConstants;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
 import org.exoplatform.commons.utils.CommonsUtils;
@@ -165,6 +164,9 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
                 matrixService.joinUserToRoom(spaceRoomId, userMatrixId);
               }
             }
+          }
+          if(StringUtils.isNotBlank(userMatrixId)) {
+            matrixService.updateUserAvatar(userProfile, userMatrixId);
           }
         }
         checkedUsers += usersArray.length;

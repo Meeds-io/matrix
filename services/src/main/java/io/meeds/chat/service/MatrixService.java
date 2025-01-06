@@ -10,6 +10,7 @@ import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 
@@ -22,6 +23,7 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
+import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,6 +47,9 @@ public class MatrixService {
 
   @Autowired
   private IdentityManager     identityManager;
+
+  @Autowired
+  private IdentityStorage     identityStorage;
 
   @Autowired
   private OrganizationService organizationService;
@@ -172,8 +177,24 @@ public class MatrixService {
     return MatrixHttpClient.uploadFile(fileName, mimeType, fileBytes, this.getMatrixAccessToken());
   }
 
-  public void updateUserAvatar(String userMatrixID, String userAvatarUrl) throws JsonException, IOException, InterruptedException {
-    MatrixHttpClient.updateUserAvatar(userMatrixID, userAvatarUrl, this.getMatrixAccessToken());
+  public void updateUserAvatar(Profile profile, String userMatrixID) throws JsonException, IOException, InterruptedException {
+    try {
+      if (StringUtils.isNotBlank(userMatrixID)) {
+        FileItem avatarFileItem = identityStorage.getAvatarFile(profile.getIdentity());
+        String mimeType = "image/jpg";
+        if (avatarFileItem != null && avatarFileItem.getFileInfo() != null && !"DEFAULT_AVATAR".equals(avatarFileItem.getFileInfo().getName())) {
+          if (!"application/octet-stream".equals(avatarFileItem.getFileInfo().getMimetype())) {
+            mimeType = avatarFileItem.getFileInfo().getMimetype();
+          }
+          String userAvatarUrl = this.uploadFileOnMatrix("avatar-of-" + profile.getIdentity().getRemoteId() + ".jpg", mimeType, avatarFileItem.getAsByte());
+          if (StringUtils.isNotBlank(userMatrixID) && StringUtils.isNotBlank(userAvatarUrl)) {
+            MatrixHttpClient.updateUserAvatar(userMatrixID, userAvatarUrl, this.getMatrixAccessToken());
+          }
+        }
+      }
+    } catch (Exception e) {
+      LOG.error("Could not save the avatar of {} on Matrix", profile.getFullName(), e);
+    }
   }
 
   public void disableAccount(String matrixUsername) throws JsonException, IOException, InterruptedException {

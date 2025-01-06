@@ -139,7 +139,7 @@
   <external-component-plugins>
     <target-component>org.exoplatform.commons.upgrade.UpgradeProductService</target-component>
     <component-plugin>
-      <name>MatrixRoomAndAccountsUpgradePlugin</name>
+      <name>MatrixRoomAndAccountsDataInitialization</name>
       <set-method>addUpgradePlugin</set-method>
       <type>io.meeds.chat.upgrade.MatrixRoomAndAccountsUpgradePlugin</type>
       <description>Create Matrix rooms for existing spaces</description>
