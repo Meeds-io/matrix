@@ -16,9 +16,11 @@ import org.exoplatform.social.core.space.SpaceListenerPlugin;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -182,20 +184,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   @Override
   public void spaceAvatarEdited(SpaceLifeCycleEvent event) {
     Space space = event.getSpace();
-    String mimeType = "image/jpg";
-    String roomId = matrixService.getRoomBySpace(space);
     try {
-      if (StringUtils.isNotBlank(roomId) && space.getAvatarAttachment() != null
-              && space.getAvatarAttachment().getImageBytes() != null) {
-        byte[] imageBytes = space.getAvatarAttachment().getImageBytes();
-        if (!"application/octet-stream".equals(space.getAvatarAttachment().getMimeType())) {
-          mimeType = space.getAvatarAttachment().getMimeType();
-        }
-        String avatarURL = matrixService.uploadFileOnMatrix(space.getAvatarAttachment().getFileName(), mimeType, imageBytes);
-        matrixService.updateRoomAvatar(roomId, avatarURL);
-      }
+      String roomId = matrixService.getRoomBySpace(space);
+      matrixService.updateRoomAvatar(space, roomId);
     } catch (Exception e) {
-      LOG.error("Could not save the avatar of the space {}", space.getDisplayName(), e);
+      LOG.error("Could not update the room avatar on Matrix", e);
     }
   }
 
