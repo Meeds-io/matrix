@@ -93,6 +93,9 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
             ignoredSpaces++;
             LOG.debug("The space {} has already a room with Id {}", space.getDisplayName(), roomId);
           }
+          if(StringUtils.isNotBlank(roomId)) {
+            matrixService.updateRoomAvatar(space, roomId);
+          }
         }
         loadedSpaces += spacesToMigrate.length;
       }

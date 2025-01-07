@@ -21,6 +21,7 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
+import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
@@ -205,8 +206,37 @@ public class MatrixService {
     return MatrixHttpClient.updateRoomDescription(roomId, description, this.getMatrixAccessToken());
   }
 
-  public void updateRoomAvatar(String roomId, String avatarURL) throws JsonException, IOException, InterruptedException {
-    MatrixHttpClient.updateRoomAvatar(roomId, avatarURL, this.getMatrixAccessToken());
+  public void updateRoomAvatar(Space space,String roomId) throws Exception {
+    String mimeType = "";
+    String avatarURL;
+    String fileName = "";
+    try {
+      Identity identity = identityManager.getOrCreateIdentity(SpaceIdentityProvider.NAME, space.getPrettyName());
+      FileItem spaceAvatarFileItem = identityManager.getAvatarFile(identity);
+      byte[] imageBytes = new byte[0];
+      if(space.getAvatarAttachment() != null
+              && space.getAvatarAttachment().getImageBytes() != null) {
+        imageBytes = space.getAvatarAttachment().getImageBytes();
+        mimeType = space.getAvatarAttachment().getMimeType();
+        fileName = space.getAvatarAttachment().getFileName();
+      } else if ((spaceAvatarFileItem != null && spaceAvatarFileItem.getAsByte() != null)) {
+        imageBytes = spaceAvatarFileItem.getAsByte();
+        mimeType = spaceAvatarFileItem.getFileInfo().getMimetype();
+        fileName = spaceAvatarFileItem.getFileInfo().getName();
+      }
+      if ("application/octet-stream".equals(mimeType)) {
+        mimeType = "image/jpg";
+      }
+      if(StringUtils.isBlank(fileName)) {
+        fileName = "avatar-space-%s".formatted(space.getPrettyName());
+      }
+      if (StringUtils.isNotBlank(roomId) && imageBytes != null) {
+        avatarURL = this.uploadFileOnMatrix(fileName, mimeType, imageBytes);
+        MatrixHttpClient.updateRoomAvatar(roomId, avatarURL, this.getMatrixAccessToken());
+      }
+    } catch (Exception e) {
+      throw new Exception("Could not save the avatar of the space %s".formatted(space.getDisplayName()), e);
+    }
   }
 
   public MatrixRoomPermissions getRoomSettings(String roomId) throws JsonException, IOException, InterruptedException {

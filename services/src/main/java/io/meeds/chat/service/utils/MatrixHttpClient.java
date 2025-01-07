@@ -758,15 +758,12 @@ public class MatrixHttpClient {
         LOG.info("Avatar of room {} updated successfully !", matrixRoomId);
         return true;
       } else {
-        LOG.error("Error updating the avatar of the room {} ,Matrix server returned HTTP {} error {}",
-                  matrixRoomId,
-                  String.valueOf(response.statusCode()),
-                  response.body());
-        return false;
+        throw new RuntimeException("Error updating the avatar of the room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                                 String.valueOf(response.statusCode()),
+                                                                                                                                 response.body()));
       }
     } catch (Exception e) {
-      LOG.error("Could not update the avatar of the room on Matrix", e);
-      return false;
+      throw new RuntimeException("Could not update the avatar of the room on Matrix", e);
     }
 
   }
