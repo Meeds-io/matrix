@@ -209,6 +209,7 @@ public class MatrixService {
   public void updateRoomAvatar(Space space,String roomId) throws Exception {
     String mimeType = "";
     String avatarURL;
+    String fileExtension = "";
     String fileName = "";
     try {
       Identity identity = identityManager.getOrCreateIdentity(SpaceIdentityProvider.NAME, space.getPrettyName());
@@ -219,17 +220,17 @@ public class MatrixService {
         imageBytes = space.getAvatarAttachment().getImageBytes();
         mimeType = space.getAvatarAttachment().getMimeType();
         fileName = space.getAvatarAttachment().getFileName();
+        fileExtension = StringUtils.isNotBlank(fileName) && fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")) : ".jpg";
       } else if ((spaceAvatarFileItem != null && spaceAvatarFileItem.getAsByte() != null)) {
         imageBytes = spaceAvatarFileItem.getAsByte();
         mimeType = spaceAvatarFileItem.getFileInfo().getMimetype();
         fileName = spaceAvatarFileItem.getFileInfo().getName();
+        fileExtension = StringUtils.isNotBlank(fileName) && fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")) : ".jpg";
       }
       if ("application/octet-stream".equals(mimeType)) {
         mimeType = "image/jpg";
       }
-      if(StringUtils.isBlank(fileName)) {
-        fileName = "avatar-space-%s".formatted(space.getPrettyName());
-      }
+      fileName = "avatar-space-%s%s".formatted(space.getPrettyName(), fileExtension);
       if (StringUtils.isNotBlank(roomId) && imageBytes != null) {
         avatarURL = this.uploadFileOnMatrix(fileName, mimeType, imageBytes);
         MatrixHttpClient.updateRoomAvatar(roomId, avatarURL, this.getMatrixAccessToken());
