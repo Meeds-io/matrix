@@ -41,7 +41,7 @@
     created() {
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
-      if(lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs) {
+      if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
         localStorage.removeItem("matrix_user_id");
         localStorage.removeItem("matrix_access_token");
         localStorage.removeItem('matrix_last_login');
