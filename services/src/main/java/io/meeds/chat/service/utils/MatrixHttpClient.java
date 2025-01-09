@@ -758,9 +758,19 @@ public class MatrixHttpClient {
         LOG.info("Avatar of room {} updated successfully !", matrixRoomId);
         return true;
       } else {
-        throw new RuntimeException("Error updating the avatar of the room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
-                                                                                                                                 String.valueOf(response.statusCode()),
-                                                                                                                                 response.body()));
+        if (response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                  .getElement("retry_after_ms")
+                  .getLongValue();
+
+          LOG.warn("Too many requests on Matrix server, retrying the update of the room avatar after {}ms", sleepInMs);
+          Thread.sleep(sleepInMs);
+          return updateRoomAvatar(matrixRoomId, avatarURL, accessToken);
+        } else {
+          throw new RuntimeException("Error updating the avatar of the room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                  String.valueOf(response.statusCode()),
+                  response.body()));
+        }
       }
     } catch (Exception e) {
       throw new RuntimeException("Could not update the avatar of the room on Matrix", e);
@@ -790,17 +800,26 @@ public class MatrixHttpClient {
         LOG.info("Avatar of user {} updated successfully !", userMatrixId);
         return true;
       } else {
-        LOG.error("Error updating the avatar of the user {} ,Matrix server returned HTTP {} error {}",
+        if (response.statusCode() == 429) {
+          long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                  .getElement("retry_after_ms")
+                  .getLongValue();
+
+          LOG.warn("Too many requests on Matrix server, retrying the update of the room avatar after {}ms", sleepInMs);
+          Thread.sleep(sleepInMs);
+          return updateUserAvatar(userMatrixId, avatarURL, accessToken);
+        } else {
+          LOG.error("Error updating the avatar of the user {} ,Matrix server returned HTTP {} error {}",
                   userMatrixId,
                   String.valueOf(response.statusCode()),
                   response.body());
-        return false;
+          return false;
+        }
       }
     } catch (Exception e) {
       LOG.error("Could not update the avatar of the user on Matrix", e);
       return false;
     }
-
   }
 
   /**
