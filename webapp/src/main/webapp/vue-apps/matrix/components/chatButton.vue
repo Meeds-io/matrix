@@ -39,8 +39,15 @@
       rooms: []
     }),
     created() {
-      const matrixInfos = localStorage.getItem('matrix_user_id');
+      const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
+      const dayInMs = 24*60*60*1000;
+      if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
+        localStorage.removeItem("matrix_user_id");
+        localStorage.removeItem("matrix_access_token");
+        localStorage.removeItem('matrix_last_login');
+      }
 
+      const matrixInfos = localStorage.getItem('matrix_user_id');
       if(!matrixInfos || matrixInfos !== matrixUserId) {
         this.$matrixService.checkAuthenticationTypes().then(enabled => {
           if(enabled) {
@@ -48,6 +55,7 @@
               if(resp.user_id) {
                 localStorage.setItem("matrix_user_id", resp.user_id);
                 localStorage.setItem("matrix_access_token", resp.access_token);
+                localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
               } else {
