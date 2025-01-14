@@ -159,6 +159,12 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
           String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
           if (StringUtils.isBlank(userMatrixId)) {
             userMatrixId = matrixService.saveUserAccount(user, true, false);
+          }
+          if(StringUtils.isNotBlank(userMatrixId)) {
+            // Update user avatar
+            matrixService.updateUserAvatar(userProfile, userMatrixId);
+
+            // Add user to spaces already sync with Matrix
             ListAccess<Space> userSpaces = spaceService.getMemberSpaces(user.getUserName());
             Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
             for(Space space : spaceArray) {
@@ -167,9 +173,6 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
                 matrixService.joinUserToRoom(spaceRoomId, userMatrixId);
               }
             }
-          }
-          if(StringUtils.isNotBlank(userMatrixId)) {
-            matrixService.updateUserAvatar(userProfile, userMatrixId);
           }
         }
         checkedUsers += usersArray.length;
