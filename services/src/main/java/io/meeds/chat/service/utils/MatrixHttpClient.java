@@ -57,7 +57,7 @@ public class MatrixHttpClient {
         }
         """.formatted(userJWTToken);
     try {
-      HttpResponse<String> response = sendHttpPostRequest(url, null, payload);
+      HttpResponse<String> response = sendHttpPostRequest(url, "", payload);
       if (response.statusCode() >= 200 && response.statusCode() < 300) {
         JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
         return jsonGenerator.createJsonObjectFromString(response.body()).getElement("access_token").getStringValue();

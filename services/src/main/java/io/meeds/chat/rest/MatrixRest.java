@@ -1,5 +1,9 @@
 package io.meeds.chat.rest;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -10,6 +14,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.api.notification.NotificationContext;
+import org.exoplatform.commons.api.notification.model.PluginKey;
+import org.exoplatform.commons.api.notification.service.storage.NotificationService;
+import org.exoplatform.commons.notification.impl.NotificationContextImpl;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -19,6 +27,8 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.social.rest.api.EntityBuilder;
+import org.exoplatform.social.rest.entity.SpaceEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.annotation.Secured;
@@ -26,28 +36,30 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
-import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
+import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @RestController
 @RequestMapping("/matrix")
 @Tag(name = "/matrix", description = "Manages Matrix integration")
 public class MatrixRest implements ResourceContainer {
 
-  private static final Log      LOG = ExoLogger.getLogger(MatrixRest.class.toString());
+  private static final Log    LOG = ExoLogger.getLogger(MatrixRest.class.toString());
 
   @Autowired
-  private SpaceService    spaceService;
+  private SpaceService        spaceService;
 
   @Autowired
-  private MatrixService   matrixService;
+  private MatrixService       matrixService;
 
   @Autowired
-  private IdentityManager identityManager;
+  private IdentityManager     identityManager;
 
+  @Autowired
+  private NotificationService notificationService;
 
   @GetMapping
   @Secured("users")
@@ -71,7 +83,9 @@ public class MatrixRest implements ResourceContainer {
     if (!spaceService.isMember(space, userName) && !spaceService.isManager(space, userName)
         && !spaceService.isSuperManager(userName)) {
       LOG.error("User is not allowed to get the team associated with the space {}", space.getDisplayName());
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User " + userName + " is not allowed to get information from space" + space.getPrettyName());
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "User " + userName + " is not allowed to get information from space"
+                                            + space.getPrettyName());
     }
 
     return matrixService.getRoomBySpace(space);
@@ -81,40 +95,38 @@ public class MatrixRest implements ResourceContainer {
   @Secured("users")
   @Operation(summary = "Get the matrix room used for direct messaging between provided users", method = "GET", description = "Get the matrix room used for direct messaging between provided users")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-          @ApiResponse(responseCode = "400", description = "Invalid query input"),
-          @ApiResponse(responseCode = "500", description = "Internal server error") })
+      @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
   public DirectMessagingRoom getDirectMessagingRoom(@Parameter(description = "The first participant")
-                                       @RequestParam(name = "firstParticipant")
-                                       String firstParticipant,
-                                       @Parameter(description = "The second participant")
-                                       @RequestParam(name = "secondParticipant")
-                                       String secondParticipant) {
-    if(StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
+  @RequestParam(name = "firstParticipant")
+  String firstParticipant,
+                                                    @Parameter(description = "The second participant")
+                                                    @RequestParam(name = "secondParticipant")
+                                                    String secondParticipant) {
+    if (StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the ids of the participants should not be null");
     }
     DirectMessagingRoom directMessagingRoom = matrixService.getDirectMessagingRoom(firstParticipant, secondParticipant);
-    if(directMessagingRoom != null) {
+    if (directMessagingRoom != null) {
       return directMessagingRoom;
     } else {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not find a room for participants %s and %s".formatted(firstParticipant, secondParticipant));
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                        "Could not find a room for participants %s and %s".formatted(firstParticipant,
+                                                                                                     secondParticipant));
     }
   }
 
   @PostMapping
   @Secured("users")
-  @Operation(
-          summary = "Gets or creates the Matrix room for the direct messaging",
-          method = "POST",
-          description = "Gets or creates the Matrix room for the direct messaging")
-  @ApiResponses(value = {
-          @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-          @ApiResponse(responseCode = "400", description = "Invalid query input"),
-          @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public DirectMessagingRoom getDirectMessagingRoom(
-          @RequestBody(description = "Matrix object to create", required = true)
-          @org.springframework.web.bind.annotation.RequestBody
-          DirectMessagingRoom directMessagingRoom) {
-    if(StringUtils.isBlank(directMessagingRoom.getFirstParticipant()) || StringUtils.isBlank(directMessagingRoom.getSecondParticipant())) {
+  @Operation(summary = "Gets or creates the Matrix room for the direct messaging", method = "POST", description = "Gets or creates the Matrix room for the direct messaging")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public DirectMessagingRoom getDirectMessagingRoom(@RequestBody(description = "Matrix object to create", required = true)
+  @org.springframework.web.bind.annotation.RequestBody
+  DirectMessagingRoom directMessagingRoom) {
+    if (StringUtils.isBlank(directMessagingRoom.getFirstParticipant())
+        || StringUtils.isBlank(directMessagingRoom.getSecondParticipant())) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the ids of the participants should not be null");
     }
     try {
@@ -124,24 +136,32 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
-
   @PostMapping("notify")
-  @Operation(
-          summary = "Receives push notification from Matrix",
-          method = "POST",
-          description = "Receives push notification from Matrix")
-  @ApiResponses(value = {
-          @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-          @ApiResponse(responseCode = "400", description = "Invalid query input"),
-          @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public String notify(
-          @RequestBody(description = "Notification received from Matrix", required = true)
-          @org.springframework.web.bind.annotation.RequestBody
-          String notification) {
-    LOG.info("######################################################################");
-    LOG.info(notification);
-    LOG.info("######################################################################");
-    return notification;
+  @Operation(summary = "Receives push notification from Matrix", method = "POST", description = "Receives push notification from Matrix")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public String notify(@RequestBody(description = "Notification received from Matrix", required = true)
+  @org.springframework.web.bind.annotation.RequestBody
+  Object notification) {
+    LinkedHashMap<String, Object> notificationObject = ((LinkedHashMap) ((LinkedHashMap) notification).get("notification"));
+    String roomId = (String) notificationObject.get("room_id");
+    String eventId = (String) notificationObject.get("event_id");
+    Integer unreadCount = (Integer) ((LinkedHashMap) notificationObject.get("counts")).get("unread");
+    List<LinkedHashMap<String, String>> devices =
+                                                ((List) ((LinkedHashMap) ((LinkedHashMap) notification).get("notification")).get("devices"));
+    String pushKey = devices != null && devices.size() > 0 ? devices.get(0).get("pushkey") : null;
+    if (StringUtils.isNotBlank(pushKey)) {
+      String userName = parseUserFromToken(pushKey);
+      if (StringUtils.isNotBlank(userName)) {
+        sendPushNotification(userName, roomId, unreadCount);
+      }
+    }
+    return """
+        {
+          "rejected": []
+        }
+        """;
   }
 
   @GetMapping("linkRoom")
@@ -168,7 +188,8 @@ public class MatrixRest implements ResourceContainer {
 
       String existingRoomId = matrixService.getRoomBySpace(space);
       if (StringUtils.isNotBlank(existingRoomId)) {
-        throw new ResponseStatusException(HttpStatus.CONFLICT, "space with group Id " + spaceGroupId + "has already a room with ID " + existingRoomId);
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                          "space with group Id " + spaceGroupId + "has already a room with ID " + existingRoomId);
       }
 
       if (StringUtils.isBlank(roomId) && create) {
@@ -179,7 +200,9 @@ public class MatrixRest implements ResourceContainer {
       return true;
     } catch (Exception e) {
       LOG.error("Could not link space {} to Matrix room {}", spaceGroupId, roomId, e);
-      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not link space " + spaceGroupId + " to Matrix room " + roomId + " : " + e.getMessage());
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                        "Could not link space " + spaceGroupId + " to Matrix room " + roomId + " : "
+                                            + e.getMessage());
     }
   }
 
@@ -187,27 +210,60 @@ public class MatrixRest implements ResourceContainer {
   @Secured("users")
   @Operation(summary = "Get all the matrix rooms used for direct messaging of a defined user", method = "GET", description = "Get all the matrix rooms used for direct messaging of a defined user")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-          @ApiResponse(responseCode = "400", description = "Invalid query input"),
-          @ApiResponse(responseCode = "500", description = "Internal server error") })
+      @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
   public Map<String, String[]> getUserDirectMessagingRooms(@Parameter(description = "The user")
-                                                    @RequestParam(name = "user")
-                                                    String user) {
+  @RequestParam(name = "user")
+  String user) {
 
     Map<String, String[]> userDMRooms = new HashMap<>();
     List<DirectMessagingRoom> rooms = matrixService.getMatrixDMRoomsOfUser(user);
-    for(DirectMessagingRoom dmRoom : rooms) {
+    for (DirectMessagingRoom dmRoom : rooms) {
       Identity userIdentity;
-      if(dmRoom.getFirstParticipant().equals(user)) {
+      if (dmRoom.getFirstParticipant().equals(user)) {
         userIdentity = identityManager.getOrCreateUserIdentity(dmRoom.getSecondParticipant());
       } else {
         userIdentity = identityManager.getOrCreateUserIdentity(dmRoom.getFirstParticipant());
       }
-      if(userIdentity != null) {
-        String userMatrixId = "@" + userIdentity.getProfile().getProperty(USER_MATRIX_ID) + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-        userDMRooms.put(userMatrixId, new String[] {dmRoom.getRoomId()});
+      if (userIdentity != null) {
+        String userMatrixId = "@" + userIdentity.getProfile().getProperty(USER_MATRIX_ID) + ":"
+            + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+        userDMRooms.put(userMatrixId, new String[] { dmRoom.getRoomId() });
       }
     }
     return userDMRooms;
   }
 
+  @GetMapping("spaceByRoom")
+  @Secured("users")
+  @Operation(summary = "Get the space linked to the specified matrix room", method = "GET", description = "Get the space linked to the specified matrix room")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+          @ApiResponse(responseCode = "404", description = "Space not found"),
+          @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public SpaceEntity getSpaceByRoomId(@Parameter(description = "The room Id")
+                                                           @RequestParam(name = "roomId")
+                                                           String roomId) {
+    Space space = matrixService.getSpaceByRoomId(roomId);
+    if(space == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+    ConversationState conversationState = ConversationState.getCurrent();
+    String connectedUser = conversationState.getIdentity().getUserId();
+    return EntityBuilder.buildEntityFromSpace(space, connectedUser, null, null);
   }
+
+  private void sendPushNotification(String participant, String roomId, int unreadCount) {
+    NotificationContext ctx = NotificationContextImpl.cloneInstance();
+    ctx.append(MATRIX_ROOM_ID, roomId);
+    ctx.append(MATRIX_ROOM_MEMBER, participant);
+    ctx.append(MATRIX_ROOM_UNREAD_COUNT, unreadCount);
+    ctx.getNotificationExecutor().with(ctx.makeCommand(PluginKey.key(MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN))).execute(ctx);
+  }
+
+  private String parseUserFromToken(String token) {
+    byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
+    Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
+    return String.valueOf(jws.getBody().getSubject());
+  }
+
+}

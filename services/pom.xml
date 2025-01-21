@@ -35,6 +35,10 @@
     <finalName>exo-matrix-services</finalName>
   </build>
 
+  <properties>
+    <exo.test.coverage.ratio>0.05</exo.test.coverage.ratio>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>io.meeds.social</groupId>
@@ -69,6 +73,9 @@
       <artifactId>jjwt-jackson</artifactId>
       <scope>provided</scope>
     </dependency>
-
+    <dependency>
+      <groupId>io.meeds.pwa</groupId>
+      <artifactId>pwa-service</artifactId>
+    </dependency>
   </dependencies>
 </project>

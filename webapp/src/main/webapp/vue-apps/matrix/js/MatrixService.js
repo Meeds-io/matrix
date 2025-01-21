@@ -7,6 +7,8 @@ const DEFAULT_ROOM_AVATAR = '/matrix/img/room-default.jpg';
 const MATRIX_SYNC_SINCE = 'matrix-sync-since';
 const MATRIX_SYNC_TIMEOUT = 30000;
 const MATRIX_ACTION_MESSAGE_RECEIVED = 'matrix-message-received';
+const PUSH_APP_ID = "exo.matrix.app";
+const PUSH_APP_DISPLAY_NAME = 'Meeds application';
 
 
 export function checkAuthenticationTypes() {
@@ -353,21 +355,21 @@ export function saveFilter() {
 }
 
 
-export function savePushGateway() {
+export function savePushGateway(kind, pushKey) {
   const payload =
   {
-    "app_display_name":"eXo platform",
-    "app_id":"exo.matrix.app",
+    "app_display_name":PUSH_APP_DISPLAY_NAME,
+    "app_id": PUSH_APP_ID,
     "append":false,
     "data":{
        "format": "event_id_only",
        "url": window.location.protocol + "//" + window.location.hostname + "/_matrix/push/v1/notify"
     },
-    "device_display_name":"My eXo instance",
-    "kind":"http",
+    "device_display_name": "Browser",
+    "kind":kind || null,
     "lang":eXo.env.portal.language,
     "profile_tag":"UserProfile",
-    "pushkey":eXo.env.portal.userName
+    "pushkey": pushKey
   }
   return fetch(`/_matrix/client/v3/pushers/set`, {
     method: 'POST',
@@ -382,4 +384,56 @@ export function savePushGateway() {
       return resp.json();
     }
   });
+}
+
+export function getPushers() {
+  return fetch(`/_matrix/client/v3/pushers`, {
+    method: 'GET',
+    headers: {
+     'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Get Push gateway : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
+
+}
+
+export function installPusher() {
+  const token = getCookieValue(JWT_COOKIE_NAME);
+  let found = false;
+  getPushers().then(resp => {
+    if(resp.pushers && resp.pushers.length) {
+      for(let i = 0; i < resp.pushers.length; i++) {
+        let pusher = resp.pushers[i];
+        if(pusher.app_id && pusher.app_id === PUSH_APP_ID) {
+          found = true;
+          if(pusher.pushkey !== token) {
+            savePushGateway(null, pusher.pushkey).then(response => {
+              savePushGateway('http', token);
+            });
+          }
+        }
+      }
+      if(!found) {
+        savePushGateway('http', token);
+      }
+    }
+  });
+}
+
+export function getSpaceByRoomId(roomId) {
+    return fetch(`/matrix/rest/matrix/spaceByRoom?roomId=${roomId}`, {
+      method: 'GET',
+      credentials: 'include',
+    }).then(resp => {
+      if (!resp || !resp.ok) {
+        throw new Error('Get Space by Room Id : Response code indicates a server error or space not found', resp);
+      } else {
+        return resp.json();
+      }
+    });
 }

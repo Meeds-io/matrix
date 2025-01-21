@@ -7,8 +7,8 @@ public class PasswordGenerator {
 
   public static String generatePassword (int length) {
 
-    //minimum length of 8
-    if (length < 4) {
+    //minimum length of generated password is 8
+    if (length < 8) {
       length = 8;
     }
 
