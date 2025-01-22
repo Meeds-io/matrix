@@ -58,6 +58,7 @@
                 localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
+                this.$matrixService.installPusher();
               } else {
                 this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
                 this.$root.$emit('matrix-login-failed');
@@ -70,6 +71,7 @@
       } else {
         this.loadRooms();
         this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
+        this.$matrixService.installPusher();
       }
       this.$root.$on('chat-event-total-unread-updated',e => {
         this.totalUnreadMessages = e;

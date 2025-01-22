@@ -42,7 +42,6 @@ export default {
       event.preventDefault();
       event.stopPropagation();
       const matrixRoom = '';
-      console.log('open chat drawer from popover');
       const currentUserMatrixId = localStorage.getItem("matrix_user_id");
       this.$userService.getUser(this.identityId, 'settings').then(data => {
         const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();

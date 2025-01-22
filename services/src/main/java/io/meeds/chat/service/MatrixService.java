@@ -86,13 +86,23 @@ public class MatrixService {
   }
 
   /**
-   * Returns the ID of the room linked to a space
+   * Returns the Space linked to the room
    * 
    * @param roomId the Matrix room ID
-   * @return the roomId linked to the space
+   * @return the space
    */
   public Space getSpaceByRoomId(String roomId) {
     return matrixRoomStorage.getSpaceIdByMatrixRoomId(roomId);
+  }
+
+  /**
+   * Returns the DM room by room ID
+   *
+   * @param roomId the Matrix room ID
+   * @return the Direct messaging room
+   */
+  public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
+    return matrixRoomStorage.getDMRoomByRoomId(roomId);
   }
 
   /**
