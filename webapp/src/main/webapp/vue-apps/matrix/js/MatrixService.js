@@ -190,9 +190,7 @@ export function processEvents(response) {
       roomEvents.forEach(e => {
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
-            console.log('event sent START');
             document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, message: e.content.body}}));
-            console.log('event sent END');
           }
         }
       });
@@ -425,8 +423,8 @@ export function installPusher() {
   });
 }
 
-export function getSpaceByRoomId(roomId) {
-    return fetch(`/matrix/rest/matrix/spaceByRoom?roomId=${roomId}`, {
+export function getByRoomId(roomId) {
+    return fetch(`/matrix/rest/matrix/byRoom?roomId=${roomId}`, {
       method: 'GET',
       credentials: 'include',
     }).then(resp => {

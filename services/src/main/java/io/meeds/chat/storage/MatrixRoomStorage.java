@@ -4,6 +4,7 @@ import io.meeds.chat.dao.MatrixRoomDAO;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.entity.RoomEntity;
+import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.space.model.Space;
@@ -35,8 +36,19 @@ public class MatrixRoomStorage {
 
   public Space getSpaceIdByMatrixRoomId(String roomId) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
-    if (roomEntity != null) {
+    if (roomEntity != null && StringUtils.isNotBlank(roomEntity.getSpaceId())) {
       return spaceService.getSpaceById(String.valueOf(roomEntity.getSpaceId()));
+    } else {
+      LOG.warn("Can not find an associated space for the matrix room with ID {}", roomId);
+      return null;
+    }
+  }
+
+  public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
+    if (roomEntity != null && StringUtils.isNotBlank(roomEntity.getFirstParticipant())
+        && StringUtils.isNotBlank(roomEntity.getSecondParticipant())) {
+      return toDirectMessagingRoomModel(roomEntity);
     } else {
       LOG.warn("Can not find an associated space for the matrix room with ID {}", roomId);
       return null;

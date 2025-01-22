@@ -22,7 +22,6 @@ const lang = eXo.env.portal.language;
 const url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`;
 
 export function init() {
-  console.log('init extension matrix');
   return exoi18n.loadLanguageAsync(lang, url)
     .then(() => {
       new Vue({

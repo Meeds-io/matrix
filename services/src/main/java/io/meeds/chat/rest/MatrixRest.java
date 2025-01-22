@@ -28,7 +28,9 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.rest.api.EntityBuilder;
-import org.exoplatform.social.rest.entity.SpaceEntity;
+import org.exoplatform.social.rest.entity.IdentityEntity;
+import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
+import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.annotation.Secured;
@@ -143,25 +145,35 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public String notify(@RequestBody(description = "Notification received from Matrix", required = true)
   @org.springframework.web.bind.annotation.RequestBody
-  Object notification) {
-    LinkedHashMap<String, Object> notificationObject = ((LinkedHashMap) ((LinkedHashMap) notification).get("notification"));
-    String roomId = (String) notificationObject.get("room_id");
-    String eventId = (String) notificationObject.get("event_id");
-    Integer unreadCount = (Integer) ((LinkedHashMap) notificationObject.get("counts")).get("unread");
-    List<LinkedHashMap<String, String>> devices =
-                                                ((List) ((LinkedHashMap) ((LinkedHashMap) notification).get("notification")).get("devices"));
-    String pushKey = devices != null && devices.size() > 0 ? devices.get(0).get("pushkey") : null;
-    if (StringUtils.isNotBlank(pushKey)) {
-      String userName = parseUserFromToken(pushKey);
-      if (StringUtils.isNotBlank(userName)) {
-        sendPushNotification(userName, roomId, unreadCount);
+  String notification) {
+    JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
+    try {
+      JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(notification);
+      JsonValue notifJsonValue = jsonValue.getElement("notification");
+      int unreadCount = notifJsonValue.getElement("counts").getElement("unread").getIntValue();
+      String roomId = notifJsonValue.getElement("room_id").getStringValue();
+      String eventId = notifJsonValue.getElement("event_id").getStringValue();
+      String pushKey = "";
+      if (notifJsonValue.getElement("devices").getElements().hasNext()) {
+        JsonValue device = notifJsonValue.getElement("devices").getElements().next();
+        pushKey = device.getElement("pushkey").getStringValue();
       }
-    }
-    return """
-        {
-          "rejected": []
+      if (StringUtils.isNotBlank(pushKey)) {
+        String userName = parseUserFromToken(pushKey);
+        if (StringUtils.isNotBlank(userName)) {
+          sendPushNotification(userName, roomId, unreadCount);
         }
-        """;
+      }
+      return """
+          {
+            "rejected": []
+          }
+          """;
+    } catch (Exception e) {
+      LOG.error("Problem parsing notification received from Matrix", e);
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
   }
 
   @GetMapping("linkRoom")
@@ -234,22 +246,35 @@ public class MatrixRest implements ResourceContainer {
     return userDMRooms;
   }
 
-  @GetMapping("spaceByRoom")
+  @GetMapping("byRoom")
   @Secured("users")
   @Operation(summary = "Get the space linked to the specified matrix room", method = "GET", description = "Get the space linked to the specified matrix room")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-          @ApiResponse(responseCode = "404", description = "Space not found"),
-          @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public SpaceEntity getSpaceByRoomId(@Parameter(description = "The room Id")
-                                                           @RequestParam(name = "roomId")
-                                                           String roomId) {
-    Space space = matrixService.getSpaceByRoomId(roomId);
-    if(space == null) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+      @ApiResponse(responseCode = "404", description = "Space not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public String getByRoomId(@Parameter(description = "The room Id")
+  @RequestParam(name = "roomId")
+  String roomId) {
+    if (StringUtils.isNotBlank(roomId) && roomId.contains(":" + PropertyManager.getProperty(MATRIX_SERVER_NAME))) {
+      roomId = roomId.substring(0, roomId.indexOf(":"));
     }
-    ConversationState conversationState = ConversationState.getCurrent();
-    String connectedUser = conversationState.getIdentity().getUserId();
-    return EntityBuilder.buildEntityFromSpace(space, connectedUser, null, null);
+    DirectMessagingRoom directMessagingRoom;
+    Space space = matrixService.getSpaceByRoomId(roomId);
+    if (space != null) {
+      return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
+    } else {
+      directMessagingRoom = matrixService.getDMRoomByRoomId(roomId);
+      if (directMessagingRoom == null) {
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+      } else {
+        org.exoplatform.services.security.Identity connecteduserIdentity = ConversationState.getCurrent().getIdentity();
+        if (directMessagingRoom.getFirstParticipant().equals(connecteduserIdentity.getUserId())) {
+          return identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()).getId();
+        } else {
+          return identityManager.getOrCreateUserIdentity(directMessagingRoom.getFirstParticipant()).getId();
+        }
+      }
+    }
   }
 
   private void sendPushNotification(String participant, String roomId, int unreadCount) {

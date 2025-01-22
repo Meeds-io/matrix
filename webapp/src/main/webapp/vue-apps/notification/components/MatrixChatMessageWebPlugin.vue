@@ -1,5 +1,5 @@
 <!--
-Copyright (C) 2023 eXo Platform SAS.
+Copyright (C) 2024 eXo Platform SAS.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -31,26 +31,30 @@ export default {
     },
   },
   data: () => ({
-    avatarUrl: '',
+    identityOfRoom: null,
   }),
   created() {
-    this.$matrixService.getSpaceByRoomId(this.notification?.parameters?.ROOM_ID).then(space => {
-      console.log(space);
-      this.avatarUrl = space.avatarUrl;
+    this.$matrixService.getByRoomId(this.notification?.parameters?.ROOM_ID).then(identityId => {
+      this.$identityService.getIdentityById(identityId).then(identity => {
+        this.identityOfRoom = identity;
+      })
     });
   },
   computed: {
     url() {
-      //we keep both possibility so that old notifications, generated before the current modification are still ok
-      return this.notification?.parameters?.chatUrl || `/portal/dw/?chatRoomId=${this.notification?.parameters?.ROOM_ID}`;
+      return `/portal/dw/?chatRoomId=${this.notification?.parameters?.ROOM_ID}`;
+    },
+    avatarUrl() {
+      return this.identityOfRoom && (this.identityOfRoom.providerId === 'space' ? this.identityOfRoom.space.avatarUrl : this.identityOfRoom.profile.avatar) || '';
     },
     message() {
       const unreadMessagesCount = this.notification?.parameters?.UNREAD_MESSAGES_COUNT;
       const roomId = this.notification?.parameters?.ROOM_ID;
+      const roomName = this.identityOfRoom && (this.identityOfRoom.providerId === 'space' ? this.identityOfRoom.space.displayName : this.identityOfRoom.profile.fullname) || roomId;
 
       return this.$t('matrix.message.received.pwa.notification', {
         0: `<b>${unreadMessagesCount}</b>`,
-        1: `<a class="space-name font-weight-bold">${roomId}</a>`
+        1: `<a class="space-name font-weight-bold">${roomName}</a>`
       });
     }
   }
