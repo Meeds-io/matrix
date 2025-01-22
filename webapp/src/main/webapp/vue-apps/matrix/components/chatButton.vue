@@ -58,9 +58,6 @@
                 localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
-                //this.$matrixService.getPushers();
-                //this.$matrixService.savePushGateway();
-                //this.$matrixService.savePushGateway('http');
                 this.$matrixService.installPusher();
               } else {
                 this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
