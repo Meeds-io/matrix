@@ -2,6 +2,7 @@ package io.meeds.chat.storage;
 
 import io.meeds.chat.dao.MatrixRoomDAO;
 import io.meeds.chat.model.DirectMessagingRoom;
+import io.meeds.chat.model.Room;
 import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.entity.RoomEntity;
 import org.apache.commons.lang3.StringUtils;
@@ -109,5 +110,19 @@ public class MatrixRoomStorage {
   public void removeMatrixRoom(String roomId) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
     matrixRoomDAO.delete(roomEntity);
+  }
+
+  public Room getById(String roomId) {
+    return toRoomModel(matrixRoomDAO.findByRoomIdStartsWith(roomId));
+  }
+
+  private Room toRoomModel(RoomEntity roomEntity) {
+    Room room = new Room();
+    room.setId(roomEntity.getId());
+    room.setRoomId(roomEntity.getRoomId());
+    room.setSpaceId(roomEntity.getSpaceId());
+    room.setFirstParticipant(roomEntity.getFirstParticipant());
+    room.setSecondParticipant(roomEntity.getSecondParticipant());
+    return room;
   }
 }

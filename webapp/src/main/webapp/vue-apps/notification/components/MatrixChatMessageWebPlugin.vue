@@ -48,14 +48,21 @@ export default {
       return this.identityOfRoom && (this.identityOfRoom.providerId === 'space' ? this.identityOfRoom.space.avatarUrl : this.identityOfRoom.profile.avatar) || '';
     },
     message() {
-      const unreadMessagesCount = this.notification?.parameters?.UNREAD_MESSAGES_COUNT;
       const roomId = this.notification?.parameters?.ROOM_ID;
-      const roomName = this.identityOfRoom && (this.identityOfRoom.providerId === 'space' ? this.identityOfRoom.space.displayName : this.identityOfRoom.profile.fullname) || roomId;
-
-      return this.$t('matrix.message.received.pwa.notification', {
-        0: `<b>${unreadMessagesCount}</b>`,
-        1: `<a class="space-name font-weight-bold">${roomName}</a>`
-      });
+      let roomName = roomId;
+      if(this.identityOfRoom) {
+        if(this.identityOfRoom.providerId === 'space') {
+          roomName = this.identityOfRoom.space.displayName;
+          return this.$t('matrix.space.message.received.pwa.notification', {
+            0: `<a class="space-name font-weight-bold">${roomName}</a>`
+          });
+        } else {
+          roomName = this.identityOfRoom.profile.fullname;
+          return this.$t('matrix.user.message.received.pwa.notification', {
+            0: `<a class="space-name font-weight-bold">${roomName}</a>`
+          });
+        }
+      }
     }
   }
 };
