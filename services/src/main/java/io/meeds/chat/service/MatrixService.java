@@ -4,6 +4,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.Room;
 import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
@@ -103,6 +104,10 @@ public class MatrixService {
    */
   public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
     return matrixRoomStorage.getDMRoomByRoomId(roomId);
+  }
+
+  public Room getById(String roomId) {
+    return matrixRoomStorage.getById(roomId);
   }
 
   /**

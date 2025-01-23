@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.DirectMessagingRoom;
+import io.meeds.chat.model.Room;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -255,23 +256,22 @@ public class MatrixRest implements ResourceContainer {
   public String getByRoomId(@Parameter(description = "The room Id")
   @RequestParam(name = "roomId")
   String roomId) {
-    if (StringUtils.isNotBlank(roomId) && roomId.contains(":" + PropertyManager.getProperty(MATRIX_SERVER_NAME))) {
+    if (StringUtils.isNotBlank(roomId) && roomId.contains(PropertyManager.getProperty(MATRIX_SERVER_NAME))) {
       roomId = roomId.substring(0, roomId.indexOf(":"));
     }
-    DirectMessagingRoom directMessagingRoom;
-    Space space = matrixService.getSpaceByRoomId(roomId);
-    if (space != null) {
-      return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
+    Room room = matrixService.getById(roomId);
+    if (room == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     } else {
-      directMessagingRoom = matrixService.getDMRoomByRoomId(roomId);
-      if (directMessagingRoom == null) {
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+      if (StringUtils.isNotBlank(room.getSpaceId())) {
+        Space space = spaceService.getSpaceById(room.getSpaceId());
+        return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
       } else {
         org.exoplatform.services.security.Identity connecteduserIdentity = ConversationState.getCurrent().getIdentity();
-        if (directMessagingRoom.getFirstParticipant().equals(connecteduserIdentity.getUserId())) {
-          return identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()).getId();
+        if (room.getFirstParticipant().equals(connecteduserIdentity.getUserId())) {
+          return identityManager.getOrCreateUserIdentity(room.getSecondParticipant()).getId();
         } else {
-          return identityManager.getOrCreateUserIdentity(directMessagingRoom.getFirstParticipant()).getId();
+          return identityManager.getOrCreateUserIdentity(room.getFirstParticipant()).getId();
         }
       }
     }

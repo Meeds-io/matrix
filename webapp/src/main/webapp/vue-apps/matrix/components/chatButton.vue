@@ -104,9 +104,12 @@
       },
       messageReceived(event) {
         this.totalUnreadMessages ++;
-        const updatedRoom = this.rooms.find(room => room.id === event.detail.roomId);
+        const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
+        const updatedRoom = this.rooms[updatedRoomIndex];
         updatedRoom.unreadMessages += 1;
         updatedRoom.lastMessage = event.detail.message;
+        this.rooms.splice(updatedRoomIndex, 1);
+        this.rooms.unshift(updatedRoom);
       },
       loadRooms() {
         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
