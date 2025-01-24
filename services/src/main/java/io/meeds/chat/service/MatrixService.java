@@ -111,18 +111,18 @@ public class MatrixService {
   }
 
   /**
-   * records the matrix ID of the room linked top the space
+   * records the matrix ID of the room linked to the space
    *
    * @param space the Space
    * @param roomId the ID of the matrix room
    * @return the room ID
    */
-  public SpaceRoom createMatrixRoom(Space space, String roomId) {
+  public SpaceRoom linkSpaceToMatrixRoom(Space space, String roomId) {
     return matrixRoomStorage.saveRoomForSpace(space.getId(), roomId);
   }
 
   /**
-   * Creates a room for predefined space
+   * Creates a room on Matrix for the space
    * 
    * @param space the space
    * @return String representing the room id
@@ -130,7 +130,7 @@ public class MatrixService {
    * @throws IOException
    * @throws InterruptedException
    */
-  public String createMatrixRoomForSpace(Space space) throws Exception {
+  public String createRoomForSpaceOnMatrix(Space space) throws Exception {
     String teamDisplayName = space.getDisplayName();
     String description = space.getDescription() != null ? space.getDescription() : "";
     return MatrixHttpClient.createRoom(teamDisplayName, description, getMatrixAccessToken());
@@ -279,8 +279,28 @@ public class MatrixService {
     MatrixHttpClient.makeUserAdminInRoom(matrixRoomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
-  public String createRoom(String teamDisplayName, String description) throws Exception {
-    return MatrixHttpClient.createRoom(teamDisplayName, description, this.getMatrixAccessToken());
+  /**
+   * This function do :
+   *  - Create a room on Matrix
+   *  - Links the room to the space on Meeds
+   *  - Update room permissions
+   * @param space The space
+   * @return The room ID
+   * @throws Exception
+   */
+  public String createRoom(Space space) throws Exception {
+    String teamDisplayName = space.getDisplayName();
+    String description = space.getDescription() != null ? space.getDescription() : "";
+    String matrixRoomId = MatrixHttpClient.createRoom(teamDisplayName, description, this.getMatrixAccessToken());
+    if(StringUtils.isNotBlank(matrixRoomId)) {
+      //link the room on Meeds server
+      this.linkSpaceToMatrixRoom(space, matrixRoomId);
+      // Disable inviting user but for Moderators
+      MatrixRoomPermissions matrixRoomPermissions = this.getRoomSettings(matrixRoomId);
+      matrixRoomPermissions.setInvite(ADMIN_ROLE);
+      this.updateRoomSettings(matrixRoomId, matrixRoomPermissions);
+    }
+    return matrixRoomId;
   }
 
   public long getAllLinkedRooms() {
@@ -333,5 +353,13 @@ public class MatrixService {
     Collection<Membership> userMemberships = this.organizationService.getMembershipHandler()
                                                                      .findMembershipsByUserAndGroup(userName, groupId);
     return !userMemberships.isEmpty();
+  }
+
+  /**
+   * Returns a list of all space rooms
+   * @return List of Space rooms
+   */
+  public List<SpaceRoom> getSpaceRooms() {
+    return matrixRoomStorage.getSpaceRooms();
   }
 }

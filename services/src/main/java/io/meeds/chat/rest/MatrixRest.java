@@ -28,8 +28,6 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.social.rest.api.EntityBuilder;
-import org.exoplatform.social.rest.entity.IdentityEntity;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +37,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -206,10 +203,10 @@ public class MatrixRest implements ResourceContainer {
       }
 
       if (StringUtils.isBlank(roomId) && create) {
-        roomId = matrixService.createMatrixRoomForSpace(space);
+        roomId = matrixService.createRoomForSpaceOnMatrix(space);
       }
 
-      matrixService.createMatrixRoom(space, roomId);
+      matrixService.linkSpaceToMatrixRoom(space, roomId);
       return true;
     } catch (Exception e) {
       LOG.error("Could not link space {} to Matrix room {}", spaceGroupId, roomId, e);

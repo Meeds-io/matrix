@@ -191,7 +191,7 @@ public class MatrixHttpClient {
 
   private static String cleanDescription(String description) {
     String plainTextDescription = Jsoup.parse(description).text();
-    if(StringUtils.isNotBlank(plainTextDescription)) {
+    if (StringUtils.isNotBlank(plainTextDescription)) {
       return plainTextDescription.replace("\"", "\\\"");
     }
     return "";
@@ -647,7 +647,9 @@ public class MatrixHttpClient {
    * @param matrixRoomId
    * @return MatrixRoomPermissions object containing settings of the room
    */
-  public static MatrixRoomPermissions getRoomSettings(String matrixRoomId, String accessToken) {
+  public static MatrixRoomPermissions getRoomSettings(String matrixRoomId, String accessToken) throws IOException,
+                                                                                               InterruptedException,
+                                                                                               JsonException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -655,23 +657,16 @@ public class MatrixHttpClient {
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
         + "/state/m.room.power_levels/";
 
-    try {
-      HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
-      if (response.statusCode() >= 200 && response.statusCode() < 300) {
-        LOG.info("Permissions of room  {} were successfully loaded !", matrixRoomId);
-        JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
-        JsonValue jsonResponse = jsonGenerator.createJsonObjectFromString(response.body());
-        return MatrixRoomPermissions.fromJson(jsonResponse);
-      } else {
-        LOG.error("Error getting room permissions of {} ,Matrix server returned HTTP {} error {}",
-                  matrixRoomId,
-                  String.valueOf(response.statusCode()),
-                  response.body());
-        return null;
-      }
-    } catch (Exception e) {
-      LOG.error("Could not get room permissions on Matrix", e);
-      return null;
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      LOG.info("Permissions of room  {} were successfully loaded !", matrixRoomId);
+      JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
+      JsonValue jsonResponse = jsonGenerator.createJsonObjectFromString(response.body());
+      return MatrixRoomPermissions.fromJson(jsonResponse);
+    } else {
+      throw new RuntimeException("Error getting room permissions of %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                           String.valueOf(response.statusCode()),
+                                                                                                                           response.body()));
     }
   }
 
@@ -681,7 +676,7 @@ public class MatrixHttpClient {
    * @param matrixRoomId the Id of the room
    * @return MatrixRoomPermissions updated room settings
    */
-  public static String updateRoomSettings(String matrixRoomId, MatrixRoomPermissions roomSettings, String accessToken) {
+  public static String updateRoomSettings(String matrixRoomId, MatrixRoomPermissions roomSettings, String accessToken) throws IOException, InterruptedException, JsonException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -691,23 +686,16 @@ public class MatrixHttpClient {
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
         + "/state/m.room.power_levels/";
 
-    try {
-      HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
-      if (response.statusCode() >= 200 && response.statusCode() < 300) {
-        LOG.info("Permissions of room  {} were successfully updated !", matrixRoomId);
-        JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
-        JsonValue jsonResponse = jsonGenerator.createJsonObjectFromString(response.body());
-        return jsonResponse.getElement("event_id").getStringValue();
-      } else {
-        LOG.error("Error updating room permissions of {} ,Matrix server returned HTTP {} error {}",
-                  matrixRoomId,
-                  String.valueOf(response.statusCode()),
-                  response.body());
-        return null;
-      }
-    } catch (Exception e) {
-      LOG.error("Could not update room permissions on Matrix", e);
-      return null;
+    HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      LOG.info("Permissions of room  {} were successfully updated !", matrixRoomId);
+      JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
+      JsonValue jsonResponse = jsonGenerator.createJsonObjectFromString(response.body());
+      return jsonResponse.getElement("event_id").getStringValue();
+    } else {
+      throw new RuntimeException("Error updating room permissions of %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                            String.valueOf(response.statusCode()),
+                                                                                                                            response.body()));
     }
   }
 
@@ -760,16 +748,16 @@ public class MatrixHttpClient {
       } else {
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
-                  .getElement("retry_after_ms")
-                  .getLongValue();
+                                                  .getElement("retry_after_ms")
+                                                  .getLongValue();
 
           LOG.warn("Too many requests on Matrix server, retrying the update of the room avatar after {}ms", sleepInMs);
           Thread.sleep(sleepInMs);
           return updateRoomAvatar(matrixRoomId, avatarURL, accessToken);
         } else {
           throw new RuntimeException("Error updating the avatar of the room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
-                  String.valueOf(response.statusCode()),
-                  response.body()));
+                                                                                                                                   String.valueOf(response.statusCode()),
+                                                                                                                                   response.body()));
         }
       }
     } catch (Exception e) {
@@ -802,17 +790,17 @@ public class MatrixHttpClient {
       } else {
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
-                  .getElement("retry_after_ms")
-                  .getLongValue();
+                                                  .getElement("retry_after_ms")
+                                                  .getLongValue();
 
           LOG.warn("Too many requests on Matrix server, retrying the update of the room avatar after {}ms", sleepInMs);
           Thread.sleep(sleepInMs);
           return updateUserAvatar(userMatrixId, avatarURL, accessToken);
         } else {
           LOG.error("Error updating the avatar of the user {} ,Matrix server returned HTTP {} error {}",
-                  userMatrixId,
-                  String.valueOf(response.statusCode()),
-                  response.body());
+                    userMatrixId,
+                    String.valueOf(response.statusCode()),
+                    response.body());
           return false;
         }
       }
