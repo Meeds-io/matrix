@@ -48,12 +48,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   public void spaceCreated(SpaceLifeCycleEvent event) {
     Space space = event.getSpace();
     try {
-      String teamDisplayName = space.getDisplayName();
-      String description = space.getDescription() != null ? space.getDescription() : "";
-      String matrixRoomId = matrixService.createRoom(teamDisplayName, description);
+      String matrixRoomId = matrixService.createRoom(space);
 
       if (StringUtils.isNotBlank(matrixRoomId)) {
-        matrixService.createMatrixRoom(space, matrixRoomId);
         List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
         for (String manager : space.getManagers()) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
@@ -69,11 +66,6 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
           }
         }
-
-        // Disable inviting user but for Moderators
-        MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(matrixRoomId);
-        matrixRoomPermissions.setInvite(ADMIN_ROLE);
-        matrixService.updateRoomSettings(matrixRoomId, matrixRoomPermissions);
       }
     } catch (Exception e) {
       LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);

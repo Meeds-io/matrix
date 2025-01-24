@@ -74,8 +74,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
           String roomId = matrixService.getRoomBySpace(space);
           if (StringUtils.isBlank(roomId)) {
             try {
-              roomId = this.matrixService.createMatrixRoomForSpace(space);
-              matrixService.createMatrixRoom(space, roomId);
+              roomId = this.matrixService.createRoom(space);
               for (String member : space.getMembers()) {
                 Identity memberIdentity = identityManager.getOrCreateUserIdentity(member);
                 if (memberIdentity != null

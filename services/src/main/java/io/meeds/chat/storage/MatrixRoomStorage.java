@@ -13,6 +13,7 @@ import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -86,6 +87,14 @@ public class MatrixRoomStorage {
     return spaceRoomModel;
   }
 
+  private static List<SpaceRoom> toSpaceRoomList(List<RoomEntity> roomEntities) {
+    List<SpaceRoom> spaceRooms = new ArrayList<>();
+    for (RoomEntity roomEntity : roomEntities) {
+      spaceRooms.add(toSpaceRoomModel(roomEntity));
+    }
+    return spaceRooms;
+  }
+
   public long getSpaceRoomCount() {
     return matrixRoomDAO.count();
   }
@@ -116,6 +125,12 @@ public class MatrixRoomStorage {
     return toRoomModel(matrixRoomDAO.findByRoomIdStartsWith(roomId));
   }
 
+  /**
+   * Converts a RoomEntity to a Room model
+   * 
+   * @param roomEntity the JPA entity for room
+   * @return Room object
+   */
   private Room toRoomModel(RoomEntity roomEntity) {
     Room room = new Room();
     room.setId(roomEntity.getId());
@@ -124,5 +139,14 @@ public class MatrixRoomStorage {
     room.setFirstParticipant(roomEntity.getFirstParticipant());
     room.setSecondParticipant(roomEntity.getSecondParticipant());
     return room;
+  }
+
+  /**
+   * Get a list of rooms linked to spaces
+   * 
+   * @return List of SpaceRoom
+   */
+  public List<SpaceRoom> getSpaceRooms() {
+    return toSpaceRoomList(matrixRoomDAO.findBySpaceIdIsNotNull());
   }
 }

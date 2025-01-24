@@ -3,6 +3,7 @@ package io.meeds.chat.dao;
 import io.meeds.chat.entity.RoomEntity;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.model.SpaceRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -27,4 +28,6 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
   public List<RoomEntity> findByFirstParticipantOrSecondParticipant(String userOne, String userTwo);
 
   public RoomEntity findByRoomIdStartsWith(String roomId);
+
+  public List<RoomEntity> findBySpaceIdIsNotNull();
 }
