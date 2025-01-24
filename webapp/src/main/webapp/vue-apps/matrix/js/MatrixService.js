@@ -214,16 +214,26 @@ export function toRoomObject(rooms, currentMemberId) {
         roomItem.name = e.content.name;
       }
       if(e.type === 'm.room.avatar'){
-        const avatarUrl = e.content.url ? e.content.url.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
-        roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
+        if(!roomItem.avatarLastUpdated || roomItem.avatarLastUpdated < e.origin_server_ts) {
+          const avatarUrl = e.content.url ? e.content.url.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
+          roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
+          roomItem.avatarLastUpdated = e.origin_server_ts;
+        }
       }
       if(e.type === 'm.room.member'){
         if(e.content.membership === 'join') {
-          if(!members.some(element => element.id == e.sender)) {
-            let member = {};
+          const oldMemberIndex = members.findIndex(element => element.id === e.sender);
+          if(oldMemberIndex < 0 || (members && members.length > oldMemberIndex && members[oldMemberIndex].lastUpdated && members[oldMemberIndex].lastUpdated <= e.origin_server_ts)) {
+            let member = oldMemberIndex > -1 ? members[oldMemberIndex] : {};
             member.id = e.sender;
             member.name = e.content.displayname;
-            members.push(member);
+            member.avatarUrl = e.content.avatar_url;
+            member.lastUpdated = e.origin_server_ts;
+            if(oldMemberIndex >= 0) {
+              members[oldMemberIndex] = member;
+            } else {
+              members.push(member);
+            }
           }
         }
       }
@@ -244,6 +254,9 @@ export function toRoomObject(rooms, currentMemberId) {
     roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
     if(!roomItem.name && roomItem.members.length == 2) {
       roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
+      let avatarUrl = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.avatarUrl;
+      avatarUrl = avatarUrl ? avatarUrl.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
+      roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
       roomItem.isDirectChat = true;
     }
     if(roomItem.members == 1) {
