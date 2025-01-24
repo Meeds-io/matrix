@@ -4,9 +4,7 @@ import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
-import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.service.MatrixService;
-import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -16,7 +14,6 @@ import org.exoplatform.social.core.space.SpaceListenerPlugin;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
 import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

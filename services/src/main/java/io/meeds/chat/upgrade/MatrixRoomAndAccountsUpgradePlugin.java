@@ -25,26 +25,30 @@ import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
 public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
-  private static final Log LOG                = ExoLogger.getExoLogger(MatrixRoomAndAccountsUpgradePlugin.class);
+  private static final Log    LOG                = ExoLogger.getExoLogger(MatrixRoomAndAccountsUpgradePlugin.class);
 
-  private SpaceService     spaceService;
+  private SpaceService        spaceService;
 
-  private MatrixService    matrixService;
+  private MatrixService       matrixService;
 
-  private IdentityManager  identityManager;
+  private IdentityManager     identityManager;
 
-  private int              SPACES_THRESHOLD   = 20;
+  private OrganizationService organizationService;
 
-  private int              LOADED_USERS_COUNT = 50;
+  private int                 SPACES_THRESHOLD   = 20;
+
+  private int                 LOADED_USERS_COUNT = 50;
 
   public MatrixRoomAndAccountsUpgradePlugin(InitParams initParams,
                                             SpaceService spaceService,
                                             MatrixService matrixService,
+                                            OrganizationService organizationService,
                                             IdentityManager identityManager) {
     super(initParams);
     this.spaceService = spaceService;
     this.matrixService = matrixService;
     this.identityManager = identityManager;
+    this.organizationService = organizationService;
   }
 
   @Override
@@ -92,7 +96,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
             ignoredSpaces++;
             LOG.debug("The space {} has already a room with Id {}", space.getDisplayName(), roomId);
           }
-          if(StringUtils.isNotBlank(roomId)) {
+          if (StringUtils.isNotBlank(roomId)) {
             matrixService.updateRoomAvatar(space, roomId);
           }
         }
@@ -120,9 +124,6 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
   private void synchronizeUsers() {
     LOG.info("Start:: create Matrix accounts for users");
     long startupTime = System.currentTimeMillis();
-    IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
-    MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
-    OrganizationService organizationService = CommonsUtils.getService(OrganizationService.class);
 
     int checkedUsers = 0;
     int usersCount = 0;
@@ -159,16 +160,16 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
           if (StringUtils.isBlank(userMatrixId)) {
             userMatrixId = matrixService.saveUserAccount(user, true, false);
           }
-          if(StringUtils.isNotBlank(userMatrixId)) {
+          if (StringUtils.isNotBlank(userMatrixId)) {
             // Update user avatar
             matrixService.updateUserAvatar(userProfile, userMatrixId);
 
             // Add user to spaces already sync with Matrix
             ListAccess<Space> userSpaces = spaceService.getMemberSpaces(user.getUserName());
             Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
-            for(Space space : spaceArray) {
+            for (Space space : spaceArray) {
               String spaceRoomId = matrixService.getRoomBySpace(space);
-              if(StringUtils.isNotBlank(spaceRoomId)) {
+              if (StringUtils.isNotBlank(spaceRoomId)) {
                 matrixService.joinUserToRoom(spaceRoomId, userMatrixId);
               }
             }

@@ -5,6 +5,7 @@ import org.exoplatform.services.organization.idm.UserImpl;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.util.Date;
@@ -19,7 +20,9 @@ import static org.junit.Assert.*;
 
 public class MatrixUtilsTest {
 
-  private String access_token = "syt_ZXhv_BDVYgRelgkgjGduvVCyz_1iXdtf";
+  private String   access_token     = "syt_ZXhv_BDVYgRelgkgjGduvVCyz_1iXdtf";
+
+  MatrixHttpClient matrixHttpClient = new MatrixHttpClient();
 
   @Before
   public void setUp() {
@@ -34,7 +37,7 @@ public class MatrixUtilsTest {
     user.setEmail("test@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    MatrixHttpClient.createUserAccount(user, access_token);
+    matrixHttpClient.createUserAccount(user, access_token);
   }
 
   public void testSaveUserAccount() {
@@ -43,7 +46,7 @@ public class MatrixUtilsTest {
     user.setEmail("test@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    MatrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
   }
 
   public void testDisableUserAccount() {
@@ -52,18 +55,18 @@ public class MatrixUtilsTest {
     user.setEmail("test" + randomKey + "@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    String username = MatrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
-    MatrixHttpClient.disableAccount(username, false, access_token);
+    String username = matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    matrixHttpClient.disableAccount(username, false, access_token);
   }
 
   public void testRenameSpace() {
     String roomId = null;
     try {
-      roomId = MatrixHttpClient.createRoom("new room", "new room description", access_token);
+      roomId = matrixHttpClient.createRoom("new room", "new room description", access_token);
     } catch (Exception e) {
       // nothing
     }
-    assertNotNull(MatrixHttpClient.renameRoom(roomId, "new room renamed" + new Date().getTime(), access_token));
+    assertNotNull(matrixHttpClient.renameRoom(roomId, "new room renamed" + new Date().getTime(), access_token));
   }
 
   public void testInviteUser() throws Exception {
@@ -72,9 +75,9 @@ public class MatrixUtilsTest {
     user.setEmail("test" + randomKey + "@exo.com");
     user.setFirstName("test " + randomKey);
     user.setLastName("User");
-    String invitee = MatrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
-    String roomId = MatrixHttpClient.createRoom("Football game", "Description of Football team", access_token);
-    MatrixHttpClient.inviteUserToRoom(roomId, invitee, "Welcome to Football game room !", access_token);
+    String invitee = matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    String roomId = matrixHttpClient.createRoom("Football game", "Description of Football team", access_token);
+    matrixHttpClient.inviteUserToRoom(roomId, invitee, "Welcome to Football game room !", access_token);
   }
 
   /*
@@ -83,27 +86,22 @@ public class MatrixUtilsTest {
    */
   public void testKickUser() {
     String roomId = "!rYdqPkQhIzNWyVPDFX";
-    MatrixHttpClient.kickUserFromRoom(roomId, "@testuser1:matrix.exo.tn", "Talking too much!", access_token);
+    matrixHttpClient.kickUserFromRoom(roomId, "@testuser1:matrix.exo.tn", "Talking too much!", access_token);
   }
 
-  public void updateRoomSettings() {
+  public void updateRoomSettings() throws JsonException, IOException, InterruptedException {
     String roomId = "!rYdqPkQhIzNWyVPDFX";
-    MatrixRoomPermissions settings = null;
-    try {
-      settings = MatrixHttpClient.getRoomSettings(roomId, access_token);
-      settings.setInvite("0");
-      String updateEventId = MatrixHttpClient.updateRoomSettings(roomId, settings, access_token);
-    } catch (IOException | InterruptedException | JsonException e) {
-      fail();
-    }
+    MatrixRoomPermissions settings = matrixHttpClient.getRoomSettings(roomId, access_token);
+    settings.setInvite("0");
+    String updateEventId = matrixHttpClient.updateRoomSettings(roomId, settings, access_token);
   }
 
   public void updateRoomAvatar() {
     try {
       String roomId = "!HaTqHwWINwoSoIGfZx";
       byte[] resource = getClass().getClassLoader().getResourceAsStream("meeds.png").readAllBytes();
-      String imageStored = MatrixHttpClient.uploadFile("image.png", "image/png", resource, access_token);
-      boolean success = MatrixHttpClient.updateRoomAvatar(roomId, imageStored, access_token);
+      String imageStored = matrixHttpClient.uploadFile("image.png", "image/png", resource, access_token);
+      boolean success = matrixHttpClient.updateRoomAvatar(roomId, imageStored, access_token);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -114,8 +112,8 @@ public class MatrixUtilsTest {
       String roomId = "@root:matrix.exo.tn";
       int randomInt = new Random().nextInt(3);
       byte[] resource = getClass().getClassLoader().getResourceAsStream("avatar" + randomInt + ".png").readAllBytes();
-      String imageStored = MatrixHttpClient.uploadFile("image.png", "image/png", resource, access_token);
-      assertTrue(MatrixHttpClient.updateUserAvatar(roomId, imageStored, access_token));
+      String imageStored = matrixHttpClient.uploadFile("image.png", "image/png", resource, access_token);
+      assertTrue(matrixHttpClient.updateUserAvatar(roomId, imageStored, access_token));
     } catch (IOException e) {
       fail();
     }
@@ -126,7 +124,7 @@ public class MatrixUtilsTest {
     String[] usernames = new String[] { "Samueâl", "fre@d", "Shazia", "gorkef/",
         "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}" };
     for (String username : usernames) {
-      String result = MatrixHttpClient.cleanMatrixUsername(username);
+      String result = matrixHttpClient.cleanMatrixUsername(username);
       assertNotNull(result);
     }
   }
@@ -134,7 +132,7 @@ public class MatrixUtilsTest {
   public void testDeleteSpace() throws Exception {
     long currentTime = System.currentTimeMillis();
     String matrixRoomId =
-                        MatrixHttpClient.createRoom("test space" + currentTime, "test description " + currentTime, access_token);
-    MatrixHttpClient.deleteRoom(matrixRoomId, access_token);
+                        matrixHttpClient.createRoom("test space" + currentTime, "test description " + currentTime, access_token);
+    matrixHttpClient.deleteRoom(matrixRoomId, access_token);
   }
 }

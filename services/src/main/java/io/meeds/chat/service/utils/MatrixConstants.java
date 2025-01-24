@@ -14,6 +14,8 @@ public class MatrixConstants {
 
   public static final String                   MATRIX_ADMIN_USERNAME                          = "meeds.matrix.user.name";
 
+  public static final String                   MATRIX_ADMIN_DISPLAY_NAME                      = "meeds.matrix.user.display.name";
+
   public static final String                   MATRIX_SERVER_NAME                             = "meeds.matrix.server.name";
 
   public static final String                   MATRIX_RESTRICTED_USERS_GROUP                  =

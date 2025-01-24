@@ -2,7 +2,6 @@ package io.meeds.chat.service.utils;
 
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
-import org.apache.commons.codec.language.MatchRatingApproachEncoder;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import org.exoplatform.commons.utils.PropertyManager;
@@ -13,25 +12,21 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.jsoup.Jsoup;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
-import java.util.ArrayList;
 
+import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static java.lang.Character.toLowerCase;
 
+@Component
 public class MatrixHttpClient {
   private static final Log LOG = ExoLogger.getLogger(MatrixHttpClient.class.toString());
-
-  private MatrixHttpClient() {
-  }
 
   /**
    * Get an authenticated access token for the administrative tasks
@@ -42,7 +37,7 @@ public class MatrixHttpClient {
    * @throws IOException
    * @throws InterruptedException
    */
-  public static String getAdminAccessToken(String userJWTToken) throws JsonException, IOException, InterruptedException {
+  public String getAdminAccessToken(String userJWTToken) throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -91,8 +86,7 @@ public class MatrixHttpClient {
    * @param password the user password
    * @return String : access token for the authenticated user
    */
-  public static String authenticateUser(String userName,
-                                        String password) throws JsonException, IOException, InterruptedException {
+  public String authenticateUser(String userName, String password) throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -109,7 +103,7 @@ public class MatrixHttpClient {
 
         """.formatted(userName, password);
     try {
-      HttpResponse<String> response = sendHttpPostRequest(url, null, payload);
+      HttpResponse<String> response = sendHttpPostRequest(url, "", payload);
       if (response.statusCode() >= 200 && response.statusCode() < 300) {
         JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
         return jsonGenerator.createJsonObjectFromString(response.body()).getElement("access_token").getStringValue();
@@ -136,7 +130,7 @@ public class MatrixHttpClient {
 
   }
 
-  public static String createRoom(String name, String description, String token) throws Exception {
+  public String createRoom(String name, String description, String token) throws Exception {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -189,7 +183,7 @@ public class MatrixHttpClient {
     }
   }
 
-  private static String cleanDescription(String description) {
+  private String cleanDescription(String description) {
     String plainTextDescription = Jsoup.parse(description).text();
     if (StringUtils.isNotBlank(plainTextDescription)) {
       return plainTextDescription.replace("\"", "\\\"");
@@ -197,71 +191,7 @@ public class MatrixHttpClient {
     return "";
   }
 
-  protected static HttpResponse<String> sendHttpGetRequest(String url, String token) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header(AUTHORIZATION, BEARER + token).GET().build();
-    return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  protected static HttpResponse<String> sendHttpPostRequest(String url, String token, String contentAsJson) throws IOException,
-                                                                                                            InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request;
-    if (StringUtils.isNotBlank(token)) {
-      request = HttpRequest.newBuilder()
-                           .uri(URI.create(url))
-                           .header(AUTHORIZATION, BEARER + token)
-                           .POST(HttpRequest.BodyPublishers.ofString(contentAsJson))
-                           .build();
-    } else {
-      request = HttpRequest.newBuilder().uri(URI.create(url)).POST(HttpRequest.BodyPublishers.ofString(contentAsJson)).build();
-    }
-    return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  protected static HttpResponse<String> sendHttpPostRequest(String url,
-                                                            String token,
-                                                            String mimeType,
-                                                            byte[] fileContent) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request;
-    request = HttpRequest.newBuilder()
-                         .uri(URI.create(url))
-                         .header(AUTHORIZATION, BEARER + token)
-                         .header(CONTENT_TYPE, mimeType)
-                         .POST(HttpRequest.BodyPublishers.ofByteArray(fileContent))
-                         .build();
-    return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  protected static HttpResponse<String> sendHttpPutRequest(String url, String token, String contentAsJson) throws IOException,
-                                                                                                           InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request = HttpRequest.newBuilder()
-                                     .uri(URI.create(url))
-                                     .header(AUTHORIZATION, BEARER + token)
-                                     .PUT(HttpRequest.BodyPublishers.ofString(contentAsJson))
-                                     .build();
-    return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  protected static HttpResponse<String> sendHttpDeleteRequest(String url,
-                                                              String token,
-                                                              String contentAsJson) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request = HttpRequest.newBuilder()
-                                     .uri(URI.create(url))
-                                     .header(AUTHORIZATION, BEARER + token)
-                                     .method("DELETE", HttpRequest.BodyPublishers.ofString(contentAsJson))
-                                     .build();
-    return client.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  public static void sendInvitationToMembers(ArrayList<String> strings, String matrixRoomId) {
-
-  }
-
-  public static String createUserAccount(User user, String token) {
+  public String createUserAccount(User user, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -299,11 +229,67 @@ public class MatrixHttpClient {
     }
   }
 
-  public static String saveUserAccount(User user,
-                                       String matrixUserId,
-                                       boolean isNew,
-                                       String token,
-                                       boolean isEnableUserOperation) {
+  /**
+   * Sets a new display name for the user
+   * 
+   * @param userMatrixId the ID of the user on Matrix
+   * @param displayName the new display name
+   * @param token the access token
+   * @throws IOException
+   * @throws InterruptedException
+   * @throws JsonException
+   */
+  public void updateUserDisplayName(String userMatrixId, String displayName, String token) throws IOException,
+                                                                                           InterruptedException,
+                                                                                           JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(userMatrixId, StandardCharsets.UTF_8);
+
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/profile/" + encodedUserMatrixId
+        + "/displayname";
+
+    String payload = """
+        {
+          "displayname": "%s"
+        }
+        """.formatted(displayName);
+    HttpResponse<String> response = sendHttpPutRequest(url, token, payload);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      LOG.info("The display name of the User {} was updated successfully", userMatrixId);
+    } else {
+      if (response.statusCode() == 429) {
+        long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                                                .getElement("retry_after_ms")
+                                                .getLongValue();
+        LOG.warn("Too many requests on Matrix server, retrying to update the display name of the user {} after {}ms",
+                 userMatrixId,
+                 sleepInMs);
+        Thread.sleep(sleepInMs);
+        updateUserDisplayName(userMatrixId, displayName, token);
+      } else {
+        throw new RuntimeException("Error Updating the display name of the user %s, Matrix server returned HTTP %s error %s".formatted(userMatrixId,
+                                                                                                                                       String.valueOf(response.statusCode()),
+                                                                                                                                       response.body()));
+      }
+    }
+
+  }
+
+  /**
+   * Saves the user account
+   * 
+   * @param user the User
+   * @param matrixUserId the corresponding matrix ID
+   * @param isNew if the user account is one
+   * @param token the access token
+   * @param isEnableUserOperation is this an operation to enable/disable the user
+   *          on Matrix
+   * @return the user Matrix ID
+   */
+
+  public String saveUserAccount(User user, String matrixUserId, boolean isNew, String token, boolean isEnableUserOperation) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -384,13 +370,13 @@ public class MatrixHttpClient {
     }
   }
 
-  private static String hmacUserProperties(String nonce, String userName, String password, boolean isAdmin) {
+  private String hmacUserProperties(String nonce, String userName, String password, boolean isAdmin) {
     String userProperties = nonce + "\0" + userName + "\0" + password + "\0" + (isAdmin ? "admin" : "notadmin");
     return new HmacUtils(HmacAlgorithms.HMAC_SHA_1,
                          PropertyManager.getProperty(SHARED_SECRET_REGISTRATION)).hmacHex(userProperties);
   }
 
-  private static String getRegistrationNonce(String accessToken) {
+  private String getRegistrationNonce(String accessToken) {
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/register";
     try {
       HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
@@ -410,7 +396,7 @@ public class MatrixHttpClient {
     }
   }
 
-  public static String disableAccount(String userName, boolean eraseData, String token) {
+  public String disableAccount(String userName, boolean eraseData, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -439,7 +425,7 @@ public class MatrixHttpClient {
     }
   }
 
-  public static String renameRoom(String roomId, String newRoomName, String token) {
+  public String renameRoom(String roomId, String newRoomName, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -479,7 +465,7 @@ public class MatrixHttpClient {
    * @param invitationMessage a custom invitation message
    * @return
    */
-  public static boolean inviteUserToRoom(String roomId, String userMatrixId, String invitationMessage, String token) {
+  public boolean inviteUserToRoom(String roomId, String userMatrixId, String invitationMessage, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -519,7 +505,7 @@ public class MatrixHttpClient {
    * @param userMatrixId the Matrix id of the user
    * @param raisonMessage the raison message
    */
-  public static void kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
+  public void kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -557,7 +543,7 @@ public class MatrixHttpClient {
    * @param matrixIdOfUser the ID of the user of Matrix
    * @return Boolean true if operation succeeded
    */
-  public static boolean joinUserToRoom(String matrixRoomId, String matrixIdOfUser, String token) {
+  public boolean joinUserToRoom(String matrixRoomId, String matrixIdOfUser, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -609,7 +595,7 @@ public class MatrixHttpClient {
    * @return Boolean true if succeeded
    */
 
-  public static boolean makeUserAdminInRoom(String matrixRoomId, String matrixIdOfUser, String token) {
+  public boolean makeUserAdminInRoom(String matrixRoomId, String matrixIdOfUser, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -647,9 +633,8 @@ public class MatrixHttpClient {
    * @param matrixRoomId
    * @return MatrixRoomPermissions object containing settings of the room
    */
-  public static MatrixRoomPermissions getRoomSettings(String matrixRoomId, String accessToken) throws IOException,
-                                                                                               InterruptedException,
-                                                                                               JsonException {
+  public MatrixRoomPermissions getRoomSettings(String matrixRoomId,
+                                               String accessToken) throws IOException, InterruptedException, JsonException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -676,7 +661,9 @@ public class MatrixHttpClient {
    * @param matrixRoomId the Id of the room
    * @return MatrixRoomPermissions updated room settings
    */
-  public static String updateRoomSettings(String matrixRoomId, MatrixRoomPermissions roomSettings, String accessToken) throws IOException, InterruptedException, JsonException {
+  public String updateRoomSettings(String matrixRoomId,
+                                   MatrixRoomPermissions roomSettings,
+                                   String accessToken) throws IOException, InterruptedException, JsonException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -699,7 +686,7 @@ public class MatrixHttpClient {
     }
   }
 
-  public static String uploadFile(String fileName, String mimeType, byte[] imageBytes, String accessToken) {
+  public String uploadFile(String fileName, String mimeType, byte[] imageBytes, String accessToken) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -731,7 +718,7 @@ public class MatrixHttpClient {
    * @param avatarURL the Avatar URL on
    * @return true if succeeded otherwise false
    */
-  public static boolean updateRoomAvatar(String matrixRoomId, String avatarURL, String accessToken) {
+  public boolean updateRoomAvatar(String matrixRoomId, String avatarURL, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.avatar/";
@@ -773,7 +760,7 @@ public class MatrixHttpClient {
    * @param avatarURL the avatar URL on Matrix
    * @return true if updated, false otherwise
    */
-  public static boolean updateUserAvatar(String userMatrixId, String avatarURL, String accessToken) {
+  public boolean updateUserAvatar(String userMatrixId, String avatarURL, String accessToken) {
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String url =
                PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/profile/" + fullMatrixUserId + "/avatar_url";
@@ -817,7 +804,7 @@ public class MatrixHttpClient {
    * @param description the updated description
    * @return true if the operation is successful, false otherwise
    */
-  public static boolean updateRoomDescription(String matrixRoomId, String description, String accessToken) {
+  public boolean updateRoomDescription(String matrixRoomId, String description, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.topic/";
@@ -860,7 +847,7 @@ public class MatrixHttpClient {
    * @param accessToken the access token
    * @return boolean True if the deletion is successful otherwise False
    */
-  public static boolean deleteRoom(String matrixRoomId, String accessToken) {
+  public boolean deleteRoom(String matrixRoomId, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/rooms/"
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8);
@@ -892,7 +879,7 @@ public class MatrixHttpClient {
    * @param userName the user identifier
    * @return String the cleaned username
    */
-  public static String cleanMatrixUsername(String userName) {
+  public String cleanMatrixUsername(String userName) {
     String matrixAllowedCharacters = "_-./=+";
     StringBuilder formattedMatrixUserId = new StringBuilder();
     if (StringUtils.isNotBlank(userName)) {
@@ -909,5 +896,26 @@ public class MatrixHttpClient {
       }
     }
     return formattedMatrixUserId.toString();
+  }
+
+  public String getUserDisplayName(String userMatrixId,
+                                   String matrixAccessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(userMatrixId, StandardCharsets.UTF_8);
+
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/profile/" + encodedUserMatrixId
+        + "/displayname";
+
+    HttpResponse<String> response = sendHttpGetRequest(url, matrixAccessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("displayname").getStringValue();
+    } else {
+      throw new RuntimeException("Error Updating the display name of the user %s, Matrix server returned HTTP %s error %s".formatted(userMatrixId,
+                                                                                                                                     String.valueOf(response.statusCode()),
+                                                                                                                                     response.body()));
+    }
+
   }
 }
