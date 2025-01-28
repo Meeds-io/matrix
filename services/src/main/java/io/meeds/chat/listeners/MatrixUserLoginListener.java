@@ -2,7 +2,6 @@ package io.meeds.chat.listeners;
 
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
-import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.PortalContainer;
@@ -18,13 +17,11 @@ import org.exoplatform.services.organization.User;
 import org.exoplatform.services.security.ConversationRegistry;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.services.security.Identity;
-import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
-import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 
 @Component
 public class MatrixUserLoginListener extends Listener<ConversationRegistry, ConversationState> {
