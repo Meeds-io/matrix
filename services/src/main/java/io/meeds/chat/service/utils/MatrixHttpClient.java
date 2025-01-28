@@ -680,9 +680,20 @@ public class MatrixHttpClient {
       JsonValue jsonResponse = jsonGenerator.createJsonObjectFromString(response.body());
       return jsonResponse.getElement("event_id").getStringValue();
     } else {
-      throw new RuntimeException("Error updating room permissions of %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
-                                                                                                                            String.valueOf(response.statusCode()),
-                                                                                                                            response.body()));
+      if (response.statusCode() == 429) {
+        long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                                                .getElement("retry_after_ms")
+                                                .getLongValue();
+        LOG.warn("Too many requests on Matrix server, retrying to update the settings of the room {} after {}ms",
+                 matrixRoomId,
+                 sleepInMs);
+        Thread.sleep(sleepInMs);
+        return updateRoomSettings(matrixRoomId, roomSettings, accessToken);
+      } else {
+        throw new RuntimeException("Error updating room permissions of %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                              String.valueOf(response.statusCode()),
+                                                                                                                              response.body()));
+      }
     }
   }
 
