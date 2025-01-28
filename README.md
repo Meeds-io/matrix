@@ -1,20 +1,16 @@
 # eXo Matrix addon
-This addon allows to create a Chat room in Matrix for each eXo space.
+This addon allows to integrate Matrix as the chat server.
 
-## Configuration of eXo platform
- - **exo.matrix.server.url**: The URL of the matrix (Synapse) server
- - **exo.matrix.access_token**: The access token to be used for all requests to the server. Check the following section on how to get this token.
- - **exo.matrix.server.name**: The Matrix server name, it may be retrieved from the server domain, but useful in case of development with local Matrix server
- - **exo.matrix.shared_secret_registration**: The shared registration token that will be used for creating new user accounts, it takes the value of the property **registration_shared_secret** that could be found inside the _homeserver.yaml_ configuration file of the Matrix/Synapse server
+## Configuration
+- **meeds.matrix.server.url**: The URL of the matrix (Synapse) server
+- **meeds.matrix.user.name**: the username of the account used to interact with Matrix API.
+- **meeds.matrix.server.name**: The Matrix server name, it may be retrieved from the server domain, but useful in case of development with local Matrix server
+- **meeds.matrix.shared_secret_registration**: The shared registration token that will be used for creating new user accounts, it takes the value of the property **registration_shared_secret** that could be found inside the _homeserver.yaml_ configuration file of the Matrix/Synapse server
+- **meeds.matrix.user.display.name** : the display name of the user used to interact with Matrix API
 
 
-## Get the access token
-### Using Element
-- Log in to the account you want to get the access token for. Click on the name in the top left corner, then "Settings".
-- Click the "Help & About" tab (left side of the dialog).
-- Scroll to the bottom and click on <click to reveal> part of Access Token.
-- Copy your access token and add it to the configuration file
-### Using bash commands (recommended)
+## Create a user on Matrix server
+
 Create a new system user using the following commands :
 1- Open a bash session on the Matrix docker container, in our case the container name is **matrix-synapse-1**
  ```bash 
@@ -22,31 +18,14 @@ Create a new system user using the following commands :
  ```
 2- Create a new user with the **register_new_matrix_user** and when prompt, answer yes to make him an admin
 ```bash
- register_new_matrix_user -u exo -p exo -c /data/homeserver.yaml
-```
-3- Exit from the Matrix container
-
-4- Use a web client (like curl or wget) to get an access token
-```bash
-curl -XPOST \                         
-  -d '{"type":"m.login.password", "user":"exo", "password":"exo"}' \
-  "http://localhost:8008/_matrix/client/r0/login"
-```
-5- You will get a response like the following. You need to take the value of the access token and use it to configure eXo platform server
-```json
-{
-  "user_id":"@exo:matrix.exo.tn",
-  "access_token":"syt_ZXhv_vmTZZQKEJmGqlndIHUiJ_3SF20T",
-  "home_server":"matrix.exo.tn",
-  "device_id":"NODUMMFEFO"
-} 
+ register_new_matrix_user -a -u exo -p exo -c /data/homeserver.yaml
 ```
 
-## Enable Email in user accounts 
-To enable the registration of new users and add emails to their accounts, it is needed to add the following properties to the _homeserver.yaml_ configuration file. 
- - **enable_3pid_changes** to true, to enable updating user email
- - **email** to configure SMTP and email notification
-Here is a sample configuration 
+## Enable Email in user accounts
+To enable the registration of new users and add emails to their accounts, it is needed to add the following properties to the _homeserver.yaml_ configuration file.
+- **enable_3pid_changes** to true, to enable updating user email
+- **email** to configure SMTP and email notification
+  Here is a sample configuration
 ```yaml
 enable_3pid_changes: true
 email:
@@ -82,9 +61,9 @@ This is useful when the space is already created.
 A REST web service was implemented to link an existing space to a room or even to create the room on Matrix server.
 ### Service URL :
 Here is the URl to link a Matrix room to an existing space
- - http://SERVER_DOMAIN/portal/rest/matrix/linkroom?spaceGroupId=my_new_space&roomId=ROOM_ID&create=true
-Parameters :
-- spaceGroupId : the group ID of the space that we want to link. We can get it from the space URL. it is the words between the **:spaces:** and the next **/** character. 
-  For example : **Required** if the space URL is /portal/g/:spaces:support_team/ then the groupId is **support_team** 
+- http://SERVER_DOMAIN/portal/rest/matrix/linkroom?spaceGroupId=my_new_space&roomId=ROOM_ID&create=true
+  Parameters :
+- spaceGroupId : the group ID of the space that we want to link. We can get it from the space URL. it is the words between the **:spaces:** and the next **/** character.
+  For example : **Required** if the space URL is /portal/g/:spaces:support_team/ then the groupId is **support_team**
 - roomId : **Optional** the technical ID of the room on the Matrix server if it is already created
 - create: **Ignored** if the parameter _roomId_ is not empty. If it has the value to _true_ if we want to create a room for the space defined by the parameter spaceGroupId. Defaults to false
