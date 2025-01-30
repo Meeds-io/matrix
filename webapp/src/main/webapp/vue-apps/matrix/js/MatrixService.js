@@ -54,7 +54,7 @@ export function authenticate() {
   }
 }
 
-// change this function and make it aAsync
+// change this function and make it async
 export function loadChatRooms(currentMemberId) {
   const filter = {
                     "room":{
@@ -75,7 +75,7 @@ export function loadChatRooms(currentMemberId) {
     }
   }).then(resp => {
     localStorage.setItem(MATRIX_SYNC_SINCE, resp?.next_batch);
-      return toRoomObject(resp?.rooms?.join, currentMemberId);
+    return toRoomObject(resp?.rooms?.join, currentMemberId);
   });
 }
 export function loadRoom(roomId) {
@@ -196,9 +196,14 @@ export function processEvents(response) {
       });
     }
   }
+  if(response?.presence?.events) {
+    response.presence.events.forEach(event => {
+      document.dispatchEvent(new CustomEvent('matrix-user-status-updated', { detail: {userId: event.sender, presence: event.content.presence}}));
+    });
+  }
 }
 
-export function toRoomObject(rooms, currentMemberId) {
+export async function toRoomObject(rooms, currentMemberId) {
   let myRooms = {};
   myRooms.rooms = [];
   myRooms.totalUnreadMessages = 0;
@@ -247,16 +252,22 @@ export function toRoomObject(rooms, currentMemberId) {
     roomItem.members = members;
 
     roomItem.id = property;
-    roomItem.type = 'space';
+    roomItem.type = '';//TODO remove this property
     roomItem.isEnabledUser = true;
     roomItem.isExternal = false;
     roomItem.isFavorite = false;
     roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
-    if(!roomItem.name && roomItem.members.length == 2) {
+    if(!roomItem.name && roomItem.members.length == 2 ) {
       roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
       let avatarUrl = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.avatarUrl;
-      avatarUrl = avatarUrl ? avatarUrl.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
-      roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
+      roomItem.dmMemberId = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.id;
+      roomItem.presence = await getUserPresence(roomItem.dmMemberId);
+      if(avatarUrl) {
+        avatarUrl = avatarUrl.substring(6); // removes the 'mcx://' from the beginning of the URL sent by Matrix
+        roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
+      } else {
+        roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
+      }
       roomItem.isDirectChat = true;
     }
     if(roomItem.members == 1) {
@@ -446,5 +457,24 @@ export function getByRoomId(roomId) {
       } else {
         return resp.json();
       }
+    });
+}
+export function getUserPresence(userIdOnMatrix) {
+    return fetch(`/_matrix/client/v3/presence/${userIdOnMatrix}/status`, {
+      method: 'GET',
+      headers: {
+        'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      }
+    },).then(resp => {
+      if (!resp || !resp.ok) {
+        throw new Error('Get User Presence on Matrix : Response code indicates a server error', resp);
+      } else {
+        return resp.json();
+      }
+    }).then(status => {
+      return status.presence;
+    }).catch(e => {
+      console.error(e);
+      return 'offline';
     });
 }
