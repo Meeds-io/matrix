@@ -2,40 +2,62 @@
 @import 'mixins.less';
 
 .chat-contact-avatar {
-  width: 45px;
-  height: 45px;
+  width: 52px;
+  height: 52px;
   background-size: cover;
   background-position: center;
   margin: auto;
-  border-radius: 50%;
 }
 
 .last-message-timestamp {
+  height: 28px;
+  justify-content: end;
+  display: flex;
+  align-items: center;
 }
 
 .chat-room-item {
   padding: 5px 20px;
+  height: 76px;
   position: relative;
 
   .unread-messages {
     margin-left: 5px;
-    background-color: #d32a2a;
-    color: #fff;
+    background-color: #BC4343;
+    color: #FFFFFF;
     border-radius: 50%;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     line-height: 20px;
     text-align: center;
-    margin-top: 20px;
   }
 }
 
-.contact-name {
-  cursor: pointer;
-}
 #matrixChatButton {
- .v-badge__badge{
-   height: 12px !important;
-   min-width: 12px !important;
- }
+  .v-badge__badge{
+    height: 12px !important;
+    min-width: 12px !important;
+  }
+}
+
+.text-bold {
+  font-weight: bold !important;
+}
+
+.matrix-user-status {
+  margin-top: auto;
+  margin-left: auto;
+  font-size: 16px;
+}
+
+.matrix-status-online {
+  color: #2EB58C;
+}
+
+.matrix-status-unavailable {
+  color: #F57C00;
+}
+
+.matrix-status-offline {
+  color: #0000008a;
 }

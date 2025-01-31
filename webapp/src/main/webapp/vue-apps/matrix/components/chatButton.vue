@@ -77,10 +77,12 @@
         this.totalUnreadMessages = e;
       });
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
     },
     watch: {
       open() {
@@ -110,6 +112,12 @@
         updatedRoom.lastMessage = event.detail.message;
         this.rooms.splice(updatedRoomIndex, 1);
         this.rooms.unshift(updatedRoom);
+      },
+      userStatusUpdated(event) {
+        const updatedUserStatusIndex = this.rooms.findIndex(room => room.dmMemberId === event.detail.userId);
+        if(updatedUserStatusIndex >= 0) {
+          this.rooms[updatedUserStatusIndex].presence = event.detail.presence;
+        }
       },
       loadRooms() {
         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
