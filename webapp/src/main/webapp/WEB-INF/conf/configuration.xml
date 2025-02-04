@@ -301,11 +301,11 @@
       <init-params>
         <values-param>
           <name>classpath.resources</name>
-          <value>locale.notification.MatrixChatNotification</value>
+          <value>locale.shared.MatrixChat</value>
         </values-param>
         <values-param>
           <name>portal.resource.names</name>
-          <value>locale.notification.MatrixChatNotification</value>
+          <value>locale.shared.MatrixChat</value>
         </values-param>
       </init-params>
     </component-plugin>

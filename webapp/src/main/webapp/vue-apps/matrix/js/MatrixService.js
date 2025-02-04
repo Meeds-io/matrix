@@ -76,6 +76,25 @@ export function loadChatRooms(currentMemberId) {
   }).then(resp => {
     localStorage.setItem(MATRIX_SYNC_SINCE, resp?.next_batch);
     return toRoomObject(resp?.rooms?.join, currentMemberId);
+  }).then(roomsResponse => {
+    return processRooms(roomsResponse);
+  });
+}
+export function processRooms(rooms) {
+  return fetch(`/matrix/rest/matrix/processRooms`, {
+    credentials: 'include',
+    method: 'POST',
+    headers: {
+    Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+  body: JSON.stringify(rooms)
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Could not process rooms : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
   });
 }
 export function loadRoom(roomId) {
@@ -245,14 +264,15 @@ export async function toRoomObject(rooms, currentMemberId) {
       if(e.type === 'm.room.message') {;
         if(e.content.msgtype === 'm.text' && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
-          roomItem.lastMessage = e.content.body;
+          roomItem.lastMessage = {};
+          roomItem.lastMessage.content = e.content.body;
+          roomItem.lastMessage.sender = e.sender;
         }
       }
     });
     roomItem.members = members;
 
     roomItem.id = property;
-    roomItem.type = '';//TODO remove this property
     roomItem.isEnabledUser = true;
     roomItem.isExternal = false;
     roomItem.isFavorite = false;

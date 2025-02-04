@@ -12,7 +12,7 @@
           {{ room.name }}
         </div>
         <div v-if="room.lastMessage" class="text-capitalize-first-letter text-truncate" :class="lastMessageStyle">
-          {{ room.lastMessage }}
+          {{ room.lastMessage.content }}
         </div>
     </div>
     <div class="ps-3 my-2">
