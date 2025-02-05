@@ -6,25 +6,32 @@ import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.model.SpaceRoom;
+import io.meeds.chat.rest.model.RoomEntity;
+import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
-import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.commons.utils.CommonsUtils;
+import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
+import org.exoplatform.portal.localization.LocaleContextInfoUtils;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.Membership;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
+import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
+import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.profile.ProfileFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
@@ -34,9 +41,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
@@ -56,6 +61,9 @@ public class MatrixService {
 
   @Autowired
   private OrganizationService organizationService;
+
+  @Autowired
+  private ResourceBundleService resourceBundleService;
 
   @Autowired
   private MatrixHttpClient    matrixHttpClient;
@@ -328,10 +336,9 @@ public class MatrixService {
   }
 
   /**
-   * This function do :
-   *  - Create a room on Matrix
-   *  - Links the room to the space on Meeds
-   *  - Update room permissions
+   * This function do : - Create a room on Matrix - Links the room to the space on
+   * Meeds - Update room permissions
+   * 
    * @param space The space
    * @return The room ID
    * @throws Exception
@@ -340,8 +347,8 @@ public class MatrixService {
     String teamDisplayName = space.getDisplayName();
     String description = space.getDescription() != null ? space.getDescription() : "";
     String matrixRoomId = matrixHttpClient.createRoom(teamDisplayName, description, this.getMatrixAccessToken());
-    if(StringUtils.isNotBlank(matrixRoomId)) {
-      //link the room on Meeds server
+    if (StringUtils.isNotBlank(matrixRoomId)) {
+      // link the room on Meeds server
       this.linkSpaceToMatrixRoom(space, matrixRoomId);
       // Disable inviting user but for Moderators
       MatrixRoomPermissions matrixRoomPermissions = this.getRoomSettings(matrixRoomId);
@@ -405,9 +412,75 @@ public class MatrixService {
 
   /**
    * Returns a list of all space rooms
+   * 
    * @return List of Space rooms
    */
   public List<SpaceRoom> getSpaceRooms() {
     return matrixRoomStorage.getSpaceRooms();
+  }
+
+  /**
+   * Searches for a user having the provided Matrix ID
+   * 
+   * @param userIdOnMatrix the ID of the user on Matrix
+   * @return The identity of the user
+   */
+  public Identity findUserByMatrixId(String userIdOnMatrix) {
+    ProfileFilter profileFilter = new ProfileFilter();
+    Map<String, String> matrixProperty = new HashMap<>();
+    matrixProperty.put(USER_MATRIX_ID, userIdOnMatrix);
+    profileFilter.setProfileSettings(matrixProperty);
+    ListAccess<Identity> userIdentities = identityManager.getIdentitiesByProfileFilter(OrganizationIdentityProvider.NAME,
+                                                                                       profileFilter,
+                                                                                       true);
+    try {
+      if (userIdentities != null && userIdentities.getSize() >= 1) {
+        return userIdentities.load(0, 1)[0];
+      }
+    } catch (Exception e) {
+      LOG.error("Couldn't find a user having the Matrix ID : {}", userIdOnMatrix, e);
+    }
+    return null;
+  }
+
+  /**
+   * Process the Matrix rooms and adds the missing information of users and spaces
+   * @param roomList the room list received from Matrix par sync API
+   * @param currentUserName the current user
+   * @return the roo List after processing
+   */
+  public RoomList processRooms(RoomList roomList, String currentUserName) {
+    for (RoomEntity room : roomList.getRooms()) {
+      io.meeds.chat.rest.model.Message message = room.getLastMessage();
+      Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
+      if (identity != null) {
+        String updatedContent;
+        if (!identity.getRemoteId().equals(currentUserName)) {
+          updatedContent = identity.getProfile().getFullName() + ":" + message.getContent();
+          message.setContent(updatedContent);
+        } else {
+          Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
+          String you = resourceBundleService.getSharedString(YOU_STRING, locale);
+          updatedContent = you + message.getContent();
+          message.setContent(updatedContent);
+        }
+        room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
+      }
+    }
+    return roomList;
+  }
+
+  /**
+   * Extracts the user ID from the full User Id on Matrix
+   * 
+   * @param fullMatrixUserId the full Matrix user Id
+   * @return the user Identifier
+   */
+  public String extractUserId(String fullMatrixUserId) {
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    if (fullMatrixUserId.startsWith("@") && fullMatrixUserId.endsWith(serverName)) {
+      return fullMatrixUserId.substring(1, fullMatrixUserId.indexOf(":"));
+    }
+    return fullMatrixUserId;
   }
 }

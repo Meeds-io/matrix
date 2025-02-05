@@ -6,12 +6,14 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.RoomList;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
@@ -28,12 +30,16 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.social.rest.api.RestUtils;
+import org.exoplatform.social.rest.entity.IdentityEntity;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -41,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
+import static org.exoplatform.social.rest.api.EntityBuilder.IDENTITIES_TYPE;
+import static org.exoplatform.social.rest.api.EntityBuilder.buildEntityProfile;
 
 @RestController
 @RequestMapping("/matrix")
@@ -274,6 +282,46 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  @GetMapping("userByMatrixId")
+  @Secured("users")
+  @Operation(summary = "Get the user Identity for the provided matrix user Id", method = "GET", description = "Get the user Identity for the provided matrix user Id")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<IdentityEntity> getIdentityByUserMatrixId(HttpServletRequest request,
+                                                                  WebRequest webRequest,
+                                                                  @Parameter(description = "The user Id on Matrix")
+                                                                  @RequestParam(name = "userMatrixId")
+                                                                  String userMatrixId) {
+
+    String requestURI = request.getRequestURI();
+    Identity foundIdentity = matrixService.findUserByMatrixId(userMatrixId);
+    if (foundIdentity == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+
+    if (webRequest.checkNotModified(String.valueOf(foundIdentity.getCacheTime()), foundIdentity.getCacheTime())) {
+      return null;
+    }
+    return ResponseEntity.ok()
+                         .eTag(String.valueOf(foundIdentity.getCacheTime()))
+                         .body(buildIdentityEntity(foundIdentity, requestURI, "settings"));
+  }
+
+  @PostMapping("processRooms")
+  @Secured("users")
+  @Operation(summary = "Process the list of rooms and add needed information", method = "POST", description = "Process the list of rooms and add needed information")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<RoomList> processRooms(HttpServletRequest request,
+                                               @RequestBody(description = "Rooms received from Matrix", required = true)
+                                             @org.springframework.web.bind.annotation.RequestBody
+                                             RoomList rooms) {
+    String userName = request.getRemoteUser();
+    rooms = matrixService.processRooms(rooms, userName);
+    return ResponseEntity.ok().body(rooms);
+  }
+
   private void sendPushNotification(String participant, String roomId, int unreadCount) {
     NotificationContext ctx = NotificationContextImpl.cloneInstance();
     ctx.append(MATRIX_ROOM_ID, roomId);
@@ -286,6 +334,17 @@ public class MatrixRest implements ResourceContainer {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
     Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
     return String.valueOf(jws.getBody().getSubject());
+  }
+
+  private IdentityEntity buildIdentityEntity(Identity identity, String restPath, String expand) {
+    IdentityEntity identityEntity = new IdentityEntity(identity.getId());
+    identityEntity.setHref(RestUtils.getRestUrl(IDENTITIES_TYPE, identity.getId(), restPath));
+    identityEntity.setProviderId(identity.getProviderId());
+    identityEntity.setGlobalId(identity.getGlobalId());
+    identityEntity.setRemoteId(identity.getRemoteId());
+    identityEntity.setDeleted(identity.isDeleted());
+    identityEntity.setProfile(buildEntityProfile(identity.getProfile(), restPath, expand));
+    return identityEntity;
   }
 
 }
