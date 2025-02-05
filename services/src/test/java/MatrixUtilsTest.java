@@ -5,7 +5,6 @@ import org.exoplatform.services.organization.idm.UserImpl;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.Before;
 import org.junit.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.util.Date;
@@ -134,5 +133,29 @@ public class MatrixUtilsTest {
     String matrixRoomId =
                         matrixHttpClient.createRoom("test space" + currentTime, "test description " + currentTime, access_token);
     matrixHttpClient.deleteRoom(matrixRoomId, access_token);
+  }
+
+  public void testGetUserPresence() {
+    String accessToken = "syt_cm9vdA_MgLOkjIhSlwzrIpMElUo_1kSAtC";
+    String userIdOnMatrix = "@root:matrix.exo.tn";
+    try {
+      String status = matrixHttpClient.getUserPresence(userIdOnMatrix, accessToken);
+      assertNotNull(status);
+    } catch (Exception e) {
+      fail();
+    }
+  }
+
+  public void testSetUserPresence() {
+    String accessToken = "syt_cm9vdA_MgLOkjIhSlwzrIpMElUo_1kSAtC";
+    String userIdOnMatrix = "@root:matrix.exo.tn";
+    String presence = "online";
+    String statusMessage = "Hello I am online";
+    try {
+      String status = matrixHttpClient.setUserPresence(userIdOnMatrix, presence, statusMessage, accessToken);
+      assertNotNull(status);
+    } catch (Exception e) {
+      fail();
+    }
   }
 }

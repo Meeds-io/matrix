@@ -929,4 +929,91 @@ public class MatrixHttpClient {
     }
 
   }
+
+  /**
+   * Retrieve the user presence from Matrix server
+   * 
+   * @param matrixIdOfUser the ID of the user on Matrix
+   * @param accessToken the access token
+   * @return the value of the presence
+   * @throws IOException
+   * @throws InterruptedException
+   * @throws JsonException
+   */
+  public String getUserPresence(String matrixIdOfUser,
+                                String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+    String url =
+               PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/presence/" + encodedUserMatrixId + "/status";
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("presence").getStringValue();
+    } else {
+      if (response.statusCode() == 429) {
+        long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                                                .getElement("retry_after_ms")
+                                                .getLongValue();
+        LOG.warn("Too many requests on Matrix server, retrying to retrieve the user presence after {}ms", sleepInMs);
+        Thread.sleep(sleepInMs);
+        return getUserPresence(matrixIdOfUser, accessToken);
+      } else {
+        throw new RuntimeException("Error retrieving the presence of the user %s ,Matrix server returned HTTP %s error %s".formatted(matrixIdOfUser,
+                                                                                                                                     String.valueOf(response.statusCode()),
+                                                                                                                                     response.body()));
+      }
+    }
+  }
+
+  /**
+   * Set the user presence on Matrix server
+   * 
+   * @param matrixIdOfUser the ID of the user n Matrix
+   * @param presence the presence value : 'online, offline , unavailable"
+   * @param statusMessage : the personalized status message
+   * @param accessToken the access token
+   * @return
+   * @throws IOException
+   * @throws InterruptedException
+   * @throws JsonException
+   */
+  public String setUserPresence(String matrixIdOfUser,
+                                String presence,
+                                String statusMessage,
+                                String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+    String url =
+               PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/presence/" + encodedUserMatrixId + "/status";
+
+    String payload = """
+        {
+          "presence": "%s",
+          "status_msg": "%s"
+        }
+        """.formatted(presence, statusMessage);
+
+    HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return response.body();
+    } else {
+      if (response.statusCode() == 429) {
+        long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
+                                                .getElement("retry_after_ms")
+                                                .getLongValue();
+        LOG.warn("Too many requests on Matrix server, retrying to retrieve the user presence after {}ms", sleepInMs);
+        Thread.sleep(sleepInMs);
+        return getUserPresence(matrixIdOfUser, accessToken);
+      } else {
+        throw new RuntimeException("Error retrieving the presence of the user %s ,Matrix server returned HTTP %s error %s".formatted(matrixIdOfUser,
+                                                                                                                                     String.valueOf(response.statusCode()),
+                                                                                                                                     response.body()));
+      }
+    }
+  }
 }
