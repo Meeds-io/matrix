@@ -217,6 +217,9 @@ export function processEvents(response) {
   }
   if(response?.presence?.events) {
     response.presence.events.forEach(event => {
+      if(localStorage.getItem('matrix_user_id') === event.sender) {
+        localStorage.setItem('matrix_user_presence', event.content.presence);
+      }
       document.dispatchEvent(new CustomEvent('matrix-user-status-updated', { detail: {userId: event.sender, presence: event.content.presence}}));
     });
   }
@@ -273,9 +276,9 @@ export async function toRoomObject(rooms, currentMemberId) {
     roomItem.members = members;
 
     roomItem.id = property;
-    roomItem.isEnabledUser = true;
-    roomItem.isExternal = false;
-    roomItem.isFavorite = false;
+    roomItem.enabledUser = true;
+    roomItem.external = false;
+    roomItem.favorite = false;
     roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
     if(!roomItem.name && roomItem.members.length == 2 ) {
       roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
@@ -288,7 +291,7 @@ export async function toRoomObject(rooms, currentMemberId) {
       } else {
         roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
       }
-      roomItem.isDirectChat = true;
+      roomItem.directChat = true;
     }
     if(roomItem.members == 1) {
       roomItem.name = 'Empty Room';

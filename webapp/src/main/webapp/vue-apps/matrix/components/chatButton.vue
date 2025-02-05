@@ -11,12 +11,12 @@
             icon>
             <v-badge
               :value="totalUnreadMessages > 0"
-              :content="totalUnreadMessages"
+              :content="totalUnreadMessages >= 99 ? totalUnreadMessages : '99+'"
               max="5"
               flat
               color="var(--allPagesBadgePrimaryColor, #d32a2a)"
               overlap>
-              <v-icon size="22" class="icon-default-color">fa-comments</v-icon>
+              <v-icon size="22" :class="presenceClass">fa-comments</v-icon>
             </v-badge>
         </v-btn>
       </div>
@@ -33,7 +33,7 @@
     props: {
     },
     data: () => ({
-      color: 'green',
+      presence: 'offline',
       open: false,
       totalUnreadMessages: 0,
       rooms: []
@@ -57,7 +57,9 @@
                 localStorage.setItem("matrix_access_token", resp.access_token);
                 localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
-                this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
+                this.$matrixService.saveFilter().then(filterResponse => {
+                  this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+                });
                 this.$matrixService.installPusher();
               } else {
                 this.$root.$emit('alert-message', `${this.$t('exo.matrix.login.failed')}`, 'error');
@@ -70,7 +72,9 @@
         });
       } else {
         this.loadRooms();
-        this.$matrixService.saveFilter().then(filterResponse => this.$matrixService.longPollingSync(filterResponse.filter_id));
+        this.$matrixService.saveFilter().then(filterResponse => {
+          this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+        });
         this.$matrixService.installPusher();
       }
       this.$root.$on('chat-event-total-unread-updated',e => {
@@ -90,6 +94,11 @@
           this.$nextTick().then(() => this.$refs.drawer.open());
         }
       },
+    },
+    computed: {
+      presenceClass() {
+        return `matrix-status-${this.presence}`;
+      }
     },
     methods: {
       openMatrixRoom(event){
@@ -114,9 +123,13 @@
         this.rooms.unshift(updatedRoom);
       },
       userStatusUpdated(event) {
-        const updatedUserStatusIndex = this.rooms.findIndex(room => room.dmMemberId === event.detail.userId);
-        if(updatedUserStatusIndex >= 0) {
-          this.rooms[updatedUserStatusIndex].presence = event.detail.presence;
+        if(event.detail.userId === localStorage.getItem('matrix_user_id')) {
+          this.presence = event.detail.presence;
+        } else {
+          const updatedUserStatusIndex = this.rooms.findIndex(room => room.dmMemberId === event.detail.userId);
+          if(updatedUserStatusIndex >= 0) {
+            this.rooms[updatedUserStatusIndex].presence = event.detail.presence;
+          }
         }
       },
       loadRooms() {

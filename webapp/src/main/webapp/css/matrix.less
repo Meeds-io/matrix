@@ -9,6 +9,12 @@
   margin: auto;
 }
 
+.chat-top-drawer-avatar {
+  width: 36px;
+  height: 36px;
+  background-size: cover;
+}
+
 .last-message-timestamp {
   height: 28px;
   justify-content: end;
@@ -47,17 +53,20 @@
 .matrix-user-status {
   margin-top: auto;
   margin-left: auto;
-  font-size: 16px;
 }
 
 .matrix-status-online {
-  color: #2EB58C;
+  color: @successColor !important;
 }
 
 .matrix-status-unavailable {
-  color: #F57C00;
+  color: @errorColor !important;
 }
 
 .matrix-status-offline {
-  color: #0000008a;
+  color: @greyColorLighten1Default !important;
+}
+
+.content-align {
+  align-content: center;
 }

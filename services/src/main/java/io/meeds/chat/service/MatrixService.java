@@ -48,27 +48,27 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 @Service
 public class MatrixService {
 
-  private static final Log    LOG = ExoLogger.getLogger(MatrixService.class);
+  private static final Log      LOG = ExoLogger.getLogger(MatrixService.class);
 
   @Autowired
-  private MatrixRoomStorage   matrixRoomStorage;
+  private MatrixRoomStorage     matrixRoomStorage;
 
   @Autowired
-  private IdentityManager     identityManager;
+  private IdentityManager       identityManager;
 
   @Autowired
-  private IdentityStorage     identityStorage;
+  private IdentityStorage       identityStorage;
 
   @Autowired
-  private OrganizationService organizationService;
+  private OrganizationService   organizationService;
 
   @Autowired
   private ResourceBundleService resourceBundleService;
 
   @Autowired
-  private MatrixHttpClient    matrixHttpClient;
+  private MatrixHttpClient      matrixHttpClient;
 
-  private String              matrixAccessToken;
+  private String                matrixAccessToken;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
@@ -445,6 +445,7 @@ public class MatrixService {
 
   /**
    * Process the Matrix rooms and adds the missing information of users and spaces
+   * 
    * @param roomList the room list received from Matrix par sync API
    * @param currentUserName the current user
    * @return the roo List after processing
@@ -482,5 +483,20 @@ public class MatrixService {
       return fullMatrixUserId.substring(1, fullMatrixUserId.indexOf(":"));
     }
     return fullMatrixUserId;
+  }
+
+  /**
+   * update the user presence status on Matrix
+   * @param userIdOnMatrix the user Id on Matrix
+   * @param presence the presence value: online , unavailable, offline
+   * @param statusMessage a personalized status message
+   */
+  public String updateUserPresence(String userIdOnMatrix, String presence, String statusMessage) {
+    try {
+      return matrixHttpClient.setUserPresence(userIdOnMatrix, presence, statusMessage, getMatrixAccessToken());
+    } catch (Exception e) {
+      LOG.error("Could not update the presence onf the user {} on Matrix", userIdOnMatrix, e);
+    }
+    return null;
   }
 }

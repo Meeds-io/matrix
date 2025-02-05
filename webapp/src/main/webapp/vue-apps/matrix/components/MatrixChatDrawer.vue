@@ -9,7 +9,14 @@
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
     <template slot="title">
-      {{ $t('matrix.chat.discussions') }}
+      <div class="d-flex py-1">
+        <div
+          :style="`backgroundImage: url(${avatarUrl})`"
+          class="chat-top-drawer-avatar d-flex">
+          <i class="uiIconStatus matrix-user-status icon-small-size" :class="presenceClass"></i>
+        </div>
+        <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
+      </div>
     </template>
     <template #content>
       <div
@@ -33,8 +40,15 @@ export default {
   },
   data: () =>({
     loading: 0,
+    presence: 'online'
   }),
   computed: {
+    avatarUrl() {
+      return this.$currentUserIdentity.profile.avatar;
+    },
+    presenceClass() {
+      return `matrix-status-${this.presence}`;
+    }
   },
   watch: {
     loading() {
@@ -52,10 +66,12 @@ export default {
   created() {
     this.$root.$on('chat-loading-start', this.incrementLoading);
     this.$root.$on('chat-loading-end', this.decrementLoading);
+    document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
   },
   beforeDestroy() {
     this.$root.$off('chat-loading-start', this.incrementLoading);
     this.$root.$off('chat-loading-end', this.decrementLoading);
+    document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
   },
   methods: {
     open() {
@@ -69,6 +85,11 @@ export default {
     },
     decrementLoading() {
       this.loading--;
+    },
+    userStatusUpdated(event) {
+      if(localStorage.getItem('matrix_user_id') === event.detail.userId) {
+        this.presence = event.detail.presence;
+      }
     },
   },
 };

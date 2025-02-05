@@ -4,7 +4,7 @@
         :style="`backgroundImage: url(${room.avatarUrl})`"
         :class="avatarBorderClass"
         class="chat-contact-avatar d-flex">
-      <i v-if="room.isDirectChat" class="uiIconStatus matrix-user-status" :class="presenceClass"></i>
+      <i v-if="room.directChat" class="uiIconStatus matrix-user-status icon-default-size" :class="presenceClass"></i>
     </div>
     <div class="clickable overflow-hidden ps-3 flex-grow-1 my-2"
          @click="openRoom">
@@ -22,7 +22,7 @@
       <div class="pull-right text-font-small-size d-flex">
         <v-icon v-if="room.isMuted" size="18">fas fa-bell-slash</v-icon>
         <div v-if="room.unreadMessages" class="unread-messages text-font-small-size">
-          {{ room.unreadMessages }}
+          {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </div>
       </div>
     </div>
@@ -45,7 +45,7 @@
         return 'https://matrix.to/#/' + this.room.id + '?via=' + this.$root.$data.serverName;
       },
       avatarBorderClass() {
-        return this.room.isDirectChat ? 'rounded-circle' : 'rounded-lg';
+        return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
       },
       lastMessageStyle() {
         return this.room.unreadMessages > 0 ? 'text-subtitle-2 text-bold':'text-subtitle';

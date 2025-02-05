@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.Presence;
 import io.meeds.chat.rest.model.RoomList;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -315,11 +316,25 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<RoomList> processRooms(HttpServletRequest request,
                                                @RequestBody(description = "Rooms received from Matrix", required = true)
-                                             @org.springframework.web.bind.annotation.RequestBody
-                                             RoomList rooms) {
+                                               @org.springframework.web.bind.annotation.RequestBody
+                                               RoomList rooms) {
     String userName = request.getRemoteUser();
     rooms = matrixService.processRooms(rooms, userName);
     return ResponseEntity.ok().body(rooms);
+  }
+
+  @PutMapping("setStatus")
+  @Secured("users")
+  @Operation(summary = "Set the presence status of the user", method = "PUT", description = "Set the presence status of the user")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> updatePresenceStatus(@RequestBody(description = "Rooms received from Matrix", required = true)
+  @org.springframework.web.bind.annotation.RequestBody
+  Presence presence) {
+    String presenceStatus = matrixService.updateUserPresence(presence.getUserIdOnMatrix(),
+                                                             presence.getPresence(),
+                                                             presence.getStatusMessage());
+    return ResponseEntity.ok().body(presenceStatus);
   }
 
   private void sendPushNotification(String participant, String roomId, int unreadCount) {

@@ -5,10 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.meeds.chat.rest.model.Member;
-import io.meeds.chat.rest.model.Message;
-import io.meeds.chat.rest.model.RoomEntity;
-import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.MatrixService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
@@ -47,8 +44,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = { MatrixRest.class, PortalAuthenticationManager.class })
@@ -153,4 +150,19 @@ class MatrixRestTest {
   public static String asJsonString(final Object obj) {
     return OBJECT_MAPPER.writeValueAsString(obj);
   }
+
+    @Test
+    void updatePresenceStatus() throws Exception {
+      Presence presence = new Presence();
+      presence.setPresence("online");
+      presence.setStatusMessage("I am available");
+      presence.setUserIdOnMatrix("@user:server.matrix.com");
+      when(matrixService.updateUserPresence(anyString(), anyString(), anyString())).thenReturn(presence.getPresence());
+
+      ResultActions response = mockMvc.perform(put(REST_PATH + "/setStatus").with(simpleUser())
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(asJsonString(presence)));
+      response.andExpect(status().isOk());
+      response.andExpect(content().string("online"));
+    }
 }

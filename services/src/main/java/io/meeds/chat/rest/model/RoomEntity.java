@@ -18,11 +18,11 @@ public class RoomEntity implements Serializable {
 
   private String       id;
 
-  private boolean      isEnabledUser;
+  private boolean      enabledUser;
 
   private String       presence;
 
-  private boolean      isDirectChat;
+  private boolean      directChat;
 
   private long         updated;
 
@@ -30,9 +30,9 @@ public class RoomEntity implements Serializable {
 
   private String       dmMemberId;
 
-  private boolean      isFavorite;
+  private boolean      favorite;
 
-  private boolean      isExternal;
+  private boolean      external;
 
   private List<Member> members;
 
