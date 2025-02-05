@@ -11,8 +11,8 @@
             icon>
             <v-badge
               :value="totalUnreadMessages > 0"
-              :content="totalUnreadMessages >= 99 ? totalUnreadMessages : '99+'"
-              max="5"
+              :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
+              :max="5"
               flat
               color="var(--allPagesBadgePrimaryColor, #d32a2a)"
               overlap>
@@ -117,10 +117,12 @@
         this.totalUnreadMessages ++;
         const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms[updatedRoomIndex];
-        updatedRoom.unreadMessages += 1;
-        updatedRoom.lastMessage = event.detail.message;
-        this.rooms.splice(updatedRoomIndex, 1);
-        this.rooms.unshift(updatedRoom);
+        if(updatedRoom) {
+          updatedRoom.unreadMessages += 1;
+          updatedRoom.lastMessage = event.detail.message;
+          this.rooms.splice(updatedRoomIndex, 1);
+          this.rooms.unshift(updatedRoom);
+        }
       },
       userStatusUpdated(event) {
         if(event.detail.userId === localStorage.getItem('matrix_user_id')) {
