@@ -328,7 +328,7 @@ public class MatrixRest implements ResourceContainer {
   @Operation(summary = "Set the presence status of the user", method = "PUT", description = "Set the presence status of the user")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<String> updateStatusMessage(@RequestBody(description = "Rooms received from Matrix", required = true)
+  public ResponseEntity<String> updatePresenceStatus(@RequestBody(description = "Rooms received from Matrix", required = true)
   @org.springframework.web.bind.annotation.RequestBody
   Presence presence) {
     String presenceStatus = matrixService.updateUserPresence(presence.getUserIdOnMatrix(),

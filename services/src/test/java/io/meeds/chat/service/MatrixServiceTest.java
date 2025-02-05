@@ -15,6 +15,7 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
+import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -87,6 +89,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
     ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
+    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn("ThisIsAnAccessToken");
   }
 
   @AfterEach
@@ -98,7 +101,6 @@ class MatrixServiceTest extends MatrixBaseTest {
   void createRoom() throws Exception {
     String matrixRoomId = "!thisIsACreatedRoom:matrix.exo.tn";
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
-    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn("ThisIsAnAccessToken");
     MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
     matrixUserPermission.setUserName("demo");
     matrixUserPermission.setUserRole(MANAGER_ROLE);
@@ -135,4 +137,18 @@ class MatrixServiceTest extends MatrixBaseTest {
     Arrays.stream(managers).forEach(u -> spaceService.setManager(createdSpace, u, true));
     return createdSpace;
   }
+
+    @Test
+    void updateUserPresence() throws JsonException, IOException, InterruptedException {
+      when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenReturn("online");
+
+      String presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+      assertNotNull(presence);
+      assertEquals("online", presence);
+
+      when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenThrow(new JsonException("Error"));
+
+      presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+      assertNull(presence);
+    }
 }

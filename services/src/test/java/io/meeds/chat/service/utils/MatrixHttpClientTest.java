@@ -214,10 +214,10 @@ class MatrixHttpClientTest {
     User user = new UserImpl("harun");
     String result = null;
 
-      result = matrixHttpClient.createUserAccount(user, accessToken);
-      assertNotNull(result);
-      assertEquals("@harun:matrix.exo.com", result);
-      verify(responseOK, times(1)).body();
+    result = matrixHttpClient.createUserAccount(user, accessToken);
+    assertNotNull(result);
+    assertEquals("@harun:matrix.exo.com", result);
+    verify(responseOK, times(1)).body();
 
   }
 
@@ -275,5 +275,51 @@ class MatrixHttpClientTest {
 
   @Test
   void deleteRoom() {
+  }
+
+  @Test
+  void getUserPresence() {
+    when(responseOK.body()).thenReturn("{\"last_active_ago\": 420845,\"presence\": \"online\"}");
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(responseOK);
+    String result = null;
+    try {
+      result = matrixHttpClient.getUserPresence("user", accessToken);
+    } catch (Exception e) {
+      fail();
+    }
+    assertNotNull(result);
+    assertEquals("online", result);
+    verify(responseOK, times(1)).body();
+  }
+
+  @Test
+  void setUserPresence() {
+    when(responseOK.body()).thenReturn("{}");
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseOK);
+    String result = null;
+    try {
+      result = matrixHttpClient.setUserPresence("user", "online", "I am online", accessToken);
+    } catch (Exception e) {
+      fail();
+    }
+    assertNotNull(result);
+    verify(responseOK, times(1)).body();
+
+    // Error HTTP 429 : too many requests
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseTooManyRequests, responseOK);
+    try {
+      result = matrixHttpClient.setUserPresence("user", "online", "I am online", accessToken);
+
+      assertNotNull(result);
+      verify(responseTooManyRequests, times(1)).body();
+      verify(responseOK, times(2)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
   }
 }
