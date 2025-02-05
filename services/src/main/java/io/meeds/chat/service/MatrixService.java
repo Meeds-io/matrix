@@ -453,19 +453,21 @@ public class MatrixService {
   public RoomList processRooms(RoomList roomList, String currentUserName) {
     for (RoomEntity room : roomList.getRooms()) {
       io.meeds.chat.rest.model.Message message = room.getLastMessage();
-      Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
-      if (identity != null) {
-        String updatedContent;
-        if (!identity.getRemoteId().equals(currentUserName)) {
-          updatedContent = identity.getProfile().getFullName() + ":" + message.getContent();
-          message.setContent(updatedContent);
-        } else {
-          Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
-          String you = resourceBundleService.getSharedString(YOU_STRING, locale);
-          updatedContent = you + message.getContent();
-          message.setContent(updatedContent);
+      if(message != null) {
+        Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
+        if (identity != null) {
+          String updatedContent;
+          if (!identity.getRemoteId().equals(currentUserName)) {
+            updatedContent = identity.getProfile().getFullName() + ":" + message.getContent();
+            message.setContent(updatedContent);
+          } else {
+            Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
+            String you = resourceBundleService.getSharedString(YOU_STRING, locale);
+            updatedContent = you + message.getContent();
+            message.setContent(updatedContent);
+          }
+          room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
         }
-        room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
       }
     }
     return roomList;

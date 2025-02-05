@@ -12,7 +12,7 @@
       <div class="d-flex py-1">
         <div
           :style="`backgroundImage: url(${avatarUrl})`"
-          class="chat-top-drawer-avatar d-flex">
+          class="chat-top-drawer-avatar d-flex rounded-circle">
           <i class="uiIconStatus matrix-user-status icon-small-size" :class="presenceClass"></i>
         </div>
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
