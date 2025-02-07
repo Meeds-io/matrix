@@ -363,7 +363,8 @@ public class MatrixHttpClient {
         }
         return fullMatrixID.substring(1, fullMatrixID.indexOf(":"));
       } else {
-        throw new RuntimeException("Error creating a user account, Matrix server returned HTTP {} error {}");
+        throw new RuntimeException("Error creating a user account, Matrix server returned HTTP %s error %s".formatted(response.statusCode(),
+                                                                                                                      response.body()));
       }
     } catch (Exception e) {
       throw new RuntimeException("Could not create a user account on Matrix", e);

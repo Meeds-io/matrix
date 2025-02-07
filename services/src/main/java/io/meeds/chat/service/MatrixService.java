@@ -453,7 +453,7 @@ public class MatrixService {
   public RoomList processRooms(RoomList roomList, String currentUserName) {
     for (RoomEntity room : roomList.getRooms()) {
       io.meeds.chat.rest.model.Message message = room.getLastMessage();
-      if(message != null) {
+      if(message != null && StringUtils.isNotBlank(message.getSender())) {
         Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
         if (identity != null) {
           String updatedContent;
