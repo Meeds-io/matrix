@@ -4,8 +4,7 @@
     :loading="loading > 0"
     class="meeds-chat-drawer"
     right
-    @closed="$emit('closed')"
-    @expand-updated="expanded = $event">
+    @closed="drawer = false">
     <template slot="title">
       <div class="d-flex">
         <div
@@ -15,6 +14,14 @@
         </div>
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
       </div>
+    </template>
+    <template slot="titleIcons">
+      <v-icon
+        v-exo-tooltip.bottom="$t('matrix.chat.quick.create.discussion')"
+        class="my-auto"
+        @click="openQuickCreateChatDiscussionDrawer">
+        mdi-plus
+      </v-icon>
     </template>
     <template #content>
       <div
@@ -88,6 +95,9 @@ export default {
       if(localStorage.getItem('matrix_user_id') === event.detail.userId) {
         this.presence = event.detail.presence;
       }
+    },
+    openQuickCreateChatDiscussionDrawer() {
+      this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);
     },
   },
 };

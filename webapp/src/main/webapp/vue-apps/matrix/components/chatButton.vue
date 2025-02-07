@@ -26,7 +26,7 @@
         :rooms="rooms"
         @closed="open = false" />
     </div>
-  </div>
+  </v-app>
 </template>
 <script>
   export default {

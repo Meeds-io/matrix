@@ -1,4 +1,4 @@
-import * as chatConstants from './Constants.js';
+import {chatConstants} from './Constants.js';
 
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';

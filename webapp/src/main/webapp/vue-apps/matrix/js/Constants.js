@@ -14,7 +14,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg'
+export const chatConstants = {
+  DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg',
 
-// Static String for action names
-ACTION_OPEN_CHAT_ROOM: 'open-chat-room'
+  // Static String for action names
+  ACTION_OPEN_CHAT_ROOM: 'open-chat-room',
+
+  ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'exo-chat-open-quick-create-discussion-drawer',
+}
