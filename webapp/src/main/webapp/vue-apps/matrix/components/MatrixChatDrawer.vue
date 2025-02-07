@@ -3,8 +3,6 @@
     ref="drawer"
     :loading="loading > 0"
     class="chat-drawer"
-    body-classes="hide-scroll"
-    attached
     right
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
