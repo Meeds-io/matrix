@@ -23,7 +23,6 @@
 }
 
 .chat-room-item {
-  padding: 5px 20px;
   height: 76px;
   position: relative;
 
@@ -53,20 +52,43 @@
 .matrix-user-status {
   margin-top: auto;
   margin-left: auto;
+  line-height: normal;
+  border-radius: 50%;
+  line-height: 20px;
+  border: 2px solid #FFFFFF;
 }
 
 .matrix-status-online {
-  color: @successColor !important;
+  background-color: @successColor !important;
 }
 
 .matrix-status-unavailable {
-  color: @errorColor !important;
+  background-color: @errorColor !important;
 }
 
 .matrix-status-offline {
+  background-color: @greyColorLighten1Default !important;
+}
+.chat-button-status-online {
+  color: @successColor !important;
+}
+
+.chat-button-status-unavailable {
+  color: @errorColor !important;
+}
+
+.chat-button-status-offline {
   color: @greyColorLighten1Default !important;
 }
 
 .content-align {
   align-content: center;
+}
+.size-twelve {
+  width: 12px;
+  height: 12px;
+}
+.size-eight {
+  width: 8px;
+  height: 8px;
 }

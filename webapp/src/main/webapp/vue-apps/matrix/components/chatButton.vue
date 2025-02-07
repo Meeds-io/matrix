@@ -16,7 +16,7 @@
               flat
               color="var(--allPagesBadgePrimaryColor, #d32a2a)"
               overlap>
-              <v-icon size="22" :class="presenceClass">fa-comments</v-icon>
+              <v-icon size="24" :class="presenceClass">fa-comments</v-icon>
             </v-badge>
         </v-btn>
       </div>
@@ -33,7 +33,7 @@
     props: {
     },
     data: () => ({
-      presence: 'offline',
+      presence: 'online',
       open: false,
       totalUnreadMessages: 0,
       rooms: []
@@ -97,7 +97,7 @@
     },
     computed: {
       presenceClass() {
-        return `matrix-status-${this.presence}`;
+        return `chat-button-status-${this.presence}`;
       }
     },
     methods: {
@@ -118,10 +118,20 @@
         const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms[updatedRoomIndex];
         if(updatedRoom) {
-          updatedRoom.unreadMessages += 1;
-          updatedRoom.lastMessage = event.detail.message;
-          this.rooms.splice(updatedRoomIndex, 1);
-          this.rooms.unshift(updatedRoom);
+          if(event.detail.sender === localStorage.getItem('matrix_user_id')) {
+            updatedRoom.unreadMessages += 1;
+            updatedRoom.lastMessage.content = `${this.$t('matrix.words.you')}: ${event.detail.message}`;
+            this.rooms.splice(updatedRoomIndex, 1);
+            this.rooms.unshift(updatedRoom);
+          } else {
+            const senderMatrixId = event.detail.sender.substr(1, event.detail.sender.indexOf(":") - 1);
+            this.$matrixService.getUserByMatrixId(senderMatrixId).then(senderIdentity => {
+              updatedRoom.unreadMessages += 1;
+              updatedRoom.lastMessage.content = `${senderIdentity.profile.fullname} : ${event.detail.message}`;
+              this.rooms.splice(updatedRoomIndex, 1);
+              this.rooms.unshift(updatedRoom);
+            });
+          }
         }
       },
       userStatusUpdated(event) {
