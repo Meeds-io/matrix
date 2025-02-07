@@ -209,7 +209,7 @@ export function processEvents(response) {
       roomEvents.forEach(e => {
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, message: e.content.body}}));
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body}}));
           }
         }
       });
@@ -499,5 +499,17 @@ export function getUserPresence(userIdOnMatrix) {
     }).catch(e => {
       console.error(e);
       return 'offline';
+    });
+}
+export function getUserByMatrixId(userIdOnMatrix) {
+    return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${userIdOnMatrix}`, {
+      method: 'GET',
+      credentials: 'include',
+    },).then(resp => {
+      if (!resp || !resp.ok) {
+        throw new Error('Get User by Matrix ID : Response code indicates a server error', resp);
+      } else {
+        return resp.json();
+      }
     });
 }

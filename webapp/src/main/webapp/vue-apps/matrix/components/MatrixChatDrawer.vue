@@ -9,11 +9,11 @@
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
     <template slot="title">
-      <div class="d-flex py-1">
+      <div class="d-flex">
         <div
           :style="`backgroundImage: url(${avatarUrl})`"
           class="chat-top-drawer-avatar d-flex rounded-circle">
-          <i class="uiIconStatus matrix-user-status icon-small-size" :class="presenceClass"></i>
+          <div class="matrix-user-status icon-small-size size-eight" :class="presenceClass"></div>
         </div>
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
       </div>
@@ -21,7 +21,7 @@
     <template #content>
       <div
         :class="expanded && 'pa-4'"
-        class="d-flex light-grey-background-color fill-height">
+        class="d-flex fill-height">
         <div
           class="singlePageApplication pa-0 d-flex fill-height">
           <matrix-chat-rooms :rooms="rooms"/>

@@ -1,12 +1,11 @@
 <template>
   <div class="room-list full-width">
-    <div
-        v-if="rooms"
-        v-for="(room, i) in rooms"
-        :key="i">
+    <div v-if="rooms && rooms.length">
       <matrix-chat-room
-          :id="'room-'+i"
-          :room="room" />
+        v-for="(room, i) in rooms"
+        :key="i"
+        :id="'room-'+i"
+        :room="room" />
     </div>
     <div v-else class="d-flex full-height disabled-background align-center justify-center full-width">
       <div class="noRoomsContent">
@@ -14,8 +13,6 @@
         <p class="text-subtitle">{{ $t('matrix.chat.no.rooms') }}</p>
       </div>
     </div>
-
-
   </div>
 </template>
 <script>
