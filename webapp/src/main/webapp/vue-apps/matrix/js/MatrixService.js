@@ -207,9 +207,27 @@ export function processEvents(response) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
       roomEvents.forEach(e => {
+        //message received in a room
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
             document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body}}));
+          }
+        } // Joined a new room
+        else if(e.type === 'm.room.member') {
+          if(e.content.membership === 'join') {
+            const member = {};
+            member.id = e.sender;
+            member.name = e.content.displayname;
+            member.avatarUrl = e.content.avatar_url || DEFAULT_ROOM_AVATAR;
+            const room = {};
+            room.members = [];
+            room.members.push(member);
+            room.id = roomId;
+            if(localStorage.getItem('matrix_user_id') !== e.sender) {
+              room.name = e.content.displayname;
+              room.avatarUrl = e.content.avatar_url ? '/_matrix/media/v3/thumbnail/' + e.content.avatar_url.substring(6) + '?width=32&height=32&method=crop&allow_redirect=true': chatConstants.DEFAULT_ROOM_AVATAR;
+            }
+            document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: room }));
           }
         }
       });
@@ -337,8 +355,12 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
               if (!createdRoom || !createdRoom.ok) {
                 throw new Error('Response code indicates a server error', resp);
               } else {
-                return getDMRoomsAccountData(firstParticipant).then(accountData => updateDMRoomsAccountData(`${localStorage.getItem('matrix_user_id')}`, accountData))
-                                           .then(dataResp => {  return createdRoom.json(); });
+                return getDMRoomsAccountData(firstParticipant).then(accountData =>
+                  updateDMRoomsAccountData(`${localStorage.getItem('matrix_user_id')}`, accountData)
+                  ).then(dataResp => {
+                    document.dispatchEvent(new CustomEvent('chat-load-chat-rooms'));
+                    return createdRoom.json();
+                  });
               }
             });
         });

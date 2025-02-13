@@ -77,14 +77,14 @@
         });
         this.$matrixService.installPusher();
       }
-      this.$root.$on('chat-event-total-unread-updated',e => {
-        this.totalUnreadMessages = e;
-      });
+      this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      document.addEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      document.removeEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
     },

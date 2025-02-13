@@ -93,6 +93,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         && restrictedGroupOfUsers.equals(space.getGroupId())) {
       User user;
       try {
+        // todo remove usage of orgService
         user = organizationService.getUserHandler().findUserByName(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true, false);
       } catch (Exception e) {

@@ -4,7 +4,7 @@
     :loading="loading > 0"
     class="meeds-chat-drawer"
     right
-    @closed="drawer = false">
+    @closed="$emit('closed')">
     <template slot="title">
       <div class="d-flex">
         <div
