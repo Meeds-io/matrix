@@ -1,40 +1,47 @@
 @import 'variables.less';
 @import 'mixins.less';
 
-.chat-contact-avatar {
-  width: 52px;
-  height: 52px;
-  background-size: cover;
-  background-position: center;
-  margin: auto;
-}
+.meeds-chat-drawer {
+  .chat-contact-avatar {
+    width: 52px;
+    height: 52px;
+    background-size: cover;
+    background-position: center;
+    margin: auto;
+  }
 
-.chat-top-drawer-avatar {
-  width: 36px;
-  height: 36px;
-  background-size: cover;
-}
+  .chat-top-drawer-avatar {
+    width: 36px;
+    height: 36px;
+    background-size: cover;
+  }
 
-.last-message-timestamp {
-  height: 28px;
-  justify-content: end;
-  display: flex;
-  align-items: center;
-}
+  .last-message-timestamp {
+    height: 28px;
+  }
 
-.chat-room-item {
-  height: 76px;
-  position: relative;
+  .chat-room-item {
+    height: 76px;
+    position: relative;
 
-  .unread-messages {
-    margin-left: 5px;
-    background-color: #BC4343;
-    color: #FFFFFF;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    line-height: 20px;
-    text-align: center;
+    .chat-room-name {
+      width: 240px;
+    }
+
+    .chat-room-last-message {
+      width: 260px;
+    }
+
+    .unread-messages {
+      margin-left: 5px;
+      background-color: #BC4343;
+      color: #FFFFFF;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      line-height: 20px;
+      text-align: center;
+    }
   }
 }
 
