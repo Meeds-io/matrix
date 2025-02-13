@@ -1,8 +1,8 @@
 <template>
   <exo-drawer
-    ref="drawer"
+    ref="meedsChatDrawer"
     :loading="loading > 0"
-    class="chat-drawer"
+    class="meeds-chat-drawer"
     right
     @closed="$emit('closed')"
     @expand-updated="expanded = $event">
@@ -73,10 +73,10 @@ export default {
   },
   methods: {
     open() {
-      this.$refs.drawer.open();
+      this.$refs.meedsChatDrawer.open();
     },
     close() {
-      this.$refs.drawer.close();
+      this.$refs.meedsChatDrawer.close();
     },
     incrementLoading() {
       this.loading++;

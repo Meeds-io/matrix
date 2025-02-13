@@ -8,22 +8,22 @@
     </div>
     <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"
        @click="openRoom">
-      <div :id="`room-name-${room.id}`" class="text-title text-subtitle-1">
+      <div :id="`room-name-${room.id}`" class="chat-room-name text-truncate text-title text-subtitle-1">
         {{ room.name }}
       </div>
-      <div v-if="room.lastMessage" class="text-capitalize-first-letter text-truncate" :class="lastMessageStyle">
+      <div v-if="room.lastMessage" class="chat-room-last-message text-capitalize-first-letter text-truncate mt-2" :class="lastMessageStyle">
         {{ room.lastMessage.content }}
       </div>
-      <div v-else class="text-subtitle text-truncate">
+      <div v-else class="text-subtitle text-truncate mt-2">
         {{ $t('matrix.chat.start.conversation') }}
       </div>
     </div>
-    <div class="ps-3 my-2">
+    <div class="ps-3 my-3">
       <div class="last-message-timestamp text-subtitle">
         {{ getLastMessageTime(room) }}
       </div>
       <div class="pull-right text-font-small-size d-flex">
-        <v-icon v-if="room.isMuted" size="18">fas fa-bell-slash</v-icon>
+        <v-icon v-if="room.isMuted" size="16">fas fa-bell-slash</v-icon>
         <div v-if="room.unreadMessages" class="unread-messages text-font-small-size content-align">
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </div>

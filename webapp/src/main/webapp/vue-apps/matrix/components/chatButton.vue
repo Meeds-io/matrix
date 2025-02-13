@@ -16,13 +16,13 @@
               flat
               color="var(--allPagesBadgePrimaryColor, #d32a2a)"
               overlap>
-              <v-icon size="24" :class="presenceClass">fa-comments</v-icon>
+              <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
             </v-badge>
         </v-btn>
       </div>
       <matrix-chat-drawer
         v-if="open"
-        ref="drawer"
+        ref="meedsChatDrawer"
         :rooms="rooms"
         @closed="open = false" />
     </div>
@@ -91,7 +91,7 @@
     watch: {
       open() {
         if (this.open) {
-          this.$nextTick().then(() => this.$refs.drawer.open());
+          this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
         }
       },
     },
