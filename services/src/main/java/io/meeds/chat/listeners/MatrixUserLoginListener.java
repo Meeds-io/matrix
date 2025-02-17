@@ -21,6 +21,7 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ADMIN_USERNAME;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
 
 @Component
@@ -49,9 +50,13 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {
-    RequestLifeCycle.begin(PortalContainer.getInstance());
     String userId = event.getData().getIdentity().getUserId();
     Identity connectedUserIdentity = event.getData().getIdentity();
+    String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    if(matrixUserAdmin.equals(userId)) {
+      return;
+    }
+    RequestLifeCycle.begin(PortalContainer.getInstance());
     String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if (StringUtils.isNotBlank(matrixRestrictedGroup) && !userACL.isUserInGroup(connectedUserIdentity, matrixRestrictedGroup)) {
       return;

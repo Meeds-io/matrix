@@ -4,10 +4,11 @@ import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MatrixChatMessages from './components/MatrixChatMessages.vue';
+import ExoChatQuickCreateDiscussionDrawer from './components/ExoChatQuickCreateDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
-import * as chatConstants from './js/Constants.js';
+import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
 
 const components = {
@@ -18,6 +19,7 @@ const components = {
   'matrix-chat-room': MatrixChatRoom,
   'matrix-chat-messages': MatrixChatMessages,
   'popover-chat-button': PopoverChatButton,
+  'exo-chat-quick-create-discussion-drawer': ExoChatQuickCreateDiscussionDrawer,
 };
 
 for (const key in components) {

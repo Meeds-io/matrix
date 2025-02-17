@@ -23,5 +23,23 @@
         default: function() { return [];}
       }
     },
+    created() {
+      document.addEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+    },
+    beforeDestroy() {
+      document.removeEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+    },
+    methods: {
+      addJoinedRoom(event) {
+        const roomExistsIndex = this.rooms.findIndex(room => room.id === event.detail.id);
+        if(roomExistsIndex < 0) {
+          this.rooms.unshift(event.detail);
+        } else if (this.rooms[roomExistsIndex]) {
+          this.rooms[roomExistsIndex].name = event.detail.name || this.rooms[roomExistsIndex].name;
+          this.rooms[roomExistsIndex].avatarUrl = event.detail.avatarUrl || this.rooms[roomExistsIndex].avatarUrl;
+          this.rooms[roomExistsIndex].members.unshift(event.detail.members);
+        }
+      },
+    }
   }
 </script>

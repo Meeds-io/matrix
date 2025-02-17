@@ -3,23 +3,22 @@ package io.meeds.chat.service;
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.Message;
+import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.service.utils.MatrixHttpClient;
-import org.exoplatform.services.resources.ResourceBundleService;
-import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,15 +68,19 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   @Test
-  void processRooms() {
+  void processRooms() throws Exception {
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!testroom1:matrix.exo.tn", "!testroom2:matrix.exo.tn", "!testroom3:matrix.exo.tn");
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    matrixRoomPermissions.setUsers(new ArrayList<>());
+    when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
     Profile demoIProfile = identityManager.getOrCreateUserIdentity("demo").getProfile();
     demoIProfile.setProperty(USER_MATRIX_ID, "demo");
     identityManager.updateProfile(demoIProfile);
-    RoomList roomList = createRoomsList(5);
+    RoomList roomList = createRoomsList(3);
     String initialContent = roomList.getRooms().getFirst().getLastMessage().getContent();
     roomList = this.matrixService.processRooms(roomList, "root");
     assertNotNull(roomList);
-    assertEquals(5, roomList.getRooms().size());
+    assertEquals(3, roomList.getRooms().size());
     assertNotEquals(initialContent, roomList.getRooms().getFirst().getLastMessage().getContent());
   }
 
@@ -151,4 +153,30 @@ class MatrixServiceTest extends MatrixBaseTest {
       presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
       assertNull(presence);
     }
+
+  public RoomList createRoomsList(int numberOfRooms) {
+    List<RoomEntity> rooms = new ArrayList<>();
+    for (int i = 0; i < numberOfRooms; i++) {
+      Space space = getSpaceInstance(i);
+      String roomId = matrixService.getRoomBySpace(space);
+      Room room = matrixService.getById(roomId);
+      RoomEntity roomEntity = toRoomEntity(room, space);
+      rooms.add(roomEntity);
+    }
+    RoomList roomList = new RoomList();
+    roomList.setTotalUnreadMessages(20);
+    roomList.setRooms(rooms);
+    return roomList;
+  }
+
+  public RoomEntity toRoomEntity(Room room, Space space) {
+    RoomEntity roomEntity = new RoomEntity();
+    roomEntity.setId(room.getRoomId());
+    roomEntity.setTopic(space.getDescription());
+    roomEntity.setAvatarUrl(space.getAvatarUrl());
+    roomEntity.setLastMessage(new Message("last message of " + space.getDisplayName(), "root"));
+    roomEntity.setUnreadMessages(5);
+    roomEntity.setDirectChat(false);
+    return roomEntity;
+  }
 }

@@ -6,6 +6,8 @@ import io.meeds.chat.service.utils.MatrixConstants;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
+import org.exoplatform.services.log.ExoLogger;
+import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserEventListener;
@@ -22,6 +24,8 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
 public class MatrixUserListener extends UserEventListener {
+
+  private static final Log LOG = ExoLogger.getLogger(MatrixUserListener.class);
 
   @Autowired
   private IdentityManager     identityManager;
@@ -42,9 +46,10 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSave(User user, boolean isNew) throws Exception {
+    String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
-    if (StringUtils.isNotBlank(matrixRestrictedGroup)
-        && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup)) {
+    if ((StringUtils.isNotBlank(matrixRestrictedGroup)
+        && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup)) || matrixUserAdmin.equals(user.getUserName())) {
       return;
     }
     matrixService.saveUserAccount(user, isNew, false);
@@ -52,6 +57,11 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSetEnabled(User user) throws Exception {
+    String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    if(matrixUserAdmin.equals(user.getUserName())) {
+      LOG.warn("Could not set enable the Matrix admin user");
+      return;
+    }
     if (identityManager != null) {
       Profile userProfile = identityManager.getProfile(identityManager.getOrCreateUserIdentity(user.getUserName()));
       String matrixUserId = (String) userProfile.getProperty(USER_MATRIX_ID);
