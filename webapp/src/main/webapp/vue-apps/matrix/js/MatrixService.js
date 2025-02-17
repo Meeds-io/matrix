@@ -226,8 +226,8 @@ export function processEvents(response) {
             if(localStorage.getItem('matrix_user_id') !== e.sender) {
               room.name = e.content.displayname;
               room.avatarUrl = e.content.avatar_url ? '/_matrix/media/v3/thumbnail/' + e.content.avatar_url.substring(6) + '?width=32&height=32&method=crop&allow_redirect=true': chatConstants.DEFAULT_ROOM_AVATAR;
+              document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: room }));
             }
-            document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: room }));
           }
         }
       });

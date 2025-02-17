@@ -122,7 +122,11 @@ public class MatrixRoomStorage {
   }
 
   public Room getById(String roomId) {
-    return toRoomModel(matrixRoomDAO.findByRoomIdStartsWith(roomId));
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomIdStartsWith(roomId);
+    if(roomEntity != null) {
+      return toRoomModel(roomEntity);
+    }
+    return null;
   }
 
   /**

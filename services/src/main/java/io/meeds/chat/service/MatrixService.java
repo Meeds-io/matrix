@@ -33,6 +33,7 @@ import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.profile.ProfileFilter;
 import org.exoplatform.social.core.space.model.Space;
+import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,9 @@ public class MatrixService {
 
   @Autowired
   private OrganizationService   organizationService;
+
+  @Autowired
+  private SpaceService          spaceService;
 
   @Autowired
   private ResourceBundleService resourceBundleService;
@@ -451,8 +455,38 @@ public class MatrixService {
    * @return the roo List after processing
    */
   public RoomList processRooms(RoomList roomList, String currentUserName) {
+    if(roomList == null || roomList.getRooms() == null) {
+      throw new IllegalArgumentException("The room list Object is empty");
+    }
+    if(StringUtils.isBlank(currentUserName)) {
+      throw new IllegalArgumentException("The username of the current user is mandatory");
+    }
+
     for (RoomEntity room : roomList.getRooms()) {
-      io.meeds.chat.rest.model.Message message = room.getLastMessage();
+      // Update room information
+      String roomId = room.getId().substring(0, room.getId().indexOf(":"));// remove server part
+      Room matrixRoom = this.getById(roomId);
+      if(matrixRoom != null) {
+        if(StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
+          Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
+          room.setName(space.getDisplayName());
+          room.setAvatarUrl(space.getAvatarUrl());
+        } else {
+          Identity identity = null;
+          if(matrixRoom.getFirstParticipant().equals(currentUserName)) {
+            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());
+          } else if(matrixRoom.getSecondParticipant().equals(currentUserName)) {
+            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getFirstParticipant());
+          }
+          if(identity != null) {
+            room.setName(identity.getProfile().getFullName());
+            room.setAvatarUrl(identity.getProfile().getAvatarUrl());
+          }
+        }
+      }
+      
+      // Get last message
+      Message message = room.getLastMessage();
       if(message != null && StringUtils.isNotBlank(message.getSender())) {
         Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
         if (identity != null) {
@@ -489,6 +523,7 @@ public class MatrixService {
 
   /**
    * update the user presence status on Matrix
+   * 
    * @param userIdOnMatrix the user Id on Matrix
    * @param presence the presence value: online , unavailable, offline
    * @param statusMessage a personalized status message

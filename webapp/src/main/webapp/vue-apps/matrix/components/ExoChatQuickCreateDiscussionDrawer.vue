@@ -24,7 +24,7 @@
       <span class="PopupTitle"> <v-icon left @click="close">mdi-arrow-left</v-icon>{{ $t('matrix.chat.quick.create.discussion') }}</span>
     </template>
     <template slot="content">
-      <v-form ref="Quicksuggester" id="Quicksuggester" class="pa-2 ms-2 mt-4">
+      <v-form ref="QuickCreateRoom" id="QuickCreateRoom" class="pa-2 ms-2 mt-4">
         <div class="d-flex flex-column flex-grow-1">
           <div class="d-flex flex-column mb-2">
             <label class="d-flex flex-row font-weight-bold my-2">{{ $t('matrix.chat.quick.create.discussion.add.people') }}</label>
@@ -32,18 +32,11 @@
               <v-flex class="user-suggester text-truncate">
                 <exo-identity-suggester
                   ref="invitedPeopleAutoCompleteToRoom"
-                  v-model="participants"
+                  v-model="participant"
                   :multiple="false"
                   :search-options="{}"
                   :labels="suggesterLabels"
                   include-users />
-                <div v-if="participantItem" class="identitySuggester no-border mt-0">
-                  <exo-chat-quick-discussion-participant-item
-                    v-for="item in participantItem"
-                    :key="item.identity.id"
-                    :attendee="item"
-                    @remove-attendee="removeAttendee" />
-                </div>
               </v-flex>
             </div>
             <div class="caption font-weight-light ps-1 muted font-italic">
@@ -66,57 +59,29 @@
     </template>
   </exo-drawer>
 </template>
-
-
 <script>
 
 export default {
   name: 'ExoChatDrawer',
-  components: {},
 
   data() {
     return {
-      participants: [],
-      participantItem: [],
+      participant: {},
       fullName: '',
     };
   },
   computed: {
-    validNewRoomName() {
-      return this.fullName && this.fullName.trim().length;
-    },
     suggesterLabels() {
       return {
         placeholder: this.$t('matrix.chat.team.help'),
       };
     },
     disabledSaveButton(){
-      return !this.participantItem || this.participantItem.length !== 1;
+      return !this.participant;
     }
   },
-  watch: {
-    participants() {
-      if (!this.participants) {
-        this.$nextTick(this.$refs.invitedPeopleAutoCompleteToRoom.$refs.selectAutoComplete.deleteCurrentItem);
-        return;
-      }
-      if (!this.participantItem) {
-        this.participantItem = [];
-      }
-      const found = this.participantItem?.find(item => {
-        return item.identity.remoteId === this.participants.remoteId
-            && item.identity.providerId === this.participants.providerId;
-      });
-      if (!found) {
-        this.participantItem.push({
-          identity: this.participants,
-        });
-      }
-      this.participants = null;
-    },
-  },
+
   created() {
-    console.log('created quick create discussion drawer');
     this.$root.$on(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
   },
 
@@ -125,28 +90,12 @@ export default {
       this.$refs.QuickCreateDiscussionDrawer.open();
     },
     close(){
-      this.participants = null;
-      this.participantItem = [];
+      this.participant = null;
       this.fullName = '' ;
       this.$refs.QuickCreateDiscussionDrawer.close();
     },
-    removeAttendee(attendee) {
-      const index = this.participantItem.findIndex(addedAttendee => {
-        return attendee.identity.remoteId === addedAttendee.identity.remoteId
-            && attendee.identity.providerId === addedAttendee.identity.providerId;
-      });
-      if (index >= 0) {
-        this.participantItem.splice(index, 1);
-      }
-    },
-    displayAlert(message, type) {
-      document.dispatchEvent(new CustomEvent('notification-alert', {detail: {
-        message,
-        type: type || 'success',
-      }}));
-    },
     quickCreateChatDiscussion() {
-      const remoteId = this.participantItem[0].identity.remoteId;
+      const remoteId = this.participant.remoteId;
       if(remoteId) {
         this.close();
         this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName);
