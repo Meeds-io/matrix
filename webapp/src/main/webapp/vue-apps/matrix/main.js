@@ -4,7 +4,6 @@ import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MatrixChatMessages from './components/MatrixChatMessages.vue';
-import ExoChatQuickDiscussionParticipantItem from './components/ExoChatQuickDiscussionParticipantItem.vue';
 import ExoChatQuickCreateDiscussionDrawer from './components/ExoChatQuickCreateDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import * as matrixService from './js/MatrixService.js';
