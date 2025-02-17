@@ -21,7 +21,6 @@ const components = {
   'matrix-chat-messages': MatrixChatMessages,
   'popover-chat-button': PopoverChatButton,
   'exo-chat-quick-create-discussion-drawer': ExoChatQuickCreateDiscussionDrawer,
-  'exo-chat-quick-discussion-participant-item': ExoChatQuickDiscussionParticipantItem,
 };
 
 for (const key in components) {
