@@ -88,12 +88,12 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     Space space = event.getSpace();
     String userId = event.getTarget();
     String restrictedGroupOfUsers = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     if (StringUtils.isBlank(matrixIdOfUser) && StringUtils.isNotBlank(restrictedGroupOfUsers)
-        && restrictedGroupOfUsers.equals(space.getGroupId())) {
+        && restrictedGroupOfUsers.equals(space.getGroupId()) && !userId.equals(matrixUserAdmin)) {
       User user;
       try {
-        // todo remove usage of orgService
         user = organizationService.getUserHandler().findUserByName(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true, false);
       } catch (Exception e) {

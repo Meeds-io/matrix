@@ -19,7 +19,7 @@ import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 @Component
 public class IdentityListener extends ProfileListenerPlugin {
 
-  private static final Log LOG = ExoLogger.getLogger(MatrixService.class);
+  private static final Log LOG = ExoLogger.getLogger(IdentityListener.class);
 
   @Autowired
   private IdentityManager identityManager;
