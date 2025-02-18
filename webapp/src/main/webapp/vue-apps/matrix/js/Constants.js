@@ -20,7 +20,7 @@ export const chatConstants = {
   // Static String for action names
   ACTION_OPEN_CHAT_ROOM: 'open-chat-room',
 
-  ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'open-quick-create-discussion-drawer',
+  ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'meeds-open-quick-create-discussion-drawer',
 
   ACTION_CHAT_OPEN_DISCUSSION_DRAWER: 'open-discussion-drawer',
 }
