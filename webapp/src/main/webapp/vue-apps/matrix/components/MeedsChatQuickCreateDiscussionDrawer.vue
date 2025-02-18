@@ -84,6 +84,9 @@ export default {
   created() {
     this.$root.$on(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
   },
+  beforeDestroy() {
+    this.$root.$off(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
+  },
 
   methods: {
     openDrawer() {

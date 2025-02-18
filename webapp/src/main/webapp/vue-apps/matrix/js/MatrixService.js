@@ -1,4 +1,5 @@
 import {chatConstants} from './Constants.js';
+import * as timeUtils from './timeUtils.js';
 
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
@@ -523,15 +524,54 @@ export function getUserPresence(userIdOnMatrix) {
       return 'offline';
     });
 }
+
 export function getUserByMatrixId(userIdOnMatrix) {
-    return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${userIdOnMatrix}`, {
-      method: 'GET',
-      credentials: 'include',
-    },).then(resp => {
-      if (!resp || !resp.ok) {
-        throw new Error('Get User by Matrix ID : Response code indicates a server error', resp);
-      } else {
-        return resp.json();
-      }
-    });
+  let senderMatrixId = userIdOnMatrix;
+  if(senderMatrixId.includes('@')) {
+    senderMatrixId = userIdOnMatrix.substr(1, userIdOnMatrix.indexOf(":") - 1);
+  }
+  return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${senderMatrixId}`, {
+    method: 'GET',
+    credentials: 'include',
+  },).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Get User by Matrix ID : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
+}
+
+export function loadRoomMessages(roomId) {
+  const filter = {types:['m.room.message'],};
+  const formData = new FormData();
+  formData.append('limit', 50);
+  formData.append('dir', 'b'); // f: chronological order, b: revers-chronological order
+  formData.append('filter', JSON.stringify(filter));
+  const params = new URLSearchParams(formData).toString();
+  return fetch(`/_matrix/client/v3/rooms/${roomId}/messages?${params}`, {
+    method: 'GET',
+    headers: {
+      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+  },).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Get room messages : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
+}
+
+export function formatDate(timestamp) {
+  if (!timestamp) {
+    return '';
+  }
+  if (timeUtils.isSameDay(timestamp, new Date().getTime())) {
+    return timeUtils.getTimeString(timestamp);
+  } else if (timestamp === -1){
+    return '';
+  } else {
+    return timeUtils.getDayDateString(timestamp);
+  }
 }

@@ -3,8 +3,9 @@ import MatrixChatButton from './components/chatButton.vue';
 import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
-import MatrixChatMessages from './components/MatrixChatMessages.vue';
-import ExoChatQuickCreateDiscussionDrawer from './components/ExoChatQuickCreateDiscussionDrawer.vue';
+import MeedsChatMessage from './components/chatMessage.vue';
+import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
+import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -17,9 +18,10 @@ const components = {
   'matrix-chat-drawer': MatrixChatDrawer,
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
-  'matrix-chat-messages': MatrixChatMessages,
+  'meeds-chat-message': MeedsChatMessage,
   'popover-chat-button': PopoverChatButton,
-  'exo-chat-quick-create-discussion-drawer': ExoChatQuickCreateDiscussionDrawer,
+  'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
+  'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
 };
 
 for (const key in components) {
