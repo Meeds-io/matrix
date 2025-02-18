@@ -59,20 +59,10 @@
     },
     methods: {
       openRoom() {
-        window.open(this.roomURL);
+        document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER, { detail: this.room }));
       },
       getLastMessageTime(room) {
-        const timestamp = room.updated;
-        if (timestamp) {
-          if (this.$timeUtils.isSameDay(timestamp, new Date().getTime())) {
-            return this.$timeUtils.getTimeString(timestamp);
-          } else if (timestamp === -1){
-            return '';
-          } else {
-            return this.$timeUtils.getDayDateString(timestamp);
-          }
-        }
-        return '';
+        return this.$matrixService.formatDate(room.updated);
       },
       getUserPresence() {
         this.$matrixService.getUserPresence(this.room.dmMemberId).then(status => {

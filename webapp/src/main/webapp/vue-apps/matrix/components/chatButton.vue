@@ -26,7 +26,7 @@
           ref="meedsChatDrawer"
           :rooms="rooms"
           @closed="open = false" />
-        <exo-chat-quick-create-discussion-drawer />
+        <meeds-chat-quick-create-discussion-drawer />
       </div>
     </div>
   </v-app>
