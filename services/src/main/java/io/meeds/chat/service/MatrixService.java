@@ -469,8 +469,12 @@ public class MatrixService {
       if(matrixRoom != null) {
         if(StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
           Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
-          room.setName(space.getDisplayName());
-          room.setAvatarUrl(space.getAvatarUrl());
+          if(space != null) {
+            room.setName(space.getDisplayName());
+            room.setAvatarUrl(space.getAvatarUrl());
+          } else {
+            continue;
+          }
         } else {
           Identity identity = null;
           if(matrixRoom.getFirstParticipant().equals(currentUserName)) {
@@ -481,6 +485,8 @@ public class MatrixService {
           if(identity != null) {
             room.setName(identity.getProfile().getFullName());
             room.setAvatarUrl(identity.getProfile().getAvatarUrl());
+          } else {
+            continue;
           }
         }
       }
