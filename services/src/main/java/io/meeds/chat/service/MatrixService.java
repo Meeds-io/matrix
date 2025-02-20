@@ -472,6 +472,7 @@ public class MatrixService {
           if(space != null) {
             room.setName(space.getDisplayName());
             room.setAvatarUrl(space.getAvatarUrl());
+            room.setSpaceId(matrixRoom.getSpaceId());
           } else {
             continue;
           }
@@ -485,6 +486,7 @@ public class MatrixService {
           if(identity != null) {
             room.setName(identity.getProfile().getFullName());
             room.setAvatarUrl(identity.getProfile().getAvatarUrl());
+            room.setUserId(identity.getRemoteId());
           } else {
             continue;
           }

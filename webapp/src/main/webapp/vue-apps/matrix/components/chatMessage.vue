@@ -1,18 +1,20 @@
 <template>
-  <div class="chat-message-content pa-3">
-    <div class="d-flex" v-if="displaySender">
-      <v-avatar size="32" class="me-3">
-        <v-img :src="sender && sender.profile && sender.profile.avatar" eager />
-      </v-avatar>
-      <div class="text-truncate text-title text-subtitle-1">
-        {{sender.profile && sender.profile.fullname}}
+  <div class="chat-message-content px-3">
+    <a :href="profileUrl">
+      <div class="d-flex" v-if="displaySender">
+        <div
+          :style="`backgroundImage: url(${sender && sender.profile && sender.profile.avatar})`"
+          class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
+          <div class="matrix-user-status size-3" :class="[presenceClass]"></div>
+        </div>
+        <span class="mx-3 text-title text-subtitle-1 text-truncate content-align"> {{sender.profile && sender.profile.fullname}} </span>
       </div>
-    </div>
-    <div class="chat-message-content-body pa-3 d-flex flex-column" :class="messageContentClass">
-      <div class="d-flex justify-start">
+    </a>
+    <div class="chat-message-content-body" :class="messageContentClass">
+      <div class="chat-message-content-text">
       {{ message.content.body }}
       </div>
-      <div class="chat-message-timestamp text-font-small-size d-flex justify-end ">
+      <div v-if="displayTimestamp" class="text-font-extra-small-size chat-message-content-timestamp ">
         {{ formattedTimestamp }}
       </div>
     </div>
@@ -25,7 +27,15 @@
         type: Object,
         default: {},
       },
-      previousSender: {
+      previousMessage: {
+        type: Object,
+        default: {},
+      },
+      nextMessage: {
+        type: Object,
+        default: {},
+      },
+      room: {
         type: Object,
         default: {},
       }
@@ -34,26 +44,57 @@
       return {
         sender: {},
         timestamp: '',
+        presenceClass: 'offline',
       };
     },
     created() {
       this.$matrixService.getUserByMatrixId(this.message.sender).then(sender => {
         this.timestamp = new Date(this.message.origin_server_ts);
         this.sender = sender;
+        this.$matrixService.getUserPresence(this.message.sender).then(status => {
+          this.presenceClass = `matrix-status-${status}`;
+        })
       });
+    },
+    beforeDestroy() {
     },
     computed: {
       formattedTimestamp() {
-        return this.$matrixService.formatDate(this.timestamp);
+        const currentDate = new Date(this.timestamp);
+        return `${currentDate.getHours()}:${currentDate.getMinutes()}`;
+      },
+      profileUrl() {
+        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender.remoteId}`;
       },
       messageContentClass() {
-        return localStorage.getItem('matrix_user_id') === this.message.sender ? 'chat-message-from-self': 'chat-message-from-others';
+        let cssSameMessageSender = 'border-bottom-right-radius-16';
+        if(localStorage.getItem('matrix_user_id') === this.nextMessage.sender) {
+          cssSameMessageSender = 'border-bottom-right-radius-0';
+        }
+        if(localStorage.getItem('matrix_user_id') === this.previousMessage.sender) {
+          cssSameMessageSender = `border-top-right-radius-0 ${cssSameMessageSender}`;
+        } else {
+          cssSameMessageSender = `border-top-right-radius-16 ${cssSameMessageSender}`;
+        }
+        return localStorage.getItem('matrix_user_id') === this.message.sender ? `chat-message-from-self py-1 px-3 mt-1 ${cssSameMessageSender}`: `chat-message-from-others ps-7 pe-3 pb-1 ${cssSameMessageSender}`;
       },
       displaySender() {
-        return this.previousSender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id');
+        return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
+      },
+      displayTimestamp() {
+        if(this.nextMessage) {
+          const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
+          nextMessageDate.setSeconds(0,0);
+          const currentMessageDate = new Date(this.timestamp);
+          currentMessageDate.setSeconds(0,0);
+          return nextMessageDate.getTime() !== currentMessageDate.getTime();
+        } else {
+          return true;
+        }
       }
     },
     methods: {
+
     }
   }
 </script>

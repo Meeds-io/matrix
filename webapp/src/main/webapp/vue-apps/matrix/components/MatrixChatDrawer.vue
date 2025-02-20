@@ -10,7 +10,7 @@
         <div
           :style="`backgroundImage: url(${avatarUrl})`"
           class="chat-top-drawer-avatar d-flex rounded-circle">
-          <div class="matrix-user-status icon-small-size size-eight" :class="presenceClass"></div>
+          <div class="matrix-user-status icon-small-size size-2" :class="presenceClass"></div>
         </div>
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
       </div>

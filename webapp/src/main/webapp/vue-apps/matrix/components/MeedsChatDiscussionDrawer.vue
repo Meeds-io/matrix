@@ -1,38 +1,27 @@
-/*
- * Copyright (C) 2022 eXo Platform SAS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License
- * as published by the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <gnu.org/licenses>.
- */
 <template>
   <exo-drawer
     ref="ChatDiscussionDrawer"
     id="ChatDiscussionDrawer"
+    go-back-button
     right
     :loading="loading"
     @closed="close">
     <template slot="title">
-      <span class="PopupTitle">
-        <v-icon left @click="close">mdi-arrow-left</v-icon>
-        <v-avatar size="36" class="me-3">
-          <v-img :src="room.avatarUrl" eager />
-        </v-avatar>
-        <span class="content-align"> {{room.name}} </span>
-      </span>
+      <a :href="url">
+        <div class="d-flex">
+          <div
+            :style="`backgroundImage: url(${room.avatarUrl})`"
+            :class="avatarBorderClass"
+            class="meeds-chat-contact-avatar ma-0 size-9 d-flex">
+            <div v-if="room.directChat" class="matrix-user-status size-2" :class="[presenceClass, avatarBorderClass]"></div>
+          </div>
+          <span class="mx-3 text-title text-truncate content-align"> {{room.name}} </span>
+        </div>
+      </a>
     </template>
     <template slot="content">
       <div class="d-flex flex-column">
-        <meeds-chat-message :key="i" v-for="(message, i) in messages" :message="message" :previous-sender="i > 0 && messages[i-1].sender"/>
+        <meeds-chat-message :id="'chat-message-' + i" :ref="'message' + i" :key="i" v-for="(message, i) in messages" :message="message" :previous-message="i > 0 && messages[i-1]" :next-message="messages[i+1] || {}" :room="room"/>
       </div>
     </template>
     <template slot="footer">
@@ -53,32 +42,69 @@ export default {
     };
   },
   computed: {
-
+    presenceClass() {
+      return this.room.presence && `matrix-status-${this.room.presence}` || 'matrix-status-offline';
+    },
+    avatarBorderClass() {
+      return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
+    },
+    url() {
+      if(this.room.directChat && this.room.userId) {
+        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.room.userId}`;
+      } else if(this.room.spaceId) {
+        return `${eXo.env.portal.context}/s/${this.room.spaceId}`;
+      } else {
+        return '#';
+      }
+    }
   },
 
   created() {
+    document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER,e => this.openDiscussion(e));
   },
+  updated() {
+
+  },
   beforeDestroy() {
+    document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER,e => this.openDiscussion(e));
   },
 
   methods: {
     openDiscussion(e) {
       this.loading = true;
-      this.room = e.detail;
       this.$refs.ChatDiscussionDrawer.open();
-      this.$nextTick().then(() => {
-        this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
-          this.messages = resp.chunk;
-          this.loading = false
+      this.room = e.detail;
+      this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
+        this.messages = resp.chunk;
+        this.$nextTick().then(() => {
+          this.scrollToEnd();
         });
+        this.loading = false
       });
     },
     close(){
       this.messages = null;
-      this.$refs.ChatDiscussionDrawer.close();
+      this.$refs.ChatDiscussionDrawer?.close();
     },
+    messageReceived(event) {
+      if(this.room.id === event.detail.roomId) {
+        const receivedMessage = {sender: event.detail.sender, content:{body: event.detail.message},origin_server_ts: event.detail.origin_server_ts};
+        this.messages.push(receivedMessage);
+        this.scrollToEnd();
+      }
+    },
+    scrollToEnd() {
+      if(this.messages) {
+        const lastMessageElement = document.getElementById(`chat-message-${this.messages.length - 1}`);
+        if(lastMessageElement) {
+          document.getElementById(`chat-message-${this.messages.length - 1}`).scrollIntoView({
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
   }
 };
 </script>

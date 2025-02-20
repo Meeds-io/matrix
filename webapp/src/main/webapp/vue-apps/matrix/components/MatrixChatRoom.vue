@@ -1,10 +1,10 @@
 <template>
   <div class="chat-room-item d-flex px-5">
     <div
-        :style="`backgroundImage: url(${room.avatarUrl})`"
-        :class="avatarBorderClass"
-        class="chat-contact-avatar d-flex">
-      <div v-if="room.directChat" class="matrix-user-status size-twelve" :class="presenceClass"></div>
+      :style="`backgroundImage: url(${room.avatarUrl})`"
+      :class="avatarBorderClass"
+      class="meeds-chat-contact-avatar size-13 d-flex">
+      <div v-if="room.directChat" class="matrix-user-status size-3" :class="presenceClass"></div>
     </div>
     <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"
        @click="openRoom">
