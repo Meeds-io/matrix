@@ -211,7 +211,7 @@ export function processEvents(response) {
         //message received in a room
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body}}));
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body, origin_server_ts: e.origin_server_ts}}));
           }
         } // Joined a new room
         else if(e.type === 'm.room.member') {
@@ -546,7 +546,7 @@ export function loadRoomMessages(roomId) {
   const filter = {types:['m.room.message'],};
   const formData = new FormData();
   formData.append('limit', 50);
-  formData.append('dir', 'b'); // f: chronological order, b: revers-chronological order
+  formData.append('dir', 'f'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
   return fetch(`/_matrix/client/v3/rooms/${roomId}/messages?${params}`, {

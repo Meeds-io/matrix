@@ -30,6 +30,10 @@ public class RoomEntity implements Serializable {
 
   private String       dmMemberId;
 
+  private String       userId;
+
+  private String       spaceId;
+
   private boolean      favorite;
 
   private boolean      external;
