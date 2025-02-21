@@ -4,31 +4,31 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>org.exoplatform.addons.matrix</groupId>
-    <artifactId>exo-matrix-addon-parent</artifactId>
+    <groupId>io.meeds.matrix</groupId>
+    <artifactId>matrix</artifactId>
     <version>1.0.x-SNAPSHOT</version>
   </parent>
-  <artifactId>exo-matrix-packaging</artifactId>
+  <artifactId>matrix-packaging</artifactId>
   <packaging>pom</packaging>
-  <name>eXo Add-on :: Matrix integration Packaging</name>
+  <name>Meeds Add-on :: Matrix integration Packaging</name>
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>exo-matrix-services</artifactId>
+      <artifactId>matrix-services</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
       <type>jar</type>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>exo-matrix-webapp</artifactId>
+      <artifactId>matrix-webapp</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
       <type>war</type>
     </dependency>
   </dependencies>
   <build>
-    <finalName>exo-matrix-package</finalName>
+    <finalName>matrix-package</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -41,7 +41,7 @@
               <goal>single</goal>
             </goals>
             <configuration>
-              <finalName>exo-matrix-package</finalName>
+              <finalName>matrix-package</finalName>
               <appendAssemblyId>false</appendAssemblyId>
               <descriptors>
                 <descriptor>src/main/assemblies/packaging.xml</descriptor>
