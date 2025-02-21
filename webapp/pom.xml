@@ -24,13 +24,13 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>org.exoplatform.addons.matrix</groupId>
-    <artifactId>exo-matrix-addon-parent</artifactId>
+    <groupId>io.meeds.matrix</groupId>
+    <artifactId>matrix</artifactId>
     <version>1.0.x-SNAPSHOT</version>
   </parent>
-  <artifactId>exo-matrix-webapp</artifactId>
+  <artifactId>matrix-webapp</artifactId>
   <packaging>war</packaging>
-  <name>eXo Add-on :: Matrix integration Webapp</name>
+  <name>Meeds Add-on :: Matrix integration Webapp</name>
   <dependencies>
     <dependency>
       <groupId>io.meeds.platform-ui</groupId>
@@ -39,8 +39,8 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.exoplatform.addons.matrix</groupId>
-      <artifactId>exo-matrix-services</artifactId>
+      <groupId>io.meeds.matrix</groupId>
+      <artifactId>matrix-services</artifactId>
       <scope>provided</scope>
     </dependency>
   </dependencies>

@@ -62,7 +62,7 @@
 <script>
 
 export default {
-  name: 'ExoChatDrawer',
+  name: 'MeedsChatDrawer',
 
   data() {
     return {
