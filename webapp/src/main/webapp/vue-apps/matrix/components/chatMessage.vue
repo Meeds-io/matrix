@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-message-content px-3">
+  <div class="chat-message-content px-4">
     <a :href="profileUrl">
       <div class="d-flex" v-if="displaySender">
         <div

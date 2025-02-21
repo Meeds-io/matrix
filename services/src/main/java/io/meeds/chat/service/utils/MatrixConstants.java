@@ -23,7 +23,9 @@ import org.exoplatform.commons.api.notification.model.PluginKey;
 
 public class MatrixConstants {
 
-  public static final String YOU_STRING = "matrix.words.you";
+  public static final String YOU_STRING                  = "matrix.words.you";
+
+  public static final String LAST_MESSAGE_PATTERN_STRING = "matrix.chat.lastMessage.pattern";
 
   private MatrixConstants() {
   }
