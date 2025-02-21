@@ -8,7 +8,7 @@
     </div>
     <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"
        @click="openRoom">
-      <div :id="`room-name-${room.id}`" class="chat-room-name text-truncate text-title text-subtitle-1">
+      <div :id="`room-name-${room.id}`" class="chat-room-name text-truncate text-title text-subtitle-1" :style="roomNameStyle">
         {{ room.name }}
       </div>
       <div v-if="room.lastMessage" class="chat-room-last-message text-capitalize-first-letter text-truncate mt-2" :class="lastMessageStyle">
@@ -55,6 +55,9 @@
       },
       presenceClass() {
         return `matrix-status-${this.room.presence}`;
+      },
+      roomNameStyle() {
+        return this.room.directChat && this.room.identityId && this.$matrixService.getUserDisplayNameFontColor(this.room.identityId);
       }
     },
     methods: {
