@@ -55,9 +55,6 @@
       },
       presenceClass() {
         return `matrix-status-${this.room.presence}`;
-      },
-      roomNameStyle() {
-        return this.room.directChat && this.room.identityId && this.$matrixService.getUserDisplayNameFontColor(this.room.identityId);
       }
     },
     methods: {

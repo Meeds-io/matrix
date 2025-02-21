@@ -13,7 +13,6 @@
               <v-badge
                 :value="totalUnreadMessages > 0"
                 :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
-                :max="5"
                 flat
                 color="var(--allPagesBadgePrimaryColor, #d32a2a)"
                 overlap>
