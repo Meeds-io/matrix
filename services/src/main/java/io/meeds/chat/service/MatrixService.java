@@ -486,10 +486,10 @@ public class MatrixService {
    * @return the roo List after processing
    */
   public RoomList processRooms(RoomList roomList, String currentUserName) {
-    if(roomList == null || roomList.getRooms() == null) {
+    if (roomList == null || roomList.getRooms() == null) {
       throw new IllegalArgumentException("The room list Object is empty");
     }
-    if(StringUtils.isBlank(currentUserName)) {
+    if (StringUtils.isBlank(currentUserName)) {
       throw new IllegalArgumentException("The username of the current user is mandatory");
     }
 
@@ -497,10 +497,10 @@ public class MatrixService {
       // Update room information
       String roomId = room.getId().substring(0, room.getId().indexOf(":"));// remove server part
       Room matrixRoom = this.getById(roomId);
-      if(matrixRoom != null) {
-        if(StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
+      if (matrixRoom != null) {
+        if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
           Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
-          if(space != null) {
+          if (space != null) {
             room.setName(space.getDisplayName());
             room.setAvatarUrl(space.getAvatarUrl());
             room.setSpaceId(matrixRoom.getSpaceId());
@@ -509,12 +509,12 @@ public class MatrixService {
           }
         } else {
           Identity identity = null;
-          if(matrixRoom.getFirstParticipant().equals(currentUserName)) {
+          if (matrixRoom.getFirstParticipant().equals(currentUserName)) {
             identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());
-          } else if(matrixRoom.getSecondParticipant().equals(currentUserName)) {
+          } else if (matrixRoom.getSecondParticipant().equals(currentUserName)) {
             identity = identityManager.getOrCreateUserIdentity(matrixRoom.getFirstParticipant());
           }
-          if(identity != null) {
+          if (identity != null) {
             room.setName(identity.getProfile().getFullName());
             room.setAvatarUrl(identity.getProfile().getAvatarUrl());
             room.setUserId(identity.getRemoteId());
@@ -524,22 +524,25 @@ public class MatrixService {
           }
         }
       }
-      
+
       // Get last message
       Message message = room.getLastMessage();
-      if(message != null && StringUtils.isNotBlank(message.getSender())) {
+      if (message != null && StringUtils.isNotBlank(message.getSender())) {
         Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
         if (identity != null) {
           String updatedContent;
+          Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
           if (!identity.getRemoteId().equals(currentUserName)) {
-            updatedContent = identity.getProfile().getFullName() + ":" + message.getContent();
-            message.setContent(updatedContent);
+            updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
+                    .replace("{0}", identity.getProfile().getFullName())
+                    .replace("{1}", message.getContent());
           } else {
-            Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
             String you = resourceBundleService.getSharedString(YOU_STRING, locale);
-            updatedContent = you + message.getContent();
-            message.setContent(updatedContent);
+            updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
+                                                  .replace("{0}", you)
+                                                  .replace("{1}", message.getContent());
           }
+          message.setContent(updatedContent);
           room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
         }
       }

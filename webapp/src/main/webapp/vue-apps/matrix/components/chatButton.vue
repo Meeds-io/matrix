@@ -139,18 +139,17 @@
         const updatedRoom = this.rooms[updatedRoomIndex];
         if(updatedRoom) {
           updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
+          updatedRoom.unreadMessages += 1;
+          this.rooms.splice(updatedRoomIndex, 1);
+          this.rooms.unshift(updatedRoom);
           if(event.detail.sender === localStorage.getItem('matrix_user_id')) {
-            updatedRoom.unreadMessages += 1;
-            updatedRoom.lastMessage.content = `${this.$t('matrix.words.you')} ${event.detail.message}`;
-            this.rooms.splice(updatedRoomIndex, 1);
-            this.rooms.unshift(updatedRoom);
+            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
+                                              this.$t('matrix.words.you')).replace('{1}', event.detail.message);
           } else {
             const senderMatrixId = event.detail.sender.substr(1, event.detail.sender.indexOf(":") - 1);
             this.$matrixService.getUserByMatrixId(senderMatrixId).then(senderIdentity => {
-              updatedRoom.unreadMessages += 1;
-              updatedRoom.lastMessage.content = `${senderIdentity.profile.fullname}: ${event.detail.message}`;
-              this.rooms.splice(updatedRoomIndex, 1);
-              this.rooms.unshift(updatedRoom);
+              updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
+                                                senderIdentity.profile.fullname).replace('{1}', event.detail.message);
             });
           }
         }
