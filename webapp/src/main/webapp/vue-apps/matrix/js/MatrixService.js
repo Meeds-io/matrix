@@ -575,3 +575,22 @@ export function formatDate(timestamp) {
     return timeUtils.getDayDateString(timestamp);
   }
 }
+
+export function getUserDisplayNameFontColor(identityId) {
+  const colors = ["rgb(239, 83, 80)", // copied from org.exoplatform.social.core.image.ImageUtils.createDefaultAvatar
+                  "rgb(25, 118, 210)",
+                  "rgb(171, 71, 188)",
+                  "rgb(0, 137, 123)",
+                  "rgb(158, 157, 36)",
+                  "rgb(251, 192, 45)",
+                  "rgb(0, 191, 165)",
+                  "rgb(117, 117, 117)",
+                  "rgb(244, 67, 54)",
+                  "rgb(33, 150, 243)",
+                  "rgb(124, 179, 66)",
+                  "rgb(48, 63, 159)",
+                  "rgb(69, 39, 160)",
+                  "rgb(141, 110, 99)",
+                  "rgb(255, 111, 0)"];
+  return `color: ${colors[Number(identityId) % colors.length]} !important`;
+}
