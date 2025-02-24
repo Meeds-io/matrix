@@ -62,19 +62,18 @@
         <groupId>io.meeds.matrix</groupId>
         <artifactId>matrix-webapp</artifactId>
         <version>${project.version}</version>
-        <scope>provided</scope>
+        <type>war</type>
       </dependency>
       <dependency>
         <groupId>io.meeds.matrix</groupId>
         <artifactId>matrix-services</artifactId>
         <version>${project.version}</version>
-        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>io.meeds.matrix</groupId>
         <artifactId>matrix-packaging</artifactId>
         <version>${project.version}</version>
-        <scope>provided</scope>
+        <type>zip</type>
       </dependency>
     </dependencies>
   </dependencyManagement>
