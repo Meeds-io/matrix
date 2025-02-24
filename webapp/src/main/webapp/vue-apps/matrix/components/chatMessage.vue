@@ -7,7 +7,7 @@
           class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
           <div class="matrix-user-status size-3" :class="[presenceClass]"></div>
         </div>
-        <span class="mx-3 text-title text-subtitle-1 text-truncate content-align"> {{sender.profile && sender.profile.fullname}} </span>
+        <span class="mx-3 text-title text-subtitle-1 text-truncate content-align" :style="userNameColor"> {{sender.profile && sender.profile.fullname}} </span>
       </div>
     </a>
     <div class="chat-message-content-body" :class="messageContentClass">
@@ -65,6 +65,9 @@
       },
       profileUrl() {
         return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender.remoteId}`;
+      },
+      userNameColor() {
+        return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
       },
       messageContentClass() {
         let cssSameMessageSender = 'border-bottom-right-radius-16';
