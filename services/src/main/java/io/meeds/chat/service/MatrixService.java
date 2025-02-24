@@ -505,6 +505,7 @@ public class MatrixService {
             room.setName(identity.getProfile().getFullName());
             room.setAvatarUrl(identity.getProfile().getAvatarUrl());
             room.setUserId(identity.getRemoteId());
+            room.setIdentityId(identity.getId());
           } else {
             continue;
           }
