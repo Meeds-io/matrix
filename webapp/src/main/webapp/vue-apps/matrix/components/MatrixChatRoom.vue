@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-room-item d-flex px-5">
+  <div class="chat-room-item d-flex px-4">
     <div
       :style="`backgroundImage: url(${room.avatarUrl})`"
       :class="avatarBorderClass"
@@ -11,7 +11,7 @@
       <div :id="`room-name-${room.id}`" class="chat-room-name text-truncate text-title text-subtitle-1" :style="roomNameStyle">
         {{ room.name }}
       </div>
-      <div v-if="room.lastMessage" class="chat-room-last-message text-capitalize-first-letter text-truncate mt-2" :class="lastMessageStyle">
+      <div v-if="room.lastMessage" class="chat-room-last-message text-truncate mt-1" :class="lastMessageStyle">
         {{ room.lastMessage.content }}
       </div>
       <div v-else class="text-subtitle text-truncate mt-2">
@@ -51,7 +51,7 @@
         return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
       },
       lastMessageStyle() {
-        return this.room.unreadMessages > 0 ? 'text-subtitle-2 text-bold':'text-subtitle';
+        return this.room.unreadMessages > 0 ? 'text-subtitle text-bold':'text-subtitle';
       },
       presenceClass() {
         return `matrix-status-${this.room.presence}`;
