@@ -38,7 +38,7 @@
 
   <properties>
     <io.meeds.social.version>7.0.x-exo-SNAPSHOT</io.meeds.social.version>
-    <io.meeds.pwa.version>7.0.x-exo-SNAPSHOT</io.meeds.pwa.version>
+    <addon.meeds.pwa.version>7.0.x-exo-SNAPSHOT</addon.meeds.pwa.version>
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
   </properties>
@@ -54,7 +54,7 @@
       <dependency>
         <groupId>io.meeds.pwa</groupId>
         <artifactId>pwa</artifactId>
-        <version>${io.meeds.pwa.version}</version>
+        <version>${addon.meeds.pwa.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
