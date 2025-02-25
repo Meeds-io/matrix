@@ -324,7 +324,17 @@ export async function toRoomObject(rooms, currentMemberId) {
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
-  myRooms.rooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
+  myRooms.rooms.sort((roomOne, roomTwo) => {
+    if(roomOne.updated && roomTwo.updated) {
+      return roomOne.updated <= roomTwo.updated;
+    } else if(roomOne.updated) {
+      return -1;
+    } else if (roomTwo.updated) {
+      return 1;
+    } else {
+      return roomOne.name.localeCompare(roomTwo.name, undefined, {numeric: true, sensitivity: 'base'}); // Natural sorting using room names
+    }
+  });
   return myRooms;
 }
 
