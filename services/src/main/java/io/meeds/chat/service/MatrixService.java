@@ -91,6 +91,8 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient      matrixHttpClient;
 
+  private boolean               serviceAvailable;
+
   private String                matrixAccessToken;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
@@ -106,14 +108,20 @@ public class MatrixService {
   }
 
   @PostConstruct
-  public void init() throws JsonException, IOException, InterruptedException {
-    this.getMatrixAccessToken();
+  public void init() {
+    try {
+      this.getMatrixAccessToken();
 
-    String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
-        + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
-    if (StringUtils.isNotBlank(displayName)) {
-      this.updateUserDisplayName(userFullMatrixID, displayName);
+      String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
+          + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
+      if (StringUtils.isNotBlank(displayName)) {
+        this.updateUserDisplayName(userFullMatrixID, displayName);
+      }
+      this.serviceAvailable = true;
+    } catch (Exception e) {
+      LOG.error("Could not initialize Matrix service, the service is unavailable", e.getMessage());
+      this.serviceAvailable = false;
     }
   }
 
@@ -523,8 +531,8 @@ public class MatrixService {
           Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
           if (!identity.getRemoteId().equals(currentUserName)) {
             updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
-                    .replace("{0}", identity.getProfile().getFullName())
-                    .replace("{1}", message.getContent());
+                                                  .replace("{0}", identity.getProfile().getFullName())
+                                                  .replace("{1}", message.getContent());
           } else {
             String you = resourceBundleService.getSharedString(YOU_STRING, locale);
             updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
