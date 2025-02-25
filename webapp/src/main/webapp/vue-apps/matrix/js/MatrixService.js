@@ -552,10 +552,16 @@ export function getUserByMatrixId(userIdOnMatrix) {
   });
 }
 
-export function loadRoomMessages(roomId) {
+export async function loadRoomMessages(roomId, from, to) {
   const filter = {types:['m.room.message'],};
   const formData = new FormData();
   formData.append('limit', 50);
+  if(from) {
+    formData.append('from', from);
+  }
+  if(to) {
+    formData.append('to', to);
+  }
   formData.append('dir', 'f'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
@@ -564,20 +570,39 @@ export function loadRoomMessages(roomId) {
     headers: {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
-  },).then(resp => {
-    if (!resp || !resp.ok) {
-      throw new Error('Get room messages : Response code indicates a server error', resp);
-    } else {
-      return resp.json();
-    }
   });
 }
 
-export function formatDate(timestamp) {
+export async function loadAllRoomMessages(roomId, loadAll) {
+  let from = 's0_0_0_0_0_0_0_0_0_0';
+  if(!loadAll) {
+    from = localStorage.getItem(`${roomId}-latest-messages-from`) || 's0_0_0_0_0_0_0_0_0_0';
+  }
+  let to = localStorage.getItem(`${roomId}-latest-messages-to`) || '';
+  localStorage.setItem(`${roomId}-latest-messages-from`, from);
+  let allData = [];
+  let loadFrom = from;
+  while (true) {
+    const response = await loadRoomMessages(roomId, loadFrom);
+    const data = await response.json();
+    if (!data.chunk.length) {
+      localStorage.setItem(`${roomId}-latest-messages-from`, from);
+      localStorage.setItem(`${roomId}-latest-messages-to`, to);
+      break;
+    }
+    from = data.start;
+    to = data.end;
+    loadFrom = to;
+    allData.push(...data.chunk);
+  }
+  return allData;
+}
+
+export function formatDate(timestamp, dateIfSameDay) {
   if (!timestamp) {
     return '';
   }
-  if (timeUtils.isSameDay(timestamp, new Date().getTime())) {
+  if (timeUtils.isSameDay(timestamp, new Date().getTime()) && !dateIfSameDay) {
     return timeUtils.getTimeString(timestamp);
   } else if (timestamp === -1){
     return '';
