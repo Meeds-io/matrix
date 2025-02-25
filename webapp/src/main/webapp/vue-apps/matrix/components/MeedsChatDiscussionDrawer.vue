@@ -76,23 +76,25 @@ export default {
       this.loading = true;
       this.$refs.ChatDiscussionDrawer.open();
       this.room = e.detail;
-      this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
-        this.messages = resp.chunk;
-        this.$nextTick().then(() => {
-          this.scrollToEnd();
+      this.$matrixService.loadAllRoomMessages(this.room.id, false).then(resp => {
+          this.messages = resp;
+          this.$nextTick().then(() => {
+            this.scrollToEnd();
+          });
         });
-        this.loading = false
-      });
+      this.loading = false
     },
     close(){
       this.messages = null;
       this.$refs.ChatDiscussionDrawer?.close();
     },
     messageReceived(event) {
-      if(this.room.id === event.detail.roomId) {
+      if(this.room.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer.drawer) {
         const receivedMessage = {sender: event.detail.sender, content:{body: event.detail.message},origin_server_ts: event.detail.origin_server_ts};
         this.messages.push(receivedMessage);
-        this.scrollToEnd();
+        setTimeout( () => {
+          this.scrollToEnd();
+        }, 50);
       }
     },
     scrollToEnd() {
