@@ -517,8 +517,8 @@ public class MatrixService {
           Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
           if (!identity.getRemoteId().equals(currentUserName)) {
             updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
-                    .replace("{0}", identity.getProfile().getFullName())
-                    .replace("{1}", message.getContent());
+                                                  .replace("{0}", identity.getProfile().getFullName())
+                                                  .replace("{1}", message.getContent());
           } else {
             String you = resourceBundleService.getSharedString(YOU_STRING, locale);
             updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
