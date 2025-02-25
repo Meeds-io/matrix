@@ -54,6 +54,8 @@ class MatrixServiceTest extends MatrixBaseTest {
   @MockBean
   ProfileSearchConnector profileSearchConnector;
 
+  private List<Space> spacesToDelete = new ArrayList<>();
+
   @Test
   void init() {
     try {
@@ -96,6 +98,13 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   @AfterEach
   void tearDown() {
+    for(Space space : spacesToDelete) {
+      try {
+        this.spaceService.deleteSpace(space);
+      } catch (Exception e) {
+        //Nothing to do
+      }
+    }
     end();
   }
 
@@ -137,6 +146,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     Arrays.stream(members).forEach(u -> spaceService.addMember(createdSpace, u));
     Arrays.stream(managers).forEach(u -> spaceService.addMember(createdSpace, u));
     Arrays.stream(managers).forEach(u -> spaceService.setManager(createdSpace, u, true));
+    spacesToDelete.add(createdSpace);
     return createdSpace;
   }
 
