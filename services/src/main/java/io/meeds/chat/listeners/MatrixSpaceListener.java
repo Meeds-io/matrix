@@ -61,6 +61,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceCreated(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     try {
       String matrixRoomId = matrixService.createRoom(space);
@@ -89,6 +92,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRenamed(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String spaceDisplayName = space.getDisplayName();
     String roomId = matrixService.getRoomBySpace(space);
@@ -103,6 +109,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void joined(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String userId = event.getTarget();
     String restrictedGroupOfUsers = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
@@ -130,6 +139,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void left(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String userId = event.getTarget();
     String roomId = matrixService.getRoomBySpace(space);
@@ -145,6 +157,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void grantedLead(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
     updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
@@ -152,6 +167,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void revokedLead(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
     updateMemberRoleInSpace(space, matrixIdOfUser, SIMPLE_USER_ROLE);
@@ -191,6 +209,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceAvatarEdited(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     try {
       String roomId = matrixService.getRoomBySpace(space);
@@ -202,6 +223,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceDescriptionEdited(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String roomId = matrixService.getRoomBySpace(space);
     try {
@@ -215,6 +239,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRemoved(SpaceLifeCycleEvent event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     Space space = event.getSpace();
     String roomId = matrixService.getRoomBySpace(space);
     if (StringUtils.isNotBlank(roomId)) {

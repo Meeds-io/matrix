@@ -30,6 +30,7 @@ import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.file.model.FileItem;
@@ -91,6 +92,10 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient      matrixHttpClient;
 
+  /**
+   * -- GETTER -- Checks if the Matrix service is available
+   */
+  @Getter
   private boolean               serviceAvailable;
 
   private String                matrixAccessToken;
