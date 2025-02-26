@@ -91,7 +91,7 @@ public class MatrixHttpClient {
         }
       }
     } catch (Exception e) {
-      LOG.error("Could not authenticate Admin account with JWT on Matrix", e);
+      LOG.error("Could not authenticate Admin account with JWT on Matrix", e.getMessage());
       throw e;
     }
 

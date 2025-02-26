@@ -30,6 +30,7 @@ import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.file.model.FileItem;
@@ -90,6 +91,12 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient      matrixHttpClient;
 
+  /**
+   * -- GETTER -- Checks if the Matrix service is available
+   */
+  @Getter
+  private boolean               serviceAvailable;
+
   private String                matrixAccessToken;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
@@ -105,14 +112,20 @@ public class MatrixService {
   }
 
   @PostConstruct
-  public void init() throws JsonException, IOException, InterruptedException {
-    this.getMatrixAccessToken();
+  public void init() {
+    try {
+      this.getMatrixAccessToken();
 
-    String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
-        + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
-    if (StringUtils.isNotBlank(displayName)) {
-      this.updateUserDisplayName(userFullMatrixID, displayName);
+      String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
+          + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
+      if (StringUtils.isNotBlank(displayName)) {
+        this.updateUserDisplayName(userFullMatrixID, displayName);
+      }
+      this.serviceAvailable = true;
+    } catch (Exception e) {
+      LOG.error("Could not initialize Matrix service, the service is unavailable", e.getMessage());
+      this.serviceAvailable = false;
     }
   }
 
