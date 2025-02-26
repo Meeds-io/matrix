@@ -68,6 +68,9 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     String userId = event.getData().getIdentity().getUserId();
     Identity connectedUserIdentity = event.getData().getIdentity();
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
