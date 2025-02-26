@@ -64,6 +64,9 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSave(User user, boolean isNew) throws Exception {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if ((StringUtils.isNotBlank(matrixRestrictedGroup)
@@ -75,6 +78,9 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSetEnabled(User user) throws Exception {
+    if(!matrixService.isServiceAvailable()) {
+      return;
+    }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     if(matrixUserAdmin.equals(user.getUserName())) {
       LOG.warn("Could not set enable the Matrix admin user");
