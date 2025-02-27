@@ -1,23 +1,26 @@
 <template>
   <div class="chat-message-content">
-    <div v-if="displayDate" class="mb-5 text-font-small-size font-weight-bold text-center" :class="{ 'mt-5' : previousMessage }"> {{ formattedDate }} </div>
-    <div class="px-4">
-      <a :href="profileUrl">
-        <div class="d-flex" v-if="displaySender">
-          <div
-            :style="`backgroundImage: url(${sender && sender.profile && sender.profile.avatar})`"
-            class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
-            <div class="matrix-user-status size-3" :class="[presenceClass]"></div>
+    <div v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)" class="mb-5 text-font-small-size font-weight-bold text-center" :class="{ 'mt-5' : previousMessage }"> {{ formattedDate }} </div>
+    <div class="px-4" :class="{'mt-3' : message.sender !== previousMessage.sender}">
+      <div class="d-relative">
+        <div class="avatar-of-user mt-3" v-if="displaySender">
+          <a :href="profileUrl">
+            <div class="d-flex">
+              <div
+                :style="`backgroundImage: url(${sender && sender.profile && sender.profile.avatar})`"
+                class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
+              </div>
+              <span class="meeds-chat-contact-avatar-name mx-1 text-title text-subtitle-1 text-truncate" :style="userNameColor"> {{sender.profile && sender.profile.fullname}} </span>
+            </div>
+          </a>
+        </div>
+        <div class="chat-message-content-body py-2 px-3 mt-0-5" :class="messageContentClass">
+          <div class="chat-message-content-text">
+          {{ message.content.body }}
           </div>
-          <span class="mx-3 text-title text-subtitle-1 text-truncate content-align" :style="userNameColor"> {{sender.profile && sender.profile.fullname}} </span>
-        </div>
-      </a>
-      <div class="chat-message-content-body" :class="messageContentClass">
-        <div class="chat-message-content-text">
-        {{ message.content.body }}
-        </div>
-        <div v-if="displayTimestamp" class="text-font-extra-small-size chat-message-content-timestamp ">
-          {{ formattedTimestamp }}
+          <div v-if="displayTimestamp" class="text-font-small-size chat-message-content-timestamp ">
+            {{ formattedTimestamp }}
+          </div>
         </div>
       </div>
     </div>
@@ -64,7 +67,7 @@
     computed: {
       formattedTimestamp() {
         const currentDate = new Date(this.timestamp);
-        return `${currentDate.getHours()}:${currentDate.getMinutes()}`;
+        return `${currentDate.getHours()}:${currentDate.getMinutes() < 9 && '0' + currentDate.getMinutes() || currentDate.getMinutes()}`;
       },
       formattedDate() {
         return this.$matrixService.formatDate(this.timestamp, true);
@@ -76,16 +79,25 @@
         return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
       },
       messageContentClass() {
-        let cssSameMessageSender = 'border-bottom-right-radius-16';
-        if(localStorage.getItem('matrix_user_id') === this.nextMessage.sender) {
-          cssSameMessageSender = 'border-bottom-right-radius-0';
+        const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
+        let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
+        let cssSameMessageSenderOthers = 'border-bottom-left-radius-16';
+        if(this.message.sender === this.nextMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.nextMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = 'border-bottom-right-radius-0';
+          cssSameMessageSenderOthers = 'border-bottom-left-radius-0';
         }
-        if(localStorage.getItem('matrix_user_id') === this.previousMessage.sender) {
-          cssSameMessageSender = `border-top-right-radius-0 ${cssSameMessageSender}`;
+        if(this.message.sender === this.previousMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = `border-top-right-radius-0 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-0 ${cssSameMessageSenderOthers}`;
         } else {
-          cssSameMessageSender = `border-top-right-radius-16 ${cssSameMessageSender}`;
+          cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
         }
-        return localStorage.getItem('matrix_user_id') === this.message.sender ? `chat-message-from-self py-1 px-3 mt-1 ${cssSameMessageSender}`: `chat-message-from-others ps-7 pe-3 pb-1 ${cssSameMessageSender}`;
+        let extraClass='';
+        if(!this.room.directChat && !selfMessage) {
+          extraClass = 'ml-5';
+        }
+        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
       },
       displaySender() {
         return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
@@ -100,21 +112,20 @@
         } else {
           return true;
         }
-      },
-      displayDate() {
-        if(this.previousMessage) {
-          const previousMessageDate = new Date(this.previousMessage.origin_server_ts);
-          const currentMessageDate = new Date(this.timestamp);
-          return previousMessageDate.getDate() !== currentMessageDate.getDate()
-            || previousMessageDate.getMonth() !== currentMessageDate.getMonth()
-            || previousMessageDate.getFullYear() !== currentMessageDate.getFullYear();
-        } else {
-          return true;
-        }
       }
     },
     methods: {
-
+      sameDateAs(thisMessageTime, anotherMessageTime) {
+        if(anotherMessageTime) {
+          const anotherMessageDate = new Date(anotherMessageTime);
+          const thisMessageDate = new Date(thisMessageTime);
+          return anotherMessageDate.getDate() === thisMessageDate.getDate()
+            && anotherMessageDate.getMonth() === thisMessageDate.getMonth()
+            && anotherMessageDate.getFullYear() === thisMessageDate.getFullYear();
+        } else {
+          return false;
+        }
+      }
     }
   }
 </script>
