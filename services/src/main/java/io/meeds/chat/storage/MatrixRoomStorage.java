@@ -19,9 +19,7 @@
 package io.meeds.chat.storage;
 
 import io.meeds.chat.dao.MatrixRoomDAO;
-import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.entity.RoomEntity;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.services.log.ExoLogger;
@@ -64,74 +62,59 @@ public class MatrixRoomStorage {
     }
   }
 
-  public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
+  public Room getDMRoomByRoomId(String roomId) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
     if (roomEntity != null && StringUtils.isNotBlank(roomEntity.getFirstParticipant())
         && StringUtils.isNotBlank(roomEntity.getSecondParticipant())) {
-      return toDirectMessagingRoomModel(roomEntity);
+      return toRoomModel(roomEntity);
     } else {
       LOG.warn("Can not find an associated space for the matrix room with ID {}", roomId);
       return null;
     }
   }
 
-  public SpaceRoom saveRoomForSpace(String spaceId, String roomId) {
+  public Room saveRoomForSpace(String spaceId, String roomId) {
     RoomEntity roomEntity = new RoomEntity();
     roomEntity.setSpaceId(spaceId);
     roomEntity.setRoomId(roomId);
-    return toSpaceRoomModel(matrixRoomDAO.save(roomEntity));
+    return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 
-  public DirectMessagingRoom saveDirectMessagingRoom(String firstParticipantId, String secondParticipantId, String roomId) {
+  public Room saveDirectMessagingRoom(String firstParticipantId, String secondParticipantId, String roomId) {
     RoomEntity roomEntity = new RoomEntity();
     roomEntity.setRoomId(roomId);
     roomEntity.setFirstParticipant(firstParticipantId);
     roomEntity.setSecondParticipant(secondParticipantId);
-    return toDirectMessagingRoomModel(matrixRoomDAO.save(roomEntity));
+    return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 
-  private DirectMessagingRoom toDirectMessagingRoomModel(RoomEntity room) {
-    DirectMessagingRoom directMessagingRoom = new DirectMessagingRoom();
-    directMessagingRoom.setRoomId(room.getRoomId());
-    directMessagingRoom.setFirstParticipant(room.getFirstParticipant());
-    directMessagingRoom.setSecondParticipant(room.getSecondParticipant());
-    return directMessagingRoom;
-  }
-
-  private static SpaceRoom toSpaceRoomModel(RoomEntity roomEntity) {
-    SpaceRoom spaceRoomModel = new SpaceRoom();
-    spaceRoomModel.setSpaceId(roomEntity.getSpaceId());
-    spaceRoomModel.setRoomId(roomEntity.getRoomId());
-    return spaceRoomModel;
-  }
-
-  private static List<SpaceRoom> toSpaceRoomList(List<RoomEntity> roomEntities) {
-    List<SpaceRoom> spaceRooms = new ArrayList<>();
+  private static List<Room> toRoomList(List<RoomEntity> roomEntities) {
+    List<Room> rooms = new ArrayList<>();
     for (RoomEntity roomEntity : roomEntities) {
-      spaceRooms.add(toSpaceRoomModel(roomEntity));
+      rooms.add(toRoomModel(roomEntity));
     }
-    return spaceRooms;
+    return rooms;
   }
 
   public long getSpaceRoomCount() {
     return matrixRoomDAO.count();
   }
 
-  public DirectMessagingRoom getDirectMessagingRoom(String firstParticipantId, String secondParticipantId) {
+  public Room getDirectMessagingRoom(String firstParticipantId, String secondParticipantId) {
     RoomEntity directMessagingRoom = matrixRoomDAO.findByFirstParticipantAndSecondParticipant(firstParticipantId,
                                                                                               secondParticipantId);
     if (directMessagingRoom != null) {
-      return toDirectMessagingRoomModel(directMessagingRoom);
+      return toRoomModel(directMessagingRoom);
     }
     return null;
   }
 
-  public List<DirectMessagingRoom> getMatrixDMRoomsOfUser(String user) {
+  public List<Room> getMatrixDMRoomsOfUser(String user) {
     return toDirectMessagingRoomModelList(matrixRoomDAO.findByFirstParticipantOrSecondParticipant(user, user));
   }
 
-  private List<DirectMessagingRoom> toDirectMessagingRoomModelList(List<RoomEntity> roomEntities) {
-    return roomEntities.stream().map(roomEntity -> toDirectMessagingRoomModel(roomEntity)).toList();
+  private List<Room> toDirectMessagingRoomModelList(List<RoomEntity> roomEntities) {
+    return roomEntities.stream().map(MatrixRoomStorage::toRoomModel).toList();
   }
 
   public void removeMatrixRoom(String roomId) {
@@ -153,7 +136,7 @@ public class MatrixRoomStorage {
    * @param roomEntity the JPA entity for room
    * @return Room object
    */
-  private Room toRoomModel(RoomEntity roomEntity) {
+  public static Room toRoomModel(RoomEntity roomEntity) {
     Room room = new Room();
     room.setId(roomEntity.getId());
     room.setRoomId(roomEntity.getRoomId());
@@ -168,7 +151,7 @@ public class MatrixRoomStorage {
    * 
    * @return List of SpaceRoom
    */
-  public List<SpaceRoom> getSpaceRooms() {
-    return toSpaceRoomList(matrixRoomDAO.findBySpaceIdIsNotNull());
+  public List<Room> getSpaceRooms() {
+    return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNull());
   }
 }

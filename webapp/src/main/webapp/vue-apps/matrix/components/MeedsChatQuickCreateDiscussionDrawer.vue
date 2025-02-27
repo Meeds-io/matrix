@@ -24,7 +24,7 @@
       <span class="PopupTitle"> <v-icon left @click="close">mdi-arrow-left</v-icon>{{ $t('matrix.chat.quick.create.discussion') }}</span>
     </template>
     <template slot="content">
-      <v-form ref="QuickCreateRoom" id="QuickCreateRoom" class="pa-2 ms-2 mt-4">
+      <v-form ref="QuickCreateRoom" id="QuickCreateRoom" class="px-2 ms-2 mt-5">
         <div class="d-flex flex-column flex-grow-1">
           <div class="d-flex flex-column mb-2">
             <label class="d-flex flex-row font-weight-bold my-2">{{ $t('matrix.chat.quick.create.discussion.add.people') }}</label>
@@ -47,14 +47,18 @@
       </v-form>
     </template>
     <template slot="footer">
-      <div class="d-flex my-2 flex-row justify-end">
-        <button class="mx-5 px-8 btn" @click="close()">{{ $t('matrix.chat.cancel') }}</button>
-        <button
+      <div class="d-flex flex-row justify-end">
+        <v-btn
+          class="me-2 btn"
+          @click="close()">
+          {{ $t('matrix.chat.cancel') }}
+        </v-btn>
+        <v-btn
           :disabled="disabledSaveButton"
           class="btn btn-primary"
           @click="quickCreateChatDiscussion">
           {{ $t('matrix.chat.quick.discussion.add') }}
-        </button>
+        </v-btn>
       </div>
     </template>
   </exo-drawer>
@@ -66,7 +70,7 @@ export default {
 
   data() {
     return {
-      participant: {},
+      participant: null,
       fullName: '',
     };
   },

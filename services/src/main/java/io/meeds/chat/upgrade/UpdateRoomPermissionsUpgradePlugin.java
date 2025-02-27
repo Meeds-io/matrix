@@ -19,7 +19,7 @@
 package io.meeds.chat.upgrade;
 
 import io.meeds.chat.model.MatrixRoomPermissions;
-import io.meeds.chat.model.SpaceRoom;
+import io.meeds.chat.model.Room;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
 import org.exoplatform.container.xml.InitParams;
@@ -46,9 +46,9 @@ public class UpdateRoomPermissionsUpgradePlugin extends UpgradeProductPlugin {
     LOG.info("Start:: update room permissions on Matrix");
     long startupTime = System.currentTimeMillis();
 
-    List<SpaceRoom> spaceRooms = matrixService.getSpaceRooms();
+    List<Room> spaceRooms = matrixService.getSpaceRooms();
     int updatedRoomsCount = 0;
-    for(SpaceRoom spaceRoom : spaceRooms) {
+    for(Room spaceRoom : spaceRooms) {
       try {
         MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(spaceRoom.getRoomId());
         if (!ADMIN_ROLE.equals(matrixRoomPermissions.getInvite())) {
