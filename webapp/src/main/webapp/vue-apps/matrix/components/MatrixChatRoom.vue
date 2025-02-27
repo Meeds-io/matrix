@@ -59,7 +59,7 @@
     },
     methods: {
       openRoom() {
-        document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER, { detail: this.room }));
+        document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, { detail: this.room }));
       },
       getLastMessageTime(room) {
         return this.$matrixService.formatDate(room.updated);
