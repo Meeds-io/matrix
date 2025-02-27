@@ -3,7 +3,7 @@
     <div
       :style="`backgroundImage: url(${room.avatarUrl})`"
       :class="avatarBorderClass"
-      class="meeds-chat-contact-avatar size-13 d-flex">
+      class="meeds-chat-contact-avatar size-12 d-flex">
       <div v-if="room.directChat" class="matrix-user-status size-3" :class="presenceClass"></div>
     </div>
     <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"

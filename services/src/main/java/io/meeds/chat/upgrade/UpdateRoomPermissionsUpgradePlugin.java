@@ -66,4 +66,9 @@ public class UpdateRoomPermissionsUpgradePlugin extends UpgradeProductPlugin {
             spaceRooms.size());
     LOG.info("End:: update room permissions on Matrix took {}", System.currentTimeMillis() - startupTime);
   }
+
+  @Override
+  public boolean shouldProceedToUpgrade(String newVersion, String previousVersion) {
+    return matrixService.isServiceAvailable();
+  }
 }
