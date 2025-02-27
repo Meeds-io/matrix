@@ -20,10 +20,8 @@ package io.meeds.chat.service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.model.SpaceRoom;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.rest.model.Message;
@@ -60,8 +58,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -165,25 +161,10 @@ public class MatrixService {
   }
 
   /**
-   * Returns the Space linked to the room
-   * 
-   * @param roomId the Matrix room ID
-   * @return the space
+   * Get a room by its technical ID
+   * @param roomId the room technical ID
+   * @return Room
    */
-  public Space getSpaceByRoomId(String roomId) {
-    return matrixRoomStorage.getSpaceIdByMatrixRoomId(roomId);
-  }
-
-  /**
-   * Returns the DM room by room ID
-   *
-   * @param roomId the Matrix room ID
-   * @return the Direct messaging room
-   */
-  public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
-    return matrixRoomStorage.getDMRoomByRoomId(roomId);
-  }
-
   public Room getById(String roomId) {
     return matrixRoomStorage.getById(roomId);
   }
@@ -195,7 +176,7 @@ public class MatrixService {
    * @param roomId the ID of the matrix room
    * @return the room ID
    */
-  public SpaceRoom linkSpaceToMatrixRoom(Space space, String roomId) {
+  public Room linkSpaceToMatrixRoom(Space space, String roomId) {
     return matrixRoomStorage.saveRoomForSpace(space.getId(), roomId);
   }
 
@@ -399,7 +380,7 @@ public class MatrixService {
     return matrixRoomStorage.getSpaceRoomCount();
   }
 
-  public DirectMessagingRoom getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
+  public Room getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
     return matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
   }
 
@@ -415,7 +396,7 @@ public class MatrixService {
     }
   }
 
-  public DirectMessagingRoom createDirectMessagingRoom(DirectMessagingRoom directMessagingRoom) throws ObjectAlreadyExistsException {
+  public Room createDirectMessagingRoom(Room directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();
     if (StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
@@ -425,7 +406,7 @@ public class MatrixService {
         || identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()) == null) {
       throw new IllegalArgumentException("The ids of the room participants should be valid user identity ids");
     }
-    DirectMessagingRoom matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
+    Room matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
     if (matrixRoom == null) {
       return matrixRoomStorage.saveDirectMessagingRoom(directMessagingRoom.getFirstParticipant(),
                                                        directMessagingRoom.getSecondParticipant(),
@@ -436,7 +417,7 @@ public class MatrixService {
     }
   }
 
-  public List<DirectMessagingRoom> getMatrixDMRoomsOfUser(String user) {
+  public List<Room> getMatrixDMRoomsOfUser(String user) {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
 
@@ -452,7 +433,7 @@ public class MatrixService {
    * 
    * @return List of Space rooms
    */
-  public List<SpaceRoom> getSpaceRooms() {
+  public List<Room> getSpaceRooms() {
     return matrixRoomStorage.getSpaceRooms();
   }
 

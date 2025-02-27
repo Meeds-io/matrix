@@ -61,14 +61,14 @@ export default {
 
   created() {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.addEventListener(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER,e => this.openDiscussion(e));
+    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e));
   },
   updated() {
 
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.removeEventListener(this.$chatConstants.ACTION_CHAT_OPEN_DISCUSSION_DRAWER,e => this.openDiscussion(e));
+    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e));
   },
 
   methods: {

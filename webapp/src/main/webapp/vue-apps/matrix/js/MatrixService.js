@@ -376,7 +376,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
 
 export function openDMRoom(firstParticipant, secondParticipant, matrixServerName) {
   getDMRoom(firstParticipant, secondParticipant, matrixServerName).then(data => {
-    window.open('https://matrix.to/#/' + data.roomId + '?via=' + matrixServerName);
+    document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
   }).catch(e => {
     console.log(e)
   });
