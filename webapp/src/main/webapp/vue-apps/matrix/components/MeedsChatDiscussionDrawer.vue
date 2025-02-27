@@ -74,15 +74,16 @@ export default {
   methods: {
     openDiscussion(e) {
       this.loading = true;
-      this.$refs.ChatDiscussionDrawer.open();
       this.room = e.detail;
       this.$matrixService.loadAllRoomMessages(this.room.id, false).then(resp => {
-          this.messages = resp;
-          this.$nextTick().then(() => {
-            this.scrollToEnd();
-          });
+        this.messages = resp;
+        this.$nextTick().then(() => {
+          this.scrollToEnd();
         });
-      this.loading = false
+        this.$refs.ChatDiscussionDrawer.open();
+      }).finally(() => {
+        this.loading = false;
+      });;
     },
     close(){
       this.messages = null;
@@ -98,14 +99,16 @@ export default {
       }
     },
     scrollToEnd() {
-      if(this.messages) {
-        const lastMessageElement = document.getElementById(`chat-message-${this.messages.length - 1}`);
-        if(lastMessageElement) {
-          document.getElementById(`chat-message-${this.messages.length - 1}`).scrollIntoView({
-            behavior: 'smooth'
-          });
+      setTimeout( () => {
+        if(this.messages) {
+          const lastMessageElement = document.getElementById(`chat-message-${this.messages.length - 1}`);
+          if(lastMessageElement) {
+            document.getElementById(`chat-message-${this.messages.length - 1}`).scrollIntoView({
+              behavior: 'smooth'
+            });
+          }
         }
-      }
+      }, 100);
     }
   }
 };

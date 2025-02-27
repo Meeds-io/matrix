@@ -136,7 +136,7 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
 
   @Override
   public boolean shouldProceedToUpgrade(String newVersion, String previousVersion) {
-    return this.isEnabled();
+    return this.isEnabled() && matrixService.isServiceAvailable();
   }
 
   private void synchronizeUsers() {
