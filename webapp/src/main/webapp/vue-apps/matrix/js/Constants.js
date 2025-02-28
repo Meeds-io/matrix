@@ -18,7 +18,7 @@ export const chatConstants = {
   DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg',
 
   // Static String for action names
-  ACTION_OPEN_CHAT_ROOM: 'open-chat-room',
+  ACTION_OPEN_CHAT_ROOM: 'meeds-chat-open-room',
 
   ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'meeds-open-quick-create-discussion-drawer',
 
