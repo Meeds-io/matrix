@@ -1,14 +1,12 @@
 package io.meeds.chat.upgrade;
 
 import io.meeds.chat.model.MatrixRoomPermissions;
-import io.meeds.chat.model.MatrixUserPermission;
-import io.meeds.chat.model.SpaceRoom;
+import io.meeds.chat.model.Room;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.container.xml.InitParams;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -74,17 +72,17 @@ class UpdateRoomPermissionsUpgradePluginTest {
     }
   }
 
-  private SpaceRoom createSpaceRoom() {
+  private Room createSpaceRoom() {
     Random random = new Random();
     int randomInt = random.nextInt(100);
-    SpaceRoom spaceRoom = new SpaceRoom();
+    Room spaceRoom = new Room();
     spaceRoom.setRoomId("RandomRoomId" + randomInt);
     spaceRoom.setSpaceId(String.valueOf(randomInt));
     return spaceRoom;
   }
 
-  private List<SpaceRoom> createSpaceRooms(int count) {
-    List<SpaceRoom> spaceRooms = new ArrayList<>();
+  private List<Room> createSpaceRooms(int count) {
+    List<Room> spaceRooms = new ArrayList<>();
     for (int i = 0; i < count; i++) {
       spaceRooms.add(createSpaceRoom());
     }

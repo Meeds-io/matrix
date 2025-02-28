@@ -8,7 +8,6 @@ import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.service.utils.MatrixHttpClient;
-import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -67,23 +66,6 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   @Test
   void updateUserDisplayName() {
-  }
-
-  @Test
-  void processRooms() throws Exception {
-    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!testroom1:matrix.exo.tn", "!testroom2:matrix.exo.tn", "!testroom3:matrix.exo.tn");
-    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
-    matrixRoomPermissions.setUsers(new ArrayList<>());
-    when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
-    Profile demoIProfile = identityManager.getOrCreateUserIdentity("demo").getProfile();
-    demoIProfile.setProperty(USER_MATRIX_ID, "demo");
-    identityManager.updateProfile(demoIProfile);
-    RoomList roomList = createRoomsList(3);
-    String initialContent = roomList.getRooms().getFirst().getLastMessage().getContent();
-    roomList = this.matrixService.processRooms(roomList, "root");
-    assertNotNull(roomList);
-    assertEquals(3, roomList.getRooms().size());
-    assertNotEquals(initialContent, roomList.getRooms().getFirst().getLastMessage().getContent());
   }
 
   @BeforeEach
