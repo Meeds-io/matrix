@@ -18,9 +18,17 @@
           <div class="chat-message-content-text">
           {{ message.content.body }}
           </div>
-          <div v-if="displayTimestamp" class="text-font-small-size chat-message-content-timestamp ">
-            {{ formattedTimestamp }}
-          </div>
+          <v-tooltip bottom>
+            <template #activator="{on, bind}">
+              <div v-on="on"
+                 v-bind="bind"
+                 v-if="displayTimestamp"
+                 class="text-font-small-size chat-message-content-timestamp">
+                {{ formattedTimestamp }}
+              </div>
+            </template>
+            <date-format :value="timestamp" :format="dateFormat" />
+          </v-tooltip>
         </div>
       </div>
     </div>
@@ -51,6 +59,13 @@
         sender: {},
         timestamp: '',
         presenceClass: 'offline',
+        dateFormat: {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+        },
       };
     },
     created() {
@@ -66,6 +81,10 @@
     },
     computed: {
       formattedTimestamp() {
+        const now = new Date().getTime();
+        if(this.sameDateAs(this.timestamp, now) && this.sameTimeAs(this.timestamp, now) && !this.nextMessage.timestamp) {
+          return this.$t('matrix.chat.time.now');
+        }
         const currentDate = new Date(this.timestamp);
         return `${currentDate.getHours()}:${currentDate.getMinutes() < 9 && '0' + currentDate.getMinutes() || currentDate.getMinutes()}`;
       },
@@ -122,6 +141,16 @@
           return anotherMessageDate.getDate() === thisMessageDate.getDate()
             && anotherMessageDate.getMonth() === thisMessageDate.getMonth()
             && anotherMessageDate.getFullYear() === thisMessageDate.getFullYear();
+        } else {
+          return false;
+        }
+      },
+      sameTimeAs(thisMessageTime, anotherMessageTime) {
+        if(anotherMessageTime) {
+          const anotherMessageDate = new Date(anotherMessageTime);
+          const thisMessageDate = new Date(thisMessageTime);
+          return anotherMessageDate.getHours() === thisMessageDate.getHours()
+            && anotherMessageDate.getMinutes() === thisMessageDate.getMinutes()
         } else {
           return false;
         }
