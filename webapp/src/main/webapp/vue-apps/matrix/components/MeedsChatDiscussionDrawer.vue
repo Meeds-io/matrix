@@ -49,9 +49,9 @@ export default {
       return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
     },
     url() {
-      if(this.room.directChat && this.room.userId) {
+      if(this.room?.directChat && this.room?.userId) {
         return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.room.userId}`;
-      } else if(this.room.spaceId) {
+      } else if(this.room?.spaceId) {
         return `${eXo.env.portal.context}/s/${this.room.spaceId}`;
       } else {
         return '#';
@@ -61,26 +61,28 @@ export default {
 
   created() {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e));
+    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
+    this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
   },
   updated() {
 
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e));
+    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
+    this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
   },
 
   methods: {
     openDiscussion(e) {
       this.loading = true;
-      this.room = e.detail;
+      this.room = e;
       this.$matrixService.loadAllRoomMessages(this.room.id, false).then(resp => {
         this.messages = resp;
         this.$nextTick().then(() => {
           this.scrollToEnd();
         });
-        this.$refs.ChatDiscussionDrawer.open();
+        this.$refs.ChatDiscussionDrawer?.open();
       }).finally(() => {
         this.loading = false;
       });;
@@ -90,7 +92,7 @@ export default {
       this.$refs.ChatDiscussionDrawer?.close();
     },
     messageReceived(event) {
-      if(this.room.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer.drawer) {
+      if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
         const receivedMessage = {sender: event.detail.sender, content:{body: event.detail.message},origin_server_ts: event.detail.origin_server_ts};
         this.messages.push(receivedMessage);
         setTimeout( () => {

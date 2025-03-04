@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.listeners;
 
+import io.meeds.chat.model.Room;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.utils.MatrixConstants;
@@ -99,7 +100,8 @@ public class MatrixUserListener extends UserEventListener {
           ListAccess<Space> spaces = spaceService.getMemberSpaces(user.getUserName());
           Space[] spacesArray = spaces.load(0, spaces.getSize());
           for (Space space : spacesArray) {
-            String roomId = matrixService.getRoomBySpace(space);
+            Room room = matrixService.getRoomBySpace(space);
+            String roomId = room.getRoomId();
             if (StringUtils.isNotBlank(roomId)) {
               matrixService.joinUserToRoom(roomId, matrixUserId);
             }

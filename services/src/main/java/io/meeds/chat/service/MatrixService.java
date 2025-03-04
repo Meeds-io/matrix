@@ -156,7 +156,7 @@ public class MatrixService {
    * @param space
    * @return the roomId linked to the space
    */
-  public String getRoomBySpace(Space space) {
+  public Room getRoomBySpace(Space space) {
     return matrixRoomStorage.getMatrixRoomBySpaceId(space.getId());
   }
 
@@ -501,7 +501,7 @@ public class MatrixService {
     if(StringUtils.isBlank(room.getSpaceId())) {
       return userName.equals(room.getFirstParticipant()) || userName.equals(room.getSecondParticipant());
     } else {
-      Space space = spaceService.getSpaceById(room.getId());
+      Space space = spaceService.getSpaceById(room.getSpaceId());
       return spaceService.canViewSpace(space, userName);
     }
   }

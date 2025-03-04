@@ -42,10 +42,10 @@ public class MatrixRoomStorage {
   @Autowired
   private SpaceService     spaceService;
 
-  public String getMatrixRoomBySpaceId(String spaceId) {
+  public Room getMatrixRoomBySpaceId(String spaceId) {
     RoomEntity roomEntity = matrixRoomDAO.findBySpaceId(spaceId);
     if (roomEntity != null) {
-      return roomEntity.getRoomId();
+      return toRoomModel(roomEntity);
     } else {
       LOG.warn("Can not find an associated matrix room for the space with ID {}", spaceId);
       return null;
