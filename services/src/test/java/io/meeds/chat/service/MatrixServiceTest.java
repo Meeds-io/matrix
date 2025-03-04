@@ -150,8 +150,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     List<RoomEntity> rooms = new ArrayList<>();
     for (int i = 0; i < numberOfRooms; i++) {
       Space space = getSpaceInstance(i);
-      String roomId = matrixService.getRoomBySpace(space);
-      Room room = matrixService.getById(roomId);
+      Room room = matrixService.getRoomBySpace(space);
       RoomEntity roomEntity = toRoomEntity(room, space);
       rooms.add(roomEntity);
     }

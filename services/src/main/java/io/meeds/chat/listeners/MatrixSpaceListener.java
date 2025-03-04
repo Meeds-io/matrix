@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.listeners;
 
+import io.meeds.chat.model.Room;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
@@ -97,10 +98,10 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     Space space = event.getSpace();
     String spaceDisplayName = space.getDisplayName();
-    String roomId = matrixService.getRoomBySpace(space);
-    if (StringUtils.isNotBlank(roomId)) {
+    Room room = matrixService.getRoomBySpace(space);
+    if (StringUtils.isNotBlank(room.getRoomId())) {
       try {
-        matrixService.renameRoom(roomId, spaceDisplayName);
+        matrixService.renameRoom(room.getRoomId(), spaceDisplayName);
       } catch (Exception e) {
         LOG.error("Could not rename the room linked to the space {}", space.getDisplayName(), e);
       }
@@ -127,7 +128,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         LOG.error("Could not retrieve the user {}", userId, e);
       }
     }
-    String roomId = matrixService.getRoomBySpace(space);
+    Room room = matrixService.getRoomBySpace(space);
+    String roomId = room.getRoomId();
     if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
       try {
         matrixService.joinUserToRoom(roomId, matrixIdOfUser);
@@ -144,7 +146,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     Space space = event.getSpace();
     String userId = event.getTarget();
-    String roomId = matrixService.getRoomBySpace(space);
+    Room room = matrixService.getRoomBySpace(space);
+    String roomId = room.getRoomId();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
       try {
@@ -176,9 +179,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   }
 
   private boolean updateMemberRoleInSpace(Space space, String matrixIdOfUser, String userRole) {
-    String roomId = null;
-    roomId = matrixService.getRoomBySpace(space);
-
+    Room room = matrixService.getRoomBySpace(space);
+    String roomId = room.getRoomId();
     if (StringUtils.isNotBlank(roomId)) {
       try {
         // Disable inviting user but for Moderators
@@ -214,7 +216,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     Space space = event.getSpace();
     try {
-      String roomId = matrixService.getRoomBySpace(space);
+      Room room = matrixService.getRoomBySpace(space);
+      String roomId = room.getRoomId();
       matrixService.updateRoomAvatar(space, roomId);
     } catch (Exception e) {
       LOG.error("Could not update the room avatar on Matrix", e);
@@ -227,8 +230,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    String roomId = matrixService.getRoomBySpace(space);
-    try {
+    Room room = matrixService.getRoomBySpace(space);
+    String roomId = room.getRoomId();    try {
       if (StringUtils.isNotBlank(roomId)) {
         matrixService.updateRoomDescription(roomId, space.getDescription());
       }
@@ -243,7 +246,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    String roomId = matrixService.getRoomBySpace(space);
+    Room room = matrixService.getRoomBySpace(space);
+    String roomId = room.getRoomId();
     if (StringUtils.isNotBlank(roomId)) {
       try {
         matrixService.deleteRoom(roomId);
