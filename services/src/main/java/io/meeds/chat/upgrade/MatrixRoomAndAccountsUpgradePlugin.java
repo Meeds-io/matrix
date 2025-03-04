@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.upgrade;
 
+import io.meeds.chat.model.Room;
 import io.meeds.chat.service.MatrixService;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.upgrade.UpgradeProductPlugin;
@@ -93,7 +94,8 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
                                     loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
         Space[] spacesToMigrate = spaces.load(loadedSpaces, actualSpacesToLoadCount);
         for (Space space : spacesToMigrate) {
-          String roomId = matrixService.getRoomBySpace(space);
+          Room room = matrixService.getRoomBySpace(space);
+          String roomId = room.getRoomId();
           if (StringUtils.isBlank(roomId)) {
             try {
               roomId = this.matrixService.createRoom(space);
@@ -186,7 +188,8 @@ public class MatrixRoomAndAccountsUpgradePlugin extends UpgradeProductPlugin {
             ListAccess<Space> userSpaces = spaceService.getMemberSpaces(user.getUserName());
             Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
             for (Space space : spaceArray) {
-              String spaceRoomId = matrixService.getRoomBySpace(space);
+              Room room = matrixService.getRoomBySpace(space);
+              String spaceRoomId = room.getRoomId();
               if (StringUtils.isNotBlank(spaceRoomId)) {
                 matrixService.joinUserToRoom(spaceRoomId, userMatrixId);
               }

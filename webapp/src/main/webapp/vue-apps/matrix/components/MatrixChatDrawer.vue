@@ -30,7 +30,7 @@
         <div
           class="singlePageApplication pa-0 d-flex fill-height">
           <matrix-chat-rooms :rooms="rooms"/>
-          <meeds-chat-discussion-drawer />
+          <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
         </div>
       </div>
     </template>
