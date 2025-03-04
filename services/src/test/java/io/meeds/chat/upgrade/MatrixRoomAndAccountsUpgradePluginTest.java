@@ -1,5 +1,6 @@
 package io.meeds.chat.upgrade;
 
+import io.meeds.chat.model.Room;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.ListAccessImpl;
@@ -66,11 +67,16 @@ class MatrixRoomAndAccountsUpgradePluginTest {
     when(identityManager.getOrCreateUserIdentity(eq("user3"))).thenReturn(user3Identity);
 
     Space space = new Space();
+    space.setId(1);
     space.setMembers(new String[] {"user1", "user2", "user3"});
     ListAccess<Space> spaces = mock(ListAccess.class);
     when(spaces.getSize()).thenReturn(1);
     when(spaces.load(anyInt(), anyInt())).thenReturn(new Space[] { space });
     when(spaceService.getMemberSpaces(anyString())).thenReturn(spaces);
+    Room room = new Room();
+    room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
+    room.setSpaceId("1");
+    when(matrixService.getRoomBySpace(eq(space))).thenReturn(room);
 
     // spaces data
     when(spaceService.getAllSpacesByFilter(any())).thenReturn(spaces);

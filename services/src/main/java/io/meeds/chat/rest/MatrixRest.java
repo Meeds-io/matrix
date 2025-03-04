@@ -101,7 +101,7 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "2rest00", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public String getMatrixRoomBySpaceId(@Parameter(description = "The space Id")
+  public RoomEntity getMatrixRoomBySpaceId(@Parameter(description = "The space Id")
   @RequestParam(name = "spaceId")
   String spaceId) {
     if (StringUtils.isBlank(spaceId)) {
@@ -122,7 +122,7 @@ public class MatrixRest implements ResourceContainer {
                                             + space.getPrettyName());
     }
 
-    return matrixService.getRoomBySpace(space);
+    return buildRoomEntityFromRoom(matrixService.getRoomBySpace(space), userName);
   }
 
   @GetMapping("dmRoom")
@@ -233,7 +233,8 @@ public class MatrixRest implements ResourceContainer {
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "space with group Id " + spaceGroupId + "was not found");
       }
 
-      String existingRoomId = matrixService.getRoomBySpace(space);
+      Room room = matrixService.getRoomBySpace(space);
+      String existingRoomId = room.getRoomId();
       if (StringUtils.isNotBlank(existingRoomId)) {
         throw new ResponseStatusException(HttpStatus.CONFLICT,
                                           "space with group Id " + spaceGroupId + "has already a room with ID " + existingRoomId);
@@ -324,6 +325,30 @@ public class MatrixRest implements ResourceContainer {
                                                 String roomId) {
     String userName = request.getRemoteUser();
     Room room = matrixService.getById(roomId);
+    if (!matrixService.canAccess(room, userName)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    RoomEntity roomEntity = buildRoomEntityFromRoom(room, userName);
+    return ResponseEntity.ok().body(roomEntity);
+  }
+
+  @GetMapping("spaceRoom")
+  @Secured("users")
+  @Operation(summary = "Get the room by Id", method = "GET", description = "Get the room by Id")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<RoomEntity> getRoomBySpaceId(HttpServletRequest request,
+                                                WebRequest webRequest,
+                                                @Parameter(description = "The room Id")
+                                                @RequestParam(name = "spaceId")
+                                                long spaceId) {
+    String userName = request.getRemoteUser();
+    Space space = spaceService.getSpaceById(spaceId);
+    if(space == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+    Room room = matrixService.getRoomBySpace(space);
     if (!matrixService.canAccess(room, userName)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
@@ -451,8 +476,11 @@ public class MatrixRest implements ResourceContainer {
   }
 
   private RoomEntity updateRoomEntity(RoomEntity room, String currentUserName) {
+    String roomId = room.getId();
     // Update room information
-    String roomId = room.getId().substring(0, room.getId().indexOf(":"));// remove server part
+    if (room.getId().contains(":")) {
+      roomId = room.getId().substring(0, room.getId().indexOf(":"));// remove server part
+    }
     Room matrixRoom = matrixService.getById(roomId);
     if (matrixRoom != null) {
       if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
