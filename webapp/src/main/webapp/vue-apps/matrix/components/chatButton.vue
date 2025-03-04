@@ -97,16 +97,24 @@
         });
         this.$matrixService.installPusher();
       }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('roomId')){
+        this.openRoom(urlParams.get('roomId'));
+      }
+
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       document.addEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
+      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       document.removeEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
+      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
     },
     watch: {
       open() {
@@ -121,14 +129,6 @@
       }
     },
     methods: {
-      openMatrixRoom(event){
-        if (event){
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        const url = `https://matrix.to/#/${this.roomId}:${this.serverName}?via=${this.serverName}`;
-        window.open(url, '_blank');
-      },
       openDrawer() {
         this.$root.initialized = false;
         this.open = true;
@@ -171,6 +171,12 @@
           this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
         });
       },
+      openRoom(roomId) {
+        this.openDrawer();
+        setTimeout( () => {
+          this.$root.$emit("open-chat-discussion", roomId);
+        }, 100);
+      }
     }
   };
 </script>
