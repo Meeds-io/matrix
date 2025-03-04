@@ -6,14 +6,26 @@ export function registerChatExtensions(chatTitle) {
     title: chatTitle,
     icon: 'fas fa-comments',
     class: 'fas fa-comments',
-    additionalClass: 'mt-1',
+    iconOnly: true,
     order: 10,
-    enabled: (user) => user?.enabled && user.username !== eXo.env.portal.userName && localStorage.getItem("matrix_user_id")
-      && user.properties.some(property => property.propertyName === 'matrixId') && user.properties.find(property => property.propertyName === 'matrixId').value,
+    enabled: (identity) => {
+      if(identity.userName) {
+        const userMatrixId = identity.properties?.some(property => property.propertyName === 'matrixId') && identity.properties?.find(property => property.propertyName === 'matrixId').value;
+        return identity?.enabled && identity.username !== eXo.env.portal.userName
+               && localStorage.getItem("matrix_user_id")
+               && userMatrixId;
+      } else {
+        return true;
+      }
+    },
     click: (profile) => {
-      const matrixProperty = profile.properties.filter(property => property.propertyName === 'matrixId');
-      if(matrixProperty && matrixProperty.length) {
-        matrixService.openDMRoom(eXo.env.portal.userName, profile.userName, matrixServerName);
+      if(profile.userName) {
+        const matrixProperty = profile.properties.filter(property => property.propertyName === 'matrixId');
+        if(matrixProperty && matrixProperty.length) {
+          matrixService.openDMRoom(eXo.env.portal.userName, profile.userName, matrixServerName);
+        }
+      } else {
+        matrixService.openSpaceRoom(profile.id);
       }
     },
   };

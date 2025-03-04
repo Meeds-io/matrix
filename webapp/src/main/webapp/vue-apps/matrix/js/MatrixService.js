@@ -344,10 +344,17 @@ export async function toRoomObject(rooms, currentMemberId) {
   return myRooms;
 }
 
-export function getRedirectURLOfRoom(roomId, serverName) {
-  return 'https://matrix.to/#/' + roomId + '?via=' + serverName;
+export function getSpaceRoom(spaceId) {
+  return fetch(`/matrix/rest/matrix/spaceRoom?spaceId=${spaceId}`, {
+    method: 'GET',
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Get room by space : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
 }
-
 export function getDMRoom(firstParticipant, secondParticipant, serverName) {
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
@@ -392,6 +399,14 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
 
 export function openDMRoom(firstParticipant, secondParticipant, matrixServerName) {
   getDMRoom(firstParticipant, secondParticipant, matrixServerName).then(data => {
+    document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
+  }).catch(e => {
+    console.log(e)
+  });
+}
+
+export function openSpaceRoom(spaceId) {
+  getSpaceRoom(spaceId).then(data => {
     document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
   }).catch(e => {
     console.log(e)
@@ -584,6 +599,9 @@ export async function loadRoomMessages(roomId, from, to) {
   formData.append('dir', 'f'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
+  if(!roomId.includes(":")) {
+    roomId = `${roomId}:${matrixServerName}`;
+  }
   return fetch(`/_matrix/client/v3/rooms/${roomId}/messages?${params}`, {
     method: 'GET',
     headers: {
