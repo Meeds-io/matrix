@@ -38,13 +38,13 @@ export function registerChatExtensions(chatTitle) {
 
   extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
     id: 'matrix-chat',
-    vueComponent: Vue.options.components['popover-chat-button'],
+    vueComponent: Vue.options.components['meeds-popover-chat-button'],
     rank: 40,
   });
 
   extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
     id: 'matrix-chat',
-    vueComponent: Vue.options.components['popover-chat-button'],
+    vueComponent: Vue.options.components['meeds-popover-chat-button'],
     rank: 40,
   });
 }
