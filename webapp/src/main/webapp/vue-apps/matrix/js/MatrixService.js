@@ -332,7 +332,7 @@ export async function toRoomObject(rooms, currentMemberId) {
   }
   myRooms.rooms.sort((roomOne, roomTwo) => {
     if(roomOne.updated && roomTwo.updated) {
-      return roomOne.updated <= roomTwo.updated;
+      return roomTwo.updated - roomOne.updated;
     } else if(roomOne.updated) {
       return -1;
     } else if (roomTwo.updated) {
