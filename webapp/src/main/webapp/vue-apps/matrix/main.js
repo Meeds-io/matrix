@@ -19,7 +19,7 @@ const components = {
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
   'meeds-chat-message': MeedsChatMessage,
-  'popover-chat-button': PopoverChatButton,
+  'meeds-popover-chat-button': PopoverChatButton,
   'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
 };
