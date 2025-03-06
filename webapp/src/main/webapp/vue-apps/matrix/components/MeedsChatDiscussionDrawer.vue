@@ -20,8 +20,31 @@
       </a>
     </template>
     <template slot="content">
-      <div class="d-flex flex-column">
-        <meeds-chat-message :id="'chat-message-' + i" :ref="'message' + i" :key="i" v-for="(message, i) in messages" :message="message" :previous-message="i > 0 && messages[i-1]" :next-message="messages[i+1] || {}" :room="room"/>
+      <div id="chatMessagesContainer">
+        <div
+          v-if="loadingNewMessages"
+          class="application-background-color application-border application-border-radius flex d-flex flex-column">
+          <v-progress-circular
+            color="primary"
+            size="20"
+            indeterminate
+            class="mx-auto my-5" />
+        </div>
+        <div
+          id="roomChatMessages"
+          class="d-flex flex-column"
+          @wheel="loadMoreMessages"
+          @scroll="loadMoreMessages">
+          <meeds-chat-message
+            :id="'chat-message-' + i"
+            :ref="'message' + i"
+            :key="i"
+            v-for="(message, i) in messages"
+            :message="message"
+            :previous-message="i > 0 && messages[i-1]"
+            :next-message="i < (messages.length - 1) && messages[i+1]"
+            :room="room"/>
+        </div>
       </div>
     </template>
     <template slot="footer">
@@ -39,6 +62,8 @@ export default {
       messages: [],
       room: {},
       loading: false,
+      loadingNewMessages: false,
+      hasMoreMessages: true,
     };
   },
   computed: {
@@ -77,8 +102,13 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
-      this.$matrixService.loadAllRoomMessages(this.room.id, false).then(resp => {
-        this.messages = resp;
+      this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
+        if(!resp.chunk || !resp.chunk.length) {
+          this.hasMoreMessages = false;
+        }
+        this.messages = resp.chunk.reverse();
+        this.from = resp.start;
+        this.to = resp.end;
         this.$nextTick().then(() => {
           this.scrollToEnd();
         });
@@ -89,6 +119,7 @@ export default {
     },
     close(){
       this.messages = null;
+      this.hasMoreMessages = true;
       this.$refs.ChatDiscussionDrawer?.close();
     },
     messageReceived(event) {
@@ -111,6 +142,34 @@ export default {
           }
         }
       }, 100);
+    },
+    loadMoreMessages(e) {
+      const messagesDOMEl = document.getElementById('chatMessagesContainer');
+      console.log(messagesDOMEl.scrollTop);
+      if(this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
+        return;
+      }
+      this.loadingNewMessages = true;
+      const lastMessageId = this.messages[0].event_id;
+      setTimeout( () => {
+        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(resp => {
+          // check if there is no more messages
+          if(!resp.chunk || !resp.chunk.length) {
+            this.hasMoreMessages = false;
+          }
+          this.messages = [...resp.chunk.reverse(), ...this.messages];
+          this.from = resp.start;
+          this.to = resp.end;
+        }).finally(() => {
+          this.$nextTick().then(() => {
+            document.getElementById(lastMessageId).scrollIntoView({
+              behavior: 'smooth'
+            });
+          });
+
+          this.loadingNewMessages = false;
+        });
+      }, 1000);
     }
   }
 };
