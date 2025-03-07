@@ -10,6 +10,7 @@ const MATRIX_SYNC_TIMEOUT = 30000;
 const MATRIX_ACTION_MESSAGE_RECEIVED = 'matrix-message-received';
 const PUSH_APP_ID = "exo.matrix.app";
 const PUSH_APP_DISPLAY_NAME = 'Meeds application';
+const MESSAGES_LOAD_LIMIT = 20;
 
 
 export function checkAuthenticationTypes() {
@@ -211,7 +212,7 @@ export function processEvents(response) {
         //message received in a room
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body, origin_server_ts: e.origin_server_ts}}));
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
           }
         } // Joined a new room
         else if(e.type === 'm.room.member') {
@@ -257,7 +258,7 @@ export async function toRoomObject(rooms, currentMemberId) {
     const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
     roomEvents.forEach(e => {
       if(e.type === 'm.room.create'){
-        roomItem.updated = e.origin_server_ts;
+        roomItem.created = e.origin_server_ts;
       }
       if(e.type === 'm.room.topic'){
         roomItem.topic = e.content.topic;
@@ -295,6 +296,7 @@ export async function toRoomObject(rooms, currentMemberId) {
           roomItem.lastMessage = {};
           roomItem.lastMessage.content = e.content.body;
           roomItem.lastMessage.sender = e.sender;
+          roomItem.lastMessage.eventId = e.event_id;
         }
       }
     });
@@ -325,7 +327,7 @@ export async function toRoomObject(rooms, currentMemberId) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
     if(!roomItem.updated) {
-      roomItem.updated = new Date().getTime();
+      roomItem.updated = roomItem.created || new Date().getTime();
     }
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
@@ -589,14 +591,14 @@ export function getUserByMatrixId(userIdOnMatrix) {
 export async function loadRoomMessages(roomId, from, to) {
   const filter = {types:['m.room.message'],};
   const formData = new FormData();
-  formData.append('limit', 50);
+  formData.append('limit', MESSAGES_LOAD_LIMIT);
   if(from) {
     formData.append('from', from);
   }
   if(to) {
     formData.append('to', to);
   }
-  formData.append('dir', 'f'); // f: chronological order, b: revers-chronological order
+  formData.append('dir', 'b'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
   if(!roomId.includes(":")) {
@@ -607,6 +609,12 @@ export async function loadRoomMessages(roomId, from, to) {
     headers: {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Load room messages : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
   });
 }
 

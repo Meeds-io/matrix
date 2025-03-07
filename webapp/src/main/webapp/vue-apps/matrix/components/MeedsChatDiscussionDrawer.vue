@@ -20,8 +20,31 @@
       </a>
     </template>
     <template slot="content">
-      <div class="d-flex flex-column">
-        <meeds-chat-message :id="'chat-message-' + i" :ref="'message' + i" :key="i" v-for="(message, i) in messages" :message="message" :previous-message="i > 0 && messages[i-1]" :next-message="messages[i+1] || {}" :room="room"/>
+      <div id="chatMessagesContainer">
+        <div
+          v-if="loadingNewMessages"
+          class="application-background-color application-border application-border-radius flex d-flex flex-column">
+          <v-progress-circular
+            color="primary"
+            size="20"
+            indeterminate
+            class="mx-auto my-5" />
+        </div>
+        <div
+          id="roomChatMessages"
+          class="d-flex flex-column"
+          @wheel="loadMoreMessages"
+          @scroll="loadMoreMessages">
+          <meeds-chat-message
+            :id="'chat-message-' + i"
+            :ref="'message' + i"
+            :key="i"
+            v-for="(message, i) in messages"
+            :message="message"
+            :previous-message="i > 0 && messages[i-1]"
+            :next-message="i < (messages.length - 1) && messages[i+1]"
+            :room="room"/>
+        </div>
       </div>
     </template>
     <template slot="footer">
@@ -106,8 +129,13 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
-      this.$matrixService.loadAllRoomMessages(this.room.id, false).then(resp => {
-        this.messages = resp;
+      this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
+        if(!resp.chunk || !resp.chunk.length) {
+          this.hasMoreMessages = false;
+        }
+        this.messages = resp.chunk.reverse();
+        this.from = resp.start;
+        this.to = resp.end;
         this.$nextTick().then(() => {
           this.scrollToEnd();
         });
