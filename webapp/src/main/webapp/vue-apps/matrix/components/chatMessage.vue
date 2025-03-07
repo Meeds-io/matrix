@@ -1,7 +1,16 @@
 <template>
   <div class="chat-message-content">
-    <div v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)" class="mb-5 text-font-small-size font-weight-bold text-center" :class="{ 'mt-5' : previousMessage }"> {{ formattedDate }} </div>
-    <div class="px-4" :class="{'mt-3' : message.sender !== previousMessage.sender}">
+    <div
+      v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
+      class="mb-5 text-font-small-size font-weight-bold text-center"
+      :class="{ 'mt-5' : previousMessage }">
+      {{ formattedDate }}
+    </div>
+    <div
+      :id="message.event_id"
+      class="px-4"
+      :class="{'mt-3' : message.sender !== previousMessage.sender}"
+      >
       <div class="d-relative">
         <div class="avatar-of-user mt-3" v-if="displaySender">
           <a :href="profileUrl">
@@ -16,18 +25,19 @@
         </div>
         <div class="chat-message-content-body py-2 px-3 mt-0-5" :class="messageContentClass">
           <div
+            :id="`message-content-${message.event_id}`"
             class="chat-message-content-text"
             v-sanitized-html="formattedMessage" />
           <v-tooltip bottom>
             <template #activator="{on, bind}">
               <div v-on="on"
                  v-bind="bind"
-                 v-if="displayTimestamp"
+                 v-show="displayTimestamp"
                  class="text-font-small-size chat-message-content-timestamp">
                 {{ formattedTimestamp }}
               </div>
             </template>
-            <date-format :value="timestamp" :format="dateFormat" />
+            <date-format :value="message.origin_server_ts" :format="dateFormat" />
           </v-tooltip>
         </div>
       </div>
@@ -57,7 +67,6 @@
     data() {
       return {
         sender: {},
-        timestamp: '',
         presenceClass: 'offline',
         dateFormat: {
           year: 'numeric',
@@ -70,7 +79,6 @@
     },
     created() {
       this.$matrixService.getUserByMatrixId(this.message.sender).then(sender => {
-        this.timestamp = new Date(this.message.origin_server_ts);
         this.sender = sender;
         this.$matrixService.getUserPresence(this.message.sender).then(status => {
           this.presenceClass = `matrix-status-${status}`;
@@ -85,14 +93,17 @@
       },
       formattedTimestamp() {
         const now = new Date().getTime();
-        if(this.sameDateAs(this.timestamp, now) && this.sameTimeAs(this.timestamp, now) && !this.nextMessage.timestamp) {
+        if(this.sameTimeAs(this.message.origin_server_ts, now) && !this.nextMessage.origin_server_ts) {
           return this.$t('matrix.chat.time.now');
         }
-        const currentDate = new Date(this.timestamp);
-        return `${currentDate.getHours()}:${currentDate.getMinutes() < 9 && '0' + currentDate.getMinutes() || currentDate.getMinutes()}`;
+        const currentDate = new Date(this.message.origin_server_ts);
+        return currentDate.toLocaleTimeString(eXo.env.portal.language.replace('_', '-'), {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       },
       formattedDate() {
-        return this.$matrixService.formatDate(this.timestamp, true);
+        return this.$matrixService.formatDate(this.message.origin_server_ts, true);
       },
       profileUrl() {
         return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender.remoteId}`;
@@ -125,10 +136,10 @@
         return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
       },
       displayTimestamp() {
-        if(this.nextMessage) {
+        if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
           const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
           nextMessageDate.setSeconds(0,0);
-          const currentMessageDate = new Date(this.timestamp);
+          const currentMessageDate = new Date(this.message.origin_server_ts);
           currentMessageDate.setSeconds(0,0);
           return nextMessageDate.getTime() !== currentMessageDate.getTime();
         } else {
@@ -152,7 +163,8 @@
         if(anotherMessageTime) {
           const anotherMessageDate = new Date(anotherMessageTime);
           const thisMessageDate = new Date(thisMessageTime);
-          return anotherMessageDate.getHours() === thisMessageDate.getHours()
+          return anotherMessageDate.getDate() === thisMessageDate.getDate()
+            && anotherMessageDate.getHours() === thisMessageDate.getHours()
             && anotherMessageDate.getMinutes() === thisMessageDate.getMinutes()
         } else {
           return false;
