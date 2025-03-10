@@ -25,7 +25,33 @@
       </div>
     </template>
     <template slot="footer">
-
+      <div class="messageComposerContainer d-flex">
+        <div
+          id="messageComposerArea"
+          ref="messageComposerArea"
+          contenteditable="true"
+          name="messageComposerArea"
+          class="meeds-chat-composer pa-3"
+          @keydown.enter=""
+          @keypress.enter=""
+          @keyup.enter="sendMessageWithEnter"
+          @keyup.up=""
+          @keyup="resizeComposerArea($event)"
+          @focus="resizeComposerArea($event)"
+          @paste="">
+        </div>
+        <div class="sendButtonArea d-flex flex-column justify-end">
+          <v-btn
+            class="matrix-chat-send-message-button btn-primary ms-4"
+            v-if="!disableSendMessage"
+            icon
+            @click="sendMessage">
+            <v-icon size="20">
+              fa-paper-plane
+            </v-icon>
+          </v-btn>
+        </div>
+      </div>
     </template>
   </exo-drawer>
 </template>
@@ -39,6 +65,10 @@ export default {
       messages: [],
       room: {},
       loading: false,
+      loadingNewMessages: false,
+      hasMoreMessages: true,
+      disableSendMessage: true,
+      lastScrollTop: 0,
     };
   },
   computed: {
@@ -56,6 +86,9 @@ export default {
       } else {
         return '#';
       }
+    },
+    isMobile() {
+      return this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
     }
   },
 
@@ -70,7 +103,6 @@ export default {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e));
   },
-
   methods: {
     openDiscussion(e) {
       this.loading = true;
@@ -87,6 +119,9 @@ export default {
     },
     close(){
       this.messages = null;
+      this.hasMoreMessages = true;
+      this.disableSendMessage = true;
+      this.$refs.messageComposerArea.innerHTML = '';
       this.$refs.ChatDiscussionDrawer?.close();
     },
     messageReceived(event) {
@@ -109,6 +144,75 @@ export default {
           }
         }
       }, 100);
+    },
+    loadMoreMessages() {
+      const messagesDOMEl = document.getElementById('chatMessagesContainer');
+      const scrollTop = messagesDOMEl.scrollTop;
+      if (scrollTop < this.lastScrollTop) {
+        const composerDOMEl = document.getElementById('messageComposerArea');
+        composerDOMEl.style = 'height: 40px'; // resize composer to original size == 1 line
+      }
+      this.lastScrollTop = scrollTop >= 0 && scrollTop || 0;
+      if(this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
+        return;
+      }
+      this.loadingNewMessages = true;
+      const lastMessageId = this.messages[0].event_id;
+      setTimeout( () => {
+        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(resp => {
+          // check if there is no more messages
+          if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+            this.hasMoreMessages = false;
+          }
+          this.messages = [...resp.chunk.reverse(), ...this.messages];
+          this.from = resp.start;
+          this.to = resp.end;
+        }).finally(() => {
+          this.$nextTick().then(() => {
+            document.getElementById(lastMessageId).scrollIntoView({
+              behavior: 'smooth'
+            });
+          });
+
+          this.loadingNewMessages = false;
+        });
+      }, 1000);
+    },
+    // composer functions
+    resizeComposerArea(e) {
+      const composerElement = e.target;
+      composerElement.style.height = "auto";
+      composerElement.style.height = composerElement.scrollHeight + "px";
+      this.disableSendMessage = composerElement.innerText?.trim() === '';
+    },
+    sendMessageWithEnter(event) {
+      if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
+        if (event.ctrlKey || event.altKey || event.shiftKey || this.isMobile()) {
+          this.insertNewLineAtCursor();
+        } else {
+          this.sendMessage();
+        }
+      }
+    },
+    sendMessage() {
+      let message = this.$refs.messageComposerArea.innerText;
+      message = message.trim();
+      if(!message) {
+        return;
+      }
+      this.$matrixService.sendMessage(message, this.room.id);
+      this.$refs.messageComposerArea.innerHTML = '';
+    },
+    insertNewLineAtCursor() {
+      let selection = window.getSelection();
+      if (!selection.rangeCount) return;
+      let range = selection.getRangeAt(0);
+      let br = document.createElement('br');
+      range.insertNode(br);
+      range.setStartAfter(br);
+      range.setEndAfter(br);
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
   }
 };
