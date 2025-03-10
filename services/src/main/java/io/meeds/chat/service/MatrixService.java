@@ -562,4 +562,19 @@ public class MatrixService {
     }
     return null;
   }
+
+  /**
+   * Checks if the user able to access the room
+   * @param room the room
+   * @param userName the username of the user
+   * @return true if he has access, false otherwise
+   */
+  public boolean canAccess(Room room, String userName) {
+    if(StringUtils.isBlank(room.getSpaceId())) {
+      return userName.equals(room.getFirstParticipant()) || userName.equals(room.getSecondParticipant());
+    } else {
+      Space space = spaceService.getSpaceById(room.getId());
+      return spaceService.canViewSpace(space, userName);
+    }
+  }
 }

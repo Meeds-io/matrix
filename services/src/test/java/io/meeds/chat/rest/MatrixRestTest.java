@@ -222,4 +222,52 @@ class MatrixRestTest {
             .param("userMatrixId", "@user:matrix.exo.tn"));
     response1.andExpect(status().isOk());
   }
+
+  @Test
+  void getRoomById() throws Exception {
+    String roomId = "!testRoomIdentifier:matrix.exo.tn";
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON)
+            .param("roomId", roomId));
+    response.andExpect(status().isForbidden());
+
+    Room room = new Room();
+    room.setRoomId(roomId);
+    room.setSpaceId("1");
+
+    Space space = new Space();
+    space.setAvatarUrl("/avatar/of/the/space");
+    space.setDisplayName("Test space");
+    when(spaceService.getSpaceById("1")).thenReturn(space);
+    when(matrixService.getById(eq(roomId))).thenReturn(room);
+    when(matrixService.canAccess(eq(room), anyString())).thenReturn(true);
+
+    ResultActions response1 = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON)
+            .param("roomId", roomId));
+    response1.andExpect(status().isOk());
+  }
+
+
+  @Test
+  void getDirectMessagingRoom() throws Exception {
+    String roomId = "!testRoomIdentifier:matrix.exo.tn";
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/dmRoom").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON)
+            .param("firstParticipant", "userOne")
+            .param("secondParticipant", "userTwo"));
+    response.andExpect(status().isNotFound());
+
+    Room room = new Room();
+    room.setRoomId(roomId);
+    room.setSpaceId(null);
+    room.setFirstParticipant("userOne");
+    room.setSecondParticipant("userTwo");
+    when(matrixService.getDirectMessagingRoom(eq("userOne"), eq("userTwo"))).thenReturn(room);
+    ResultActions response1 = mockMvc.perform(get(REST_PATH + "/dmRoom").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON)
+            .param("firstParticipant", "userOne")
+            .param("secondParticipant", "userTwo"));
+    response1.andExpect(status().isOk());
+  }
 }
