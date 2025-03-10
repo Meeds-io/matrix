@@ -20,7 +20,7 @@
     </div>
     <div class="ps-3 my-3">
       <div class="last-message-timestamp text-subtitle">
-        {{ getLastMessageTime(room) }}
+        {{ getUpdateTime(room) }}
       </div>
       <div class="pull-right text-font-small-size d-flex">
         <v-icon v-if="room.isMuted" size="16">fas fa-bell-slash</v-icon>
@@ -44,9 +44,6 @@
     mounted() {
     },
     computed : {
-      roomURL() {
-        return 'https://matrix.to/#/' + this.room.id + '?via=' + this.$root.$data.serverName;
-      },
       avatarBorderClass() {
         return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
       },
@@ -61,7 +58,7 @@
       openRoom() {
         document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, { detail: this.room }));
       },
-      getLastMessageTime(room) {
+      getUpdateTime(room) {
         return this.$matrixService.formatDate(room.updated);
       },
       getUserPresence() {

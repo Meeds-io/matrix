@@ -37,7 +37,7 @@ public class RoomEntity implements Serializable {
 
   private boolean      enabledUser;
 
-  private String       presence;
+  private String       presence = "offline"; //"online", "offline" or "unavailable"
 
   private boolean      directChat;
 
