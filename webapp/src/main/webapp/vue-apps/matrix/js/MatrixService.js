@@ -674,3 +674,28 @@ export function getUserDisplayNameFontColor(identityId) {
                   "rgb(255, 111, 0)"];
   return `color: ${colors[Number(identityId) % colors.length]} !important`;
 }
+
+export function sendMessage(message, roomId) {
+  let index = localStorage.getItem('matrix_transaction_index') || 1;
+  const transactionId = `${new Date().getTime()}-${index}`;
+  const eventType = 'm.room.message';
+  const payload = {
+                    'body': message,
+                    'msgtype': 'm.text'
+                  };
+  return fetch(`/_matrix/client/v3/rooms/${roomId}/send/${eventType}/${transactionId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      console.warn(`Request failed for sending message : \n text = [${message}] \n roomId = ${roomId} \n transactionId ${transactionId}`);
+      throw new Error('Response code indicates a server error', resp);
+    } else {
+      localStorage.setItem('matrix_transaction_index', index ++);
+      return true;
+    }
+  });
+}
