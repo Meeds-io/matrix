@@ -109,9 +109,6 @@ export default {
       } else {
         return '#';
       }
-    },
-    isMobile() {
-      return this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
     }
   },
 
@@ -216,8 +213,10 @@ export default {
       this.disableSendMessage = composerElement.innerText?.trim() === '';
     },
     sendMessageWithEnter(event) {
+      const isMobile = this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
       if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
-        if (event.ctrlKey || event.altKey || event.shiftKey || this.isMobile()) {
+        console.log(`is Mobile : ${isMobile}`);
+        if (event.ctrlKey || event.altKey || event.shiftKey || isMobile) {
           this.insertNewLineAtCursor();
         } else {
           this.sendMessage();
