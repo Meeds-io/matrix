@@ -109,6 +109,9 @@ export default {
       } else {
         return '#';
       }
+    },
+    isMobile() {
+      return this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
     }
   },
 
