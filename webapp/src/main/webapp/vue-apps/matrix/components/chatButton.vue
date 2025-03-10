@@ -142,6 +142,7 @@
           updatedRoom.unreadMessages += 1;
           this.rooms.splice(updatedRoomIndex, 1);
           this.rooms.unshift(updatedRoom);
+          updatedRoom.updated = event.detail.origin_server_ts;
           if(event.detail.sender === localStorage.getItem('matrix_user_id')) {
             updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
                                               this.$t('matrix.words.you')).replace('{1}', event.detail.message);

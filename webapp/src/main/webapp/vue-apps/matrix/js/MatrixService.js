@@ -224,10 +224,13 @@ export function processEvents(response) {
             room.members = [];
             room.members.push(member);
             room.id = roomId;
+            if(!room.updated) {
+              room.updated = new Date().getTime();
+            }
             if(localStorage.getItem('matrix_user_id') !== e.sender) {
-              room.name = e.content.displayname;
-              room.avatarUrl = e.content.avatar_url ? '/_matrix/media/v3/thumbnail/' + e.content.avatar_url.substring(6) + '?width=32&height=32&method=crop&allow_redirect=true': chatConstants.DEFAULT_ROOM_AVATAR;
-              document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: room }));
+              getRoomById(roomId).then(roomItem => {
+                document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: roomItem }));
+              });
             }
           }
         }
@@ -253,6 +256,9 @@ export async function toRoomObject(rooms, currentMemberId) {
     let members = [];
     const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
     roomEvents.forEach(e => {
+      if(e.type === 'm.room.create'){
+        roomItem.updated = e.origin_server_ts;
+      }
       if(e.type === 'm.room.topic'){
         roomItem.topic = e.content.topic;
       }
@@ -319,12 +325,22 @@ export async function toRoomObject(rooms, currentMemberId) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
     if(!roomItem.updated) {
-      roomItem.updated = 0;
+      roomItem.updated = new Date().getTime();
     }
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
-  myRooms.rooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
+  myRooms.rooms.sort((roomOne, roomTwo) => {
+    if(roomOne.updated && roomTwo.updated) {
+      return roomTwo.updated - roomOne.updated;
+    } else if(roomOne.updated) {
+      return -1;
+    } else if (roomTwo.updated) {
+      return 1;
+    } else {
+      return roomOne.name.localeCompare(roomTwo.name, undefined, {numeric: true, sensitivity: 'base'}); // Natural sorting using room names
+    }
+  });
   return myRooms;
 }
 
@@ -359,7 +375,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
                 return getDMRoomsAccountData(firstParticipant).then(accountData =>
                   updateDMRoomsAccountData(`${localStorage.getItem('matrix_user_id')}`, accountData)
                   ).then(dataResp => {
-                    document.dispatchEvent(new CustomEvent('chat-load-chat-rooms'));
+                    //document.dispatchEvent(new CustomEvent('chat-load-chat-rooms'));
                     return createdRoom.json();
                   });
               }
@@ -380,6 +396,19 @@ export function openDMRoom(firstParticipant, secondParticipant, matrixServerName
   }).catch(e => {
     console.log(e)
   });
+}
+
+export function getRoomById(roomId) {
+ return fetch(`/matrix/rest/matrix/byRoomId?roomId=${roomId}`, {
+     method: 'GET',
+     credentials: 'include',
+   }).then(resp => {
+     if (!resp || !resp.ok) {
+       throw new Error('Get Room by Room Id : Response code indicates a server error or space not found', resp);
+     } else {
+       return resp.json();
+     }
+   });
 }
 
 export async function longPollingSync(matrixFilterId) {
@@ -575,7 +604,7 @@ export async function loadAllRoomMessages(roomId, loadAll) {
   while (true) {
     const response = await loadRoomMessages(roomId, loadFrom);
     const data = await response.json();
-    if (!data.chunk.length) {
+    if (!data.chunk?.length) {
       localStorage.setItem(`${roomId}-latest-messages-from`, from);
       localStorage.setItem(`${roomId}-latest-messages-to`, to);
       break;
