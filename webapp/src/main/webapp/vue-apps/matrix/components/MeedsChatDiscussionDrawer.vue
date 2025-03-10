@@ -215,7 +215,6 @@ export default {
     sendMessageWithEnter(event) {
       const isMobile = this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
       if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
-        console.log(`is Mobile : ${isMobile}`);
         if (event.ctrlKey || event.altKey || event.shiftKey || isMobile) {
           this.insertNewLineAtCursor();
         } else {
