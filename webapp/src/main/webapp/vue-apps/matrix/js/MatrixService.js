@@ -690,7 +690,7 @@ export function sendMessage(message, roomId) {
     },
     body: JSON.stringify(payload)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       console.warn(`Request failed for sending message : \n text = [${message}] \n roomId = ${roomId} \n transactionId ${transactionId}`);
       throw new Error('Response code indicates a server error', resp);
     } else {
