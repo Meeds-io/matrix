@@ -9,7 +9,7 @@ export function registerChatExtensions(chatTitle) {
     iconOnly: true,
     order: 10,
     enabled: (identity) => {
-      if(identity.userName) {
+      if(identity.userName || identity.username) {
         const userMatrixId = identity.properties?.some(property => property.propertyName === 'matrixId') && identity.properties?.find(property => property.propertyName === 'matrixId').value;
         return identity?.enabled && identity.username !== eXo.env.portal.userName
                && localStorage.getItem("matrix_user_id")
@@ -19,10 +19,11 @@ export function registerChatExtensions(chatTitle) {
       }
     },
     click: (profile) => {
-      if(profile.userName) {
+      const userName = profile.userName || profile.username;
+      if(userName) {
         const matrixProperty = profile.properties.filter(property => property.propertyName === 'matrixId');
         if(matrixProperty && matrixProperty.length) {
-          matrixService.openDMRoom(eXo.env.portal.userName, profile.userName, matrixServerName);
+          matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName);
         }
       } else {
         matrixService.openSpaceRoom(profile.id);
