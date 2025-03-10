@@ -24,9 +24,9 @@
           </a>
         </div>
         <div class="chat-message-content-body py-2 px-3 mt-0-5" :class="messageContentClass">
-          <div class="chat-message-content-text">
-          {{ message.content.body }}
-          </div>
+          <div
+            class="chat-message-content-text"
+            v-sanitized-html="formattedMessage" />
           <v-tooltip bottom>
             <template #activator="{on, bind}">
               <div v-on="on"
@@ -87,6 +87,9 @@
     beforeDestroy() {
     },
     computed: {
+      formattedMessage() {
+        return this.message.content.body.replace(/\n/g, '<br />') || '';
+      },
       formattedTimestamp() {
         const now = new Date().getTime();
         if(this.sameDateAs(this.message.origin_server_ts, now) && !this.nextMessage.timestamp) {
