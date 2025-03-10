@@ -10,7 +10,6 @@ const MATRIX_SYNC_TIMEOUT = 30000;
 const MATRIX_ACTION_MESSAGE_RECEIVED = 'matrix-message-received';
 const PUSH_APP_ID = "exo.matrix.app";
 const PUSH_APP_DISPLAY_NAME = 'Meeds application';
-const MESSAGES_LOAD_LIMIT = 20;
 
 
 export function checkAuthenticationTypes() {
@@ -591,7 +590,7 @@ export function getUserByMatrixId(userIdOnMatrix) {
 export async function loadRoomMessages(roomId, from, to) {
   const filter = {types:['m.room.message'],};
   const formData = new FormData();
-  formData.append('limit', MESSAGES_LOAD_LIMIT);
+  formData.append('limit', chatConstants.MESSAGES_LOAD_LIMIT);
   if(from) {
     formData.append('from', from);
   }

@@ -25,6 +25,7 @@
         </div>
         <div class="chat-message-content-body py-2 px-3 mt-0-5" :class="messageContentClass">
           <div
+            :id="`message-content-${message.event_id}`"
             class="chat-message-content-text"
             v-sanitized-html="formattedMessage" />
           <v-tooltip bottom>

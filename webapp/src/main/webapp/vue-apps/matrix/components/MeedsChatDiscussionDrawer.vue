@@ -130,7 +130,7 @@ export default {
       this.loading = true;
       this.room = e;
       this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
-        if(!resp.chunk || !resp.chunk.length) {
+        if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
           this.hasMoreMessages = false;
         }
         this.messages = resp.chunk.reverse();
@@ -195,12 +195,9 @@ export default {
           this.from = resp.start;
           this.to = resp.end;
         }).finally(() => {
-          this.$nextTick().then(() => {
-            document.getElementById(lastMessageId).scrollIntoView({
-              behavior: 'smooth'
-            });
+          document.getElementById(`message-content-${lastMessageId}`).scrollIntoView({
+            behavior: 'instant'
           });
-
           this.loadingNewMessages = false;
         });
       }, 1000);
