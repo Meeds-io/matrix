@@ -23,4 +23,8 @@ export const chatConstants = {
   ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'meeds-open-quick-create-discussion-drawer',
 
   ACTION_CHAT_OPEN_DISCUSSION_DRAWER: 'open-discussion-drawer',
+
+  ENTER_CODE_KEY: 13,
+
+
 }
