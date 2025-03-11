@@ -235,6 +235,26 @@ export function processEvents(response) {
           }
         }
       });
+      const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
+      ephemeralEvents.forEach(e => {
+        //Users are typing in the room
+        if(e.type === 'm.typing') {
+          if(e.content.user_ids?.length) {
+            console.log(`Users ${e.content.user_ids} are typing on room ${roomId}`);
+            //document.dispatchEvent(new CustomEvent('matrix-room-user-typing-received', { detail: {roomId: roomId, usersTyping: e.content.user_ids}}));
+          }
+        }
+        //User sent a read receipt of a room
+        if(e.type === 'm.receipt') {
+          if(e.content) {
+            for (const eventId in e.content) {
+              if(e.content[eventId]["m.read"][matrixUserId]?.thread_id) {
+                document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: {roomId: roomId}}));
+              }
+            }
+          }
+        }
+      });
     }
   }
   if(response?.presence?.events) {
@@ -694,6 +714,33 @@ export function sendMessage(message, roomId) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       localStorage.setItem('matrix_transaction_index', index ++);
+      return true;
+    }
+  });
+}
+
+export function markRoomAsFullyRead(roomId, eventId) {
+  if(!roomId) {
+    console.warn('No roomId provided, Mark as read call will be canceled')
+    return;
+  }
+  if(!eventId) {
+    console.warn('No event Id provided, Mark as read call will be canceled')
+    return;
+  }
+  const payload = {
+                    "thread_id": "main"
+                  };
+  return fetch(`/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp?.ok) {
+      throw new Error('Mark room as fully read : Response code indicates a server error', resp);
+    } else {
       return true;
     }
   });
