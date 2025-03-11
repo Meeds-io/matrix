@@ -163,11 +163,13 @@ export default {
     scrollToEnd() {
       setTimeout( () => {
         if(this.messages) {
-          const lastMessageElement = document.getElementById(`chat-message-${this.messages.length - 1}`);
+          const lastMessageIndex = this.messages.length - 1;
+          const lastMessageElement = document.getElementById(`chat-message-${lastMessageIndex}`);
           if(lastMessageElement) {
-            document.getElementById(`chat-message-${this.messages.length - 1}`).scrollIntoView({
+            document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
               behavior: 'smooth'
             });
+            this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id);
           }
         }
       }, 100);
