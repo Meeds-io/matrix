@@ -489,6 +489,7 @@ public class MatrixRest implements ResourceContainer {
           room.setName(space.getDisplayName());
           room.setAvatarUrl(space.getAvatarUrl());
           room.setSpaceId(matrixRoom.getSpaceId());
+          room.setPrettyName(space.getPrettyName());
           room.setDirectChat(false);
         }
       } else if (StringUtils.isNotBlank(matrixRoom.getFirstParticipant())

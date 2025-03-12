@@ -19,6 +19,26 @@
         </div>
       </a>
     </template>
+    <template slot="titleIcons">
+      <div class="room-action-components">
+        <div
+          v-for="action in enabledRoomActionComponents"
+          :key="action.key"
+          :class="`${action.appClass} ${action.typeClass}`"
+          :ref="action.key">
+          <div v-if="action.component">
+            <component
+              v-dynamic-events="action.component.events"
+              v-bind="action.component.props ? action.component.props : {}"
+              :is="action.component.name" />
+          </div>
+          <div v-else-if="action.element" v-html="action.element.outerHTML">
+          </div>
+          <div v-else-if="action.html" v-html="action.html">
+          </div>
+        </div>
+      </div>
+    </template>
     <template slot="content">
       <div id="chatMessagesContainer">
         <div
@@ -79,7 +99,6 @@
   </exo-drawer>
 </template>
 <script>
-
 export default {
   name: 'ChatDiscussionDrawer',
 
@@ -92,7 +111,11 @@ export default {
       hasMoreMessages: true,
       disableSendMessage: true,
       lastScrollTop: 0,
+      roomActionComponents: [],
+      initializedActions: [],
     };
+  },
+  mounted() {
   },
   computed: {
     presenceClass() {
@@ -109,6 +132,9 @@ export default {
       } else {
         return '#';
       }
+    },
+    enabledRoomActionComponents() {
+      return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
     }
   },
 
@@ -116,14 +142,21 @@ export default {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
+    this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
   updated() {
 
+  },
+  watch:{
+    room() {
+      this.roomActionComponents = [];// reset the room actions to initialize them again when another roomis opened
+    }
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
+    this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
   methods: {
     openDiscussion(e) {
@@ -136,13 +169,14 @@ export default {
         this.messages = resp.chunk.reverse();
         this.from = resp.start;
         this.to = resp.end;
+        this.$refs.ChatDiscussionDrawer?.open();
         this.$nextTick().then(() => {
           this.scrollToEnd();
+          this.$root.$emit('room-discussion-opened');
         });
-        this.$refs.ChatDiscussionDrawer?.open();
       }).finally(() => {
         this.loading = false;
-      });;
+      });
     },
     close(){
       this.messages = null;
@@ -150,6 +184,7 @@ export default {
       this.disableSendMessage = true;
       this.$refs.messageComposerArea.innerHTML = '';
       this.$refs.ChatDiscussionDrawer?.close();
+      this.initializedActions = [];
     },
     messageReceived(event) {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
@@ -240,6 +275,35 @@ export default {
       range.setEndAfter(br);
       selection.removeAllRanges();
       selection.addRange(range);
+    },
+    initRoomActionComponents() {
+      this.roomActionComponents = extensionRegistry ? extensionRegistry.loadExtensions('chat', 'chat-drawer-title-action-component') : [];
+      this.$nextTick().then(() => {
+        let chat = {
+          currentUser: eXo.env.portal.userName,
+          fullname: this.room.name,
+          type: this.room.directChat && 'u' || 's',
+          prettyName : this.room.prettyName,
+          user: this.room.dmMemberId,
+          spaceId: this.room.spaceId,
+          participants: []
+        };
+        for (const action of this.roomActionComponents) {
+          const actionInitialized = this.initializedActions.some(actionToCheck => actionToCheck.key === action.key);
+          if (action.init && action.enabled && !actionInitialized) {
+            let container = this.$refs[action.key];
+            if (container && container.length > 0) {
+              container = container[0];
+              //const callButtonsContainers = document.querySelector('.room-action-components .call-button') ;
+              //if(callButtonsContainers) {
+              //  container.removeChild(callButtonsContainers);
+              //}
+              action.init(container, chat);
+              this.initializedActions.push(action);
+            }
+          }
+        }
+      });
     }
   }
 };
