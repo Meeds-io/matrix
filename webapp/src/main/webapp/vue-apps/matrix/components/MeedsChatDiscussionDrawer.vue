@@ -294,10 +294,6 @@ export default {
             let container = this.$refs[action.key];
             if (container && container.length > 0) {
               container = container[0];
-              //const callButtonsContainers = document.querySelector('.room-action-components .call-button') ;
-              //if(callButtonsContainers) {
-              //  container.removeChild(callButtonsContainers);
-              //}
               action.init(container, chat);
               this.initializedActions.push(action);
             }
