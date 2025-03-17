@@ -331,7 +331,6 @@ public class MatrixHttpClient {
                     "address": "%s"
                 }
             ],
-            "admin": false,
             "deactivated": %s,
             "user_type": null,
             "locked": false
