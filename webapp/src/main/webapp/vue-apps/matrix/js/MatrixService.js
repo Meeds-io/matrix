@@ -728,6 +728,9 @@ export function markRoomAsFullyRead(roomId, eventId) {
     console.warn('No event Id provided, Mark as read call will be canceled')
     return;
   }
+  if(!roomId.includes(":")) {
+    roomId = `${roomId}:${matrixServerName}`;
+  }
   const payload = {
                     "thread_id": "main"
                   };
