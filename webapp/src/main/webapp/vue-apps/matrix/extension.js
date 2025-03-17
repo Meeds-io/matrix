@@ -1,5 +1,7 @@
 import * as matrixService from './js/MatrixService.js';
 
+export const roomActionComponents = extensionRegistry ? extensionRegistry.loadExtensions('chat', 'chat-drawer-title-action-component') : [];
+
 export function registerChatExtensions(chatTitle) {
   const profileExtensionAction = {
     id: 'profile-matrix-chat',
