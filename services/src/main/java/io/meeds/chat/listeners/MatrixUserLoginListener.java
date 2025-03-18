@@ -30,8 +30,6 @@ import org.exoplatform.services.listener.Listener;
 import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
-import org.exoplatform.services.organization.OrganizationService;
-import org.exoplatform.services.organization.User;
 import org.exoplatform.services.security.ConversationRegistry;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.services.security.Identity;
@@ -52,9 +50,6 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
 
   @Autowired
   private MatrixService       matrixService;
-
-  @Autowired
-  private OrganizationService organizationService;
 
   @Autowired
   private ListenerService     listenerService;
@@ -85,8 +80,8 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
     try {
       String matrixUserId = matrixService.getMatrixIdForUser(userId);
       if (StringUtils.isBlank(matrixUserId)) {
-        User user = organizationService.getUserHandler().findUserByName(userId);
-        matrixService.saveUserAccount(user, true, false);
+        org.exoplatform.social.core.identity.model.Identity userIdentity = identityManager.getOrCreateUserIdentity(userId);
+        matrixService.saveUserAccount(userIdentity, true);
       }
     } catch (Exception e) {
       LOG.error("Could not add matrix information for user {}", userId, e);

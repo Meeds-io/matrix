@@ -2,6 +2,8 @@ import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.idm.UserImpl;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,20 +43,22 @@ public class MatrixUtilsTest {
 
   public void testSaveUserAccount() {
     String randomKey = String.valueOf(Math.round(Math.random() * 100));
-    User user = new UserImpl("testUser" + randomKey);
-    user.setEmail("test@exo.com");
-    user.setFirstName("test " + randomKey);
-    user.setLastName("User");
-    matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    Identity user = new Identity("testUser" + randomKey);
+    Profile profile = new Profile();
+    profile.setProperty(Profile.EMAIL, "test@exo.com");
+    profile.setProperty(Profile.FIRST_NAME, "test " + randomKey);
+    profile.setProperty(Profile.LAST_NAME, "User");
+    matrixHttpClient.saveUserAccount(user, user.getRemoteId(), true, access_token);
   }
 
   public void testDisableUserAccount() {
     String randomKey = String.valueOf(Math.round(Math.random() * 10000));
-    User user = new UserImpl("testUser" + randomKey);
-    user.setEmail("test" + randomKey + "@exo.com");
-    user.setFirstName("test " + randomKey);
-    user.setLastName("User");
-    String username = matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    Identity user = new Identity("testUser" + randomKey);
+    Profile profile = new Profile();
+    profile.setProperty(Profile.EMAIL, "test@exo.com");
+    profile.setProperty(Profile.FIRST_NAME, "test " + randomKey);
+    profile.setProperty(Profile.LAST_NAME, "User");
+    String username = matrixHttpClient.saveUserAccount(user, user.getRemoteId(), true, access_token);
     matrixHttpClient.disableAccount(username, false, access_token);
   }
 
@@ -70,11 +74,12 @@ public class MatrixUtilsTest {
 
   public void testInviteUser() throws Exception {
     String randomKey = String.valueOf(Math.round(Math.random() * 10000));
-    User user = new UserImpl("testUser" + randomKey);
-    user.setEmail("test" + randomKey + "@exo.com");
-    user.setFirstName("test " + randomKey);
-    user.setLastName("User");
-    String invitee = matrixHttpClient.saveUserAccount(user, user.getUserName(), true, access_token, false);
+    Identity user = new Identity("testUser" + randomKey);
+    Profile profile = new Profile();
+    profile.setProperty(Profile.EMAIL, "test@exo.com");
+    profile.setProperty(Profile.FIRST_NAME, "test " + randomKey);
+    profile.setProperty(Profile.LAST_NAME, "User");
+    String invitee = matrixHttpClient.saveUserAccount(user, user.getRemoteId(), true, access_token);
     String roomId = matrixHttpClient.createRoom("Football game", "Description of Football team", access_token);
     matrixHttpClient.inviteUserToRoom(roomId, invitee, "Welcome to Football game room !", access_token);
   }
