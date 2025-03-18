@@ -27,8 +27,8 @@ import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
-import org.exoplatform.services.organization.OrganizationService;
-import org.exoplatform.services.organization.User;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.SpaceListenerPlugin;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
@@ -53,7 +53,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   private SpaceService     spaceService;
 
   @Autowired
-  OrganizationService      organizationService;
+  IdentityManager          identityManager;
 
   @PostConstruct
   public void init() {
@@ -62,18 +62,20 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceCreated(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     try {
       String matrixRoomId = matrixService.createRoom(space);
+      String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
 
       if (StringUtils.isNotBlank(matrixRoomId)) {
         List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
         for (String manager : space.getManagers()) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
-          if (StringUtils.isNotBlank(matrixRoomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
+          if (!matrixIdOfUser.equals(adminOfMatrix) && StringUtils.isNotBlank(matrixRoomId)
+              && StringUtils.isNotBlank(matrixIdOfUser)) {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
             updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
             members.remove(manager);
@@ -81,7 +83,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         }
         for (String member : members) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
-          if (StringUtils.isNotBlank(matrixRoomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
+          if (!matrixIdOfUser.equals(adminOfMatrix) && StringUtils.isNotBlank(matrixRoomId)
+              && StringUtils.isNotBlank(matrixIdOfUser)) {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
           }
         }
@@ -93,13 +96,13 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRenamed(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     String spaceDisplayName = space.getDisplayName();
     Room room = matrixService.getRoomBySpace(space);
-    if (StringUtils.isNotBlank(room.getRoomId())) {
+    if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
       try {
         matrixService.renameRoom(room.getRoomId(), spaceDisplayName);
       } catch (Exception e) {
@@ -110,7 +113,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void joined(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
@@ -120,19 +123,18 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     if (StringUtils.isBlank(matrixIdOfUser) && StringUtils.isNotBlank(restrictedGroupOfUsers)
         && restrictedGroupOfUsers.equals(space.getGroupId()) && !userId.equals(matrixUserAdmin)) {
-      User user;
+      Identity user;
       try {
-        user = organizationService.getUserHandler().findUserByName(userId);
-        matrixIdOfUser = matrixService.saveUserAccount(user, true, false);
+        user = identityManager.getOrCreateUserIdentity(userId);
+        matrixIdOfUser = matrixService.saveUserAccount(user, true);
       } catch (Exception e) {
         LOG.error("Could not retrieve the user {}", userId, e);
       }
     }
     Room room = matrixService.getRoomBySpace(space);
-    String roomId = room.getRoomId();
-    if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
+    if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
       try {
-        matrixService.joinUserToRoom(roomId, matrixIdOfUser);
+        matrixService.joinUserToRoom(room.getRoomId(), matrixIdOfUser);
       } catch (Exception e) {
         LOG.error("Could not join the user {} to the room of the space {} on Matrix", userId, space.getDisplayName(), e);
       }
@@ -141,17 +143,18 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void left(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     String userId = event.getTarget();
     Room room = matrixService.getRoomBySpace(space);
-    String roomId = room.getRoomId();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
-    if (StringUtils.isNotBlank(roomId) && StringUtils.isNotBlank(matrixIdOfUser)) {
+    if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
       try {
-        matrixService.kickUserFromRoom(roomId, matrixIdOfUser, MESSAGE_USER_KICKED_SPACE.formatted(space.getDisplayName()));
+        matrixService.kickUserFromRoom(room.getRoomId(),
+                                       matrixIdOfUser,
+                                       MESSAGE_USER_KICKED_SPACE.formatted(space.getDisplayName()));
       } catch (Exception e) {
         LOG.error("Could not kick the user {] from the room of the space {}", userId, space.getDisplayName(), e);
       }
@@ -160,31 +163,36 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void grantedLead(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
-    updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
+    String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    if (!matrixIdOfUser.equals(adminOfMatrix)) {
+      updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
+    }
   }
 
   @Override
   public void revokedLead(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
-    updateMemberRoleInSpace(space, matrixIdOfUser, SIMPLE_USER_ROLE);
+    String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    if (!matrixIdOfUser.equals(adminOfMatrix)) {
+      updateMemberRoleInSpace(space, matrixIdOfUser, SIMPLE_USER_ROLE);
+    }
   }
 
   private boolean updateMemberRoleInSpace(Space space, String matrixIdOfUser, String userRole) {
     Room room = matrixService.getRoomBySpace(space);
-    String roomId = room.getRoomId();
-    if (StringUtils.isNotBlank(roomId)) {
+    if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
       try {
         // Disable inviting user but for Moderators
-        MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(roomId);
+        MatrixRoomPermissions matrixRoomPermissions = matrixService.getRoomSettings(room.getRoomId());
         if (matrixRoomPermissions != null) {
           if (SIMPLE_USER_ROLE.equals(userRole)) {
             for (MatrixUserPermission userPermission : matrixRoomPermissions.getUsers()) {
@@ -195,13 +203,13 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
             }
           } else {
             MatrixUserPermission matrixUserPermission =
-                    new MatrixUserPermission("@%s:%s".formatted(matrixIdOfUser,
-                            PropertyManager.getProperty(MATRIX_SERVER_NAME)),
-                            userRole);
+                                                      new MatrixUserPermission("@%s:%s".formatted(matrixIdOfUser,
+                                                                                                  PropertyManager.getProperty(MATRIX_SERVER_NAME)),
+                                                                               userRole);
             matrixRoomPermissions.getUsers().add(matrixUserPermission);
           }
         }
-        return matrixService.updateRoomSettings(roomId, matrixRoomPermissions);
+        return matrixService.updateRoomSettings(room.getRoomId(), matrixRoomPermissions);
       } catch (Exception e) {
         LOG.error("Could not update member roles in the space {}", space.getDisplayName(), e);
       }
@@ -211,14 +219,16 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceAvatarEdited(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     try {
       Room room = matrixService.getRoomBySpace(space);
-      String roomId = room.getRoomId();
-      matrixService.updateRoomAvatar(space, roomId);
+      if (room != null) {
+        String roomId = room.getRoomId();
+        matrixService.updateRoomAvatar(space, roomId);
+      }
     } catch (Exception e) {
       LOG.error("Could not update the room avatar on Matrix", e);
     }
@@ -226,14 +236,14 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceDescriptionEdited(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     Room room = matrixService.getRoomBySpace(space);
-    String roomId = room.getRoomId();    try {
-      if (StringUtils.isNotBlank(roomId)) {
-        matrixService.updateRoomDescription(roomId, space.getDescription());
+    try {
+      if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
+        matrixService.updateRoomDescription(room.getRoomId(), space.getDescription());
       }
     } catch (Exception e) {
       LOG.error("Could not save the description of space {} ", space.getDisplayName(), e);
@@ -242,17 +252,16 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRemoved(SpaceLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     Space space = event.getSpace();
     Room room = matrixService.getRoomBySpace(space);
-    String roomId = room.getRoomId();
-    if (StringUtils.isNotBlank(roomId)) {
+    if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
       try {
-        matrixService.deleteRoom(roomId);
+        matrixService.deleteRoom(room.getRoomId());
       } catch (Exception e) {
-        LOG.error("Could not delete the room {} linked to the space {}", roomId, space.getDisplayName());
+        LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName());
       }
     }
   }
