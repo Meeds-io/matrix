@@ -1,11 +1,7 @@
-package io.meeds.chat.upgrade;
+package io.meeds.chat.service;
 
 import io.meeds.chat.model.Room;
-import io.meeds.chat.service.MatrixService;
-import io.meeds.chat.service.MatrixSynchronizationService;
 import org.exoplatform.commons.utils.ListAccess;
-import org.exoplatform.commons.utils.ListAccessImpl;
-import org.exoplatform.container.xml.InitParams;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserHandler;
@@ -13,29 +9,29 @@ import org.exoplatform.services.organization.impl.UserImpl;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
-import org.exoplatform.social.core.space.SpaceFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-class MatrixRoomAndAccountsUpgradePluginTest {
+class MatrixSynchronizationServiceTest {
 
-  private SpaceService                 spaceService;
+  MatrixSynchronizationService matrixSynchronizationService;
 
-  private MatrixService                matrixService;
+  MatrixService                matrixService;
 
-  private MatrixSynchronizationService matrixSynchronizationService;
+  private SpaceService         spaceService;
 
-  private IdentityManager              identityManager;
+  private IdentityManager      identityManager;
 
-  private OrganizationService          organizationService;
+  private OrganizationService  organizationService;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -77,23 +73,37 @@ class MatrixRoomAndAccountsUpgradePluginTest {
     when(spaces.getSize()).thenReturn(1);
     when(spaces.load(anyInt(), anyInt())).thenReturn(new Space[] { space });
     when(spaceService.getMemberSpaces(anyString())).thenReturn(spaces);
-    Room room = new Room();
-    room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
-    room.setSpaceId("1");
-    when(matrixService.getRoomBySpace(eq(space))).thenReturn(room);
 
     // spaces data
     when(spaceService.getAllSpacesByFilter(any())).thenReturn(spaces);
 
+    matrixSynchronizationService = new MatrixSynchronizationService(matrixService, spaceService, identityManager, organizationService);
+
+  }
+
+
+  @Test
+  void synchronizeSpaces() throws Exception {
+    when(matrixService.createRoom(any())).thenReturn("!indexOfCreatedRoom:matrix.server.tn");
+    matrixSynchronizationService.synchronizeSpaces();
+    verify(matrixService, times(1)).createRoom(any());
+    verify(matrixService, times(3)).joinUserToRoom(anyString(), anyString());
+    verify(matrixService, times(1)).updateRoomAvatar(any(), anyString());
+
+    Room room = new Room();
+    room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
+    room.setSpaceId("1");
+    when(matrixService.getRoomBySpace(any())).thenReturn(room);
+
+
+    matrixSynchronizationService.synchronizeSpaces();
+    verify(matrixService, times(1)).createRoom(any());
+    verify(matrixService, times(2)).updateRoomAvatar(any(), anyString());
   }
 
   @Test
-  void processUpgrade() {
-    InitParams initParams = new InitParams();
-    MatrixRoomAndAccountsUpgradePlugin matrixRoomAndAccountsUpgradePlugin =
-                                                                          new MatrixRoomAndAccountsUpgradePlugin(initParams,
-                                                                                                                 matrixService,
-                                                                                                                 matrixSynchronizationService);
-    matrixRoomAndAccountsUpgradePlugin.processUpgrade("versionSource", "versionTarget");
+  void synchronizeUsers() throws JsonException, IOException, InterruptedException {
+    matrixSynchronizationService.synchronizeUsers();
+    verify(matrixService, times(3)).updateUserAvatar(any(), anyString());
   }
 }

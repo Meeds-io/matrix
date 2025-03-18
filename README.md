@@ -7,6 +7,7 @@ This addon allows to integrate Matrix as the chat server.
 - **meeds.matrix.server.name**: The Matrix server name, it may be retrieved from the server domain, but useful in case of development with local Matrix server
 - **meeds.matrix.shared_secret_registration**: The shared registration token that will be used for creating new user accounts, it takes the value of the property **registration_shared_secret** that could be found inside the _homeserver.yaml_ configuration file of the Matrix/Synapse server
 - **meeds.matrix.user.display.name** : the display name of the user used to interact with Matrix API
+- **meeds.matrix.jwt.secret** : the secret that will be used to generate the JWT tokens sent to Matrix for authenticating users
 
 
 ## Create a user on Matrix server
