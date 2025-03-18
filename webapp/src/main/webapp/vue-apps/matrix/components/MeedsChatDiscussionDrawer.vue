@@ -40,7 +40,10 @@
       </div>
     </template>
     <template slot="content">
-      <div id="chatMessagesContainer">
+      <div id="chatMessagesContainer"
+        v-touch="{
+          down: () => loadMoreMessages()
+        }">
         <div
           v-if="loadingNewMessages"
           class="application-background-color application-border application-border-radius flex d-flex flex-column">
