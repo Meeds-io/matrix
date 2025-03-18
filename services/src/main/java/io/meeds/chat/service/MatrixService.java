@@ -22,9 +22,6 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.RoomEntity;
-import io.meeds.chat.rest.model.RoomList;
-import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
@@ -162,6 +159,7 @@ public class MatrixService {
 
   /**
    * Get a room by its technical ID
+   * 
    * @param roomId the room technical ID
    * @return Room
    */
@@ -228,20 +226,36 @@ public class MatrixService {
 
   /**
    * Saves a new user on Matrix
+   * @param user the user identity
+   * @param isNew if the user has been just created
+   * @return the matrix user ID
+   * @throws JsonException
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public String saveUserAccount(Identity user,
+                                boolean isNew) throws JsonException, IOException, InterruptedException {
+    return saveUserAccount(user, isNew, false, true);
+  }
+
+  /**
+   * Saves a new user on Matrix
    * 
    * @param user the user to create on Matrix
    * @param isNew boolean if the user is new, then true
    * @return String the matrix user ID
    */
-  public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) throws JsonException,
-                                                                                         IOException,
-                                                                                         InterruptedException {
+  public String saveUserAccount(Identity user,
+                                boolean isNew,
+                                boolean isEnableUserOperation,
+                                boolean isUserEnabled) throws JsonException, IOException, InterruptedException {
     String matrixId = matrixHttpClient.saveUserAccount(user,
-                                                       user.getUserName(),
+                                                       user.getRemoteId(),
                                                        isNew,
                                                        this.getMatrixAccessToken(),
-                                                       isEnableUserOperation);
-    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+                                                       isEnableUserOperation,
+                                                       isUserEnabled);
+    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getRemoteId());
     Profile userProfile = userIdentity.getProfile();
     if (StringUtils.isNotBlank(matrixId) && (userProfile.getProperty(USER_MATRIX_ID) == null
         || StringUtils.isBlank(userProfile.getProperty(USER_MATRIX_ID).toString()))) {
@@ -493,12 +507,13 @@ public class MatrixService {
 
   /**
    * Checks if the user able to access the room
+   * 
    * @param room the room
    * @param userName the username of the user
    * @return true if he has access, false otherwise
    */
   public boolean canAccess(Room room, String userName) {
-    if(StringUtils.isBlank(room.getSpaceId())) {
+    if (StringUtils.isBlank(room.getSpaceId())) {
       return userName.equals(room.getFirstParticipant()) || userName.equals(room.getSecondParticipant());
     } else {
       Space space = spaceService.getSpaceById(room.getSpaceId());
