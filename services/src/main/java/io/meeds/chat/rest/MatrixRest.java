@@ -27,6 +27,7 @@ import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.rest.model.Presence;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.service.MatrixSynchronizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -78,22 +79,25 @@ import static org.exoplatform.social.rest.api.EntityBuilder.buildEntityProfile;
 @Tag(name = "/matrix", description = "Manages Matrix integration")
 public class MatrixRest implements ResourceContainer {
 
-  private static final Log      LOG = ExoLogger.getLogger(MatrixRest.class.toString());
+  private static final Log             LOG = ExoLogger.getLogger(MatrixRest.class.toString());
 
   @Autowired
-  private SpaceService          spaceService;
+  private SpaceService                 spaceService;
 
   @Autowired
-  private MatrixService         matrixService;
+  private MatrixService                matrixService;
 
   @Autowired
-  private IdentityManager       identityManager;
+  private MatrixSynchronizationService matrixSynchronizationService;
 
   @Autowired
-  private NotificationService   notificationService;
+  private IdentityManager              identityManager;
 
   @Autowired
-  private ResourceBundleService resourceBundleService;
+  private NotificationService          notificationService;
+
+  @Autowired
+  private ResourceBundleService        resourceBundleService;
 
   @GetMapping
   @Secured("users")
@@ -122,7 +126,12 @@ public class MatrixRest implements ResourceContainer {
                                             + space.getPrettyName());
     }
 
-    return buildRoomEntityFromRoom(matrixService.getRoomBySpace(space), userName);
+    Room room = matrixService.getRoomBySpace(space);
+
+    if (room == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "no Matrix room for space " + space.getDisplayName());
+    }
+    return buildRoomEntityFromRoom(room, userName);
   }
 
   @GetMapping("dmRoom")
@@ -144,7 +153,7 @@ public class MatrixRest implements ResourceContainer {
     }
     Room directMessagingRoom = matrixService.getDirectMessagingRoom(firstParticipant, secondParticipant);
     if (directMessagingRoom != null) {
-        return buildRoomEntityFromRoom(directMessagingRoom, currentUser);
+      return buildRoomEntityFromRoom(directMessagingRoom, currentUser);
     } else {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                                         "Could not find a room for participants %s and %s".formatted(firstParticipant,
@@ -234,10 +243,10 @@ public class MatrixRest implements ResourceContainer {
       }
 
       Room room = matrixService.getRoomBySpace(space);
-      String existingRoomId = room.getRoomId();
-      if (StringUtils.isNotBlank(existingRoomId)) {
+      if (StringUtils.isNotBlank(room.getRoomId())) {
         throw new ResponseStatusException(HttpStatus.CONFLICT,
-                                          "space with group Id " + spaceGroupId + "has already a room with ID " + existingRoomId);
+                                          "space with group Id " + spaceGroupId + "has already a room with ID "
+                                              + room.getRoomId());
       }
 
       if (StringUtils.isBlank(roomId) && create) {
@@ -296,11 +305,15 @@ public class MatrixRest implements ResourceContainer {
     }
     Room room = matrixService.getById(roomId);
     if (room == null) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no room with ID " + roomId);
     } else {
       if (StringUtils.isNotBlank(room.getSpaceId())) {
         Space space = spaceService.getSpaceById(room.getSpaceId());
-        return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
+        if(space != null) {
+          return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
+        } else {
+          throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no space with ID " + room.getSpaceId());
+        }
       } else {
         org.exoplatform.services.security.Identity connecteduserIdentity = ConversationState.getCurrent().getIdentity();
         if (room.getFirstParticipant().equals(connecteduserIdentity.getUserId())) {
@@ -339,16 +352,21 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<RoomEntity> getRoomBySpaceId(HttpServletRequest request,
-                                                WebRequest webRequest,
-                                                @Parameter(description = "The room Id")
-                                                @RequestParam(name = "spaceId")
-                                                long spaceId) {
+                                                     WebRequest webRequest,
+                                                     @Parameter(description = "The room Id")
+                                                     @RequestParam(name = "spaceId")
+                                                     long spaceId) {
     String userName = request.getRemoteUser();
     Space space = spaceService.getSpaceById(spaceId);
-    if(space == null) {
+    if (space == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
     Room room = matrixService.getRoomBySpace(space);
+
+    if (room == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+
     if (!matrixService.canAccess(room, userName)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
@@ -408,6 +426,23 @@ public class MatrixRest implements ResourceContainer {
                                                              presence.getPresence(),
                                                              presence.getStatusMessage());
     return ResponseEntity.ok().body(presenceStatus);
+  }
+
+  @GetMapping("sync")
+  @Secured("administrators")
+  @Operation(summary = "Get the user Identity for the provided matrix user Id", method = "GET", description = "Get the user Identity for the provided matrix user Id")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> syncUsersAndSpaces(HttpServletRequest request, WebRequest webRequest) {
+    try {
+      matrixSynchronizationService.synchronizeUsers();
+      matrixSynchronizationService.synchronizeSpaces();
+      return ResponseEntity.ok().body("Synchronization finished for users and spaces with Matrix server");
+    } catch (Exception e) {
+      LOG.error("Could not synchronise users and spaces", e);
+      return ResponseEntity.ok().body("An error occurred when synchronizing users and spaces with Matrix server");
+    }
   }
 
   private void sendPushNotification(String participant, String roomId, int unreadCount) {
@@ -533,7 +568,7 @@ public class MatrixRest implements ResourceContainer {
     }
 
     // Add update Date
-    if(room.getUpdated() == 0) {
+    if (room.getUpdated() == 0) {
       room.setUpdated(System.currentTimeMillis());
     }
     return room;
