@@ -30,6 +30,7 @@ import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserEventListener;
+import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
@@ -44,7 +45,7 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 @Component
 public class MatrixUserListener extends UserEventListener {
 
-  private static final Log LOG = ExoLogger.getLogger(MatrixUserListener.class);
+  private static final Log    LOG = ExoLogger.getLogger(MatrixUserListener.class);
 
   @Autowired
   private IdentityManager     identityManager;
@@ -65,30 +66,38 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSave(User user, boolean isNew) throws Exception {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if ((StringUtils.isNotBlank(matrixRestrictedGroup)
-        && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup)) || matrixUserAdmin.equals(user.getUserName())) {
+        && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup))
+        || matrixUserAdmin.equals(user.getUserName())) {
       return;
     }
-    matrixService.saveUserAccount(user, isNew, false);
+    try {
+      Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+      matrixService.saveUserAccount(userIdentity, isNew);
+    } catch (Exception e) {
+      LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
+    }
   }
 
   @Override
   public void postSetEnabled(User user) throws Exception {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    if(matrixUserAdmin.equals(user.getUserName())) {
+    if (matrixUserAdmin.equals(user.getUserName())) {
       LOG.warn("Could not set enable the Matrix admin user");
       return;
     }
-    if (identityManager != null) {
-      Profile userProfile = identityManager.getProfile(identityManager.getOrCreateUserIdentity(user.getUserName()));
+    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+    if (userIdentity != null) {
+
+      Profile userProfile = identityManager.getProfile(userIdentity);
       String matrixUserId = (String) userProfile.getProperty(USER_MATRIX_ID);
       if (StringUtils.isNotBlank(matrixUserId)) {
         if (!user.isEnabled()) {
@@ -96,17 +105,19 @@ public class MatrixUserListener extends UserEventListener {
                                 "@" + user.getUserName() + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
           matrixService.disableAccount(matrixUsername);
         } else {
-          matrixService.saveUserAccount(user, false, true);
-          ListAccess<Space> spaces = spaceService.getMemberSpaces(user.getUserName());
-          Space[] spacesArray = spaces.load(0, spaces.getSize());
-          for (Space space : spacesArray) {
-            Room room = matrixService.getRoomBySpace(space);
-            String roomId = room.getRoomId();
-            if (StringUtils.isNotBlank(roomId)) {
-              matrixService.joinUserToRoom(roomId, matrixUserId);
+          try {
+            matrixService.saveUserAccount(userIdentity, false, true, user.isEnabled());
+            ListAccess<Space> spaces = spaceService.getMemberSpaces(user.getUserName());
+            Space[] spacesArray = spaces.load(0, spaces.getSize());
+            for (Space space : spacesArray) {
+              Room room = matrixService.getRoomBySpace(space);
+              if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
+                matrixService.joinUserToRoom(room.getRoomId(), matrixUserId);
+              }
             }
+          } catch (Exception e) {
+            LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
           }
-
         }
       }
     }

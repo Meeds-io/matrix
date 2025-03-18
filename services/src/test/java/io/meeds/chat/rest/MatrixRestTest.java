@@ -9,6 +9,7 @@ import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.MatrixService;
+import io.meeds.chat.service.MatrixSynchronizationService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
 import jakarta.servlet.Filter;
@@ -63,36 +64,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class MatrixRestTest {
 
-  private static final String   SIMPLE_USER   = "user";
+  private static final String          SIMPLE_USER   = "user";
 
-  private static final String   TEST_PASSWORD = "testPassword";
+  private static final String          ADMIN_USER    = "admin";
 
-  private static final String   REST_PATH     = "/matrix";     // NOSONAR
+  private static final String          TEST_PASSWORD = "testPassword";
 
-  static final ObjectMapper     OBJECT_MAPPER;
+  private static final String          REST_PATH     = "/matrix";     // NOSONAR
+
+  static final ObjectMapper            OBJECT_MAPPER;
 
   @Autowired
-  private SecurityFilterChain   filterChain;
+  private SecurityFilterChain          filterChain;
 
   @Autowired
-  private WebApplicationContext context;
+  private WebApplicationContext        context;
 
   @MockBean
-  private SpaceService          spaceService;
+  private SpaceService                 spaceService;
 
   @MockBean
-  private MatrixService         matrixService;
+  private MatrixService                matrixService;
 
   @MockBean
-  private IdentityManager       identityManager;
+  private MatrixSynchronizationService matrixSynchronizationService;
 
   @MockBean
-  private ResourceBundleService resourceBundleService;
+  private IdentityManager              identityManager;
 
   @MockBean
-  private NotificationService   notificationService;
+  private ResourceBundleService        resourceBundleService;
 
-  private MockMvc               mockMvc;
+  @MockBean
+  private NotificationService          notificationService;
+
+  private MockMvc                      mockMvc;
 
   static {
     // Workaround when Jackson is defined in shared library with different
@@ -183,6 +189,10 @@ class MatrixRestTest {
     return user(SIMPLE_USER).password(TEST_PASSWORD).authorities(new SimpleGrantedAuthority("users"));
   }
 
+  private RequestPostProcessor adminUser() {
+    return user(SIMPLE_USER).password(TEST_PASSWORD).authorities(new SimpleGrantedAuthority("administrators"));
+  }
+
   @SneakyThrows
   public static String asJsonString(final Object obj) {
     return OBJECT_MAPPER.writeValueAsString(obj);
@@ -206,20 +216,21 @@ class MatrixRestTest {
   @Test
   void getIdentityByUserMatrixId() throws Exception {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("userMatrixId", "@user:matrix.exo.tn"));
+                                                                               .contentType(MediaType.APPLICATION_JSON)
+                                                                               .param("userMatrixId", "@user:matrix.exo.tn"));
     response.andExpect(status().isNotFound());
 
     Identity identity = new Identity();
     identity.setRemoteId("user");
     MockedStatic<RestUtils> REST_UTILS = mockStatic(RestUtils.class);
     MockedStatic<EntityBuilder> ENTITY_BUILDER = mockStatic(EntityBuilder.class);
-    ENTITY_BUILDER.when(() -> EntityBuilder.buildEntityProfile(any(Profile.class), anyString(), anyString())).thenReturn(new ProfileEntity());
+    ENTITY_BUILDER.when(() -> EntityBuilder.buildEntityProfile(any(Profile.class), anyString(), anyString()))
+                  .thenReturn(new ProfileEntity());
     REST_UTILS.when(() -> RestUtils.getRestUrl(anyString(), anyString(), anyString())).thenReturn("/matrix/rest/matrix");
     when(matrixService.findUserByMatrixId(eq("@user:matrix.exo.tn"))).thenReturn(identity);
     ResultActions response1 = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("userMatrixId", "@user:matrix.exo.tn"));
+                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                .param("userMatrixId", "@user:matrix.exo.tn"));
     response1.andExpect(status().isOk());
   }
 
@@ -227,8 +238,8 @@ class MatrixRestTest {
   void getRoomById() throws Exception {
     String roomId = "!testRoomIdentifier:matrix.exo.tn";
     ResultActions response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("roomId", roomId));
+                                                                         .contentType(MediaType.APPLICATION_JSON)
+                                                                         .param("roomId", roomId));
     response.andExpect(status().isForbidden());
 
     Room room = new Room();
@@ -243,19 +254,18 @@ class MatrixRestTest {
     when(matrixService.canAccess(eq(room), anyString())).thenReturn(true);
 
     ResultActions response1 = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("roomId", roomId));
+                                                                          .contentType(MediaType.APPLICATION_JSON)
+                                                                          .param("roomId", roomId));
     response1.andExpect(status().isOk());
   }
-
 
   @Test
   void getDirectMessagingRoom() throws Exception {
     String roomId = "!testRoomIdentifier:matrix.exo.tn";
     ResultActions response = mockMvc.perform(get(REST_PATH + "/dmRoom").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("firstParticipant", "userOne")
-            .param("secondParticipant", "userTwo"));
+                                                                       .contentType(MediaType.APPLICATION_JSON)
+                                                                       .param("firstParticipant", "userOne")
+                                                                       .param("secondParticipant", "userTwo"));
     response.andExpect(status().isNotFound());
 
     Room room = new Room();
@@ -265,9 +275,15 @@ class MatrixRestTest {
     room.setSecondParticipant("userTwo");
     when(matrixService.getDirectMessagingRoom(eq("userOne"), eq("userTwo"))).thenReturn(room);
     ResultActions response1 = mockMvc.perform(get(REST_PATH + "/dmRoom").with(simpleUser())
-            .contentType(MediaType.APPLICATION_JSON)
-            .param("firstParticipant", "userOne")
-            .param("secondParticipant", "userTwo"));
+                                                                        .contentType(MediaType.APPLICATION_JSON)
+                                                                        .param("firstParticipant", "userOne")
+                                                                        .param("secondParticipant", "userTwo"));
     response1.andExpect(status().isOk());
+  }
+
+  @Test
+  void syncUsersAndSpaces() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/sync").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
   }
 }
