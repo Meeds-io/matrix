@@ -26,7 +26,7 @@
   </parent>
   <groupId>io.meeds.matrix</groupId>
   <artifactId>matrix</artifactId>
-  <version>7.0.x-exo-SNAPSHOT</version>
+  <version>7.0.0-exo-20250323</version>
   <packaging>pom</packaging>
   <name>Meeds Add-on :: Matrix integration - Parent</name>
   <description>Integration addon for Meeds and Matrix</description>
@@ -107,4 +107,8 @@
         </pluginRepositories>
     </profile>
   </profiles>
+
+  <scm>
+    <tag>7.0.0-exo-20250323</tag>
+  </scm>
 </project>
