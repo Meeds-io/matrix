@@ -33,12 +33,10 @@ import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
-import org.exoplatform.portal.localization.LocaleContextInfoUtils;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.Membership;
 import org.exoplatform.services.organization.OrganizationService;
-import org.exoplatform.services.organization.User;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
@@ -142,6 +140,9 @@ public class MatrixService {
       if (StringUtils.isNotBlank(currentUserDisplayName) && !currentUserDisplayName.equals(newDisplayName)) {
         matrixHttpClient.updateUserDisplayName(matrixFullID, newDisplayName, getMatrixAccessToken());
       }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      LOG.error("Couldn't update the display name of the user {}", matrixFullID, ie);
     } catch (Exception e) {
       LOG.error("Couldn't update the display name of the user {}", matrixFullID, e);
     }

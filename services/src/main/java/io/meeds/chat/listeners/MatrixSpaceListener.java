@@ -74,8 +74,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
         for (String manager : space.getManagers()) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
-          if (!matrixIdOfUser.equals(adminOfMatrix) && StringUtils.isNotBlank(matrixRoomId)
-              && StringUtils.isNotBlank(matrixIdOfUser)) {
+          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+              && StringUtils.isNotBlank(matrixRoomId)) {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
             updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
             members.remove(manager);
@@ -83,8 +83,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         }
         for (String member : members) {
           String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
-          if (!matrixIdOfUser.equals(adminOfMatrix) && StringUtils.isNotBlank(matrixRoomId)
-              && StringUtils.isNotBlank(matrixIdOfUser)) {
+          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+              && StringUtils.isNotBlank(matrixRoomId)) {
             matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
           }
         }
@@ -169,7 +169,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     Space space = event.getSpace();
     String matrixIdOfUser = matrixService.getMatrixIdForUser(event.getTarget());
     String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    if (!matrixIdOfUser.equals(adminOfMatrix)) {
+    if (!adminOfMatrix.equals(matrixIdOfUser)) {
       updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
     }
   }

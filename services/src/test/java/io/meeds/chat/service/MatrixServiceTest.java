@@ -8,6 +8,10 @@ import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.service.utils.MatrixHttpClient;
+import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.utils.PropertyManager;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -30,7 +34,7 @@ import java.util.List;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringJUnitConfig(MatrixBaseTest.class)
 class MatrixServiceTest extends MatrixBaseTest {
@@ -53,7 +57,9 @@ class MatrixServiceTest extends MatrixBaseTest {
   @MockBean
   ProfileSearchConnector profileSearchConnector;
 
-  private List<Space> spacesToDelete = new ArrayList<>();
+  private List<Space>    spacesToDelete = new ArrayList<>();
+
+  private String         matrixRoomId   = "!thisIsACreatedRoom:matrix.exo.tn";
 
   @Test
   void init() {
@@ -65,34 +71,24 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   @Test
-  void updateUserDisplayName() {
+  void updateUserDisplayName() throws JsonException, IOException, InterruptedException {
+    String userId = "@testuser:matrix.meeds.com";
+    String accessToken = "ThisIsAnAccessToken";
+    when(matrixHttpClient.getUserDisplayName(eq(userId), anyString())).thenReturn("Test User");
+    matrixService.updateUserDisplayName(userId, "Chat Bot");
+    verify(matrixHttpClient, times(1)).updateUserDisplayName(userId, "Chat Bot", accessToken);
   }
 
   @BeforeEach
   void setUp() throws Exception {
     getContainer();
     begin();
+    PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
     ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
     when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn("ThisIsAnAccessToken");
-  }
 
-  @AfterEach
-  void tearDown() {
-    for(Space space : spacesToDelete) {
-      try {
-        this.spaceService.deleteSpace(space);
-      } catch (Exception e) {
-        //Nothing to do
-      }
-    }
-    end();
-  }
-
-  @Test
-  void createRoom() throws Exception {
-    String matrixRoomId = "!thisIsACreatedRoom:matrix.exo.tn";
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
     MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
     matrixUserPermission.setUserName("demo");
@@ -104,6 +100,24 @@ class MatrixServiceTest extends MatrixBaseTest {
     matrixRoomPermissions.setUsers(new ArrayList(List.of(new MatrixUserPermission[] { matrixUserPermission,
         raulUserPermission })));
     when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenReturn("@demo:matrix.meeds.tn");
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
+  }
+
+  @AfterEach
+  void tearDown() {
+    for (Space space : spacesToDelete) {
+      try {
+        this.spaceService.deleteSpace(space);
+      } catch (Exception e) {
+        // Nothing to do
+      }
+    }
+    end();
+  }
+
+  @Test
+  void createRoom() throws Exception {
     Space space = getSpaceInstance(1);
     String returnedMatrixRoomId = matrixService.createRoom(space);
     assertNotNull(matrixRoomId);
@@ -132,19 +146,22 @@ class MatrixServiceTest extends MatrixBaseTest {
     return createdSpace;
   }
 
-    @Test
-    void updateUserPresence() throws JsonException, IOException, InterruptedException {
-      when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenReturn("online");
+  @Test
+  void updateUserPresence() throws JsonException, IOException, InterruptedException {
+    when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenReturn("online");
 
-      String presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
-      assertNotNull(presence);
-      assertEquals("online", presence);
+    String presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+    assertNotNull(presence);
+    assertEquals("online", presence);
 
-      when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenThrow(new JsonException("Error"));
+    when(matrixHttpClient.setUserPresence(anyString(),
+                                          anyString(),
+                                          anyString(),
+                                          anyString())).thenThrow(new JsonException("Error"));
 
-      presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
-      assertNull(presence);
-    }
+    presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+    assertNull(presence);
+  }
 
   public RoomList createRoomsList(int numberOfRooms) {
     List<RoomEntity> rooms = new ArrayList<>();
@@ -169,5 +186,47 @@ class MatrixServiceTest extends MatrixBaseTest {
     roomEntity.setUnreadMessages(5);
     roomEntity.setDirectChat(false);
     return roomEntity;
+  }
+
+  @Test
+  void getRoomBySpace() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room room = matrixService.getRoomBySpace(space);
+    assertNotNull(room);
+    assertEquals(matrixRoomId, room.getRoomId());
+  }
+
+
+  @Test
+  void updateUserAvatar() throws JsonException, IOException, InterruptedException {
+    Profile demoProfile = identityManager.getOrCreateUserIdentity("demo").getProfile();
+    String demoIdOnMatrix = "@demo:matrix.meeds.tn";
+    matrixService.updateUserAvatar(demoProfile, demoIdOnMatrix);
+  }
+
+  @Test
+  void updateRoomAvatar() throws Exception {
+    Space space = getSpaceInstance(1);
+    matrixService.updateRoomAvatar(space, matrixRoomId);
+  }
+
+  @Test
+  void saveUserAccount() throws JsonException, IOException, InterruptedException {
+    Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
+    String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
+    assertNotNull(userIdOnMatrix);
+    assertEquals("@demo:matrix.meeds.tn", userIdOnMatrix);
+  }
+
+  @Test
+  void createDirectMessagingRoom() throws ObjectAlreadyExistsException {
+    Room directMessagingRoom = new Room();
+    directMessagingRoom.setRoomId("!ThisIsARoomId:matrix.meeds.tn");
+    directMessagingRoom.setFirstParticipant("demo");
+    directMessagingRoom.setSecondParticipant("raul");
+    Room createdRoom = matrixService.createDirectMessagingRoom(directMessagingRoom);
+    assertNotNull(createdRoom);
+    assertNotEquals(0, createdRoom.getId());
+    assertEquals(directMessagingRoom.getRoomId(), createdRoom.getRoomId());
   }
 }
