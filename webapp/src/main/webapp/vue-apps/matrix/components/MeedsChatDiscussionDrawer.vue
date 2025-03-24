@@ -55,6 +55,7 @@
         </div>
         <div
           id="roomChatMessages"
+          v-show="messages && !loading"
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
           @scroll="loadMoreMessages">
@@ -143,7 +144,6 @@ export default {
 
   created() {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
@@ -157,7 +157,6 @@ export default {
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
-    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,e => this.openDiscussion(e.detail));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
@@ -165,20 +164,19 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
+      this.$refs.ChatDiscussionDrawer?.open();
       this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
         if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
           this.hasMoreMessages = false;
         }
-        this.messages = resp.chunk.reverse();
         this.from = resp.start;
         this.to = resp.end;
-        this.$refs.ChatDiscussionDrawer?.open();
+        this.messages = resp.chunk.reverse();
         this.$nextTick().then(() => {
           this.scrollToEnd();
+          this.loading = false;
           this.$root.$emit('room-discussion-opened');
         });
-      }).finally(() => {
-        this.loading = false;
       });
     },
     close(){
@@ -188,6 +186,7 @@ export default {
       this.$refs.messageComposerArea.innerHTML = '';
       this.$refs.ChatDiscussionDrawer?.close();
       this.initializedActions = [];
+      this.roomActionComponents = [];
     },
     messageReceived(event) {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
@@ -199,18 +198,16 @@ export default {
       }
     },
     scrollToEnd() {
-      setTimeout( () => {
-        if(this.messages) {
-          const lastMessageIndex = this.messages.length - 1;
-          const lastMessageElement = document.getElementById(`chat-message-${lastMessageIndex}`);
-          if(lastMessageElement) {
-            document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
-              behavior: 'smooth'
-            });
-            this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id);
-          }
+      if(this.messages) {
+        const lastMessageIndex = this.messages.length - 1;
+        const lastMessageElement = document.getElementById(`chat-message-${lastMessageIndex}`);
+        if(lastMessageElement) {
+          document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
+            behavior: 'instant'
+          });
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id);
         }
-      }, 100);
+      }
     },
     loadMoreMessages() {
       const messagesDOMEl = document.getElementById('chatMessagesContainer');
