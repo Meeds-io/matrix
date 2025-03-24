@@ -338,7 +338,7 @@ public class MatrixRest implements ResourceContainer {
                                                 String roomId) {
     String userName = request.getRemoteUser();
     Room room = matrixService.getById(roomId);
-    if (!matrixService.canAccess(room, userName)) {
+    if (room == null || !matrixService.canAccess(room, userName)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
     RoomEntity roomEntity = buildRoomEntityFromRoom(room, userName);
