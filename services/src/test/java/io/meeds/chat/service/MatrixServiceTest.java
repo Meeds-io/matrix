@@ -15,6 +15,7 @@ import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.model.AvatarAttachment;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
@@ -26,7 +27,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -61,6 +64,8 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   private String         matrixRoomId   = "!thisIsACreatedRoom:matrix.exo.tn";
 
+  private String         accessToken    = "ThisIsAnAccessToken";
+
   @Test
   void init() {
     try {
@@ -73,7 +78,6 @@ class MatrixServiceTest extends MatrixBaseTest {
   @Test
   void updateUserDisplayName() throws JsonException, IOException, InterruptedException {
     String userId = "@testuser:matrix.meeds.com";
-    String accessToken = "ThisIsAnAccessToken";
     when(matrixHttpClient.getUserDisplayName(eq(userId), anyString())).thenReturn("Test User");
     matrixService.updateUserDisplayName(userId, "Chat Bot");
     verify(matrixHttpClient, times(1)).updateUserDisplayName(userId, "Chat Bot", accessToken);
@@ -87,7 +91,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
     ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
-    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn("ThisIsAnAccessToken");
+    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn(accessToken);
 
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
     MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
@@ -101,7 +105,12 @@ class MatrixServiceTest extends MatrixBaseTest {
         raulUserPermission })));
     when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
     when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenReturn("@demo:matrix.meeds.tn");
-    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
+    when(matrixHttpClient.saveUserAccount(any(),
+                                          anyString(),
+                                          anyBoolean(),
+                                          anyString(),
+                                          anyBoolean(),
+                                          anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
   }
 
   @AfterEach
@@ -196,18 +205,42 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals(matrixRoomId, room.getRoomId());
   }
 
-
   @Test
   void updateUserAvatar() throws JsonException, IOException, InterruptedException {
     Profile demoProfile = identityManager.getOrCreateUserIdentity("demo").getProfile();
     String demoIdOnMatrix = "@demo:matrix.meeds.tn";
+
+    InputStream inputStream = getClass().getClassLoader().getResourceAsStream("meeds.png");
+
+    AvatarAttachment attachment = new AvatarAttachment(null, "meeds.png", "image/png", inputStream, System.currentTimeMillis());
+    when(matrixHttpClient.uploadFile("avatar-of-demo.jpg",
+                                     "image/png",
+                                     attachment.getImageBytes(),
+                                     accessToken)).thenReturn("/This/Is/An/URL/Of/AVATAR");
+    demoProfile.setProperty(Profile.AVATAR, attachment);
+    identityStorage.saveProfile(demoProfile);
+
+    demoProfile = identityStorage.loadProfile(demoProfile);
+
     matrixService.updateUserAvatar(demoProfile, demoIdOnMatrix);
+    verify(matrixHttpClient, times(1)).updateUserAvatar(anyString(), anyString(), eq(accessToken));
   }
 
   @Test
   void updateRoomAvatar() throws Exception {
     Space space = getSpaceInstance(1);
+    InputStream inputStream = getClass().getClassLoader().getResourceAsStream("meeds.png");
+
+    AvatarAttachment attachment = new AvatarAttachment(null, "meeds.png", "image/png", inputStream, System.currentTimeMillis());
+    space.setAvatarAttachment(attachment);
+    spaceService.updateSpaceAvatar(space, "demo");
+    when(matrixHttpClient.uploadFile("avatar-space-my_space_1.png",
+                                     "image/png",
+                                     attachment.getImageBytes(),
+                                     accessToken)).thenReturn("/This/Is/An/URL/Of/AVATAR");
+
     matrixService.updateRoomAvatar(space, matrixRoomId);
+    verify(matrixHttpClient, times(1)).updateRoomAvatar(eq(matrixRoomId), anyString(), eq(accessToken));
   }
 
   @Test
