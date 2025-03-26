@@ -541,6 +541,9 @@ public class MatrixRest implements ResourceContainer {
           room.setUserId(identity.getRemoteId());
           room.setIdentityId(identity.getId());
           room.setDmMemberId(identity.getRemoteId());
+          room.setExternal(identity.isExternal());
+          room.setEnabledUser(identity.isEnable());
+          room.setDeletedUser(identity.isDeleted());
         }
       }
     }
