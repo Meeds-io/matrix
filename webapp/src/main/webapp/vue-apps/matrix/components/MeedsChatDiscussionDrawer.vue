@@ -15,7 +15,9 @@
             class="meeds-chat-contact-avatar ma-0 size-9 d-flex">
             <div v-if="room.directChat" class="matrix-user-status size-2" :class="[presenceClass, avatarBorderClass]"></div>
           </div>
-          <span class="mx-3 text-title text-truncate content-align"> {{room.name}} </span>
+          <span class="mx-3 text-title text-truncate content-align">
+            {{room.name}} <span v-if="room.external">{{ externalTag }}</span>
+          </span>
         </div>
       </a>
     </template>
@@ -139,7 +141,10 @@ export default {
     },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
-    }
+    },
+    externalTag() {
+      return `( ${this.$t('matrix.chat.user.external')} )`;
+    },
   },
 
   created() {

@@ -19,7 +19,14 @@
                 :style="`backgroundImage: url(${sender && sender.profile && sender.profile.avatar})`"
                 class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
               </div>
-              <span class="meeds-chat-contact-avatar-name mx-1 text-title text-subtitle-1 text-truncate" :style="userNameColor"> {{sender.profile && sender.profile.fullname}} </span>
+              <span
+                class="meeds-chat-contact-avatar-name mx-1 text-title text-subtitle-1 text-truncate"
+                :style="userNameColor">
+                {{sender.profile && sender.profile.fullname || message.sender}}
+                <span v-if="sender.profile?.dataEntity?.external === 'true'">
+                  {{ externalTag }}
+                </span>
+              </span>
             </div>
           </a>
         </div>
@@ -145,7 +152,10 @@
         } else {
           return true;
         }
-      }
+      },
+      externalTag() {
+        return `( ${this.$t('matrix.chat.user.external')} )`;
+      },
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
