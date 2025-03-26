@@ -4,14 +4,18 @@
       :style="`backgroundImage: url(${room.avatarUrl})`"
       :class="avatarBorderClass"
       class="meeds-chat-contact-avatar size-12 d-flex">
-      <div v-if="room.directChat" class="matrix-user-status size-3" :class="presenceClass"></div>
+      <div v-if="room.directChat" class="matrix-user-status size-3"
+        :class="presenceClass"></div>
     </div>
     <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"
        @click="openRoom">
-      <div :id="`room-name-${room.id}`" class="chat-room-name text-truncate text-title text-subtitle-1" :style="roomNameStyle">
-        {{ room.name }}
+      <div :id="`room-name-${room.id}`"
+        class="chat-room-name text-truncate text-title text-subtitle-1"
+        :style="roomNameStyle">
+        {{ room.name }} <span v-if="room.external">{{ externalTag }}</span>
       </div>
-      <div v-if="room.lastMessage" class="chat-room-last-message text-truncate mt-1" :class="lastMessageStyle">
+      <div v-if="room.lastMessage" class="chat-room-last-message text-truncate mt-1"
+        :class="lastMessageStyle">
         {{ room.lastMessage.content }}
       </div>
       <div v-else class="text-subtitle text-truncate mt-2">
@@ -52,7 +56,10 @@
       },
       presenceClass() {
         return `matrix-status-${this.room.presence}`;
-      }
+      },
+      externalTag() {
+        return `( ${this.$t('matrix.chat.user.external')} )`;
+      },
     },
     methods: {
       openRoom() {
