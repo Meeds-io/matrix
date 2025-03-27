@@ -79,6 +79,9 @@ public class MatrixUserListener extends UserEventListener {
     try {
       Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
       matrixService.saveUserAccount(userIdentity, isNew);
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      LOG.error("Can not create the user {} on Matrix", user.getUserName(), ie);
     } catch (Exception e) {
       LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
     }
@@ -115,6 +118,9 @@ public class MatrixUserListener extends UserEventListener {
                 matrixService.joinUserToRoom(room.getRoomId(), matrixUserId);
               }
             }
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            LOG.error("Can not create the user {} on Matrix", user.getUserName(), ie);
           } catch (Exception e) {
             LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
           }
