@@ -56,9 +56,9 @@ class MatrixSynchronizationServiceTest {
     when(usersListAccess.load(anyInt(), anyInt())).thenReturn(new Identity[] { user1Identity, user2Identity, user3Identity });
     when(identityManager.getIdentitiesByProfileFilter(eq(OrganizationIdentityProvider.NAME), any(ProfileFilter.class), anyBoolean())).thenReturn(usersListAccess);
 
-    when(identityManager.getOrCreateUserIdentity(eq("user1"))).thenReturn(user1Identity);
-    when(identityManager.getOrCreateUserIdentity(eq("user2"))).thenReturn(user2Identity);
-    when(identityManager.getOrCreateUserIdentity(eq("user3"))).thenReturn(user3Identity);
+    when(identityManager.getOrCreateUserIdentity("user1")).thenReturn(user1Identity);
+    when(identityManager.getOrCreateUserIdentity("user2")).thenReturn(user2Identity);
+    when(identityManager.getOrCreateUserIdentity("user3")).thenReturn(user3Identity);
 
     Space space = new Space();
     space.setId(1);

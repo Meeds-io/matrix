@@ -81,6 +81,7 @@ export function loadChatRooms(currentMemberId) {
     return processRooms(roomsResponse);
   });
 }
+
 export function processRooms(rooms) {
   return fetch(`/matrix/rest/matrix/processRooms`, {
     credentials: 'include',
@@ -98,6 +99,7 @@ export function processRooms(rooms) {
     }
   });
 }
+
 export function loadRoom(roomId) {
   return fetch(`/_matrix/client/v3/directory/room/${roomId}`, {
     method: 'GET',
@@ -376,6 +378,7 @@ export function getSpaceRoom(spaceId) {
     }
   });
 }
+
 export function getDMRoom(firstParticipant, secondParticipant, serverName) {
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
@@ -487,7 +490,6 @@ export function saveFilter() {
   });
 }
 
-
 export function savePushGateway(kind, pushKey) {
   const payload =
   {
@@ -570,6 +572,7 @@ export function getByRoomId(roomId) {
       }
     });
 }
+
 export function getUserPresence(userIdOnMatrix) {
     return fetch(`/_matrix/client/v3/presence/${userIdOnMatrix}/status`, {
       method: 'GET',
@@ -672,6 +675,43 @@ export function formatDate(timestamp, dateIfSameDay) {
     return '';
   } else {
     return timeUtils.getDayDateString(timestamp);
+  }
+}
+
+/**
+* Format the date to return : today, yesterday,
+* or short format of date i.e
+* in the same year : Thur, 25 April
+* in previous year :  12 Oct 2023
+* params : dateToFormat : timestamp
+*/
+export function formatDateString(dateToFormat) {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const resetDateToFormat = new Date(dateToFormat);
+  resetDateToFormat.setHours(0,0,0,0);
+  let options = {};
+  const localeOfUser = eXo.env.portal.language.replace('_', '-');
+  if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 7){ // In the same week
+    options = {
+      weekday: "long"
+    };
+    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
+  } else if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 31) {// In the last 31 days
+    options = {
+      weekday: "short",
+      style: "short",
+      month: "short",
+      day: "numeric",
+    };
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
+  } else {// Difference more than a month
+    options = {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    };
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
   }
 }
 
