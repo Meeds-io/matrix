@@ -32,8 +32,8 @@
             </div>
           </a>
         </div>
-        <div class="chat-message-content-body py-2 px-3 mt-0-5"
-          :class="messageContentClass">
+        <div class="chat-message-content-body py-2 px-3"
+          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]">
           <div
             :id="`message-content-${message.event_id}`"
             class="chat-message-content-text"
@@ -114,10 +114,12 @@
       },
       formattedDate() {
         let today = new Date();
-        today.setHours(0,0,0,0);
+        const todayTime = today.setHours(0,0,0,0);
+        const messageDate = new Date(this.message.origin_server_ts);
+        const messageDateTime = messageDate.setHours(0,0,0,0);
         if(this.$timeUtils.isSameDay(today, this.message.origin_server_ts)) {
           return this.$t('matrix.chat.time.today');
-        } else if(this.$timeUtils.differenceInDays(today, this.message.origin_server_ts) === -1) {
+        } else if(this.$timeUtils.differenceInDays(todayTime, messageDateTime) === 1) { // one day before
           return this.$t('matrix.chat.time.yesterday');
         } else {
           return this.$matrixService.formatDateString(this.message.origin_server_ts);

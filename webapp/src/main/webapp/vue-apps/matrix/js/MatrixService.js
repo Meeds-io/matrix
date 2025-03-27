@@ -692,33 +692,26 @@ export function formatDateString(dateToFormat) {
   resetDateToFormat.setHours(0,0,0,0);
   let options = {};
   const localeOfUser = eXo.env.portal.language.replace('_', '-');
-  if (new Date(today).getFullYear() !== new Date(dateToFormat).getFullYear()) {// Not in the same year
+  if (new Date(today).getFullYear() !== new Date(resetDateToFormat).getFullYear()) {// Not in the same year
     options = {
       year: "numeric",
       month: "short",
       day: "numeric"
     };
-    return dateToFormat.toLocaleDateString(localeOfUser, options);
-  } else if (new Date(today).getFullYear() === new Date(dateToFormat).getFullYear()) {// In the same year
+    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
+  } else if (new Date(today).getFullYear() === new Date(resetDateToFormat).getFullYear()) {// In the same year
     options = {
       weekday: "short",
       style: "short",
       month: "short",
       day: "numeric",
     };
-    return dateToFormat.toLocaleDateString(localeOfUser, options);
-  } else if (differenceInDays(today - dateToFormat) < 7){ // In the same week
+    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
+  } else if (differenceInDays(today - resetDateToFormat) < 7){ // In the same week
     options = {
       weekday: "long"
     };
-    return dateToFormat.toLocaleDateString(localeOfUser, options);
-  } else { // otherwise
-    options = {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    };
-    return dateToFormat.toLocaleDateString(localeOfUser, options);
+    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
   }
 }
 
