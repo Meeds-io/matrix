@@ -44,10 +44,6 @@
   }
 }
 
-.text-bold {
-  font-weight: bold !important;
-}
-
 .matrix-user-status {
   margin-top: auto;
   margin-left: auto;
@@ -142,7 +138,6 @@
   justify-content: space-between;
   align-items: flex-start;
   position: relative;
-  top: -16px;
   left: -4px ~'; /** orientation=lt */ ';
   right: -4px ~'; /** orientation=rt */ ';
 }
@@ -203,11 +198,18 @@
   margin-top: 2px !important;
 }
 
+.mt--4 {
+  top: -16px;
+}
+
 #ChatDiscussionDrawer {
   #chatMessagesContainer {
     height: 100%;
     overflow: auto;
     overscroll-behavior: none;
+    .v-chip::before {
+      opacity: 0 !important;
+    }
   }
   .drawerFooter {
     background-color: @primaryBackground;

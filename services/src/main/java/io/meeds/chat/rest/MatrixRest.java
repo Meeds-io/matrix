@@ -441,7 +441,7 @@ public class MatrixRest implements ResourceContainer {
       return ResponseEntity.ok().body("Synchronization finished for users and spaces with Matrix server");
     } catch (Exception e) {
       LOG.error("Could not synchronise users and spaces", e);
-      return ResponseEntity.ok().body("An error occurred when synchronizing users and spaces with Matrix server");
+      return ResponseEntity.internalServerError().body("An error occurred when synchronizing users and spaces with Matrix server");
     }
   }
 
