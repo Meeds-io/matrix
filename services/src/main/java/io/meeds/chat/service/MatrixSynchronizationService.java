@@ -36,24 +36,23 @@ import org.exoplatform.social.core.space.SpaceFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Service
 public class MatrixSynchronizationService {
 
-  private static final Log    LOG                = ExoLogger.getExoLogger(MatrixSynchronizationService.class);
+  private static final Log LOG                = ExoLogger.getExoLogger(MatrixSynchronizationService.class);
 
-  private MatrixService       matrixService;
+  private MatrixService    matrixService;
 
-  private SpaceService        spaceService;
+  private SpaceService     spaceService;
 
-  private IdentityManager     identityManager;
+  private IdentityManager  identityManager;
 
-  private int                 SPACES_THRESHOLD   = 20;
+  private static final int SPACES_THRESHOLD   = 20;
 
-  private int                 LOADED_USERS_COUNT = 50;
+  private static final int LOADED_USERS_COUNT = 50;
 
   public MatrixSynchronizationService(MatrixService matrixService, SpaceService spaceService, IdentityManager identityManager) {
     this.matrixService = matrixService;
@@ -94,6 +93,10 @@ public class MatrixSynchronizationService {
               }
               matrixService.updateRoomAvatar(space, roomId);
               successfullyMigratedSpaces++;
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              LOG.error("Could not create a room for space {}", space.getDisplayName(), ie);
+              failedToMigrateSpaces++;
             } catch (Exception e) {
               LOG.error("Could not create a room for space {}", space.getDisplayName(), e);
               failedToMigrateSpaces++;
@@ -106,6 +109,9 @@ public class MatrixSynchronizationService {
         }
         loadedSpaces += spacesToMigrate.length;
       }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Error while retrieving spaces", ie);
     } catch (Exception e) {
       throw new RuntimeException("Error while retrieving spaces", e);
     } finally {
@@ -133,8 +139,11 @@ public class MatrixSynchronizationService {
     try {
       if (StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP))) {
         Space restrictedSpace = spaceService.getSpaceByGroupId(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP));
-        if(restrictedSpace != null) {
-          users = identityManager.getSpaceIdentityByProfileFilter(restrictedSpace, new ProfileFilter(), SpaceMemberFilterListAccess.Type.MEMBER, false);
+        if (restrictedSpace != null) {
+          users = identityManager.getSpaceIdentityByProfileFilter(restrictedSpace,
+                                                                  new ProfileFilter(),
+                                                                  SpaceMemberFilterListAccess.Type.MEMBER,
+                                                                  false);
         }
       } else {
         users = identityManager.getIdentitiesByProfileFilter(OrganizationIdentityProvider.NAME, new ProfileFilter(), false);
@@ -162,6 +171,9 @@ public class MatrixSynchronizationService {
             try {
               boolean isNew = !user.getRemoteId().equals(adminOfMatrix);
               userMatrixId = matrixService.saveUserAccount(user, isNew);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              LOG.warn("Can not create the user {} on Matrix", user.getRemoteId(), ie.getCause());
             } catch (Exception e) {
               LOG.warn("Can not create the user {} on Matrix", user.getRemoteId(), e.getCause());
             }
@@ -184,6 +196,9 @@ public class MatrixSynchronizationService {
         checkedUsers += usersArray.length;
         LOG.info("Checked Matrix account for {} of {} users", checkedUsers, usersCount);
       }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Error while creating accounts for users on Matrix", ie);
     } catch (Exception e) {
       throw new RuntimeException("Error while creating accounts for users on Matrix", e);
     } finally {

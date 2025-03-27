@@ -3,8 +3,10 @@
     <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
-      :class="{ 'mt-5' : previousMessage }">
-      {{ formattedDate }}
+      :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
+      <v-chip color="primaryBackground" class="message-date-chip">
+        {{ formattedDate }}
+      </v-chip>
     </div>
     <div
       :id="message.event_id"
@@ -30,7 +32,8 @@
             </div>
           </a>
         </div>
-        <div class="chat-message-content-body py-2 px-3 mt-0-5" :class="messageContentClass">
+        <div class="chat-message-content-body py-2 px-3"
+          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]">
           <div
             :id="`message-content-${message.event_id}`"
             class="chat-message-content-text"
@@ -110,7 +113,17 @@
         });
       },
       formattedDate() {
-        return this.$matrixService.formatDate(this.message.origin_server_ts, true);
+        let today = new Date();
+        const todayTime = today.setHours(0,0,0,0);
+        const messageDate = new Date(this.message.origin_server_ts);
+        const messageDateTime = messageDate.setHours(0,0,0,0);
+        if(this.$timeUtils.isSameDay(today, this.message.origin_server_ts)) {
+          return this.$t('matrix.chat.time.today');
+        } else if(this.$timeUtils.differenceInDays(todayTime, messageDateTime) === 1) { // one day before
+          return this.$t('matrix.chat.time.yesterday');
+        } else {
+          return this.$matrixService.formatDateString(this.message.origin_server_ts);
+        }
       },
       profileUrl() {
         return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender.remoteId}`;
@@ -135,7 +148,7 @@
         }
         let extraClass='';
         if(!this.room.directChat && !selfMessage) {
-          extraClass = 'ml-5';
+          extraClass = 'ml-5 mt--4';
         }
         return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
       },

@@ -7,6 +7,22 @@ export function getDayDate(timestamp) {
   return date;
 }
 
+export function isSameDay(timestamp1, timestamp2) {
+  return getDayDate(timestamp1).getTime() === getDayDate(timestamp2).getTime();
+}
+
+export function isSameMinute(timestamp1, timestamp2) {
+  return getMinuteDate(timestamp1).getTime() === getMinuteDate(timestamp2).getTime();
+}
+
+/**
+* compares two timestamps and returns the difference in days
+*
+*/
+export function differenceInDays(date, dateToCompare) {
+  return Math.abs(date - dateToCompare) / (24*60*60*1000);
+}
+
 export function getDayDateString(timestamp) {
   return getDayDate(timestamp).toLocaleDateString(getLocale());
 }
@@ -25,13 +41,6 @@ export function getMinuteDate(timestamp) {
   return date;
 }
 
-export function isSameDay(timestamp1, timestamp2) {
-  return getDayDate(timestamp1).getTime() === getDayDate(timestamp2).getTime();
-}
-
-export function isSameMinute(timestamp1, timestamp2) {
-  return getMinuteDate(timestamp1).getTime() === getMinuteDate(timestamp2).getTime();
-}
 
 export function getTimeString(timestampServer, displayDate) {
   let date = new Date();
