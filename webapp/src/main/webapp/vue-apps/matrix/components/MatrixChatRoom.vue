@@ -52,7 +52,7 @@
         return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
       },
       lastMessageStyle() {
-        return this.room.unreadMessages > 0 ? 'text-subtitle text-bold':'text-subtitle';
+        return this.room.unreadMessages > 0 ? 'text-subtitle font-weight-bold':'text-subtitle';
       },
       presenceClass() {
         return `matrix-status-${this.room.presence}`;
