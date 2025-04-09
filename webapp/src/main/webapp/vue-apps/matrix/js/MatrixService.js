@@ -692,26 +692,26 @@ export function formatDateString(dateToFormat) {
   resetDateToFormat.setHours(0,0,0,0);
   let options = {};
   const localeOfUser = eXo.env.portal.language.replace('_', '-');
-  if (new Date(today).getFullYear() !== new Date(resetDateToFormat).getFullYear()) {// Not in the same year
+  if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 7){ // In the same week
     options = {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
+      weekday: "long"
     };
     return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
-  } else if (new Date(today).getFullYear() === new Date(resetDateToFormat).getFullYear()) {// In the same year
+  } else if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 31) {// In the last 31 days
     options = {
       weekday: "short",
       style: "short",
       month: "short",
       day: "numeric",
     };
-    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
-  } else if (differenceInDays(today - resetDateToFormat) < 7){ // In the same week
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
+  } else {// Difference more than a month
     options = {
-      weekday: "long"
+      year: "numeric",
+      month: "short",
+      day: "numeric"
     };
-    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
   }
 }
 
