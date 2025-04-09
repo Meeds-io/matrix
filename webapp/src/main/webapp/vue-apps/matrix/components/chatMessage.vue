@@ -4,7 +4,7 @@
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
       :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
-      <v-chip class="message-date-chip">
+      <v-chip color="primaryBackground" class="message-date-chip">
         {{ formattedDate }}
       </v-chip>
     </div>
