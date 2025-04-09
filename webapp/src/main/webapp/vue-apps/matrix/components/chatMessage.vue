@@ -99,7 +99,11 @@
     },
     computed: {
       formattedMessage() {
-        return this.message.content.body.replace(/\n/g, '<br />') || '';
+        let formatMessage = this.message.content.format === 'org.matrix.custom.html'
+                            && this.message.content.formatted_body
+                            || this.message.content.body.replace(/\n/g, '<br />')
+                            || '';
+        return this.$matrixService.formatMentionsInMessage(formatMessage);
       },
       formattedTimestamp() {
         const now = new Date().getTime();

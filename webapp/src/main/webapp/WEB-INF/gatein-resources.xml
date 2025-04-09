@@ -53,6 +53,9 @@
         <module>commonVueComponents</module>
       </depends>
       <depends>
+        <module>suggester</module>
+      </depends>
+      <depends>
         <module>eXoVueI18n</module>
       </depends>
       <depends>

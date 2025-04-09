@@ -17,15 +17,16 @@ import lombok.SneakyThrows;
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.resources.ResourceBundleService;
-import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.service.LinkProvider;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.rest.api.EntityBuilder;
 import org.exoplatform.social.rest.api.RestUtils;
 import org.exoplatform.social.rest.entity.ProfileEntity;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -98,6 +99,10 @@ class MatrixRestTest {
   @MockBean
   private NotificationService          notificationService;
 
+  MockedStatic<LinkProvider> LINK_PROVIDER = mockStatic(LinkProvider.class);
+  MockedStatic<RestUtils> REST_UTILS = mockStatic(RestUtils.class);
+  MockedStatic<EntityBuilder> ENTITY_BUILDER = mockStatic(EntityBuilder.class);
+
   private MockMvc                      mockMvc;
 
   static {
@@ -113,14 +118,21 @@ class MatrixRestTest {
   @BeforeEach
   public void setUp() {
     mockMvc = MockMvcBuilders.webAppContextSetup(context).addFilters(filterChain.getFilters().toArray(new Filter[0])).build();
-    PropertyManager.setProperty(MATRIX_SERVER_NAME, "matrix.exo.tn");
+    PropertyManager.setProperty(MATRIX_SERVER_NAME, "matrix.meeds.tn");
+  }
+
+  @AfterEach
+  void tearDown() {
+    LINK_PROVIDER.close();
+    REST_UTILS.close();
+    ENTITY_BUILDER.close();
   }
 
   @Test
   public void testProcessRooms() throws Exception {
     RoomEntity roomEntity = createRoomEntity(0);
     Room room = new Room();
-    room.setRoomId("!testRoom0:matrix.exo.tn");
+    room.setRoomId("!testRoom0:matrix.meeds.tn");
     room.setSpaceId("spaceId");
     RoomList roomsList = new RoomList();
     roomsList.setTotalUnreadMessages(5);
@@ -170,7 +182,7 @@ class MatrixRestTest {
 
   private RoomEntity createRoomEntity(int index) {
     RoomEntity room = new RoomEntity();
-    room.setId("!testRoom" + index + ":matrix.exo.tn");
+    room.setId("!testRoom" + index + ":matrix.meeds.tn");
     room.setAvatarUrl("/avatar/" + index);
     room.setName("Chat number " + index);
     Member root = new Member("1", "root", "/user/avatar" + 1, System.currentTimeMillis());
@@ -180,7 +192,7 @@ class MatrixRestTest {
     room.setPresence("online");
     room.setTopic("No topic");
     room.setUpdated(System.currentTimeMillis());
-    Message message = new Message("This is a new message", "@root:matrix.exo.tn");
+    Message message = new Message("This is a new message", "@root:matrix.meeds.tn");
     room.setLastMessage(message);
     return room;
   }
@@ -203,7 +215,7 @@ class MatrixRestTest {
     Presence presence = new Presence();
     presence.setPresence("online");
     presence.setStatusMessage("I am available");
-    presence.setUserIdOnMatrix("@user:matrix.exo.tn");
+    presence.setUserIdOnMatrix("@user:matrix.meeds.tn");
     when(matrixService.updateUserPresence(anyString(), anyString(), anyString())).thenReturn(presence.getPresence());
 
     ResultActions response = mockMvc.perform(put(REST_PATH + "/setStatus").with(simpleUser())
@@ -217,26 +229,24 @@ class MatrixRestTest {
   void getIdentityByUserMatrixId() throws Exception {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
                                                                                .contentType(MediaType.APPLICATION_JSON)
-                                                                               .param("userMatrixId", "@user:matrix.exo.tn"));
+                                                                               .param("userMatrixId", "@user:matrix.meeds.tn"));
     response.andExpect(status().isNotFound());
 
     Identity identity = new Identity();
     identity.setRemoteId("user");
-    MockedStatic<RestUtils> REST_UTILS = mockStatic(RestUtils.class);
-    MockedStatic<EntityBuilder> ENTITY_BUILDER = mockStatic(EntityBuilder.class);
     ENTITY_BUILDER.when(() -> EntityBuilder.buildEntityProfile(any(Profile.class), anyString(), anyString()))
                   .thenReturn(new ProfileEntity());
     REST_UTILS.when(() -> RestUtils.getRestUrl(anyString(), anyString(), anyString())).thenReturn("/matrix/rest/matrix");
-    when(matrixService.findUserByMatrixId(eq("@user:matrix.exo.tn"))).thenReturn(identity);
+    when(matrixService.findUserByMatrixId(eq("@user:matrix.meeds.tn"))).thenReturn(identity);
     ResultActions response1 = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
                                                                                 .contentType(MediaType.APPLICATION_JSON)
-                                                                                .param("userMatrixId", "@user:matrix.exo.tn"));
+                                                                                .param("userMatrixId", "@user:matrix.meeds.tn"));
     response1.andExpect(status().isOk());
   }
 
   @Test
   void getRoomById() throws Exception {
-    String roomId = "!testRoomIdentifier:matrix.exo.tn";
+    String roomId = "!testRoomIdentifier:matrix.meeds.tn";
     ResultActions response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
                                                                          .contentType(MediaType.APPLICATION_JSON)
                                                                          .param("roomId", roomId));
@@ -250,7 +260,7 @@ class MatrixRestTest {
     space.setAvatarUrl("/avatar/of/the/space");
     space.setDisplayName("Test space");
     when(spaceService.getSpaceById("1")).thenReturn(space);
-    when(matrixService.getById(eq(roomId))).thenReturn(room);
+    when(matrixService.getById(roomId)).thenReturn(room);
     when(matrixService.canAccess(eq(room), anyString())).thenReturn(true);
 
     ResultActions response1 = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
@@ -261,7 +271,7 @@ class MatrixRestTest {
 
   @Test
   void getDirectMessagingRoom() throws Exception {
-    String roomId = "!testRoomIdentifier:matrix.exo.tn";
+    String roomId = "!testRoomIdentifier:matrix.meeds.tn";
     ResultActions response = mockMvc.perform(get(REST_PATH + "/dmRoom").with(simpleUser())
                                                                        .contentType(MediaType.APPLICATION_JSON)
                                                                        .param("firstParticipant", "userOne")
@@ -286,4 +296,21 @@ class MatrixRestTest {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/sync").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
   }
+
+    @Test
+    void redirectToProfile() throws Exception {
+      Identity identity = new Identity();
+      identity.setRemoteId("user");
+      identity.setId("1");
+      Profile profile = new Profile();
+      profile.setAvatarUrl("/avatar/of/userOne");
+      profile.setProperty("firstName", "User");
+      profile.setProperty("lastName", "One");
+      identity.setProfile(profile);
+      when(matrixService.findUserByMatrixId(anyString())).thenReturn(identity);
+      when(matrixService.extractUserId(anyString())).thenCallRealMethod();
+      LINK_PROVIDER.when(() -> LinkProvider.getProfileUri(anyString())).thenReturn("/portal/meeds/profile/userOne");
+      ResultActions response = mockMvc.perform(get(REST_PATH + "/profile/@userOne:matrix.meeds.tn").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
+      response.andExpect(status().is3xxRedirection());
+    }
 }
