@@ -35,6 +35,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
@@ -51,6 +52,7 @@ import org.exoplatform.services.rest.resource.ResourceContainer;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.service.LinkProvider;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.rest.api.RestUtils;
@@ -65,6 +67,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -309,7 +312,7 @@ public class MatrixRest implements ResourceContainer {
     } else {
       if (StringUtils.isNotBlank(room.getSpaceId())) {
         Space space = spaceService.getSpaceById(room.getSpaceId());
-        if(space != null) {
+        if (space != null) {
           return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
         } else {
           throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no space with ID " + room.getSpaceId());
@@ -441,7 +444,24 @@ public class MatrixRest implements ResourceContainer {
       return ResponseEntity.ok().body("Synchronization finished for users and spaces with Matrix server");
     } catch (Exception e) {
       LOG.error("Could not synchronise users and spaces", e);
-      return ResponseEntity.internalServerError().body("An error occurred when synchronizing users and spaces with Matrix server");
+      return ResponseEntity.internalServerError()
+                           .body("An error occurred when synchronizing users and spaces with Matrix server");
+    }
+  }
+
+  @GetMapping("/profile/{userMatrixId}")
+  @Secured("users")
+  @Operation(summary = "Redirect to the user profile using the matrix user Id", method = "GET", description = "Redirect to the user profile using the matrix user Id")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public void redirectToProfile(HttpServletResponse response,
+                                @Parameter(description = "The user Id on Matrix")
+                                @PathVariable(name = "userMatrixId")
+                                String userMatrixId) throws IOException {
+    Identity userIdentity = matrixService.findUserByMatrixId(matrixService.extractUserId(userMatrixId));
+    if(userIdentity != null) {
+      response.sendRedirect(LinkProvider.getProfileUri(userIdentity.getRemoteId()));
     }
   }
 
