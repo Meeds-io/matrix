@@ -149,12 +149,12 @@
           updatedRoom.updated = event.detail.origin_server_ts;
           if(event.detail.sender === localStorage.getItem('matrix_user_id')) {
             updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                              this.$t('matrix.words.you')).replace('{1}', event.detail.message);
+                                              this.$t('matrix.words.you')).replace('{1}', event.detail.messageText);
           } else {
             const senderMatrixId = event.detail.sender.substr(1, event.detail.sender.indexOf(":") - 1);
             this.$matrixService.getUserByMatrixId(senderMatrixId).then(senderIdentity => {
               updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                                senderIdentity.profile.fullname).replace('{1}', event.detail.message);
+                                                senderIdentity.profile.fullname).replace('{1}', event.detail.messageText);
             });
           }
         }
