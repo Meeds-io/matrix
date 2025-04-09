@@ -81,8 +81,8 @@
           contenteditable="true"
           name="messageComposerArea"
           class="meeds-chat-composer pa-3"
-          @keydown.enter=""
-          @keypress.enter=""
+          @keydown.enter="checkIfMentioning"
+          @keypress.enter="preventDefault"
           @keyup.enter="sendMessageWithEnter"
           @keyup.up=""
           @keyup="resizeComposerArea($event)"
@@ -119,9 +119,9 @@ export default {
       lastScrollTop: 0,
       roomActionComponents: [],
       initializedActions: [],
+      mentionsArray: [],
+      mentioningInProgress: false
     };
-  },
-  mounted() {
   },
   computed: {
     presenceClass() {
@@ -152,12 +152,16 @@ export default {
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
+
+  mounted() {
+
+  },
   updated() {
 
   },
   watch:{
     room() {
-      this.roomActionComponents = [];// reset the room actions to initialize them again when another roomis opened
+      this.roomActionComponents = [];// reset the room actions to initialize them again when another room is opened
     }
   },
   beforeDestroy() {
@@ -195,7 +199,7 @@ export default {
     },
     messageReceived(event) {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
-        const receivedMessage = {sender: event.detail.sender, content:{body: event.detail.message},origin_server_ts: event.detail.origin_server_ts};
+        const receivedMessage = {sender: event.detail.sender, content:{body: this.$matrixService.formatMentionsInMessage(event.detail.message)},origin_server_ts: event.detail.origin_server_ts};
         this.messages.push(receivedMessage);
         setTimeout( () => {
           this.scrollToEnd();
@@ -246,6 +250,9 @@ export default {
     },
     // composer functions
     resizeComposerArea(e) {
+      if(this.room?.spaceId) {
+        this.initSuggester();
+      }
       const composerElement = e.target;
       composerElement.style.height = "auto";
       composerElement.style.height = composerElement.scrollHeight + "px";
@@ -253,7 +260,7 @@ export default {
     },
     sendMessageWithEnter(event) {
       const isMobile = this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
-      if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
+      if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY && !this.mentioningInProgress) {
         if (event.ctrlKey || event.altKey || event.shiftKey || isMobile) {
           this.insertNewLineAtCursor();
         } else {
@@ -262,13 +269,32 @@ export default {
       }
     },
     sendMessage() {
-      let message = this.$refs.messageComposerArea.innerText;
-      message = message.trim();
-      if(!message) {
+      let messageText = this.$refs.messageComposerArea.innerText;
+      messageText = messageText.trim();
+      if(!messageText) {
         return;
       }
-      this.$matrixService.sendMessage(message, this.room.id);
+      let message = {'body': messageText,
+                     'msgtype': 'm.text'};
+      this.mentionsArray = [];
+      this.$refs.messageComposerArea.querySelectorAll('span[data-user-id]').forEach(selectedSpan => {
+          const userId = '@' + selectedSpan.getAttribute('data-user-id') + ':' + matrixServerName;
+          this.mentionsArray.indexOf(userId) === -1 && this.mentionsArray.push(userId);
+          });
+      if(this.mentionsArray && this.mentionsArray.length) {
+        const regexForMentions = /<span class=\"atwho-inserted\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*data-user-id=\"([^\"]+)\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*data-user-name=\"([^\"]+)\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*<\/span>/g;
+        const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(regexForMentions, '<a href=\"https://matrix.to/#/@$1:' + matrixServerName + '\">$2</a>');
+        message.format="org.matrix.custom.html";
+        message.formatted_body=messageHTML;
+        message['m.mentions'] = {'user_ids': this.mentionsArray}
+      }
+      this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
       this.$refs.messageComposerArea.innerHTML = '';
+      this.mentionsArray = [];
+      this.mentioningInProgress = false;
+    },
+    checkIfMentioning() {
+      this.mentioningInProgress = this.$refs.messageComposerArea.lastElementChild?.className === 'atwho-query' && !this.$refs.messageComposerArea.lastChild.wholeText;
     },
     insertNewLineAtCursor() {
       let selection = window.getSelection();
@@ -305,7 +331,93 @@ export default {
           }
         }
       });
-    }
-  }
+    },
+    initSuggester() {
+      const $messageSuggestor = $('#messageComposerArea');
+      let peopleSearchCached = {};
+      let lastNoResultQuery = false;
+      let space = null;
+      const getSpace = async function(spaceId) {
+        if (!spaceId) {
+          return Promise.resolve();
+        }
+        return space && Promise.resolve(space)
+          || fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/social/spaces/${spaceId}`, {credentials: 'include'}).then(resp => resp?.ok && resp.json());
+      };
+      const retrievePeople = async function(url, query) {
+        return !query?.length && Promise.resolve([]) || fetch(url, {credentials: 'include'})
+          .then(resp => resp?.ok && resp.json())
+      };
+      const component = this;
+      const suggesterData = {
+        type: 'mix',
+        suffix: '\u00A0',
+        create: false,
+        createOnBlur: false,
+        highlight: false,
+        openOnFocus: false,
+        closeAfterSelect: true,
+        dropdownParent: 'body',
+        hideSelected: true,
+        renderMenuItem(item, parent) {
+          parent.data('value', item.uid);
+          return `<div class="avatarSmall" style="display: inline-block;"><img src="${item.avatar}"></div> ${item.name}`;
+        },
+        renderItem(item) {
+          return `<span class="exo-mention" data-user-id="${item.uid}" data-user-name="${item.name}"><i aria-hidden="true" class="v-icon fa" style="font-size: 14px;"></i> ${item.name}<a href="#" class="remove"><i class="uiIconClose uiIconLightGray"></i></a></span>`;
+        },
+        sourceProviders: ['chat:users'],
+        providers: {
+          'chat:users': function(query, callback) {
+            if (lastNoResultQuery && query.length > lastNoResultQuery.length) {
+              if (query.substr(0, lastNoResultQuery.length) === lastNoResultQuery) {
+                callback.call(this, []);
+                return;
+              }
+            }
+            const spaceId = component.room.spaceId;
+            const key = `${query}#${spaceId}`;
+            if (peopleSearchCached[key]) {
+              callback.call(this, peopleSearchCached[key]);
+            } else {
+              peopleSearchCached[key] = [];
+              getSpace(spaceId)
+                .then(data => {
+                  space = data;
+                  const userName = eXo.env.portal.userName;
+                  const url = eXo.env.portal.context + '/' + eXo.env.portal.rest + '/social/people/suggest.json?nameToSearch=' + query + '&typeOfRelation=member_of_space' + '&currentUser=' + userName;
+                  if (space) {
+                    url += '&spaceURL=' + space.prettyName;
+                  }
+                  return retrievePeople(url, query)
+                    .then(users => {
+                      if (users?.options?.length) {
+                        users.options.forEach(user => {
+                          peopleSearchCached[key].push({
+                            uid: user.value,
+                            name: user.text,
+                            avatar: user.avatarUrl,
+                          });
+                        });
+                      }
+                      return peopleSearchCached[key];
+                    });
+                })
+                .finally(() => {
+                  if (peopleSearchCached[key].length == 0) {
+                    lastNoResultQuery = query;
+                  } else {
+                    lastNoResultQuery = false;
+                  }
+                  callback.call(this, peopleSearchCached[key]);
+                })
+            }
+          }
+        }
+      };
+      //init suggester
+      $messageSuggestor.suggester(suggesterData);
+    },
+  },
 };
 </script>

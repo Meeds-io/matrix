@@ -14,9 +14,12 @@
         :style="roomNameStyle">
         {{ room.name }} <span v-if="room.external">{{ externalTag }}</span>
       </div>
-      <div v-if="room.lastMessage" class="chat-room-last-message text-truncate mt-1"
-        :class="lastMessageStyle">
-        {{ room.lastMessage.content }}
+      <div
+        v-if="room.lastMessage"
+        class="chat-room-last-message text-truncate mt-1"
+        :class="lastMessageStyle"
+        v-sanitized-html="room.lastMessage.content"
+        >
       </div>
       <div v-else class="text-subtitle text-truncate mt-2">
         {{ $t('matrix.chat.start.conversation') }}

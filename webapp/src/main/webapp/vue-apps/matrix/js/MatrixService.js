@@ -213,7 +213,8 @@ export function processEvents(response) {
         //message received in a room
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
+            const messageContent = e.content.format === 'org.matrix.custom.html' && e.content.formatted_body || e.content.body;
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: messageContent, messageText: e.content.body, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
           }
         } // Joined a new room
         else if(e.type === 'm.room.member') {
@@ -588,7 +589,6 @@ export function getUserPresence(userIdOnMatrix) {
     }).then(status => {
       return status.presence;
     }).catch(e => {
-      console.error(e);
       return 'offline';
     });
 }
@@ -734,14 +734,10 @@ export function getUserDisplayNameFontColor(identityId) {
   return `color: ${colors[Number(identityId) % colors.length]} !important`;
 }
 
-export function sendMessage(message, roomId) {
+export function sendMessage(payload, roomId) {
   let index = localStorage.getItem('matrix_transaction_index') || 1;
   const transactionId = `${new Date().getTime()}-${index}`;
   const eventType = 'm.room.message';
-  const payload = {
-                    'body': message,
-                    'msgtype': 'm.text'
-                  };
   return fetch(`/_matrix/client/v3/rooms/${roomId}/send/${eventType}/${transactionId}`, {
     method: 'PUT',
     headers: {
@@ -787,4 +783,9 @@ export function markRoomAsFullyRead(roomId, eventId) {
       return true;
     }
   });
+}
+
+export function formatMentionsInMessage(message) {
+  return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<a href=\"\/matrix\/rest\/matrix\/profile\/$1\" class=\"font-weight-bold\" target=\"_blank\">@$2<\/a>')
+                      .replace(/\n/g, '<br />') || '';
 }
