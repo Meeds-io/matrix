@@ -214,7 +214,8 @@ export function processEvents(response) {
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text') {
             const messageContent = e.content.format === 'org.matrix.custom.html' && e.content.formatted_body || e.content.body;
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: messageContent, messageText: e.content.body, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
+            const messageText = e.content.format === 'org.matrix.custom.html' && formatMentionsInRoomList(e.content.formatted_body) || e.content.body;
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: messageContent, messageText: messageText, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
           }
         } // Joined a new room
         else if(e.type === 'm.room.member') {
@@ -316,7 +317,7 @@ export async function toRoomObject(rooms, currentMemberId) {
         if(e.content.msgtype === 'm.text' && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
           roomItem.lastMessage = {};
-          roomItem.lastMessage.content = e.content.body;
+          roomItem.lastMessage.content = e.content.format === 'org.matrix.custom.html' && formatMentionsInRoomList(e.content.formatted_body) || e.content.body;
           roomItem.lastMessage.sender = e.sender;
           roomItem.lastMessage.eventId = e.event_id;
         }
@@ -787,5 +788,9 @@ export function markRoomAsFullyRead(roomId, eventId) {
 
 export function formatMentionsInMessage(message) {
   return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<a href=\"\/matrix\/rest\/matrix\/profile\/$1\" class=\"font-weight-bold\" target=\"_blank\">@$2<\/a>')
+                      .replace(/\n/g, '<br />') || '';
+}
+export function formatMentionsInRoomList(message) {
+  return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
                       .replace(/\n/g, '<br />') || '';
 }
