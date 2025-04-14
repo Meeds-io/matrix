@@ -332,6 +332,12 @@ export default {
         }
       });
     },
+    preventDefault(event) {
+      if (event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+    },
     initSuggester() {
       const $messageSuggestor = $('#messageComposerArea');
       let peopleSearchCached = {};
@@ -385,7 +391,7 @@ export default {
                 .then(data => {
                   space = data;
                   const userName = eXo.env.portal.userName;
-                  const url = eXo.env.portal.context + '/' + eXo.env.portal.rest + '/social/people/suggest.json?nameToSearch=' + query + '&typeOfRelation=member_of_space' + '&currentUser=' + userName;
+                  let url = eXo.env.portal.context + '/' + eXo.env.portal.rest + '/social/people/suggest.json?nameToSearch=' + query + '&typeOfRelation=member_of_space' + '&currentUser=' + userName;
                   if (space) {
                     url += '&spaceURL=' + space.prettyName;
                   }
