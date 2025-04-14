@@ -33,11 +33,26 @@
           </a>
         </div>
         <div class="chat-message-content-body py-2 px-3"
-          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]">
+          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]"
+          :style="message.content.msgtype === 'm.image' && {
+                    'background-image': 'url(' + imageThumbnailURL(message) + ')',
+                    'background-size': 'contain',
+                    'height': imageThumbnailMaxHeight + 'px',
+                    'width': imageThumbnailMaxWidth + 'px',
+                    'cursor': 'pointer',
+                   }"
+          @click="openImagePreview(message)">
           <div
+            v-if="message.content.msgtype === 'm.text'"
             :id="`message-content-${message.event_id}`"
             class="chat-message-content-text"
             v-sanitized-html="formattedMessage" />
+          <div
+            v-if="message.content.msgtype === 'm.image'"
+            :id="`message-content-${message.event_id}`">
+            <attachments-image-preview-dialog
+              ref="imagePreviewDialog" />
+          </div>
           <v-tooltip bottom>
             <template #activator="{on, bind}">
               <div v-on="on"
@@ -85,6 +100,8 @@
           hour: 'numeric',
           minute: 'numeric',
         },
+        defaultThumbnailMaxWidth: 345,
+        defaultThumbnailMaxHeight: 275,
       };
     },
     created() {
@@ -173,6 +190,27 @@
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
+      imageRatio() {
+        return this.message.content.info.w / this.message.content.info.h;
+      },
+      imageThumbnailMaxWidth() {
+        if(this.message.content.info.w >= this.message.content.info.h) {
+          return this.defaultThumbnailMaxWidth;
+        } else {
+          const width = this.message.content.info.w || this.message.content.w;
+          const height = this.message.content.info.h || this.message.content.h;
+          return this.defaultThumbnailMaxHeight / (height / width);
+        }
+      },
+      imageThumbnailMaxHeight() {
+        if(this.message.content.info.w >= this.message.content.info.h) {
+        const width = this.message.content.info.w || this.message.content.w;
+        const height = this.message.content.info.h || this.message.content.h;
+        return this.defaultThumbnailMaxWidth / (width / height);
+        } else {
+          return this.defaultThumbnailMaxHeight;
+        }
+      },
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
@@ -196,6 +234,33 @@
         } else {
           return false;
         }
+      },
+      imageThumbnailURL(message) {
+        if(message.content?.info?.thumbnail_url) {
+          const imageId = message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
+          return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
+        } else {
+          const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
+          return `/_matrix/media/v3/download/matrix.exo.tn/${imageId}?allow_redirect=true`
+        }
+      },
+      imageId(message) {
+        return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
+      },
+      openImagePreview(message) {
+        const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
+        const images = [{
+          id: imageId,
+          name: message.content.body,
+          filename: message.content.body,
+          size: message.content.info.size,
+          mimetype: message.content.info.mimetype,
+          updated: message.origin_server_ts,
+          alt: message.content.body,
+          thumbnailUrl: this.imageThumbnailURL(message),
+          downloadUrl: `/_matrix/media/v3/download/matrix.exo.tn/${imageId}`,
+        }];
+        this.$refs.imagePreviewDialog.open(images, imageId);
       }
     }
   }
