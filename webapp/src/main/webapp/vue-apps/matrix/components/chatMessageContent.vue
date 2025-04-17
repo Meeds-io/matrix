@@ -26,7 +26,7 @@
               'width': imageThumbnailMaxWidth + 'px',
               'cursor': 'pointer',
              }"
-    @click="openImagePreview(message)">
+    @click="isImage && openImagePreview(message)">
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
