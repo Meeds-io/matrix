@@ -223,7 +223,7 @@ export default {
       const scrollTop = messagesDOMEl.scrollTop;
       if (scrollTop < this.lastScrollTop) {
         const composerDOMEl = document.getElementById('messageComposerArea');
-        composerDOMEl.style = 'height: 40px'; // resize composer to original size == 1 line
+        composerDOMEl.style = 'height: 54px'; // resize composer to original size == 1 line
       }
       this.lastScrollTop = scrollTop >= 0 && scrollTop || 0;
       if(this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
@@ -255,7 +255,7 @@ export default {
       }
       const composerElement = e.target;
       composerElement.style.height = "auto";
-      composerElement.style.height = composerElement.scrollHeight + "px";
+      composerElement.style.height = Number(composerElement.scrollHeight + 4) + "px";
       this.disableSendMessage = composerElement.innerText?.trim() === '';
     },
     sendMessageWithEnter(event) {
