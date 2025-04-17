@@ -1,3 +1,21 @@
+<!--
+ This file is part of the Meeds project (https://meeds.io/).
+
+ Copyright (C) 2020 - 2025 Meeds Association contact@meeds.io
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 3 of the License, or (at your option) any later version.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+-->
 <template>
   <div class="chat-message-content">
     <div
@@ -32,39 +50,12 @@
             </div>
           </a>
         </div>
-        <div class="chat-message-content-body py-2 px-3"
-          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]"
-          :style="message.content.msgtype === 'm.image' && {
-                    'background-image': 'url(' + imageThumbnailURL(message) + ')',
-                    'background-size': 'contain',
-                    'height': imageThumbnailMaxHeight + 'px',
-                    'width': imageThumbnailMaxWidth + 'px',
-                    'cursor': 'pointer',
-                   }"
-          @click="openImagePreview(message)">
-          <div
-            v-if="message.content.msgtype === 'm.text'"
-            :id="`message-content-${message.event_id}`"
-            class="chat-message-content-text"
-            v-sanitized-html="formattedMessage" />
-          <div
-            v-if="message.content.msgtype === 'm.image'"
-            :id="`message-content-${message.event_id}`">
-            <attachments-image-preview-dialog
-              ref="imagePreviewDialog" />
-          </div>
-          <v-tooltip bottom>
-            <template #activator="{on, bind}">
-              <div v-on="on"
-                 v-bind="bind"
-                 v-show="displayTimestamp"
-                 class="text-font-small-size chat-message-content-timestamp">
-                {{ formattedTimestamp }}
-              </div>
-            </template>
-            <date-format :value="message.origin_server_ts" :format="dateFormat" />
-          </v-tooltip>
-        </div>
+        <meeds-chat-message-content
+          :message="message"
+          :display-sender="displaySender"
+          :class="messageContentClass"
+          :display-timestamp="displayTimestamp"
+          :timestamp="formattedTimestamp"/>
       </div>
     </div>
   </div>
@@ -112,15 +103,41 @@
         })
       });
     },
-    beforeDestroy() {
-    },
     computed: {
-      formattedMessage() {
-        let formatMessage = this.message.content.format === 'org.matrix.custom.html'
-                            && this.message.content.formatted_body
-                            || this.message.content.body.replace(/\n/g, '<br />')
-                            || '';
-        return this.$matrixService.formatMentionsInMessage(formatMessage);
+      displaySender() {
+        return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
+      },
+      messageContentClass() {
+        const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
+        let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
+        let cssSameMessageSenderOthers = 'border-bottom-left-radius-16';
+        if(this.message.sender === this.nextMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.nextMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = 'border-bottom-right-radius-0';
+          cssSameMessageSenderOthers = 'border-bottom-left-radius-0';
+        }
+        if(this.message.sender === this.previousMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = `border-top-right-radius-0 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-0 ${cssSameMessageSenderOthers}`;
+        } else {
+          cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
+        }
+        let extraClass='';
+        if(!this.room.directChat && !selfMessage) {
+          extraClass = 'ml-5 mt--4';
+        }
+        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
+      },
+      displayTimestamp() {
+        if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
+          const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
+          nextMessageDate.setSeconds(0,0);
+          const currentMessageDate = new Date(this.message.origin_server_ts);
+          currentMessageDate.setSeconds(0,0);
+          return nextMessageDate.getTime() !== currentMessageDate.getTime();
+        } else {
+          return true;
+        }
       },
       formattedTimestamp() {
         const now = new Date().getTime();
@@ -152,64 +169,8 @@
       userNameColor() {
         return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
       },
-      messageContentClass() {
-        const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
-        let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
-        let cssSameMessageSenderOthers = 'border-bottom-left-radius-16';
-        if(this.message.sender === this.nextMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.nextMessage.origin_server_ts)) {
-          cssSameMessageSenderSelf = 'border-bottom-right-radius-0';
-          cssSameMessageSenderOthers = 'border-bottom-left-radius-0';
-        }
-        if(this.message.sender === this.previousMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) {
-          cssSameMessageSenderSelf = `border-top-right-radius-0 ${cssSameMessageSenderSelf}`;
-          cssSameMessageSenderOthers = `border-top-left-radius-0 ${cssSameMessageSenderOthers}`;
-        } else {
-          cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
-          cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
-        }
-        let extraClass='';
-        if(!this.room.directChat && !selfMessage) {
-          extraClass = 'ml-5 mt--4';
-        }
-        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
-      },
-      displaySender() {
-        return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
-      },
-      displayTimestamp() {
-        if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
-          const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
-          nextMessageDate.setSeconds(0,0);
-          const currentMessageDate = new Date(this.message.origin_server_ts);
-          currentMessageDate.setSeconds(0,0);
-          return nextMessageDate.getTime() !== currentMessageDate.getTime();
-        } else {
-          return true;
-        }
-      },
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
-      },
-      imageRatio() {
-        return this.message.content.info.w / this.message.content.info.h;
-      },
-      imageThumbnailMaxWidth() {
-        if(this.message.content.info.w >= this.message.content.info.h) {
-          return this.defaultThumbnailMaxWidth;
-        } else {
-          const width = this.message.content.info.w || this.message.content.w;
-          const height = this.message.content.info.h || this.message.content.h;
-          return this.defaultThumbnailMaxHeight / (height / width);
-        }
-      },
-      imageThumbnailMaxHeight() {
-        if(this.message.content.info.w >= this.message.content.info.h) {
-        const width = this.message.content.info.w || this.message.content.w;
-        const height = this.message.content.info.h || this.message.content.h;
-        return this.defaultThumbnailMaxWidth / (width / height);
-        } else {
-          return this.defaultThumbnailMaxHeight;
-        }
       },
     },
     methods: {
@@ -235,33 +196,6 @@
           return false;
         }
       },
-      imageThumbnailURL(message) {
-        if(message.content?.info?.thumbnail_url) {
-          const imageId = message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
-          return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
-        } else {
-          const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
-          return `/_matrix/media/v3/download/matrix.exo.tn/${imageId}?allow_redirect=true`
-        }
-      },
-      imageId(message) {
-        return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
-      },
-      openImagePreview(message) {
-        const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
-        const images = [{
-          id: imageId,
-          name: message.content.body,
-          filename: message.content.body,
-          size: message.content.info.size,
-          mimetype: message.content.info.mimetype,
-          updated: message.origin_server_ts,
-          alt: message.content.body,
-          thumbnailUrl: this.imageThumbnailURL(message),
-          downloadUrl: `/_matrix/media/v3/download/matrix.exo.tn/${imageId}`,
-        }];
-        this.$refs.imagePreviewDialog.open(images, imageId);
-      }
     }
   }
 </script>
