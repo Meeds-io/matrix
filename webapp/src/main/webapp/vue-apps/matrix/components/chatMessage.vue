@@ -105,7 +105,10 @@
     },
     computed: {
       displaySender() {
-        return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
+        return this.previousMessage.sender !== this.message.sender
+               && this.message.sender !== localStorage.getItem('matrix_user_id')
+               && !this.room.directChat
+               || !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts);
       },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;

@@ -30,11 +30,14 @@
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
+      :key="message.event_id"
       class="chat-message-content-text"
-      v-sanitized-html="formattedMessage" />
+      v-sanitized-html="formattedMessage" >
+    </div>
     <div
       v-if="isImage"
-      :id="`message-content-${message.event_id}`">
+      :id="`message-content-${message.event_id}`"
+      :key="message.event_id">
       <attachments-image-preview-dialog
         ref="imagePreviewDialog" />
     </div>
@@ -44,7 +47,7 @@
            v-bind="bind"
            v-show="displayTimestamp"
            class="text-font-small-size chat-message-content-timestamp">
-             <v-chip v-if="isImage" x-small class="text-font-extra-small-size pa-1">
+             <v-chip v-if="isImage" x-small class="text-font-small-size pa-1 chat-message-timestamp-chip">
                {{ timestamp }}
              </v-chip>
              <div v-else>
@@ -129,7 +132,7 @@
           return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
         } else {
           const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
-          return `/_matrix/media/v3/download/matrix.exo.tn/${imageId}?allow_redirect=true`
+          return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`
         }
       },
       imageId(message) {
@@ -146,7 +149,7 @@
           updated: message.origin_server_ts,
           alt: message.content.body,
           thumbnailUrl: this.imageThumbnailURL(message),
-          downloadUrl: `/_matrix/media/v3/download/matrix.exo.tn/${imageId}`,
+          downloadUrl: `/_matrix/media/v3/download/${matrixServerName}/${imageId}`,
         }];
         this.$refs.imagePreviewDialog.open(images, imageId);
       }
