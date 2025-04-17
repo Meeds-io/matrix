@@ -4,6 +4,7 @@ import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MeedsChatMessage from './components/chatMessage.vue';
+import MeedsChatMessageContent from './components/chatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
@@ -19,6 +20,7 @@ const components = {
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
   'meeds-chat-message': MeedsChatMessage,
+  'meeds-chat-message-content': MeedsChatMessageContent,
   'meeds-popover-chat-button': PopoverChatButton,
   'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,

@@ -1,3 +1,21 @@
+<!--
+ This file is part of the Meeds project (https://meeds.io/).
+
+ Copyright (C) 2020 - 2025 Meeds Association contact@meeds.io
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 3 of the License, or (at your option) any later version.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+-->
 <template>
   <div class="chat-message-content">
     <div
@@ -32,24 +50,12 @@
             </div>
           </a>
         </div>
-        <div class="chat-message-content-body py-2 px-3"
-          :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]">
-          <div
-            :id="`message-content-${message.event_id}`"
-            class="chat-message-content-text"
-            v-sanitized-html="formattedMessage" />
-          <v-tooltip bottom>
-            <template #activator="{on, bind}">
-              <div v-on="on"
-                 v-bind="bind"
-                 v-show="displayTimestamp"
-                 class="text-font-small-size chat-message-content-timestamp">
-                {{ formattedTimestamp }}
-              </div>
-            </template>
-            <date-format :value="message.origin_server_ts" :format="dateFormat" />
-          </v-tooltip>
-        </div>
+        <meeds-chat-message-content
+          :message="message"
+          :display-sender="displaySender"
+          :class="messageContentClass"
+          :display-timestamp="displayTimestamp"
+          :timestamp="formattedTimestamp"/>
       </div>
     </div>
   </div>
@@ -85,6 +91,8 @@
           hour: 'numeric',
           minute: 'numeric',
         },
+        defaultThumbnailMaxWidth: 345,
+        defaultThumbnailMaxHeight: 275,
       };
     },
     created() {
@@ -94,8 +102,6 @@
           this.presenceClass = `matrix-status-${status}`;
         })
       });
-    },
-    beforeDestroy() {
     },
     computed: {
       formattedMessage() {
@@ -173,41 +179,6 @@
       userNameColor() {
         return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
       },
-      messageContentClass() {
-        const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
-        let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
-        let cssSameMessageSenderOthers = 'border-bottom-left-radius-16';
-        if(this.message.sender === this.nextMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.nextMessage.origin_server_ts)) {
-          cssSameMessageSenderSelf = 'border-bottom-right-radius-0';
-          cssSameMessageSenderOthers = 'border-bottom-left-radius-0';
-        }
-        if(this.message.sender === this.previousMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) {
-          cssSameMessageSenderSelf = `border-top-right-radius-0 ${cssSameMessageSenderSelf}`;
-          cssSameMessageSenderOthers = `border-top-left-radius-0 ${cssSameMessageSenderOthers}`;
-        } else {
-          cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
-          cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
-        }
-        let extraClass='';
-        if(!this.room.directChat && !selfMessage) {
-          extraClass = 'ml-5 mt--4';
-        }
-        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
-      },
-      displaySender() {
-        return this.previousMessage.sender !== this.message.sender && this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat;
-      },
-      displayTimestamp() {
-        if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
-          const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
-          nextMessageDate.setSeconds(0,0);
-          const currentMessageDate = new Date(this.message.origin_server_ts);
-          currentMessageDate.setSeconds(0,0);
-          return nextMessageDate.getTime() !== currentMessageDate.getTime();
-        } else {
-          return true;
-        }
-      },
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
@@ -234,7 +205,7 @@
         } else {
           return false;
         }
-      }
+      },
     }
   }
 </script>
