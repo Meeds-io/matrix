@@ -103,23 +103,31 @@
         return this.$matrixService.formatMentionsInMessage(formatMessage);
       },
       imageThumbnailMaxWidth() {
-        if (this.message.content.info.w < this.defaultThumbnailMaxWidth){
-          return this.message.content.info.w;
+        const width = this.message.content.info.w || this.message.content.w;
+        const height = this.message.content.info.h || this.message.content.h;
+        if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
+          if (this.message.content.info.h < this.defaultThumbnailMaxHeight) {
+            return this.message.content.info.w;
+          } else {
+            return this.defaultThumbnailMaxHeight / (height / width);
+          }
         } else if (this.message.content.info.w >= this.message.content.info.h) {
           return this.defaultThumbnailMaxWidth;
         } else {
-          const width = this.message.content.info.w || this.message.content.w;
-          const height = this.message.content.info.h || this.message.content.h;
           return this.defaultThumbnailMaxHeight / (height / width);
         }
       },
       imageThumbnailMaxHeight() {
-        if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
-          return this.message.content.info.h;
-        } else if (this.message.content.info.w >= this.message.content.info.h) {
         const width = this.message.content.info.w || this.message.content.w;
         const height = this.message.content.info.h || this.message.content.h;
-        return this.defaultThumbnailMaxWidth / (width / height);
+        if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
+          if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
+            return this.message.content.info.h;
+          } else {
+            return this.defaultThumbnailMaxWidth / (width / height);
+          }
+        } else if (this.message.content.info.w >= this.message.content.info.h) {
+          return this.defaultThumbnailMaxWidth / (width / height);
         } else {
           return this.defaultThumbnailMaxHeight;
         }
