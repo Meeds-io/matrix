@@ -213,9 +213,10 @@ export function processEvents(response) {
         //message received in a room
         if(e.type === 'm.room.message') {
           if(e.content.msgtype === 'm.text' || e.content.msgtype === 'm.image') {
-            const messageContent = e.content.format === 'org.matrix.custom.html' && e.content.formatted_body || e.content.body;
-            const messageText = e.content.format === 'org.matrix.custom.html' && formatMentionsInRoomList(e.content.formatted_body) || e.content.body;
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: messageContent, messageText: messageText, origin_server_ts: e.origin_server_ts, event_id : e.event_id}}));
+            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {
+                                                                                  roomId: roomId,
+                                                                                  message: e,
+                                                                              }}));
           }
         } // Joined a new room
         else if(e.type === 'm.room.member') {
