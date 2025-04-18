@@ -199,7 +199,7 @@ export default {
     },
     messageReceived(event) {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
-        const receivedMessage = {sender: event.detail.sender, content:{body: this.$matrixService.formatMentionsInMessage(event.detail.message)},origin_server_ts: event.detail.origin_server_ts};
+        const receivedMessage = event.detail.message;
         this.messages.push(receivedMessage);
         setTimeout( () => {
           this.scrollToEnd();
