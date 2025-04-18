@@ -140,21 +140,23 @@
         const updatedRoom = this.rooms[updatedRoomIndex];
         if(updatedRoom) {
           updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
-          if(matrixUserId !== event.detail.sender) {
+          const receivedMessage = event.detail.message;
+          if(matrixUserId !== receivedMessage.sender) {
             this.totalUnreadMessages ++;
             updatedRoom.unreadMessages += 1;
           }
           this.rooms.splice(updatedRoomIndex, 1);
           this.rooms.unshift(updatedRoom);
-          updatedRoom.updated = event.detail.origin_server_ts;
-          if(event.detail.sender === localStorage.getItem('matrix_user_id')) {
+          updatedRoom.updated = receivedMessage.origin_server_ts;
+          const messageText = receivedMessage.content.format === 'org.matrix.custom.html' && this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body) || receivedMessage.content.body;
+          if(receivedMessage.sender === localStorage.getItem('matrix_user_id')) {
             updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                              this.$t('matrix.words.you')).replace('{1}', event.detail.messageText);
+                                              this.$t('matrix.words.you')).replace('{1}', messageText);
           } else {
-            const senderMatrixId = event.detail.sender.substr(1, event.detail.sender.indexOf(":") - 1);
+            const senderMatrixId = receivedMessage.sender.substr(1, receivedMessage.sender.indexOf(":") - 1);
             this.$matrixService.getUserByMatrixId(senderMatrixId).then(senderIdentity => {
               updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                                senderIdentity.profile.fullname).replace('{1}', event.detail.messageText);
+                                                senderIdentity.profile.fullname).replace('{1}', messageText);
             });
           }
         }
