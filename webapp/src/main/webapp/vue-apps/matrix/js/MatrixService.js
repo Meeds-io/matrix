@@ -212,7 +212,7 @@ export function processEvents(response) {
       roomEvents.forEach(e => {
         //message received in a room
         if(e.type === 'm.room.message') {
-          if(e.content.msgtype === 'm.text') {
+          if(e.content.msgtype === 'm.text' || e.content.msgtype === 'm.image') {
             document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {
                                                                                   roomId: roomId,
                                                                                   message: e,
