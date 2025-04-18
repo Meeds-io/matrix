@@ -104,6 +104,44 @@
                             || this.message.content.body.replace(/\n/g, '<br />')
                             || '';
         return this.$matrixService.formatMentionsInMessage(formatMessage);
+      },  
+      displaySender() {
+        return (this.previousMessage.sender !== this.message.sender
+               || !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts))
+               && this.message.sender !== localStorage.getItem('matrix_user_id')
+               && !this.room.directChat;
+      },
+      messageContentClass() {
+        const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
+        let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
+        let cssSameMessageSenderOthers = 'border-bottom-left-radius-16';
+        if(this.message.sender === this.nextMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.nextMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = 'border-bottom-right-radius-0';
+          cssSameMessageSenderOthers = 'border-bottom-left-radius-0';
+        }
+        if(this.message.sender === this.previousMessage.sender && this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) {
+          cssSameMessageSenderSelf = `border-top-right-radius-0 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-0 ${cssSameMessageSenderOthers}`;
+        } else {
+          cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
+          cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
+        }
+        let extraClass='';
+        if(!this.room.directChat && !selfMessage) {
+          extraClass = 'ml-5 mt--4';
+        }
+        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
+      },
+      displayTimestamp() {
+        if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
+          const nextMessageDate = new Date(this.nextMessage.origin_server_ts);
+          nextMessageDate.setSeconds(0,0);
+          const currentMessageDate = new Date(this.message.origin_server_ts);
+          currentMessageDate.setSeconds(0,0);
+          return nextMessageDate.getTime() !== currentMessageDate.getTime();
+        } else {
+          return true;
+        }
       },
       formattedTimestamp() {
         const now = new Date().getTime();
