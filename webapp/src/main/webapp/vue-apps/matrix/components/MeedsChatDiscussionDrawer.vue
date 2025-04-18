@@ -64,7 +64,7 @@
           <meeds-chat-message
             :id="'chat-message-' + i"
             :ref="'message' + i"
-            :key="i"
+            :key="message.event_id"
             v-for="(message, i) in messages"
             :message="message"
             :previous-message="i > 0 && messages[i-1]"
