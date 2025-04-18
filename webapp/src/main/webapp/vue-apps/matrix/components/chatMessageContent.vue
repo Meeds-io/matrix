@@ -56,7 +56,6 @@
         </div>
       </template>
         <date-format
-          :class=""
           :value="message.origin_server_ts"
           :format="dateFormat" />
     </v-tooltip>
@@ -85,8 +84,8 @@
     },
     data() {
       return {
-        defaultThumbnailMaxWidth: 345,
-        defaultThumbnailMaxHeight: 275,
+        defaultThumbnailMaxWidth: 250,
+        defaultThumbnailMaxHeight: 250,
       };
     },
     computed: {
@@ -104,7 +103,9 @@
         return this.$matrixService.formatMentionsInMessage(formatMessage);
       },
       imageThumbnailMaxWidth() {
-        if(this.message.content.info.w >= this.message.content.info.h) {
+        if (this.message.content.info.w < this.defaultThumbnailMaxWidth){
+          return this.message.content.info.w;
+        } else if (this.message.content.info.w >= this.message.content.info.h) {
           return this.defaultThumbnailMaxWidth;
         } else {
           const width = this.message.content.info.w || this.message.content.w;
@@ -113,7 +114,9 @@
         }
       },
       imageThumbnailMaxHeight() {
-        if(this.message.content.info.w >= this.message.content.info.h) {
+        if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
+          return this.message.content.info.h;
+        } else if (this.message.content.info.w >= this.message.content.info.h) {
         const width = this.message.content.info.w || this.message.content.w;
         const height = this.message.content.info.h || this.message.content.h;
         return this.defaultThumbnailMaxWidth / (width / height);
