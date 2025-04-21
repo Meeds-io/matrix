@@ -38,8 +38,6 @@
       v-if="isImage"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id">
-      <attachments-image-preview-dialog
-        ref="imagePreviewDialog" />
     </div>
     <v-tooltip bottom>
       <template #activator="{on, bind}">
@@ -162,7 +160,7 @@
           thumbnailUrl: this.imageThumbnailURL(message),
           downloadUrl: `/_matrix/media/v3/download/${matrixServerName}/${imageId}`,
         }];
-        this.$refs.imagePreviewDialog.open(images, imageId);
+        document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
       }
     }
   }
