@@ -146,18 +146,10 @@ export default {
       return `( ${this.$t('matrix.chat.user.external')} )`;
     },
   },
-
   created() {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
-  },
-
-  mounted() {
-
-  },
-  updated() {
-
   },
   watch:{
     room() {
@@ -173,7 +165,9 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
-      this.$refs.ChatDiscussionDrawer?.open();
+      if(!this.$refs.ChatDiscussionDrawer?.drawer) {
+        this.$refs.ChatDiscussionDrawer?.open();
+      }
       this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
         if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
           this.hasMoreMessages = false;
@@ -196,6 +190,7 @@ export default {
       this.$refs.ChatDiscussionDrawer?.close();
       this.initializedActions = [];
       this.roomActionComponents = [];
+      this.lastScrollTop = 0;
     },
     messageReceived(event) {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {

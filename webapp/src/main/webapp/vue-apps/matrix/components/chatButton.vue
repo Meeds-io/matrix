@@ -134,6 +134,7 @@
       openDrawer() {
         this.$root.initialized = false;
         this.open = true;
+        this.$refs.meedsChatDrawer?.open();
       },
       messageReceived(event) {
         const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
