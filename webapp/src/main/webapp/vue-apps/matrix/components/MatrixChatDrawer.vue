@@ -1,10 +1,11 @@
 <template>
   <exo-drawer
     ref="meedsChatDrawer"
+    id="meedsChatDrawer"
     :loading="loading > 0"
     class="meeds-chat-drawer"
     right
-    @closed="$emit('closed')">
+    @closed="close">
     <template slot="title">
       <div class="d-flex">
         <div
@@ -81,9 +82,12 @@ export default {
   },
   methods: {
     open() {
-      this.$refs.meedsChatDrawer.open();
+    if(!this.$refs.meedsChatDrawer.drawer) {
+        this.$refs.meedsChatDrawer.open();
+      }
     },
     close() {
+      this.$refs.ChatDiscussionDrawer.close();
       this.$refs.meedsChatDrawer.close();
     },
     incrementLoading() {
