@@ -159,7 +159,7 @@ export default {
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
-    this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
+    this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
   },
   methods: {
     openDiscussion(e) {
@@ -186,7 +186,9 @@ export default {
       this.messages = null;
       this.hasMoreMessages = true;
       this.disableSendMessage = true;
-      this.$refs.messageComposerArea.innerHTML = '';
+      if(this.$refs.messageComposerArea) {
+        this.$refs.messageComposerArea.innerHTML = '';
+      }
       this.$refs.ChatDiscussionDrawer?.close();
       this.initializedActions = [];
       this.roomActionComponents = [];
@@ -196,7 +198,7 @@ export default {
       if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
         const receivedMessage = event.detail.message;
         this.messages.push(receivedMessage);
-        setTimeout( () => {
+        setTimeout(() => {
           this.scrollToEnd();
         }, 50);
       }
@@ -226,7 +228,7 @@ export default {
       }
       this.loadingNewMessages = true;
       const lastMessageId = this.messages[0].event_id;
-      setTimeout( () => {
+      setTimeout(() => {
         this.$matrixService.loadRoomMessages(this.room.id, this.to).then(resp => {
           // check if there is no more messages
           if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
@@ -277,7 +279,7 @@ export default {
           this.mentionsArray.indexOf(userId) === -1 && this.mentionsArray.push(userId);
           });
       if(this.mentionsArray && this.mentionsArray.length) {
-        const regexForMentions = /<span class=\"atwho-inserted\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*data-user-id=\"([^\"]+)\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*data-user-name=\"([^\"]+)\"[a-z A-Z 0-9 =\"\-@<>:;\/#\.\(\)]*<\/span>/g;
+        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;\/#.()]*<\/span>/gu;
         const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(regexForMentions, '<a href=\"https://matrix.to/#/@$1:' + matrixServerName + '\">$2</a>');
         message.format="org.matrix.custom.html";
         message.formatted_body=messageHTML;
