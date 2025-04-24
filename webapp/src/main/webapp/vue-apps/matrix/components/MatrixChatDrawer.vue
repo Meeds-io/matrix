@@ -2,7 +2,7 @@
   <exo-drawer
     ref="meedsChatDrawer"
     id="meedsChatDrawer"
-    :loading="loading > 0"
+    :loading="loading"
     class="meeds-chat-drawer"
     right
     @closed="close">
@@ -24,7 +24,7 @@
         mdi-plus
       </v-icon>
     </template>
-    <template #content>
+    <template slot="content">
       <div
         :class="expanded && 'pa-4'"
         class="d-flex fill-height">
@@ -42,12 +42,11 @@ export default {
   props: {
     rooms: {
       type: Array,
-      default: function() { return [];}
+      default: null
     }
   },
   data: () =>({
-    loading: 0,
-    presence: 'online'
+    presence: 'online',
   }),
   computed: {
     avatarUrl() {
@@ -58,43 +57,40 @@ export default {
     }
   },
   watch: {
-    loading() {
-      if (this.loading === 0) {
-        this.$nextTick().then(() => {
-          this.$root.initialized = true;
-          this.$root.$emit('chat-drawer-initialized');
-        });
-      }
-    },
     expanded() {
       console.log(`drawer is expanded ${expanded}`);
     },
+    rooms() {
+      if(this.rooms && this.rooms.length) {
+        this.$refs.meedsChatDrawer.endLoading();
+      }
+    },
   },
   created() {
-    this.$root.$on('chat-loading-start', this.incrementLoading);
-    this.$root.$on('chat-loading-end', this.decrementLoading);
     document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
+    document.addEventListener('chat-rooms-loading', () => this.$refs.meedsChatDrawer.startLoading());
+    document.addEventListener('chat-rooms-loaded', () => this.$refs.meedsChatDrawer.endLoading());
+  },
+  mounted() {
+    this.$refs.meedsChatDrawer.startLoading();
   },
   beforeDestroy() {
-    this.$root.$off('chat-loading-start', this.incrementLoading);
-    this.$root.$off('chat-loading-end', this.decrementLoading);
     document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
+    document.addEventListener('chat-rooms-loading', () => this.$refs.meedsChatDrawer.startLoading());
+    document.removeEventListener('chat-rooms-loaded', () => this.$refs.meedsChatDrawer.endLoading());
   },
   methods: {
     open() {
-    if(!this.$refs.meedsChatDrawer.drawer) {
+      if(!this.$refs.meedsChatDrawer.drawer) {
         this.$refs.meedsChatDrawer.open();
+      }
+      if(this.rooms && this.rooms.length) {
+        this.$refs.meedsChatDrawer.endLoading();
       }
     },
     close() {
       this.$refs.ChatDiscussionDrawer.close();
       this.$refs.meedsChatDrawer.close();
-    },
-    incrementLoading() {
-      this.loading++;
-    },
-    decrementLoading() {
-      this.loading--;
     },
     userStatusUpdated(event) {
       if(localStorage.getItem('matrix_user_id') === event.detail.userId) {

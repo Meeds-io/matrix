@@ -56,7 +56,7 @@
       presence: 'online',
       open: false,
       totalUnreadMessages: 0,
-      rooms: []
+      rooms: null
     }),
     created() {
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
@@ -104,7 +104,6 @@
       }
 
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
-      document.addEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
@@ -112,7 +111,6 @@
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
-      document.removeEventListener('chat-load-chat-rooms',e => this.loadRooms());
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
@@ -132,7 +130,6 @@
     },
     methods: {
       openDrawer() {
-        this.$root.initialized = false;
         this.open = true;
         this.$refs.meedsChatDrawer?.open();
       },
@@ -181,14 +178,18 @@
         }
       },
       loadRooms() {
+        document.dispatchEvent(new CustomEvent('chat-rooms-loading'));
         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
           this.rooms = matrixRoomsObject.rooms || [];
-          this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages)
+          this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
+        })
+        .finally(() => {
+          document.dispatchEvent(new CustomEvent('chat-rooms-loaded'));
         });
       },
       openRoom(roomId) {
         this.openDrawer();
-        setTimeout( () => {
+        setTimeout(() => {
           this.$root.$emit("open-chat-discussion", roomId);
         }, 100);
       }
