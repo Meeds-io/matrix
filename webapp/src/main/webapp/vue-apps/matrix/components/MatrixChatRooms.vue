@@ -7,7 +7,7 @@
         :id="'room-'+i"
         :room="room" />
     </div>
-    <div v-else class="d-flex full-height disabled-background align-center justify-center full-width">
+    <div v-else-if="rooms?.length === 0" class="d-flex full-height disabled-background align-center justify-center full-width">
       <div class="noRoomsContent">
         <v-icon class="mx-auto disabled--text mb-3" size="100">fas fa-comments</v-icon>
         <p class="text-subtitle">{{ $t('matrix.chat.no.rooms') }}</p>
