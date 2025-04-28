@@ -183,8 +183,6 @@
     }
 
     .chat-message-content-body {
-      max-width: 344px;
-      min-width: 100px;
       width:fit-content;
       display: flex;
       flex-direction: column;
@@ -222,4 +220,24 @@
     width: 100%;
     overflow-y: auto !important;
   }
+  .message-container {
+    max-width: 344px;
+    min-width: 100px;
+  }
+
+  .message-reactions {
+    margin-top: -4px;
+    position: sticky;
+  }
+  .message-reaction-item {
+    border-radius: 16px;
+    background: #F0F0F0 0% 0% no-repeat padding-box;
+  }
+  .current-user-reaction {
+    border: 2px solid #476A9C;
+  }
+  .other-user-reaction {
+    border: 2px solid #FFF;
+  }
 }
+
