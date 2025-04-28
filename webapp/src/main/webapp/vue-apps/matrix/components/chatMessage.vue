@@ -50,12 +50,25 @@
             </div>
           </a>
         </div>
-        <meeds-chat-message-content
-          :message="message"
-          :display-sender="displaySender"
-          :class="messageContentClass"
-          :display-timestamp="displayTimestamp"
-          :timestamp="formattedTimestamp"/>
+        <div
+          class="message-container"
+          :class="{'ml-5 mt--4 position-relative': !isMyMessage && !room.directChat, 'float-right': isMyMessage, 'float-left': !isMyMessage}">
+          <meeds-chat-message-content
+            :message="message"
+            :display-sender="displaySender"
+            :class="messageContentClass"
+            :display-timestamp="displayTimestamp"
+            :timestamp="formattedTimestamp" />
+          <div
+            class="message-reactions d-flex flex-wrap"
+            :class="{'justify-end': isMyMessage}">
+            <div
+              v-for="reaction in message.reactions"
+              class="message-reaction-item px-2 mb-2 mx-1"
+              :class="{'current-user-reaction': isCurrentUserReaction(reaction), 'other-user-reaction': !isCurrentUserReaction(reaction)}"
+              v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -102,6 +115,10 @@
           this.presenceClass = `matrix-status-${status}`;
         })
       });
+      document.addEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
+    },
+    beforeDestroy() {
+      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     },
     computed: {
       formattedMessage() {
@@ -116,6 +133,9 @@
                || !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts))
                && this.message.sender !== localStorage.getItem('matrix_user_id')
                && !this.room.directChat;
+      },
+      isMyMessage() {
+        return localStorage.getItem('matrix_user_id') === this.message.sender;
       },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
@@ -132,11 +152,7 @@
           cssSameMessageSenderSelf = `border-top-right-radius-16 ${cssSameMessageSenderSelf}`;
           cssSameMessageSenderOthers = `border-top-left-radius-16 ${cssSameMessageSenderOthers}`;
         }
-        let extraClass='';
-        if(!this.room.directChat && !selfMessage) {
-          extraClass = 'ml-5 mt--4';
-        }
-        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf} ${extraClass}`: `chat-message-from-others ${cssSameMessageSenderOthers} ${extraClass}`;
+        return selfMessage ? `chat-message-from-self ${cssSameMessageSenderSelf}`: `chat-message-from-others ${cssSameMessageSenderOthers}`;
       },
       displayTimestamp() {
         if(this.nextMessage && this.message.sender === this.nextMessage.sender) {
@@ -206,6 +222,17 @@
           return false;
         }
       },
+      reactionAdded(event) {
+        if(this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
+          this.message = this.$matrixService.processMessageReaction(this.message, event.detail.message);
+        }
+      },
+      isCurrentUserReaction(reaction) {
+        return reaction.userIds.includes(this.currentUserId());
+      },
+      currentUserId() {
+        return localStorage.getItem('matrix_user_id');
+      }
     }
   }
 </script>
