@@ -120,7 +120,8 @@ export default {
       roomActionComponents: [],
       initializedActions: [],
       mentionsArray: [],
-      mentioningInProgress: false
+      mentioningInProgress: false,
+      leftReactions: []
     };
   },
   computed: {
@@ -158,6 +159,7 @@ export default {
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
   },
@@ -174,7 +176,9 @@ export default {
         }
         this.from = resp.start;
         this.to = resp.end;
-        this.messages = resp.chunk.reverse();
+        const processedMessages = this.$matrixService.processMessages(resp.chunk.reverse());
+        this.messages = processedMessages.messages;
+        this.leftReactions = processedMessages.leftReactions;
         this.$nextTick().then(() => {
           this.scrollToEnd();
           this.loading = false;
@@ -234,7 +238,10 @@ export default {
           if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
             this.hasMoreMessages = false;
           }
-          this.messages = [...resp.chunk.reverse(), ...this.messages];
+          const messagesToProcess = [...resp.chunk.reverse(), ...this.leftReactions];
+          const processedMessages = this.$matrixService.processMessages(messagesToProcess);
+          this.messages = [...processedMessages.messages, ...this.messages];
+          this.leftReactions = processedMessages.leftReactions;
           this.from = resp.start;
           this.to = resp.end;
         }).finally(() => {
@@ -256,7 +263,9 @@ export default {
       this.disableSendMessage = composerElement.innerText?.trim() === '';
     },
     sendMessageWithEnter(event) {
-      const isMobile = this.$vuetify.breakpoint.name === 'sm' || this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'md';
+      const isMobile = this.$vuetify.breakpoint.name === 'sm'
+                       || this.$vuetify.breakpoint.name === 'xs'
+                       || this.$vuetify.breakpoint.name === 'md';
       if (event && event.keyCode === this.$chatConstants.ENTER_CODE_KEY && !this.mentioningInProgress) {
         if (event.ctrlKey || event.altKey || event.shiftKey || isMobile) {
           this.insertNewLineAtCursor();
