@@ -18,7 +18,7 @@
 -->
 <template>
   <div class="chat-message-content-body py-2 px-3"
-    :class="[messageContentClass, {'mt--4':displaySender}, {'mt-0-5':!displaySender}]"
+    :class="[messageContentClass, {'mt-0-5':!displaySender}]"
     :style="isImage && {
               'background-image': 'url(' + imageThumbnailURL(message) + ')',
               'background-size': 'contain',

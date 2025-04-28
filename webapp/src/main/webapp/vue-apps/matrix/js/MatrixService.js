@@ -218,6 +218,12 @@ export function processEvents(response) {
                                                                                   message: e,
                                                                               }}));
           }
+        }//message received in a room
+        if(e.type === 'm.reaction') {
+          document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
+                                                                                      roomId: roomId,
+                                                                                      message: e,
+                                                                                  }}));
         } // Joined a new room
         else if(e.type === 'm.room.member') {
           if(e.content.membership === 'join') {
@@ -613,7 +619,7 @@ export function getUserByMatrixId(userIdOnMatrix) {
 }
 
 export async function loadRoomMessages(roomId, from, to) {
-  const filter = {types:['m.room.message'],};
+  const filter = {'lazy_load_members': true};
   const formData = new FormData();
   formData.append('limit', chatConstants.MESSAGES_LOAD_LIMIT);
   if(from) {
@@ -794,4 +800,39 @@ export function formatMentionsInMessage(message) {
 export function formatMentionsInRoomList(message) {
   return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
                       .replace(/\n/g, '<br />') || '';
+}
+
+export function processMessages(messageItems) {
+  const messagesMap = new Map();
+  const leftReactions = [];
+  messageItems.forEach(item => {
+    if(item.type === 'm.room.message') {
+      item.reactions = item.reactions || [];
+      messagesMap.set(item.event_id, item);
+    } else if(item.type === 'm.reaction') {
+      let reactionItem = item.content['m.relates_to']?.rel_type === 'm.annotation' && item.content['m.relates_to'];
+      let messageReactedTo = messagesMap.get(reactionItem.event_id);
+      if(messageReactedTo && reactionItem) {
+        messagesMap[reactionItem.event_id] = processMessageReaction(messageReactedTo, item);
+      } else {
+        leftReactions.push(item);
+      }
+    }
+  });
+  return {'messages' : Array.from(messagesMap.values()), 'leftReactions': leftReactions};
+}
+
+export function processMessageReaction(messageReactedTo, reactionItem) {
+  if(!messageReactedTo.reactions) {
+    messageReactedTo.reactions = [];
+  }
+  if(!messageReactedTo.reactionsMap) {
+    messageReactedTo.reactionsMap = new Map();
+  }
+  const key = reactionItem.content['m.relates_to'].key;
+  let reactionUsers = messageReactedTo.reactionsMap.get(key) && messageReactedTo.reactionsMap.get(key).userIds || [];
+  reactionUsers.push(reactionItem.user_id);
+  messageReactedTo.reactionsMap.set(key, {'key':key, 'userIds': reactionUsers});
+  messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
+  return messageReactedTo;
 }
