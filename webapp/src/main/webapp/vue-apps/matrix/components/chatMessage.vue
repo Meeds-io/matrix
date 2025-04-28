@@ -199,6 +199,9 @@
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
+      currentUserId() {
+        return localStorage.getItem('matrix_user_id');
+      }
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
