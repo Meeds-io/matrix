@@ -170,7 +170,7 @@
       userStatusUpdated(event) {
         if(event.detail.userId === localStorage.getItem('matrix_user_id')) {
           this.presence = event.detail.presence;
-        } else {
+        } else if(this.rooms) {
           const updatedUserStatusIndex = this.rooms.findIndex(room => room.dmMemberId === event.detail.userId);
           if(updatedUserStatusIndex >= 0) {
             this.rooms[updatedUserStatusIndex].presence = event.detail.presence;

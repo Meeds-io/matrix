@@ -17,7 +17,7 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content">
+  <div class="chat-message-content mb-1">
     <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -56,7 +56,7 @@
           <meeds-chat-message-content
             :message="message"
             :display-sender="displaySender"
-            :class="messageContentClass"
+            :css-class="messageContentClass"
             :display-timestamp="displayTimestamp"
             :next-message="nextMessage"
             :is-self-message="isSelfMessage"

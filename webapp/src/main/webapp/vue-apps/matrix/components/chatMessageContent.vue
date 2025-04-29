@@ -18,7 +18,7 @@
 -->
 <template>
   <div class="chat-message-content-body py-2 px-3"
-    :class="[messageContentClass, {'mt-0-5':!displaySender}]"
+    :class="[cssClass, {'mt-0-5':!displaySender}]"
     :style="isImage && {
               'background-image': 'url(' + imageThumbnailURL(message) + ')',
               'background-size': 'contain',
@@ -37,7 +37,28 @@
     <div
       v-if="isImage"
       :id="`message-content-${message.event_id}`"
+      :key="message.event_id" />
+    <div
+      v-if="isFile"
+      :id="`message-content-${message.event_id}`"
       :key="message.event_id">
+      <a
+        :href="fileDownloadLink"
+        :alt="message.content.body"
+        class="d-flex text-decoration-none"
+        download>
+        <div class="size-7 white rounded-circle d-flex justify-center me-3">
+          <v-icon
+            :size="16"
+            :color="fileIcon.color">
+            {{ fileIcon.class }}
+          </v-icon>
+        </div>
+        <div
+          class="message-file-name text-truncate">
+          {{ message.content.body }}
+        </div>
+      </a>
     </div>
     <audio-message
       v-if="isAudio"
@@ -116,6 +137,10 @@
       isSelfMessage: {
         type: Boolean,
         default: false
+      },
+      cssClass: {
+        type: String,
+        default: ''
       }
     },
     data() {
@@ -131,6 +156,11 @@
         },
       };
     },
+    created() {
+      if(this.message.content.msgtype === 'm.file') {
+        this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
+      }
+    },
     computed: {
       isImage() {
         return this.message.content.msgtype === 'm.image';
@@ -140,6 +170,13 @@
       },
       isAudio() {
         return this.message.content.msgtype === 'm.audio';
+      },  
+      isFile() {
+        return this.message.content.msgtype === 'm.file';
+      },
+      fileDownloadLink() {
+        const url = this.message.content.url.replace('mxc://', '');
+        return `/_matrix/media/v3/download/${url}`;
       },
       formattedMessage() {
         let formatMessage = this.message.content.format === 'org.matrix.custom.html'
@@ -209,6 +246,14 @@
           downloadUrl: `/_matrix/media/v3/download/${matrixServerName}/${imageId}`,
         }];
         document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
+      },
+      getFileIcon(mimeType) {
+        const extensions = Vue.prototype.$filesIconsExtension;
+        let extension = extensions[0].get(mimeType);
+        if (!extension) {
+          extension = extensions[0].get('file');
+        }
+        return extension;
       }
     }
   }
