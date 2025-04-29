@@ -127,6 +127,9 @@ export default {
 
         if (this.isEnded) {
           audio.currentTime = 0;
+          this.currentTime = 0;
+        } else if (!this.currentTime && !this.isPlaying) {
+          this.currentTime = 0;
         }
 
         this.$root.$emit('pause-play-audio-message', this.message);
@@ -163,12 +166,12 @@ export default {
     },
     updateTime() {
       const audio = this.$refs.audio;
-      this.currentTime = audio.currentTime + 1;
+      this.currentTime = audio.currentTime;
     },
     startTimer() {
       this.timerInterval = setInterval(() => {
         this.updateTime();
-      }, 1000);
+      }, 200);
     },
     stopTimer() {
       clearInterval(this.timerInterval);
@@ -187,7 +190,7 @@ export default {
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
 
-      canvas.width = 130;
+      canvas.width = 250;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
@@ -207,7 +210,7 @@ export default {
       const audio = this.$refs.audio;
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
-      canvas.width = 130;
+      canvas.width = 250;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
