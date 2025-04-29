@@ -8,6 +8,8 @@ import MeedsChatMessageContent from './components/chatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
+import AudioMessage from './components/AudioMessage.vue';
+
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import {chatConstants} from './js/Constants.js';
@@ -24,6 +26,7 @@ const components = {
   'meeds-popover-chat-button': PopoverChatButton,
   'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
+  'audio-message': AudioMessage
 };
 
 for (const key in components) {
