@@ -58,6 +58,7 @@
             :display-sender="displaySender"
             :class="messageContentClass"
             :display-timestamp="displayTimestamp"
+            :next-message="nextMessage"
             :timestamp="formattedTimestamp" />
           <div
             class="message-reactions d-flex flex-wrap"

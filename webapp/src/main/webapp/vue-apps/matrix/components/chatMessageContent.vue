@@ -39,6 +39,10 @@
       :id="`message-content-${message.event_id}`"
       :key="message.event_id">
     </div>
+    <audio-message
+      v-if="isAudio"
+      :message="message"
+      :next-message="nextMessage" />
     <v-tooltip bottom>
       <template #activator="{on, bind}">
         <div v-on="on"
@@ -79,6 +83,10 @@
         type: String,
         default: false
       },
+      nextMessage: {
+        type: Object,
+        default: null
+      }
     },
     data() {
       return {
@@ -92,6 +100,9 @@
       },
       isText() {
         return this.message.content.msgtype === 'm.text';
+      },
+      isAudio() {
+        return this.message.content.msgtype === 'm.audio';
       },
       formattedMessage() {
         let formatMessage = this.message.content.format === 'org.matrix.custom.html'
