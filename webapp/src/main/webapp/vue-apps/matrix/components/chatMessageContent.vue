@@ -41,6 +41,8 @@
     </div>
     <audio-message
       v-if="isAudio"
+      :id="`message-content-${message.event_id}`"
+      :key="message.event_id"
       :message="message"
       :next-message="nextMessage" />
     <v-tooltip bottom>
