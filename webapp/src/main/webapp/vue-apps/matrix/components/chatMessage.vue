@@ -64,9 +64,9 @@
             :class="{'justify-end': isMyMessage}">
             <div
               v-for="reaction in message.reactions"
-              class="message-reaction-item px-1 mb-2 mx-1"
-              :class="{'current-user-reaction': reaction.userIds.includes(currentUserId)}"
-              v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length: ''}`" />
+              class="message-reaction-item px-2 mb-2 mx-1"
+              :class="{'current-user-reaction': isCurrentUserReaction(reaction), 'other-user-reaction': !isCurrentUserReaction(reaction)}"
+              v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
           </div>
         </div>
       </div>
@@ -198,9 +198,6 @@
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
-      currentUserId() {
-        return localStorage.getItem('matrix_user_id');
-      }
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
@@ -230,6 +227,12 @@
           this.message = this.$matrixService.processMessageReaction(this.message, event.detail.message);
         }
       },
+      isCurrentUserReaction(reaction) {
+        return reaction.userIds.includes(this.currentUserId());
+      },
+      currentUserId() {
+        return localStorage.getItem('matrix_user_id');
+      }
     }
   }
 </script>
