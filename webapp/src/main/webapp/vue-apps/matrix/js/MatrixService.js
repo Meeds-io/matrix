@@ -619,7 +619,7 @@ export function getUserByMatrixId(userIdOnMatrix) {
 }
 
 export async function loadRoomMessages(roomId, from, to) {
-  const filter = {'lazy_load_members': true};
+  const filter = {'lazy_load_members': true, types: ['m.room.message', 'm.reaction']};
   const formData = new FormData();
   formData.append('limit', chatConstants.MESSAGES_LOAD_LIMIT);
   if(from) {
