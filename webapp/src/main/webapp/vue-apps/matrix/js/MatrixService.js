@@ -211,8 +211,8 @@ export function processEvents(response) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
       roomEvents.forEach(e => {
         //message received in a room
-        if(e.type === 'm.room.message') {
-          if(e.content.msgtype === 'm.text' || e.content.msgtype === 'm.image') {
+        if (e.type === 'm.room.message') {
+          if (['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype)) {
             document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {
                                                                                   roomId: roomId,
                                                                                   message: e,
@@ -320,8 +320,8 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
         }
       }
-      if(e.type === 'm.room.message') {;
-        if((e.content.msgtype === 'm.text' || e.content.msgtype === 'm.image') && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+      if(e.type === 'm.room.message') {
+        if((['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype)) && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
           roomItem.lastMessage = {};
           roomItem.lastMessage.content = e.content.format === 'org.matrix.custom.html' && formatMentionsInRoomList(e.content.formatted_body) || e.content.body;
