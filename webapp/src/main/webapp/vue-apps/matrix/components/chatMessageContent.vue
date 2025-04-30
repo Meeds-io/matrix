@@ -45,7 +45,30 @@
       :key="message.event_id"
       :message="message"
       :next-message="nextMessage" />
-    <v-tooltip bottom>
+    <div class="d-flex full-width justify-end">
+    <v-tooltip
+      v-if="message?.edited"
+      bottom>
+      <template #activator="{on, bind}">
+        <div
+          v-on="on"
+          v-bind="bind"
+          class="text-font-small-size chat-message-content-timestamp">
+          <span>
+           {{ $t('matrix.message.edited.label') }}
+          </span>
+        </div>
+      </template>
+      <date-format
+        :value="message.updatedAt"
+        :format="dateTimeFormat" />
+    </v-tooltip>
+      <v-icon
+        v-if="message?.edited"
+        size="3"
+        :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
+        class="ms-2 me-1 align-center">fas fa-circle</v-icon>
+      <v-tooltip bottom>
       <template #activator="{on, bind}">
         <div v-on="on"
            v-bind="bind"
@@ -63,6 +86,7 @@
           :value="message.origin_server_ts"
           :format="dateFormat" />
     </v-tooltip>
+    </div>
   </div>
 </template>
 
@@ -88,12 +112,23 @@
       nextMessage: {
         type: Object,
         default: null
+      },
+      isSelfMessage: {
+        type: Boolean,
+        default: false
       }
     },
     data() {
       return {
         defaultThumbnailMaxWidth: 250,
         defaultThumbnailMaxHeight: 250,
+        dateTimeFormat: {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        },
       };
     },
     computed: {

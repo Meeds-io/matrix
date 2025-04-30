@@ -210,15 +210,29 @@ export function processEvents(response) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
       roomEvents.forEach(e => {
-        //message received in a room
         if (e.type === 'm.room.message') {
-          if (['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype)) {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {
-                                                                                  roomId: roomId,
-                                                                                  message: e,
-                                                                              }}));
+          const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
+          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype);
+
+          // Normal or edit message
+          if (e.type === 'm.room.message' && (isReplacement || isSupportedMsgType)) {
+            const message = isReplacement && e.content?.['m.new_content']
+                ? {
+                  ...e,
+                  content: e.content['m.new_content'],
+                  edited: true,
+                  updatedAt: e.origin_server_ts,
+                  event_id: e.content['m.relates_to'].event_id
+                }
+                : e;
+            document.dispatchEvent(new CustomEvent('matrix-message-received', {
+              detail: {
+                roomId: roomId,
+                message: message
+              }
+            }));
           }
-        }//message received in a room
+        }
         if(e.type === 'm.reaction') {
           document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
                                                                                       roomId: roomId,
@@ -320,13 +334,22 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
         }
       }
-      if(e.type === 'm.room.message') {
-        if((['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype)) && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+      if (e.type === 'm.room.message') {
+        const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
+        const content = isReplacement ? e.content['m.new_content'] : e.content;
+        const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
+        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio'].includes(content.msgtype);
+
+        if (isSupportedMsgType && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
-          roomItem.lastMessage = {};
-          roomItem.lastMessage.content = e.content.format === 'org.matrix.custom.html' && formatMentionsInRoomList(e.content.formatted_body) || e.content.body;
-          roomItem.lastMessage.sender = e.sender;
-          roomItem.lastMessage.eventId = e.event_id;
+          roomItem.lastMessage = {
+            content: content.format === 'org.matrix.custom.html'
+                ? formatMentionsInRoomList(content.formatted_body)
+                : content.body,
+            sender: e.sender,
+            eventId,
+            ...(isReplacement && {edited: true})
+          };
         }
       }
     });
@@ -805,22 +828,39 @@ export function formatMentionsInRoomList(message) {
 export function processMessages(messageItems) {
   const messagesMap = new Map();
   const leftReactions = [];
+
   messageItems.forEach(item => {
-    if(item.type === 'm.room.message') {
-      item.reactions = item.reactions || [];
-      messagesMap.set(item.event_id, item);
-    } else if(item.type === 'm.reaction') {
-      let reactionItem = item.content['m.relates_to']?.rel_type === 'm.annotation' && item.content['m.relates_to'];
-      let messageReactedTo = messagesMap.get(reactionItem.event_id);
-      if(messageReactedTo && reactionItem) {
-        messagesMap[reactionItem.event_id] = processMessageReaction(messageReactedTo, item);
+    if (item.type === 'm.room.message') {
+      const relatesTo = item.content['m.relates_to'];
+      const newContent = item.content['m.new_content'];
+
+      // Check if this is an edit (m.replace)
+      if (relatesTo?.rel_type === 'm.replace' && newContent) {
+        const targetEventId = relatesTo.event_id;
+        const originalMessage = messagesMap.get(targetEventId);
+        if (originalMessage) {
+          originalMessage.content.body = newContent.body;
+          originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
+          originalMessage.edited = true;
+          originalMessage.updatedAt = item.origin_server_ts;
+        }
+      } else {
+        item.reactions = item.reactions || [];
+        messagesMap.set(item.event_id, item);
+      }
+    } else if (item.type === 'm.reaction') {
+      const reactionInfo = item.content['m.relates_to']?.rel_type === 'm.annotation' && item.content['m.relates_to'];
+      const messageReactedTo = messagesMap.get(reactionInfo?.event_id);
+      if (messageReactedTo && reactionInfo) {
+        messagesMap.set(reactionInfo.event_id, processMessageReaction(messageReactedTo, item));
       } else {
         leftReactions.push(item);
       }
     }
   });
-  return {'messages' : Array.from(messagesMap.values()), 'leftReactions': leftReactions};
+  return { messages: Array.from(messagesMap.values()), leftReactions };
 }
+
 
 export function processMessageReaction(messageReactedTo, reactionItem) {
   if(!messageReactedTo.reactions) {
