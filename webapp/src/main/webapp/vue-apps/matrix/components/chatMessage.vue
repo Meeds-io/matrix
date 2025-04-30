@@ -59,6 +59,7 @@
             :class="messageContentClass"
             :display-timestamp="displayTimestamp"
             :next-message="nextMessage"
+            :is-self-message="isSelfMessage"
             :timestamp="formattedTimestamp" />
           <div
             class="message-reactions d-flex flex-wrap"
@@ -199,6 +200,9 @@
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
+      isSelfMessage() {
+        return localStorage.getItem('matrix_user_id') === this.message?.sender;
+      }
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
