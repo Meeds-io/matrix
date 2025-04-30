@@ -61,11 +61,14 @@ export function loadChatRooms(currentMemberId) {
                     "room":{
                       "timeline":{
                         "unread_thread_notifications":true,
-                        "limit":20
+                        "limit":50,
+                        "types": [
+                          "m.room.message"
+                        ]
                       },
                       "state":{
                         "lazy_load_members":true
-                      }
+                      },
                     }
                   };
   return sync(filter).then(resp => {
@@ -212,7 +215,7 @@ export function processEvents(response) {
       roomEvents.forEach(e => {
         if (e.type === 'm.room.message') {
           const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
-          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio'].includes(e.content.msgtype);
+          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file'].includes(e.content.msgtype);
 
           // Normal or edit message
           if (e.type === 'm.room.message' && (isReplacement || isSupportedMsgType)) {
@@ -338,7 +341,7 @@ export async function toRoomObject(rooms, currentMemberId) {
         const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
         const content = isReplacement ? e.content['m.new_content'] : e.content;
         const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
-        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio'].includes(content.msgtype);
+        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file'].includes(content.msgtype);
 
         if (isSupportedMsgType && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
