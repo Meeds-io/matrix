@@ -41,7 +41,8 @@
     <div
       v-if="isFile"
       :id="`message-content-${message.event_id}`"
-      :key="message.event_id">
+      :key="message.event_id"
+      class="message-file-name">
       <a
         :href="fileDownloadLink"
         :alt="message.content.body"
@@ -55,7 +56,7 @@
           </v-icon>
         </div>
         <div
-          class="message-file-name text-truncate">
+          class="text-truncate">
           {{ message.content.body }}
         </div>
       </a>
