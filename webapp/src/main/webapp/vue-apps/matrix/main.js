@@ -14,6 +14,7 @@ import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
+import './icons-extensions.js'
 
 const components = {
   'matrix-component': MatrixComponent,
@@ -42,6 +43,8 @@ window.Object.defineProperty(Vue.prototype, '$chatConstants', {
 window.Object.defineProperty(Vue.prototype, '$timeUtils', {
   value: timeUtils,
 });
+
+Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'files-icons-extension');
 
 const appId = 'matrixChatButton';
 const lang = window?.eXo?.env?.portal?.language || 'fr';
