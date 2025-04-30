@@ -199,8 +199,21 @@ export default {
       this.lastScrollTop = 0;
     },
     messageReceived(event) {
-      if(this.room?.id === event.detail.roomId && this.$refs.ChatDiscussionDrawer?.drawer) {
-        const receivedMessage = event.detail.message;
+      if (this.room?.id !== event.detail.roomId) {
+        return;
+      }
+      const receivedMessage = event.detail.message;
+      if (receivedMessage.edited) {
+        const index = this.messages.findIndex(msg => msg.event_id === receivedMessage.event_id);
+        if (index !== -1) {
+          this.$set(this.messages, index, {
+            ...this.messages[index],
+            content: receivedMessage.content,
+            updatedAt: receivedMessage.updatedAt,
+            edited: true
+          });
+        }
+      } else {
         this.messages.push(receivedMessage);
         setTimeout(() => {
           this.scrollToEnd();
