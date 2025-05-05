@@ -105,6 +105,7 @@
   </exo-drawer>
 </template>
 <script>
+
 export default {
   name: 'ChatDiscussionDrawer',
 
@@ -203,6 +204,9 @@ export default {
         return;
       }
       const receivedMessage = event.detail.message;
+      const relatesTo = receivedMessage.content['m.relates_to'];
+      const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
+
       if (receivedMessage.edited) {
         const index = this.messages.findIndex(msg => msg.event_id === receivedMessage.event_id);
         if (index !== -1) {
@@ -213,8 +217,19 @@ export default {
             edited: true
           });
         }
+
+        for (let i = 0; i < this.messages.length; i++) {
+          const message = this.messages[i];
+          if (message?.replyTo?.targetEventId === receivedMessage.event_id) {
+            const replyTo = this.$matrixService.buildReplyToObject(this.messages, message.replyTo.targetEventId);
+            this.$set(this.messages, i, { ...message, replyTo });
+          }
+        }
       } else {
         this.messages.push(receivedMessage);
+        if (inReplyTo) {
+          receivedMessage.replyTo = this.$matrixService.buildReplyToObject(this.messages, inReplyTo);
+        }
         setTimeout(() => {
           this.scrollToEnd();
         }, 50);
