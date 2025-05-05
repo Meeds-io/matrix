@@ -79,7 +79,7 @@ export default {
   },
   computed: {
     isSelfMessage() {
-      return localStorage.getItem('matrix_user_id') === this.message.sender;
+      return matrixUserId === this.message.sender;
     },
     waveColor() {
       return this.isSelfMessage && '#ffffff' || '#707070';
