@@ -18,13 +18,12 @@
 -->
 <template>
   <div class="chat-message-content-body py-2 px-3"
-    :class="[cssClass, {'mt-0-5':!displaySender}]"
+    :class="[cssClass, {'mt-0-5':!displaySender}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
-              'background-image': 'url(' + imageThumbnailURL(message) + ')',
-              'background-size': 'contain',
               'height': imageThumbnailMaxHeight + 'px',
               'width': imageThumbnailMaxWidth + 'px',
               'cursor': 'pointer',
+              'overflow': 'hidden'
              }"
     @click="isImage && openImagePreview(message)">
     <message-reply-quote
@@ -34,13 +33,31 @@
       v-if="isText"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      class="chat-message-content-text"
       v-sanitized-html="formattedMessage" >
     </div>
     <div
       v-if="isImage"
       :id="`message-content-${message.event_id}`"
-      :key="message.event_id" />
+      :key="message.event_id"
+      @click="openImagePreview(message)"
+      @focus="hover = true"
+      @blur="hover = false"
+      @mouseenter="hover = true"
+      @mouseleave="hover = false">
+      <img
+        :src="imageThumbnailURL"
+        :alt="message.content.body"
+        :width="imageThumbnailMaxWidth"
+        :height="imageThumbnailMaxHeight"
+        class="position-absolute">
+        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
+          <v-chip
+            label
+            small>
+            GIF
+          </v-chip>
+        </div>
+    </div>
     <div
       v-if="isFile"
       :id="`message-content-${message.event_id}`"
@@ -151,6 +168,8 @@
       return {
         defaultThumbnailMaxWidth: 250,
         defaultThumbnailMaxHeight: 250,
+        hover: false,
+        defaultSize: false,
         dateTimeFormat: {
           year: 'numeric',
           month: 'long',
@@ -164,6 +183,15 @@
       if (this.isFile) {
         this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
       }
+    },
+    watch: {
+      hover() {
+        if (this.hover && this.isAnimatedImage) {
+          this.defaultSize = true;
+        } else {
+          this.defaultSize = false;
+        }
+      },
     },
     computed: {
       isImage() {
@@ -188,6 +216,12 @@
       isFile() {
         return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile
                                                          || this.isVideo;
+      },
+      isAnimatedImage() {
+        return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
+      },
+      isGifImage() {
+        return this.message.content?.info?.mimetype === 'image/gif';
       },
       fileDownloadLink() {
         const url = this.message.content.url.replace('mxc://', '');
@@ -233,21 +267,29 @@
       imageRatio() {
         return this.message.content.info.w / this.message.content.info.h;
       },
-    },
-    methods: {
-      imageThumbnailURL(message) {
-        if(message.content?.info?.thumbnail_url) {
-          const imageId = message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
+      imageThumbnailURL() {
+        if(this.message.content?.info?.thumbnail_url && !this.defaultSize && !this.isSmallImage(this.message)) {
+          const imageId = this.message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
           return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
         } else {
-          const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
+          const imageId = this.message.content?.url.replace(`mxc://${matrixServerName}/`,'');
           return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`
         }
+      },
+    },
+    methods: {
+      isSmallImage(message) {
+        return message.content?.info?.size < 1000000;
+      },
+      imageDownloadURL(message) {
+        const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
+        return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`
       },
       imageId(message) {
         return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
       },
       openImagePreview(message) {
+        const thumbnailImageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
         const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
         const images = [{
           id: imageId,
@@ -257,8 +299,8 @@
           mimetype: message.content.info.mimetype,
           updated: message.origin_server_ts,
           alt: message.content.body,
-          thumbnailUrl: this.imageThumbnailURL(message),
-          downloadUrl: `/_matrix/media/v3/download/${matrixServerName}/${imageId}`,
+          thumbnailUrl:  message.content?.info?.mimetype === 'image/gif' || message.content?.info?.mimetype === 'image/webp' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
+          downloadUrl: this.imageDownloadURL(message),
         }];
         document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
       },
