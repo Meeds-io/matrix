@@ -8,7 +8,9 @@ import MeedsChatMessageContent from './components/chatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
-import AudioMessage from './components/AudioMessage.vue';
+import AudioMessage from './components/message/AudioMessage.vue';
+import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
+import QuotedMessageUser from './components/message/QuotedMessageUser.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -27,7 +29,9 @@ const components = {
   'meeds-popover-chat-button': PopoverChatButton,
   'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
-  'audio-message': AudioMessage
+  'audio-message': AudioMessage,
+  'message-reply-quote': MessageReplyQuote,
+  'quoted-message-user': QuotedMessageUser,
 };
 
 for (const key in components) {

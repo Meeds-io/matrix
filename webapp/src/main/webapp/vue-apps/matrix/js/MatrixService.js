@@ -1,6 +1,9 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
 
+const replyToCache = new Map();
+const userCache = new Map();
+
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
 const JWT_COOKIE_NAME = 'matrix_jwt_token';
@@ -629,18 +632,25 @@ export function getUserPresence(userIdOnMatrix) {
 
 export function getUserByMatrixId(userIdOnMatrix) {
   let senderMatrixId = userIdOnMatrix;
-  if(senderMatrixId.includes('@')) {
+  if (senderMatrixId.includes('@')) {
     senderMatrixId = userIdOnMatrix.substr(1, userIdOnMatrix.indexOf(":") - 1);
   }
+
+  if (userCache.has(senderMatrixId)) {
+    return Promise.resolve(userCache.get(senderMatrixId));
+  }
+
   return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${senderMatrixId}`, {
     method: 'GET',
     credentials: 'include',
-  },).then(resp => {
+  }).then(resp => {
     if (!resp || !resp.ok) {
-      throw new Error('Get User by Matrix ID : Response code indicates a server error', resp);
-    } else {
-      return resp.json();
+      throw new Error('Get User by Matrix ID : Response code indicates a server error');
     }
+    return resp.json();
+  }).then(user => {
+    userCache.set(senderMatrixId, user);
+    return user;
   });
 }
 
@@ -846,9 +856,19 @@ export function processMessages(messageItems) {
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
           originalMessage.edited = true;
           originalMessage.updatedAt = item.origin_server_ts;
+
+          for (const message of messagesMap.values()) {
+            if (message?.replyTo?.targetEventId === targetEventId) {
+              message.replyTo = buildReplyToObject(messagesMap, message.replyTo.targetEventId);
+            }
+          }
         }
       } else {
         item.reactions = item.reactions || [];
+        const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
+        if (inReplyTo) {
+          item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
+        }
         messagesMap.set(item.event_id, item);
       }
     } else if (item.type === 'm.reaction') {
@@ -879,3 +899,51 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
   return messageReactedTo;
 }
+
+export function buildReplyToObject(messages, eventId) {
+  const getMessageById = (id) =>
+      (messages instanceof Map)
+          ? messages.get(id)
+          : (Array.isArray(messages) ? messages.find(msg => msg.event_id === id) : null);
+
+  const parentEvent = getMessageById(eventId);
+  if (!parentEvent) {
+    return null;
+  }
+
+  const cachedReplyTo = replyToCache.get(eventId);
+  const parentUpdatedAt = parentEvent.updatedAt || parentEvent.origin_server_ts;
+
+  if (cachedReplyTo && cachedReplyTo.updatedAt === parentUpdatedAt) {
+    return cachedReplyTo.replyTo;
+  }
+
+  const parentRelatesTo = parentEvent.content?.['m.relates_to'];
+  const isReplyToReply = !!parentRelatesTo?.['m.in_reply_to'];
+
+  let targetUser = parentEvent.sender;
+  let targetEventId = parentEvent.event_id;
+  let targetType = parentEvent.content?.msgtype
+  let targetThumbnailURL = parentEvent.content?.thumbnail_url;
+  let targetUrl = parentEvent.content?.url;
+  let targetThumbnailWidth = parentEvent.content?.info?.w || parentEvent.content?.w;
+  let targetThumbnailHeight = parentEvent.content?.info?.h || parentEvent.content?.h
+  let fileMimeType = parentEvent.content?.info?.mimetype;
+
+  const replyToObject = {
+    body: parentEvent.content.body,
+    isReplyToReply: isReplyToReply,
+    targetUser: targetUser,
+    targetEventId: targetEventId,
+    targetType: targetType,
+    targetThumbnailURL: targetThumbnailURL,
+    targetUrl: targetUrl,
+    targetThumbnailWidth: targetThumbnailWidth,
+    targetThumbnailHeight: targetThumbnailHeight,
+    fileMimeType: fileMimeType
+  };
+
+  replyToCache.set(eventId, { replyTo: replyToObject, updatedAt: parentUpdatedAt });
+  return replyToObject;
+}
+
