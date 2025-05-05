@@ -26,6 +26,9 @@
               'overflow': 'hidden'
              }"
     @click="isImage && openImagePreview(message)">
+    <message-reply-quote
+      v-if="message?.replyTo"
+      :message="message" />
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
