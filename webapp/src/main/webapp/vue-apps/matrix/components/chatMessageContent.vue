@@ -36,6 +36,18 @@
       v-sanitized-html="formattedMessage" >
     </div>
     <div
+      v-if="isRedacted"
+      :id="`message-content-${message.event_id}`"
+      :key="message.event_id"
+      class="d-flex flex-no-wrap" >
+      <v-icon
+        size="16"
+        class="ma-auto me-2">
+        fa-trash
+      </v-icon>
+      <div :title="$t('matrix.chat.message.deleted')" class="text-truncate">{{ $t('matrix.chat.message.deleted') }}</div>
+    </div>
+    <div
       v-if="isImage"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
@@ -199,6 +211,9 @@
       },
       isText() {
         return this.message.content.msgtype === 'm.text';
+      },
+      isRedacted() {
+        return !this.message.content.body && this.message.redacted_because?.redacts;
       },
       isAudio() {
         return this.message?.content?.msgtype === 'm.audio';
