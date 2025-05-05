@@ -238,6 +238,9 @@
       isGifImage() {
         return this.message.content?.info?.mimetype === 'image/gif';
       },
+      isGifImage() {
+        return this.message.content?.info?.mimetype === 'image/gif';
+      },
       fileDownloadLink() {
         const url = this.message.content.url.replace('mxc://', '');
         return `/_matrix/media/v3/download/${url}`;
