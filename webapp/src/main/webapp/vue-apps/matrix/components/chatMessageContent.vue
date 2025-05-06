@@ -65,7 +65,7 @@
       </a>
     </div>
     <audio-message
-      v-if="isAudio"
+      v-if="isAudioMessage"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
       :message="message"
@@ -161,7 +161,7 @@
       };
     },
     created() {
-      if(this.message.content.msgtype === 'm.file') {
+      if (this.isFile) {
         this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
       }
     },
@@ -173,10 +173,21 @@
         return this.message.content.msgtype === 'm.text';
       },
       isAudio() {
-        return this.message.content.msgtype === 'm.audio';
-      },  
+        return this.message?.content?.msgtype === 'm.audio';
+      },
+      isVideo() {
+        return this.message?.content?.msgtype === 'm.video'
+      },
+      isAudioMessage() {
+        return this.isAudio && !this.isUploadedAudioFile;
+      },
+      isUploadedAudioFile() {
+        return this.isAudio && (!this.message?.content?.['org.matrix.msc3245.voice']
+                            && !this.message?.content?.['org.matrix.msc2516.voice']);
+      },
       isFile() {
-        return this.message.content.msgtype === 'm.file';
+        return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile
+                                                         || this.isVideo;
       },
       fileDownloadLink() {
         const url = this.message.content.url.replace('mxc://', '');
