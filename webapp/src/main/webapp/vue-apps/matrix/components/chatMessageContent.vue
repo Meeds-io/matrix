@@ -74,13 +74,13 @@
       v-if="isFile"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      class="message-file-name">
+      class="message-file">
       <a
         :href="fileDownloadLink"
         :alt="message.content.body"
         class="d-flex text-decoration-none"
         download>
-        <div class="size-7 white rounded-circle d-flex justify-center me-3">
+        <div class="size-7 white rounded-circle d-flex justify-center me-3 text-decoration-none">
           <v-icon
             :size="16"
             :color="fileIcon.color">
@@ -88,7 +88,7 @@
           </v-icon>
         </div>
         <div
-          class="text-truncate">
+          class="message-file-name text-truncate">
           {{ message.content.body }}
         </div>
       </a>
