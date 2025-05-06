@@ -239,7 +239,7 @@
     .my-message-text {
       background-color: #476A9C;
       color: #FFFFFF;
-      max-width: 344px;
+      max-width: 340px;
     }
     .my-message-text i{
       color: #FFFFFF;
@@ -247,10 +247,16 @@
 
     .others-message-text {
       background-color: @primaryBackground;
-      max-width: 340px;
+      max-width: 328px;
     }
     .others-message-text i {
       color: #20282c;
+    }
+    .others-audio-message {
+      min-width: 299px;
+    }
+    .my-audio-message {
+      min-width: 320px;
     }
   }
 
@@ -263,10 +269,6 @@
     overflow-y: hidden;
     outline: none;
     border: 1px solid @greyColorLighten1
-  }
-  .message-container {
-    max-width: 344px;
-    min-width: 100px;
   }
 
   .message-reactions {
@@ -282,12 +284,6 @@
   }
   .other-user-reaction {
     border: 2px solid #FFF;
-  }
-  .message-file-name {
-    max-width: 280px !important;
-    &:hover {
-      text-decoration: underline;
-    }
   }
 
   .matrix-chat-send-message-button {
