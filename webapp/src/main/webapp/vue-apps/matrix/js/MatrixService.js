@@ -218,7 +218,7 @@ export function processEvents(response) {
       roomEvents.forEach(e => {
         if (e.type === 'm.room.message') {
           const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
-          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file'].includes(e.content.msgtype);
+          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(e.content.msgtype);
 
           // Normal or edit message
           if (e.type === 'm.room.message' && (isReplacement || isSupportedMsgType)) {
@@ -344,7 +344,7 @@ export async function toRoomObject(rooms, currentMemberId) {
         const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
         const content = isReplacement ? e.content['m.new_content'] : e.content;
         const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
-        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file'].includes(content.msgtype);
+        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content.msgtype);
 
         if (isSupportedMsgType && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
           roomItem.updated = e.origin_server_ts;
@@ -929,6 +929,8 @@ export function buildReplyToObject(messages, eventId) {
   let targetThumbnailWidth = parentEvent.content?.info?.w || parentEvent.content?.w;
   let targetThumbnailHeight = parentEvent.content?.info?.h || parentEvent.content?.h
   let fileMimeType = parentEvent.content?.info?.mimetype;
+  let isUploadedAudioFile = targetType === 'm.audio' && (!parentEvent?.content?.['org.matrix.msc3245.voice']
+                                              && !parentEvent?.content?.['org.matrix.msc2516.voice']);
 
   const replyToObject = {
     body: parentEvent.content.body,
@@ -940,7 +942,8 @@ export function buildReplyToObject(messages, eventId) {
     targetUrl: targetUrl,
     targetThumbnailWidth: targetThumbnailWidth,
     targetThumbnailHeight: targetThumbnailHeight,
-    fileMimeType: fileMimeType
+    fileMimeType: fileMimeType,
+    isUploadedAudioFile: isUploadedAudioFile,
   };
 
   replyToCache.set(eventId, { replyTo: replyToObject, updatedAt: parentUpdatedAt });
