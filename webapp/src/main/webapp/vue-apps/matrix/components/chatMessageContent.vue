@@ -62,7 +62,7 @@
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
         class="position-absolute">
-        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
+        <div v-if="isAnimatedImage" class="position-absolute transparent border-radius ml-2 mt-2">
           <v-chip
             label
             small>
@@ -198,7 +198,7 @@
     },
     watch: {
       hover() {
-        if (this.hover && this.isGifImage) {
+        if (this.hover && this.isAnimatedImage) {
           this.defaultSize = true;
         } else {
           this.defaultSize = false;
@@ -221,8 +221,8 @@
       isFile() {
         return this.message.content.msgtype === 'm.file';
       },
-      isGifImage() {
-        return this.message.content?.info?.mimetype === 'image/gif';
+      isAnimatedImage() {
+        return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
       },
       fileDownloadLink() {
         const url = this.message.content.url.replace('mxc://', '');
@@ -269,7 +269,7 @@
         return this.message.content.info.w / this.message.content.info.h;
       },
       imageThumbnailURL() {
-        if(this.message.content?.info?.thumbnail_url && !this.defaultSize) {
+        if(this.message.content?.info?.thumbnail_url && !this.defaultSize && !this.isSmallImage(this.message)) {
           const imageId = this.message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
           return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
         } else {
@@ -280,7 +280,7 @@
     },
     methods: {
       isSmallImage(message) {
-        return message.content?.size < 1000000;
+        return message.content?.info?.size < 1000000;
       },
       imageDownloadURL(message) {
         const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
@@ -300,7 +300,7 @@
           mimetype: message.content.info.mimetype,
           updated: message.origin_server_ts,
           alt: message.content.body,
-          thumbnailUrl:  message.content?.info?.mimetype === 'image/gif' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
+          thumbnailUrl:  message.content?.info?.mimetype === 'image/gif' || message.content?.info?.mimetype === 'image/webp' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
           downloadUrl: this.imageDownloadURL(message),
         }];
         document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
