@@ -27,7 +27,7 @@
     <template slot="content">
       <div
         :class="{'disabled-background': !rooms?.length}"
-        class="pa-5 fill-height">
+        class="pa-5 fill-height overflow-y-auto specific-scrollbar">
         <matrix-chat-rooms
           :rooms="rooms"
           :loading="loading" />
