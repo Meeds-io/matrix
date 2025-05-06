@@ -33,6 +33,7 @@
       v-if="isText"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
+      class="text-justify"
       v-sanitized-html="formattedMessage" >
     </div>
     <div
