@@ -929,6 +929,8 @@ export function buildReplyToObject(messages, eventId) {
   let targetThumbnailWidth = parentEvent.content?.info?.w || parentEvent.content?.w;
   let targetThumbnailHeight = parentEvent.content?.info?.h || parentEvent.content?.h
   let fileMimeType = parentEvent.content?.info?.mimetype;
+  let isUploadedAudioFile = targetType === 'm.audio' && (!parentEvent?.content?.['org.matrix.msc3245.voice']
+                                              && !parentEvent?.content?.['org.matrix.msc2516.voice']);
 
   const replyToObject = {
     body: parentEvent.content.body,
@@ -940,7 +942,8 @@ export function buildReplyToObject(messages, eventId) {
     targetUrl: targetUrl,
     targetThumbnailWidth: targetThumbnailWidth,
     targetThumbnailHeight: targetThumbnailHeight,
-    fileMimeType: fileMimeType
+    fileMimeType: fileMimeType,
+    isUploadedAudioFile: isUploadedAudioFile,
   };
 
   replyToCache.set(eventId, { replyTo: replyToObject, updatedAt: parentUpdatedAt });
