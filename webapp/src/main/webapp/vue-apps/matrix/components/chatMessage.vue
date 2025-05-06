@@ -52,7 +52,7 @@
         </div>
         <div
           class="message-container"
-          :class="{'ml-5 mt--4 position-relative': !isMyMessage && !room.directChat, 'float-right': isMyMessage, 'float-left': !isMyMessage}">
+          :class="{'ml-5 mt--4 position-relative me-10': !isMyMessage && !room.directChat, 'float-right ml-12': isMyMessage, 'float-left': !isMyMessage}">
           <meeds-chat-message-content
             :message="message"
             :display-sender="displaySender"
