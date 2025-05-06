@@ -45,6 +45,7 @@
     </template>
     <template slot="content">
       <div id="chatMessagesContainer"
+        class="specific-scrollbar"
         v-touch="{
           down: () => loadMoreMessages()
         }">
