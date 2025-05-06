@@ -62,7 +62,7 @@
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
         class="position-absolute">
-        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
+        <div v-if="isAnimatedImage" class="position-absolute transparent border-radius ml-2 mt-2">
           <v-chip
             label
             small>
@@ -238,8 +238,8 @@
       isGifImage() {
         return this.message.content?.info?.mimetype === 'image/gif';
       },
-      isGifImage() {
-        return this.message.content?.info?.mimetype === 'image/gif';
+      isAnimatedImage() {
+        return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
       },
       fileDownloadLink() {
         const url = this.message.content.url.replace('mxc://', '');
