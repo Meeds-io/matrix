@@ -27,7 +27,7 @@
         v-if="!isText"
         class="flex-column justify-center">
         <div
-          v-if="isFile || isAudio"
+          v-if="isFile || isAudioMessage"
           class="size-7 background-grey-primary rounded-circle d-flex justify-center me-2">
           <v-icon
             :size="16"
@@ -45,8 +45,7 @@
             :max-height="36"
             :max-width="36"
             :aspect-ratio="thumbnailAspectRatio"
-            contain>
-          </v-img>
+            contain />
         </div>
       </div>
       <div class="flex-column">
@@ -90,11 +89,14 @@ export default {
     isText() {
       return this.targetMessageType === 'm.text';
     },
-    isAudio() {
-      return this.targetMessageType === 'm.audio';
+    isAudioMessage() {
+      return this.targetMessageType === 'm.audio' && !this.isUploadedAudioFile;
+    },
+    isUploadedAudioFile() {
+      return this.targetMessage.isUploadedAudioFile;
     },
     isFile() {
-      return this.targetMessageType === 'm.file';
+      return this.targetMessageType === 'm.file' || this.isUploadedAudioFile;
     },
     thumbnailWidth() {
       return this.targetMessage?.targetThumbnailWidth;

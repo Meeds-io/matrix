@@ -59,9 +59,6 @@ export default {
       return `( ${this.$t('matrix.chat.user.external')} )`;
     }
   },
-  async beforeCreate() {
-    this.sender = await this.$matrixService.getUserByMatrixId(this.userId);
-  },
   created() {
     if (!this.sender) {
       this.$matrixService.getUserByMatrixId(this.userId).then(user => {
