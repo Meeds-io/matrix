@@ -17,7 +17,9 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="d-flex align-center mb-1">
+  <div
+    :class="{'my-audio-message': isSelfMessage, 'others-audio-message': !isSelfMessage}"
+    class="d-flex align-center mb-1 audio-message">
     <v-tooltip bottom>
       <template #activator="{ on, attrs }">
         <v-btn
@@ -190,7 +192,7 @@ export default {
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
 
-      canvas.width = 240;
+      canvas.width = this.isSelfMessage ? 238 : 220;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
@@ -210,7 +212,7 @@ export default {
       const audio = this.$refs.audio;
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
-      canvas.width = 240;
+      canvas.width = this.isSelfMessage ? 238 : 220;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
