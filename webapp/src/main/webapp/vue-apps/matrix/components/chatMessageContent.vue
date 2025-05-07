@@ -38,14 +38,14 @@
     <div
       v-if="isRedacted"
       :id="`message-content-${message.event_id}`"
-      :key="message.event_id">
+      :key="message.event_id"
+      class="d-flex flex-no-wrap" >
       <v-icon
         size="16"
-        color=""
-        class="ma-auto">
-        fas fa-trash
+        class="ma-auto me-2">
+        fa-trash
       </v-icon>
-      {{ $t('matrix.chat.message.deleted') }}
+      <div :title="$t('matrix.chat.message.deleted')" class="text-truncate">{{ $t('matrix.chat.message.deleted') }}</div>
     </div>
     <div
       v-if="isImage"
