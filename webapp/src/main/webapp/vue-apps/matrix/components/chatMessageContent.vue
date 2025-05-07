@@ -62,7 +62,7 @@
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
         class="position-absolute">
-        <div v-if="isAnimatedImage" class="position-absolute transparent border-radius ml-2 mt-2">
+        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
           <v-chip
             label
             small>
