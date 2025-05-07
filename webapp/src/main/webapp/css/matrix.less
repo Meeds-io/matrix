@@ -253,7 +253,9 @@
     max-height: 300px;
     border-radius: 16px;
     width: 100%;
-    overflow-y: auto !important;
+    overflow-y: hidden;
+    outline: none;
+    border: 1px solid @greyColorLighten1
   }
 
   .message-reactions {
@@ -274,6 +276,12 @@
     max-width: 304px !important;
     &:hover {
       text-decoration: underline;
+    }
+  }
+
+  .matrix-chat-send-message-button {
+    .v-icon {
+      color: @whiteColorDefault !important;
     }
   }
 }

@@ -77,22 +77,19 @@
       <div class="messageComposerContainer d-flex">
         <div
           id="messageComposerArea"
+          :placeholder="$t('matrix.chat.message.label')"
           ref="messageComposerArea"
           contenteditable="true"
-          name="messageComposerArea"
-          class="meeds-chat-composer pa-3"
+          class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2 border-box-sizing"
+          @keypress.enter.prevent
           @keydown.enter="checkIfMentioning"
-          @keypress.enter="preventDefault"
           @keyup.enter="sendMessageWithEnter"
-          @keyup.up=""
-          @keyup="resizeComposerArea($event)"
-          @focus="resizeComposerArea($event)"
-          @paste="">
+          @keyup="resizeComposerArea($event)">
         </div>
         <div class="sendButtonArea d-flex flex-column justify-end">
           <v-btn
-            class="matrix-chat-send-message-button btn-primary ms-4"
-            v-if="!disableSendMessage"
+            :disabled="disableSendMessage"
+            class="btn matrix-chat-send-message-button btn-primary ms-2"
             icon
             @click="sendMessage">
             <v-icon size="20">
@@ -107,8 +104,6 @@
 <script>
 
 export default {
-  name: 'ChatDiscussionDrawer',
-
   data() {
     return {
       messages: [],
@@ -280,15 +275,29 @@ export default {
         });
       }, 1000);
     },
-    // composer functions
     resizeComposerArea(e) {
-      if(this.room?.spaceId) {
+      if (this.room?.spaceId) {
         this.initSuggester();
       }
+
       const composerElement = e.target;
-      composerElement.style.height = "auto";
-      composerElement.style.height = Number(composerElement.scrollHeight + 4) + "px";
-      this.disableSendMessage = composerElement.innerText?.trim() === '';
+      const minHeight = 40;
+      const maxHeight = 300;
+
+      composerElement.style.height = 'auto';
+      const newHeight = composerElement.scrollHeight;
+
+      if (newHeight < minHeight) {
+        composerElement.style.height = `${minHeight}px`;
+        composerElement.style.overflowY = 'hidden';
+      } else if (newHeight <= maxHeight) {
+        composerElement.style.height = `${newHeight}px`;
+        composerElement.style.overflowY = 'hidden';
+      } else {
+        composerElement.style.height = `${maxHeight}px`;
+        composerElement.style.overflowY = 'auto';
+      }
+      this.disableSendMessage = !composerElement.innerText?.trim();
     },
     sendMessageWithEnter(event) {
       const isMobile = this.$vuetify.breakpoint.name === 'sm'
@@ -365,12 +374,6 @@ export default {
           }
         }
       });
-    },
-    preventDefault(event) {
-      if (event.keyCode === this.$chatConstants.ENTER_CODE_KEY) {
-        event.stopPropagation();
-        event.preventDefault();
-      }
     },
     initSuggester() {
       const $messageSuggestor = $('#messageComposerArea');
