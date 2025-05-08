@@ -17,7 +17,7 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content-body"
+  <div class="chat-message-content-body text-break"
     :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
               'height': imageThumbnailMaxHeight + 'px',
@@ -255,6 +255,9 @@
       imageThumbnailMaxWidth() {
         const width = this.message.content.info.w || this.message.content.w;
         const height = this.message.content.info.h || this.message.content.h;
+        if(width <= 60) {
+          return 60;
+        }
         if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
           if (this.message.content.info.h < this.defaultThumbnailMaxHeight) {
             return this.message.content.info.w;
@@ -270,6 +273,9 @@
       imageThumbnailMaxHeight() {
         const width = this.message.content.info.w || this.message.content.w;
         const height = this.message.content.info.h || this.message.content.h;
+        if(height <= 60) {
+          return 60;
+        }
         if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
           if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
             return this.message.content.info.h;
