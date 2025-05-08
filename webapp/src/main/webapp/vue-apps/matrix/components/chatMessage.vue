@@ -66,8 +66,8 @@
             :class="{'justify-end': isMyMessage}">
             <div
               v-for="reaction in message.reactions"
-              class="message-reaction-item px-2 mb-2 mx-1"
-              :class="{'current-user-reaction': isCurrentUserReaction(reaction), 'other-user-reaction': !isCurrentUserReaction(reaction)}"
+              class="message-reaction-item px-2 mb-2"
+              :class="{'current-user-reaction': isCurrentUserReaction(reaction), 'other-user-reaction': !isCurrentUserReaction(reaction), 'ml-2': isMyMessage, ' me-2': !isMyMessage}"
               v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
           </div>
         </div>
