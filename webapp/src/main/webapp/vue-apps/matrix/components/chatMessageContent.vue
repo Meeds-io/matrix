@@ -18,7 +18,7 @@
 -->
 <template>
   <div class="chat-message-content-body py-2"
-    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3':!isImage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
+    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
               'height': imageThumbnailMaxHeight + 'px',
               'width': imageThumbnailMaxWidth + 'px',
