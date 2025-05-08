@@ -143,8 +143,6 @@
   margin-top: auto;
   align-self: flex-end;
   line-height: 1;
-  margin-right: -4px ~'; /** orientation=lt */ ';
-  margin-left: -4px ~'; /** orientation=rt */ ';
 }
 
 
@@ -185,6 +183,8 @@
 }
 
 .mt--4 {
+  left: -4px ~'; /** orientation=lt */ ';
+  right: -4px ~'; /** orientation=rt */ ';
   top: -16px;
 }
 
@@ -205,8 +205,6 @@
       justify-content: space-between;
       align-items: flex-start;
       position: relative;
-      left: -4px ~'; /** orientation=lt */ ';
-      right: -4px ~'; /** orientation=rt */ ';
       a {
         color: unset;
         text-decoration: underline;
