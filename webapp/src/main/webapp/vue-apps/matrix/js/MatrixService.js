@@ -950,3 +950,47 @@ export function buildReplyToObject(messages, eventId) {
   return replyToObject;
 }
 
+export function uploadMatrixImage(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const uploadUrl = `/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`;
+    const xhr = new XMLHttpRequest();
+
+    xhr.open('POST', uploadUrl, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('matrix_access_token')}`);
+    xhr.setRequestHeader('Content-Type', file.type);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 95);
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        onProgress(100);
+        const response = JSON.parse(xhr.responseText);
+        resolve(response.content_uri);
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Upload error'));
+    xhr.send(file);
+  });
+}
+
+export async function getMaxUploadSize() {
+  try {
+    const response = await fetch('/_matrix/media/v3/config', {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      },
+    });
+    const data = await response.json();
+    return data?.['m.upload.size'] || 20 * 1024 * 1024;
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  }
+}
