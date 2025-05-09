@@ -11,6 +11,7 @@ import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
 import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
 import QuotedMessageUser from './components/message/QuotedMessageUser.vue';
+import MessageUploadImageInput from './components/message/MessageUploadImageInput.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -32,6 +33,7 @@ const components = {
   'audio-message': AudioMessage,
   'message-reply-quote': MessageReplyQuote,
   'quoted-message-user': QuotedMessageUser,
+  'message-upload-image-input': MessageUploadImageInput,
 };
 
 for (const key in components) {

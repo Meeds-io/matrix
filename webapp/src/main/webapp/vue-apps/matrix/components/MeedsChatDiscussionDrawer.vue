@@ -76,6 +76,9 @@
     </template>
     <template slot="footer">
       <div class="messageComposerContainer d-flex">
+        <message-upload-image-input
+         :room-id="room.id"
+         class="me-2 d-flex flex-column justify-end" />
         <div
           id="messageComposerArea"
           :placeholder="$t('matrix.chat.message.label')"
