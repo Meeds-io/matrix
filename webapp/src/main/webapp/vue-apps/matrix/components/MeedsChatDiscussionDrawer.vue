@@ -78,6 +78,7 @@
       <div class="messageComposerContainer d-flex">
         <message-upload-file-input
          :room-id="room.id"
+         paste-target="messageComposerArea"
          class="me-2 d-flex flex-column justify-end" />
         <div
           id="messageComposerArea"
@@ -89,7 +90,8 @@
           @keydown.enter="checkIfMentioning"
           @keyup.enter="sendMessageWithEnter"
           @keyup="resizeComposerArea($event)"
-          @focus="resizeComposerArea($event)">
+          @focus="resizeComposerArea($event)"
+          @input="onComposerInput">
         </div>
         <div class="sendButtonArea d-flex flex-column justify-end">
           <v-btn
@@ -116,7 +118,6 @@ export default {
       loading: false,
       loadingNewMessages: false,
       hasMoreMessages: true,
-      disableSendMessage: true,
       lastScrollTop: 0,
       roomActionComponents: [],
       initializedActions: [],
@@ -124,9 +125,13 @@ export default {
       mentioningInProgress: false,
       leftReactions: [],
       composerDefaultHeight: 40,
+      messageContent: null
     };
   },
   computed: {
+    disableSendMessage() {
+      return !this.messageContent?.trim()?.length;
+    },
     presenceClass() {
       return this.room.presence && `matrix-status-${this.room.presence}` || 'matrix-status-offline';
     },
@@ -166,6 +171,9 @@ export default {
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
   },
   methods: {
+    onComposerInput(event) {
+      this.messageContent = event.target?.innerText;
+    },
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
@@ -191,7 +199,7 @@ export default {
     close(){
       this.messages = null;
       this.hasMoreMessages = true;
-      this.disableSendMessage = true;
+      this.messageContent = null;
       if(this.$refs.messageComposerArea) {
         this.$refs.messageComposerArea.innerHTML = '';
       }
@@ -303,7 +311,6 @@ export default {
         composerElement.style.height = `${maxHeight}px`;
         composerElement.style.overflowY = 'auto';
       }
-      this.disableSendMessage = !composerElement.innerText?.trim();
     },
     sendMessageWithEnter(event) {
       const isMobile = this.$vuetify.breakpoint.name === 'sm'
@@ -339,6 +346,7 @@ export default {
       }
       this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
       this.$refs.messageComposerArea.innerHTML = '';
+      this.messageContent = null;
       this.mentionsArray = [];
       this.mentioningInProgress = false;
     },
