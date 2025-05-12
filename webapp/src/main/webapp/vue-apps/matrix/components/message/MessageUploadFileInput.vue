@@ -89,16 +89,27 @@ export default {
       uploadProgress: 0,
       uploadedFiles: 0,
       ignoredFiles: 0,
+      pasteTargetElement: null,
     };
   },
   props: {
     roomId: {
       type: String,
       default: null
+    },
+    pasteTarget: {
+      type: String,
+      default: null
     }
   },
   created() {
     this.getMaxUploadSize();
+  },
+  mounted() {
+    this.addPasteEventListener()
+  },
+  beforeDestroy() {
+    this.pasteTargetElement?.removeEventListener('paste', this.handlePaste);
   },
   methods: {
     getMaxUploadSize() {
@@ -165,8 +176,27 @@ export default {
       this.uploadedFiles = 0
       this.ignoredFiles = 0
     },
-    bytesToMegabytes(bytes) {
-      return bytes / (1024 * 1024);
+    handlePaste(event) {
+      const files = [];
+      for (const item of event.clipboardData.items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            files.push(file);
+          }
+        }
+      }
+      if (files.length) {
+        event.preventDefault();
+        this.handleFileChange(files);
+      }
+    },
+    addPasteEventListener() {
+      const pasteTarget = document.getElementById(this.pasteTarget);
+      if (pasteTarget) {
+        this.pasteTargetElement = pasteTarget;
+        this.pasteTargetElement?.addEventListener('paste', this.handlePaste);
+      }
     },
     getTotalBytes(files) {
       let totalBytes = 0;

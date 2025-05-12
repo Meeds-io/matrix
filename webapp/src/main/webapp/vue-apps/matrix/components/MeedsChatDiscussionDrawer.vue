@@ -78,6 +78,7 @@
       <div class="messageComposerContainer d-flex">
         <message-upload-file-input
          :room-id="room.id"
+         paste-target="messageComposerArea"
          class="me-2 d-flex flex-column justify-end" />
         <div
           id="messageComposerArea"
