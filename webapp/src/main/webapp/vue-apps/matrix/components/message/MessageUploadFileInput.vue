@@ -89,16 +89,27 @@ export default {
       uploadProgress: 0,
       uploadedFiles: 0,
       ignoredFiles: 0,
+      pasteTargetElement: null,
     };
   },
   props: {
     roomId: {
       type: String,
       default: null
+    },
+    pasteTarget: {
+      type: String,
+      default: null
     }
   },
   created() {
     this.getMaxUploadSize();
+  },
+  mounted() {
+    this.addPasteEventListener()
+  },
+  beforeDestroy() {
+    this.pasteTargetElement?.removeEventListener('paste', this.handlePaste);
   },
   methods: {
     getMaxUploadSize() {
@@ -121,9 +132,7 @@ export default {
           continue;
         }
 
-        const image = new Image();
-        image.src = URL.createObjectURL(file);
-        await image.decode();
+        const { msgtype, info } = await this.extractFileMetadata(file);
 
         try {
           const mxcUri = await this.$matrixService.uploadMatrixImage(file, (percent) => {
@@ -133,16 +142,12 @@ export default {
           });
 
           const payload = {
-            msgtype: 'm.image',
+            msgtype,
             body: file.name,
             url: mxcUri,
-            info: {
-              mimetype: file.type,
-              size: file.size,
-              w: image.width,
-              h: image.height,
-            },
+            info
           };
+
           await this.$matrixService.sendMessage(payload, this.roomId);
           uploadedBytes += file.size;
           this.uploadProgress = Math.min(Math.round((uploadedBytes / totalBytes) * 100), 100);
@@ -165,8 +170,25 @@ export default {
       this.uploadedFiles = 0
       this.ignoredFiles = 0
     },
-    bytesToMegabytes(bytes) {
-      return bytes / (1024 * 1024);
+    handlePaste(event) {
+      const files = [];
+      for (const item of event.clipboardData.items) {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+      if (files.length) {
+        event.preventDefault();
+        this.handleFileChange(files);
+      }
+    },
+    addPasteEventListener() {
+      const pasteTarget = document.getElementById(this.pasteTarget);
+      if (pasteTarget) {
+        this.pasteTargetElement = pasteTarget;
+        this.pasteTargetElement?.addEventListener('paste', this.handlePaste);
+      }
     },
     getTotalBytes(files) {
       let totalBytes = 0;
@@ -177,6 +199,53 @@ export default {
         totalBytes += file.size;
       }
       return totalBytes;
+    },
+    async extractFileMetadata(file) {
+      const type = file.type;
+      let msgtype = 'm.file';
+      let info = {
+        mimetype: type,
+        size: file.size
+      };
+      try {
+        if (type.startsWith('image/')) {
+          msgtype = 'm.image';
+          const image = new Image();
+          image.src = URL.createObjectURL(file);
+          await image.decode();
+          info.w = image.width;
+          info.h = image.height;
+        } else if (type.startsWith('video/')) {
+          msgtype = 'm.video';
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.src = URL.createObjectURL(file);
+          await new Promise((resolve, reject) => {
+            video.onloadedmetadata = () => {
+              info.w = video.videoWidth;
+              info.h = video.videoHeight;
+              info.duration = Math.round(video.duration * 1000);
+              resolve();
+            };
+            video.onerror = reject;
+          });
+        } else if (type.startsWith('audio/')) {
+          msgtype = 'm.audio';
+          const audio = document.createElement('audio');
+          audio.preload = 'metadata';
+          audio.src = URL.createObjectURL(file);
+          await new Promise((resolve, reject) => {
+            audio.onloadedmetadata = () => {
+              info.duration = Math.round(audio.duration * 1000);
+              resolve();
+            };
+            audio.onerror = reject;
+          });
+        }
+      } catch (e) {
+        console.warn(`Failed to extract metadata for ${file.name}:`, e);
+      }
+      return {msgtype, info};
     }
   }
 };
