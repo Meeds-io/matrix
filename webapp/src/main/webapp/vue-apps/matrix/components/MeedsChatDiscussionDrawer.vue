@@ -76,18 +76,18 @@
       </div>
     </template>
     <template slot="footer">
-      <div class="messageComposerContainer d-flex">
+      <div class="d-flex">
         <message-upload-file-input
          :room-id="room.id"
          paste-target="messageComposerArea"
          drop-target="ChatDiscussionDrawer"
-         class="me-2 d-flex flex-column justify-end" />
+         class="me-2 mb-0_5 d-flex flex-column justify-end" />
         <div
           id="messageComposerArea"
           :placeholder="$t('matrix.chat.message.label')"
           ref="messageComposerArea"
           contenteditable="true"
-          class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2 border-box-sizing"
+          class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2"
           @keypress.enter.prevent
           @keydown.enter="checkIfMentioning"
           @keyup.enter="sendMessageWithEnter"
@@ -95,13 +95,15 @@
           @focus="resizeComposerArea($event)"
           @input="onComposerInput">
         </div>
-        <div class="sendButtonArea d-flex flex-column justify-end">
+        <div class="d-flex flex-column justify-end">
           <v-btn
             :disabled="disableSendMessage"
-            class="btn matrix-chat-send-message-button btn-primary ms-2"
+            class="ms-2 mb-0_5"
             icon
             @click="sendMessage">
-            <v-icon size="20">
+            <v-icon
+              color="primary"
+              size="20">
               fa-paper-plane
             </v-icon>
           </v-btn>
