@@ -26,13 +26,10 @@
     </template>
     <template slot="content">
       <div
-        :class="expanded && 'pa-4'"
-        class="d-flex fill-height">
-        <div
-          class="singlePageApplication pa-0 d-flex fill-height">
-          <matrix-chat-rooms :rooms="rooms"/>
-          <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
-        </div>
+        :class="{'disabled-background': !rooms?.length}"
+        class="pa-5 fill-height">
+        <matrix-chat-rooms :rooms="rooms"/>
+        <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
       </div>
     </template>
   </exo-drawer>
