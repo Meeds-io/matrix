@@ -208,10 +208,29 @@
     .chat-message-from-self {
       border-radius: 16px;
       margin-left: auto;
+      .message-file {
+        max-width: 320px !important;
+        .message-file-name {
+          line-height: 28px;
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
     }
 
     .chat-message-from-others {
       border-radius: 16px;
+
+      .message-file {
+        max-width: 304px !important;
+        .message-file-name {
+          line-height: 28px;
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
     }
 
     .my-message-text {
