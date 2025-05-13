@@ -190,7 +190,7 @@ export default {
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
 
-      canvas.width = this.isSelfMessage ? 240 : 228;
+      canvas.width = this.isSelfMessage ? 244 : 228;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
@@ -210,7 +210,7 @@ export default {
       const audio = this.$refs.audio;
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
-      canvas.width = 240;
+      canvas.width = this.isSelfMessage ? 244 : 228;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
