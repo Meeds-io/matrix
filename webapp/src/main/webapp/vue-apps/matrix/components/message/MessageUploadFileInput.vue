@@ -90,6 +90,7 @@ export default {
       uploadedFiles: 0,
       ignoredFiles: 0,
       pasteTargetElement: null,
+      dropTargetElement: null
     };
   },
   props: {
@@ -100,6 +101,10 @@ export default {
     pasteTarget: {
       type: String,
       default: null
+    },
+    dropTarget: {
+      type: String,
+      default: null
     }
   },
   created() {
@@ -107,9 +112,12 @@ export default {
   },
   mounted() {
     this.addPasteEventListener()
+    this.addDropEventListener();
   },
   beforeDestroy() {
     this.pasteTargetElement?.removeEventListener('paste', this.handlePaste);
+    this.dropTargetElement?.removeEventListener('dragover', this.handleDragOver);
+    this.dropTargetElement?.removeEventListener('drop', this.handleDrop);
   },
   methods: {
     getMaxUploadSize() {
@@ -246,6 +254,29 @@ export default {
         console.warn(`Failed to extract metadata for ${file.name}:`, e);
       }
       return {msgtype, info};
+    },
+    addDropEventListener() {
+      const dropTarget = document.getElementById(this.dropTarget);
+      if (dropTarget) {
+        this.dropTargetElement = dropTarget;
+        this.dropTargetElement?.addEventListener('dragover', this.handleDragOver);
+        this.dropTargetElement?.addEventListener('drop', this.handleDrop);
+      }
+    },
+    handleDragOver(event) {
+      event.preventDefault();
+    },
+    handleDrop(event) {
+      event.preventDefault();
+
+      const data = event.dataTransfer;
+      if (!data || !data.files) {
+        return;
+      }
+      const files = Array.from(data.files);
+      if (files.length) {
+        this.handleFileChange(files);
+      }
     }
   }
 };
