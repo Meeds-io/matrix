@@ -1,13 +1,13 @@
 <template>
-  <div class="chat-room-item d-flex px-4">
+  <div class="d-flex mb-6 chat-room-item">
     <div
       :style="`backgroundImage: url(${room.avatarUrl})`"
       :class="avatarBorderClass"
-      class="meeds-chat-contact-avatar size-12 d-flex">
+      class="meeds-chat-contact-avatar no-border size-13 d-flex">
       <div v-if="room.directChat" class="matrix-user-status size-3"
         :class="presenceClass"></div>
     </div>
-    <div class="clickable overflow-hidden ps-2 flex-grow-1 my-2"
+    <div class="clickable overflow-hidden ps-2 flex-grow-1"
        @click="openRoom">
       <div :id="`room-name-${room.id}`"
         class="chat-room-name text-truncate text-title text-subtitle-1"
@@ -25,13 +25,13 @@
         {{ $t('matrix.chat.start.conversation') }}
       </div>
     </div>
-    <div class="ps-3 my-3">
+    <div class="ps-3">
       <div class="last-message-timestamp text-subtitle">
         {{ getUpdateTime(room) }}
       </div>
       <div class="pull-right text-font-small-size d-flex">
         <v-icon v-if="room.isMuted" size="16">fas fa-bell-slash</v-icon>
-        <div v-if="room.unreadMessages" class="unread-messages text-font-small-size content-align">
+        <div v-if="room.unreadMessages" class="unread-messages align-center border-radius-circle error-color-background white--text text-font-small-size align-content-center">
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </div>
       </div>
