@@ -2,10 +2,11 @@
   <exo-drawer
     ref="ChatDiscussionDrawer"
     id="ChatDiscussionDrawer"
+    :loading="loading"
+    v-draggable="true"
     hide-footer-divider
     go-back-button
     right
-    :loading="loading"
     @closed="close">
     <template slot="title">
       <a :href="url">
@@ -79,6 +80,7 @@
         <message-upload-file-input
          :room-id="room.id"
          paste-target="messageComposerArea"
+         drop-target="ChatDiscussionDrawer"
          class="me-2 d-flex flex-column justify-end" />
         <div
           id="messageComposerArea"
