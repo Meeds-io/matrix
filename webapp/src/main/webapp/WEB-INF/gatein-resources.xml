@@ -62,6 +62,9 @@
         <module>extensionRegistry</module>
       </depends>
       <depends>
+        <module>vueDraggable</module>
+      </depends>
+      <depends>
         <module>jquery</module>
         <as>$</as>
       </depends>
