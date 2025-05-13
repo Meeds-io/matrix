@@ -213,16 +213,26 @@
     .chat-message-from-self {
       border-radius: 16px;
       margin-left: auto;
-      .message-file-name {
-        max-width: 316px !important;
+      .message-file {
+        max-width: 320px !important;
+        .message-file-name {
+          &:hover {
+            text-decoration: underline;
+          }
+        }
       }
     }
 
     .chat-message-from-others {
       border-radius: 16px;
 
-      .message-file-name {
+      .message-file {
         max-width: 304px !important;
+        .message-file-name {
+          &:hover {
+            text-decoration: underline;
+          }
+        }
       }
     }
 
@@ -268,12 +278,6 @@
   }
   .other-user-reaction {
     border: 2px solid #FFF;
-  }
-  .message-file-name {
-    max-width: 304px !important;
-    &:hover {
-      text-decoration: underline;
-    }
   }
 
   .matrix-chat-send-message-button {
