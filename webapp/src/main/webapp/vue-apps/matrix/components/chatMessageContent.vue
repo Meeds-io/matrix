@@ -61,7 +61,7 @@
         :alt="message.content.body"
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
-        class="position-absolute">
+        class="position-absolute border-radius-16">
         <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
           <v-chip
             label
