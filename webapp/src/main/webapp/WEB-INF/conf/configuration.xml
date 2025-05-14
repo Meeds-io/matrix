@@ -226,6 +226,7 @@
     </component-plugin>
   </external-component-plugins>
 
+  <!--
   <external-component-plugins>
     <target-component>org.exoplatform.commons.api.notification.service.setting.PluginSettingService</target-component>
     <component-plugin profiles="all">
@@ -268,7 +269,7 @@
               <string>MatrixMessageReceivedNotificationPlugin</string>
             </field>
             <field name="resourceBundleKey">
-              <string>UINotification.label.MatrixMessageReceivedNotificationPlugin</string>
+              <string>UINotification.title.MatrixMessageReceivedNotificationPlugin</string>
             </field>
             <field name="order">
               <string>4</string>
@@ -284,7 +285,7 @@
               <string>matrix</string>
             </field>
             <field name="bundlePath">
-              <string>locale.notification.MatrixChatNotification</string>
+              <string>locale.notification.MatrixChat</string>
             </field>
             <field name="mutable">
               <boolean>false</boolean>
@@ -294,6 +295,7 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
+  -->
 
   <external-component-plugins>
     <target-component>org.exoplatform.services.resources.ResourceBundleService</target-component>
