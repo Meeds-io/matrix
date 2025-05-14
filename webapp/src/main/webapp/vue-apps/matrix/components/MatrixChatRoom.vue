@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex mb-6 chat-room-item">
+  <div class="d-flex chat-room-item">
     <div
       :style="`backgroundImage: url(${room.avatarUrl})`"
       :class="avatarBorderClass"
