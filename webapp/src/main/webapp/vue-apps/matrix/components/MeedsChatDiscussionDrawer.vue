@@ -177,6 +177,12 @@ export default {
   methods: {
     onComposerInput(event) {
       this.messageContent = event.target?.innerText;
+      this.resizeComposerArea(event);
+    },
+    resetComposer() {
+      this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
+      this.$refs.messageComposerArea.innerHTML = '';
+      this.messageContent = null;
     },
     openDiscussion(e) {
       this.loading = true;
@@ -203,10 +209,7 @@ export default {
     close(){
       this.messages = null;
       this.hasMoreMessages = true;
-      this.messageContent = null;
-      if(this.$refs.messageComposerArea) {
-        this.$refs.messageComposerArea.innerHTML = '';
-      }
+      this.resetComposer();
       this.$refs.ChatDiscussionDrawer?.close();
       this.initializedActions = [];
       this.roomActionComponents = [];
@@ -349,8 +352,7 @@ export default {
         message['m.mentions'] = {'user_ids': this.mentionsArray}
       }
       this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
-      this.$refs.messageComposerArea.innerHTML = '';
-      this.messageContent = null;
+      this.resetComposer();
       this.mentionsArray = [];
       this.mentioningInProgress = false;
     },
