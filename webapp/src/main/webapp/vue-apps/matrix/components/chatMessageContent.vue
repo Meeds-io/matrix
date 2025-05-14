@@ -17,8 +17,8 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content-body py-2 text-break"
-    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
+  <div class="chat-message-content-body text-break"
+    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
               'height': imageThumbnailMaxHeight + 'px',
               'width': imageThumbnailMaxWidth + 'px',
