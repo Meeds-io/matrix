@@ -17,8 +17,8 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content-body py-2 text-break"
-    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
+  <div class="chat-message-content-body text-break"
+    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'mb-3':!nextMessage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
               'height': imageThumbnailMaxHeight + 'px',
               'width': imageThumbnailMaxWidth + 'px',
@@ -61,7 +61,7 @@
         :alt="message.content.body"
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
-        class="position-absolute">
+        class="position-absolute border-radius-16">
         <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
           <v-chip
             label
@@ -128,7 +128,10 @@
            v-bind="bind"
            v-show="displayTimestamp"
            class="text-font-small-size chat-message-content-timestamp">
-             <v-chip v-if="isImage" x-small class="text-font-small-size pa-1 chat-message-timestamp-chip">
+             <v-chip
+               v-if="isImage"
+               class="text-font-small-size pa-1 ma-1 chat-message-timestamp-chip"
+               x-small>
                {{ timestamp }}
              </v-chip>
              <div v-else>
