@@ -104,6 +104,7 @@
       }
 
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
@@ -192,7 +193,23 @@
         setTimeout(() => {
           this.$root.$emit("open-chat-discussion", roomId);
         }, 100);
-      }
+      },
+      sendMessageStatistics(message, room) {
+        document.dispatchEvent(new CustomEvent('exo-statistic-message', {
+          detail: {
+            module: 'Chat',
+            userId: eXo.env.portal.userIdentityId,
+            userName: eXo.env.portal.userName,
+            operation: 'sendMessage',
+            parameters: {
+              messageType: message.msgtype,
+              roomType: room.spaceId ? 'space' : 'private',
+              spaceId: room.spaceId,
+            },
+            timestamp: Date.now()
+          }
+        }));
+      },
     }
   };
 </script>
