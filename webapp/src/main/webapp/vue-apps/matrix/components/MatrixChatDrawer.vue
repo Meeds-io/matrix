@@ -28,7 +28,9 @@
       <div
         :class="{'disabled-background': !rooms?.length}"
         class="pa-5 fill-height overflow-y-auto specific-scrollbar">
-        <matrix-chat-rooms :rooms="rooms"/>
+        <matrix-chat-rooms
+          :rooms="rooms"
+          :loading="loading" />
         <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
       </div>
     </template>
@@ -40,6 +42,10 @@ export default {
     rooms: {
       type: Array,
       default: null
+    },
+    loading: {
+      type: Boolean,
+      default: false
     }
   },
   data: () =>({
@@ -54,27 +60,19 @@ export default {
     }
   },
   watch: {
-    expanded() {
-      console.log(`drawer is expanded ${expanded}`);
-    },
-    rooms() {
-      if(this.rooms && this.rooms.length) {
-        this.$refs.meedsChatDrawer.endLoading();
+    loading() {
+      if (this.loading) {
+        this.$refs.meedsChatDrawer.startLoading();
+      } else {
+        this.$refs.meedsChatDrawer.endLoading()
       }
-    },
+    }
   },
   created() {
     document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
-    document.addEventListener('chat-rooms-loading', () => this.$refs.meedsChatDrawer.startLoading());
-    document.addEventListener('chat-rooms-loaded', () => this.$refs.meedsChatDrawer.endLoading());
-  },
-  mounted() {
-    this.$refs.meedsChatDrawer.startLoading();
   },
   beforeDestroy() {
     document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
-    document.addEventListener('chat-rooms-loading', () => this.$refs.meedsChatDrawer.startLoading());
-    document.removeEventListener('chat-rooms-loaded', () => this.$refs.meedsChatDrawer.endLoading());
   },
   methods: {
     open() {

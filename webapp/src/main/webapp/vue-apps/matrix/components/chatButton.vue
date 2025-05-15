@@ -42,6 +42,7 @@
           v-if="open"
           ref="meedsChatDrawer"
           :rooms="rooms"
+          :loading="loading"
           @closed="open = false" />
         <meeds-chat-quick-create-discussion-drawer />
       </div>
@@ -56,7 +57,8 @@
       presence: 'online',
       open: false,
       totalUnreadMessages: 0,
-      rooms: null
+      rooms: null,
+      loading: false
     }),
     created() {
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
@@ -179,13 +181,13 @@
         }
       },
       loadRooms() {
-        document.dispatchEvent(new CustomEvent('chat-rooms-loading'));
+        this.loading = true;
         this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
           this.rooms = matrixRoomsObject.rooms || [];
           this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
         })
         .finally(() => {
-          document.dispatchEvent(new CustomEvent('chat-rooms-loaded'));
+          this.loading = false;
         });
       },
       openRoom(roomId) {
