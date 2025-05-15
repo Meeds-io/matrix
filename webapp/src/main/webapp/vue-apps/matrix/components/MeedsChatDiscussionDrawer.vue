@@ -79,7 +79,7 @@
     <template slot="footer">
       <div class="d-flex">
         <message-upload-file-input
-         :room-id="room.id"
+         :room="room"
          paste-target="messageComposerArea"
          drop-target="ChatDiscussionDrawer"
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
@@ -354,6 +354,7 @@ export default {
       }
       this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
       this.resetComposer();
+      this.$root.$emit('message-sent-statistics', message, this.room);
       this.mentionsArray = [];
       this.mentioningInProgress = false;
     },
