@@ -94,8 +94,8 @@ export default {
     };
   },
   props: {
-    roomId: {
-      type: String,
+    room: {
+      type: Object,
       default: null
     },
     pasteTarget: {
@@ -156,10 +156,11 @@ export default {
             info
           };
 
-          await this.$matrixService.sendMessage(payload, this.roomId);
+          await this.$matrixService.sendMessage(payload, this.room.id);
           uploadedBytes += file.size;
           this.uploadProgress = Math.min(Math.round((uploadedBytes / totalBytes) * 100), 100);
           this.uploadedFiles += 1;
+          this.sendMessageStatistics(payload);
         } catch (error) {
           console.error('File upload failed:', error);
           this.$root.$emit('alert-message', this.$t('matrix.chat.upload.image.error.message', {0: this.ignoredFiles}), 'error');
@@ -239,6 +240,7 @@ export default {
           });
         } else if (type.startsWith('audio/')) {
           msgtype = 'm.audio';
+          info.uAudio = true;
           const audio = document.createElement('audio');
           audio.preload = 'metadata';
           audio.src = URL.createObjectURL(file);
@@ -277,6 +279,12 @@ export default {
       if (files.length) {
         this.handleFileChange(files);
       }
+    },
+    sendMessageStatistics(message) {
+      if (message?.info?.uAudio) {
+        message.msgtype = 'u.audio';
+      }
+      this.$root.$emit('message-sent-statistics', message, this.room)
     }
   }
 };
