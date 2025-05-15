@@ -20,8 +20,11 @@
           <value>middle-topNavigation-container</value>
         </value-param>
         <object-param>
-          <name>matrixChatButton</name>
+          <name>matrixChatApplication</name>
           <object type="org.exoplatform.commons.addons.PortletModel">
+            <field name="id">
+              <string>chat</string>
+            </field>
             <field name="contentId">
               <string>matrix/Matrix</string>
             </field>
@@ -36,13 +39,13 @@
               </collection>
             </field>
             <field name="title">
-              <string>Matrix Chat button</string>
+              <string>generalSettings.chat.name</string>
             </field>
-            <field name="showInfoBar">
-              <boolean>false</boolean>
+            <field name="description">
+              <string>generalSettings.chat.description</string>
             </field>
-            <field name="showApplicationState">
-              <boolean>false</boolean>
+            <field name="icon">
+              <string>fa-comments</string>
             </field>
             <field name="showApplicationMode">
               <boolean>false</boolean>
