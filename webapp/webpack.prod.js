@@ -35,7 +35,8 @@ const config = {
   ],
   entry: {
     matrix: './src/main/webapp/vue-apps/matrix/main.js',
-    matrixChatNotificationsExtension: './src/main/webapp/vue-apps/notification/main.js'
+    matrixChatNotificationsExtension: './src/main/webapp/vue-apps/notification/main.js',
+    analyticsExtensionMatrix: './src/main/webapp/vue-apps/analytics-extension/main.js',
   },
   output: {
     path: path.join(__dirname, 'target/matrix/'),
