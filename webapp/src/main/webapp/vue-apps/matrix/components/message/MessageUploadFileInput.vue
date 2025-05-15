@@ -179,7 +179,30 @@ export default {
       this.uploadedFiles = 0
       this.ignoredFiles = 0
     },
+    handlePastePlainText(text) {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+
+      const textNode = document.createTextNode(text);
+      range.insertNode(textNode);
+
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
     handlePaste(event) {
+      const text = event.clipboardData.getData('text/plain');
+      if (text) {
+        event.preventDefault();
+        this.handlePastePlainText(text);
+        return;
+      }
       const files = [];
       for (const item of event.clipboardData.items) {
         const file = item.getAsFile();
