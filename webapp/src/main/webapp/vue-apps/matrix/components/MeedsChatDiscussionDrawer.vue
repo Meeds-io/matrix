@@ -161,6 +161,7 @@ export default {
   },
   created() {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
   },
@@ -171,6 +172,7 @@ export default {
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
@@ -217,6 +219,9 @@ export default {
       this.lastScrollTop = 0;
     },
     messageReceived(event) {
+      if (!this.messages) {
+        return;
+      }
       if (this.room?.id !== event.detail.roomId) {
         return;
       }
@@ -251,6 +256,33 @@ export default {
           this.scrollToEnd();
         }, 50);
       }
+    },
+    messageDeleted(event) {
+      if (!this.messages) {
+        return;
+      }
+      if (this.room?.id !== event.detail.roomId) {
+        return;
+      }
+      const redactedEventId = event?.detail?.eventId;
+      const redaction = event.detail?.redaction;
+      const index = this.messages.findIndex(msg => msg.event_id === redactedEventId);
+      if (index === -1) {
+        return;
+      }
+      const original = this.messages[index];
+      this.$set(this.messages, index, {
+        ...original,
+        redacted_because: redaction || {redacts: redactedEventId, reason: 'Redacted'},
+        content: {
+          ...original.content,
+          body: undefined,
+          formatted_body: undefined,
+          format: undefined,
+          msgtype: undefined
+        }
+      });
+
     },
     scrollToEnd() {
       if(this.messages) {
