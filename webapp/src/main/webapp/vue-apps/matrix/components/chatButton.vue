@@ -108,6 +108,7 @@
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.addEventListener('matrix-message-deleted', this.messageDeleted);
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
@@ -115,6 +116,7 @@
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.removeEventListener('matrix-message-deleted', this.messageDeleted);
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.removeEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
@@ -137,11 +139,12 @@
         this.$refs.meedsChatDrawer?.open();
       },
       messageReceived(event) {
-        const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
-        const updatedRoom = this.rooms[updatedRoomIndex];
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
+        const updatedRoom = this.rooms?.[updatedRoomIndex];
         if(updatedRoom) {
           updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
           const receivedMessage = event.detail.message;
+          updatedRoom.lastMessage.eventId = receivedMessage.event_id;
           if(matrixUserId !== receivedMessage.sender) {
             this.totalUnreadMessages ++;
             updatedRoom.unreadMessages += 1;
@@ -160,6 +163,31 @@
                                                 senderIdentity.profile.fullname).replace('{1}', messageText);
             });
           }
+        }
+      },
+      async messageDeleted(event) {
+        const {roomId, eventId, redaction, sender} = event.detail;
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === roomId);
+        const updatedRoom = this.rooms?.[updatedRoomIndex];
+
+        if (updatedRoom) {
+          if (updatedRoom.lastMessage?.eventId === eventId) {
+            const deletedBy = sender === matrixUserId ? this.$t('matrix.words.you') :
+                (await this.$matrixService.getUserByMatrixId(sender))?.profile?.fullname || sender;
+
+            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {0: deletedBy, 1: this.$t('matrix.chat.message.deleted')});
+            updatedRoom.lastMessage.redacted = true;
+          }
+
+          if (updatedRoom.unreadMessages === 1) {
+            updatedRoom.unreadMessages--;
+            this.totalUnreadMessages--;
+            this.$matrixService.markRoomAsFullyRead(roomId, eventId);
+          }
+
+          updatedRoom.updated = redaction.origin_server_ts;
+          this.rooms.splice(updatedRoomIndex, 1);
+          this.rooms.unshift(updatedRoom);
         }
       },
       updateUnreadMessages(event) {
