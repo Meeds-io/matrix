@@ -130,7 +130,8 @@ export default {
       mentioningInProgress: false,
       leftReactions: [],
       composerDefaultHeight: 40,
-      messageContent: null
+      messageContent: null,
+      insertedNewLine: false
     };
   },
   computed: {
@@ -186,6 +187,7 @@ export default {
       this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
       this.$refs.messageComposerArea.innerHTML = '';
       this.messageContent = null;
+      this.insertedNewLine = false;
     },
     openDiscussion(e) {
       this.loading = true;
@@ -395,10 +397,18 @@ export default {
     },
     insertNewLineAtCursor() {
       let selection = window.getSelection();
-      if (!selection.rangeCount) return;
+      if (!selection.rangeCount) {
+        return;
+      }
       let range = selection.getRangeAt(0);
       let br = document.createElement('br');
       range.insertNode(br);
+      range.setStartAfter(br);
+      if (!this.insertedNewLine) {
+        const textNode = document.createTextNode('\u00a0');
+        range.insertNode(textNode);
+        this.insertedNewLine = true;
+      }
       range.setStartAfter(br);
       range.setEndAfter(br);
       selection.removeAllRanges();
