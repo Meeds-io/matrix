@@ -238,6 +238,16 @@ export function processEvents(response) {
               }
             }));
           }
+        } else if (e.type === 'm.room.redaction') {
+          const redactedEventId = e.redacts;
+          document.dispatchEvent(new CustomEvent('matrix-message-deleted', {
+            detail: {
+              roomId: roomId,
+              eventId: redactedEventId,
+              redaction: e,
+              sender: e.sender
+            }
+          }));
         }
         if(e.type === 'm.reaction') {
           document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
@@ -341,21 +351,31 @@ export async function toRoomObject(rooms, currentMemberId) {
         }
       }
       if (e.type === 'm.room.message') {
+        const isRedacted = !!e.unsigned.redacted_because;
         const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
         const content = isReplacement ? e.content['m.new_content'] : e.content;
         const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
         const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content.msgtype);
 
-        if (isSupportedMsgType && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+        if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
           roomItem.updated = e.origin_server_ts;
-          roomItem.lastMessage = {
-            content: content.format === 'org.matrix.custom.html'
-                ? formatMentionsInRoomList(content.formatted_body)
-                : content.body,
-            sender: e.sender,
-            eventId,
-            ...(isReplacement && {edited: true})
-          };
+          if (isRedacted) {
+            roomItem.lastMessage = {
+              content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+              sender: e.sender,
+              eventId,
+              redacted: true
+            };
+          } else if (isSupportedMsgType) {
+            roomItem.lastMessage = {
+              content: content.format === 'org.matrix.custom.html'
+                  ? formatMentionsInRoomList(content.formatted_body)
+                  : content.body,
+              sender: e.sender,
+              eventId,
+              ...(isReplacement && {edited: true})
+            };
+          }
         }
       }
     });
