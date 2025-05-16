@@ -86,7 +86,7 @@
                       <string>matrixId</string>
                     </field>
                     <field name="visible">
-                      <boolean>true</boolean>
+                      <boolean>false</boolean>
                     </field>
                     <field name="editable">
                       <boolean>false</boolean>
@@ -103,6 +103,9 @@
                     <field name="groupSynchronized">
                       <boolean>false</boolean>
                     </field>
+                    <field name="propertyType">
+                      <string>text</string>
+                    </field>
                     <field name="order">
                       <int>100</int>
                     </field>
@@ -116,7 +119,7 @@
     </component-plugin>
   </external-component-plugins>
 
-<external-component-plugins>
+  <external-component-plugins>
     <target-component>org.exoplatform.web.filter.ExtensibleFilter</target-component>
     <component-plugin>
       <name>Filter useful to set a JWT for authentication o Matrix</name>
