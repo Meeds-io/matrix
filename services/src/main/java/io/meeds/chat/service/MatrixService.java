@@ -217,6 +217,7 @@ public class MatrixService {
    */
   public String getJWTSessionToken(String userNameOnMatrix) {
     Date expirtaionDate = Date.from(Instant.now().plusSeconds(7 * 24 * 60 * 60L)); // adds one week to the current instant
+    userNameOnMatrix = userNameOnMatrix.replaceAll("[^a-zA-Z=_\\-\\.\\/+]+", "-");
     return Jwts.builder()
                .setSubject(userNameOnMatrix)
                .signWith(Keys.hmacShaKeyFor(PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes()))
