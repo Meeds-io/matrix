@@ -18,8 +18,7 @@
         v-if="room.lastMessage"
         class="chat-room-last-message text-truncate mt-1"
         :class="lastMessageStyle"
-        v-sanitized-html="room.lastMessage.content"
-        >
+        v-sanitized-html="room.lastMessage.content">
       </div>
       <div v-else class="text-subtitle text-truncate mt-1">
         {{ $t('matrix.chat.start.conversation') }}
