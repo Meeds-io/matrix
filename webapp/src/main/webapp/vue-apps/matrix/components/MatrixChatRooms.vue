@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="rooms?.length"
-    class="d-flex flex-column pb-6 gap-6">
+    class="d-flex flex-column">
     <matrix-chat-room
       v-for="(room, i) in rooms"
       :key="i"
