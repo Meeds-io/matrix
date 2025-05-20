@@ -51,8 +51,6 @@
 </template>
 <script>
   export default {
-    props: {
-    },
     data: () => ({
       presence: 'online',
       open: false,
