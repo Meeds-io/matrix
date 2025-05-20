@@ -61,26 +61,29 @@ export default {
   },
   watch: {
     loading() {
-      if (this.loading) {
-        this.$refs.meedsChatDrawer.startLoading();
-      } else {
-        this.$refs.meedsChatDrawer.endLoading()
-      }
+      this.checkLoading();
     }
   },
   created() {
     document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
   },
+  mounted() {
+    this.checkLoading();
+  },
   beforeDestroy() {
     document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
   },
   methods: {
-    open() {
-      if(!this.$refs.meedsChatDrawer.drawer) {
-        this.$refs.meedsChatDrawer.open();
+    checkLoading() {
+      if (this.loading) {
+        this.$refs.meedsChatDrawer.startLoading();
+      } else {
+        this.$refs.meedsChatDrawer.endLoading()
       }
-      if(this.rooms && this.rooms.length) {
-        this.$refs.meedsChatDrawer.endLoading();
+    },
+    open() {
+      if (!this.$refs.meedsChatDrawer.drawer) {
+        this.$refs.meedsChatDrawer.open();
       }
     },
     close() {

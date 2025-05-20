@@ -29,10 +29,11 @@
     <div
       :id="message.event_id"
       class="px-4"
-      :class="{'mt-3' : message.sender !== previousMessage.sender}"
-      >
+      :class="{'mt-3' : message.sender !== previousMessage.sender}">
       <div class="d-relative">
-        <div class="avatar-of-user mt-3" v-if="displaySender">
+        <div
+          v-if="displaySender"
+          class="avatar-of-user mb-n4 width-fit-content">
           <a :href="profileUrl">
             <div class="d-flex">
               <div
@@ -52,7 +53,7 @@
         </div>
         <div
           class="message-container"
-          :class="{'ml-5 mt--4 position-relative me-10': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
+          :class="{'ml-5 position-relative me-10': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
           <meeds-chat-message-content
             :message="message"
             :display-sender="displaySender"
@@ -66,8 +67,12 @@
             :class="{'justify-end': isMyMessage}">
             <div
               v-for="reaction in message.reactions"
+              :class="{
+                'current-user-reaction': isCurrentUserReaction(reaction),
+                'other-user-reaction': !isCurrentUserReaction(reaction),
+                'ml-2': isMyMessage, ' me-2': !isMyMessage,
+              }"
               class="message-reaction-item px-2 mb-2"
-              :class="{'current-user-reaction': isCurrentUserReaction(reaction), 'other-user-reaction': !isCurrentUserReaction(reaction), 'ml-2': isMyMessage, ' me-2': !isMyMessage}"
               v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
           </div>
         </div>
@@ -129,12 +134,15 @@
                             || this.message.content.body.replace(/\n/g, '<br />')
                             || '';
         return this.$matrixService.formatMentionsInMessage(formatMessage);
-      },  
+      },
       displaySender() {
-        return (this.previousMessage.sender !== this.message.sender
-               || !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts))
-               && this.message.sender !== localStorage.getItem('matrix_user_id')
-               && !this.room.directChat;
+        return !this.isMyMessage && ((this.previousHasReactions && !this.room.directChat) ||
+            ((this.previousMessage.sender !== this.message.sender ||
+                    !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) &&
+                !this.room.directChat));
+      },
+      previousHasReactions() {
+        return this.previousMessage?.reactions?.length > 0;
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
