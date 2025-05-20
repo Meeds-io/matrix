@@ -31,10 +31,11 @@
     <div
       :id="message.event_id"
       class="px-4"
-      :class="{'mt-3' : message.sender !== previousMessage.sender}"
-      >
+      :class="{'mt-3' : message.sender !== previousMessage.sender}">
       <div class="d-relative">
-        <div class="avatar-of-user mt-3" v-if="displaySender">
+        <div
+          v-if="displaySender"
+          class="avatar-of-user mt-3">
           <a :href="profileUrl">
             <div class="d-flex">
               <div
@@ -131,12 +132,15 @@
                             || this.message.content.body.replace(/\n/g, '<br />')
                             || '';
         return this.$matrixService.formatMentionsInMessage(formatMessage);
-      },  
+      },
       displaySender() {
-        return (this.previousMessage.sender !== this.message.sender
-               || !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts))
-               && this.message.sender !== localStorage.getItem('matrix_user_id')
-               && !this.room.directChat;
+        return ((this.previousHasReactions && !this.room.directChat) ||
+            ((this.previousMessage.sender !== this.message.sender ||
+                    !this.sameDateAs(this.message.origin_server_ts, this.previousMessage.origin_server_ts)) &&
+                this.message.sender !== localStorage.getItem('matrix_user_id') && !this.room.directChat));
+      },
+      previousHasReactions() {
+        return this.previousMessage?.reactions?.length > 0;
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
