@@ -19,7 +19,9 @@
 <template>
   <div
     class="chat-message-content"
-    :class="{'mb-3':!nextMessage, 'mb-1': nextMessage}">
+    :class="{
+      'mb-3':!nextMessage,
+      'mb-1': nextMessage}">
     <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
