@@ -1,6 +1,8 @@
 package io.meeds.chat.upgrade;
 
+import io.meeds.chat.model.Room;
 import io.meeds.chat.service.MatrixService;
+import io.meeds.chat.service.MatrixSynchronizationService;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.ListAccessImpl;
 import org.exoplatform.container.xml.InitParams;
@@ -25,19 +27,22 @@ import static org.mockito.Mockito.when;
 
 class MatrixRoomAndAccountsUpgradePluginTest {
 
-  private SpaceService        spaceService;
+  private SpaceService                 spaceService;
 
-  private MatrixService       matrixService;
+  private MatrixService                matrixService;
 
-  private IdentityManager     identityManager;
+  private MatrixSynchronizationService matrixSynchronizationService;
 
-  private OrganizationService organizationService;
+  private IdentityManager              identityManager;
+
+  private OrganizationService          organizationService;
 
   @BeforeEach
   void setUp() throws Exception {
     spaceService = mock(SpaceService.class);
     identityManager = mock(IdentityManager.class);
     matrixService = mock(MatrixService.class);
+    matrixSynchronizationService = mock(MatrixSynchronizationService.class);
     organizationService = mock(OrganizationService.class);
     UserHandler userHandler = mock(UserHandler.class);
     ListAccess<User> usersListAccess = mock(ListAccess.class);
@@ -66,11 +71,16 @@ class MatrixRoomAndAccountsUpgradePluginTest {
     when(identityManager.getOrCreateUserIdentity(eq("user3"))).thenReturn(user3Identity);
 
     Space space = new Space();
-    space.setMembers(new String[] {"user1", "user2", "user3"});
+    space.setId(1);
+    space.setMembers(new String[] { "user1", "user2", "user3" });
     ListAccess<Space> spaces = mock(ListAccess.class);
     when(spaces.getSize()).thenReturn(1);
     when(spaces.load(anyInt(), anyInt())).thenReturn(new Space[] { space });
     when(spaceService.getMemberSpaces(anyString())).thenReturn(spaces);
+    Room room = new Room();
+    room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
+    room.setSpaceId("1");
+    when(matrixService.getRoomBySpace(eq(space))).thenReturn(room);
 
     // spaces data
     when(spaceService.getAllSpacesByFilter(any())).thenReturn(spaces);
@@ -82,10 +92,8 @@ class MatrixRoomAndAccountsUpgradePluginTest {
     InitParams initParams = new InitParams();
     MatrixRoomAndAccountsUpgradePlugin matrixRoomAndAccountsUpgradePlugin =
                                                                           new MatrixRoomAndAccountsUpgradePlugin(initParams,
-                                                                                                                 spaceService,
                                                                                                                  matrixService,
-                                                                                                                 organizationService,
-                                                                                                                 identityManager);
+                                                                                                                 matrixSynchronizationService);
     matrixRoomAndAccountsUpgradePlugin.processUpgrade("versionSource", "versionTarget");
   }
 }

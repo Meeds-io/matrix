@@ -20,8 +20,11 @@
           <value>middle-topNavigation-container</value>
         </value-param>
         <object-param>
-          <name>matrixChatButton</name>
+          <name>matrixChatApplication</name>
           <object type="org.exoplatform.commons.addons.PortletModel">
+            <field name="id">
+              <string>chat</string>
+            </field>
             <field name="contentId">
               <string>matrix/Matrix</string>
             </field>
@@ -30,16 +33,19 @@
                 <value>
                   <string>*:/platform/users</string>
                 </value>
+                <value>
+                  <string>*:/platform/externals</string>
+                </value>
               </collection>
             </field>
             <field name="title">
-              <string>Matrix Chat button</string>
+              <string>generalSettings.chat.name</string>
             </field>
-            <field name="showInfoBar">
-              <boolean>false</boolean>
+            <field name="description">
+              <string>generalSettings.chat.description</string>
             </field>
-            <field name="showApplicationState">
-              <boolean>false</boolean>
+            <field name="icon">
+              <string>fa-comments</string>
             </field>
             <field name="showApplicationMode">
               <boolean>false</boolean>
@@ -223,6 +229,7 @@
     </component-plugin>
   </external-component-plugins>
 
+  <!--
   <external-component-plugins>
     <target-component>org.exoplatform.commons.api.notification.service.setting.PluginSettingService</target-component>
     <component-plugin profiles="all">
@@ -265,7 +272,7 @@
               <string>MatrixMessageReceivedNotificationPlugin</string>
             </field>
             <field name="resourceBundleKey">
-              <string>UINotification.label.MatrixMessageReceivedNotificationPlugin</string>
+              <string>UINotification.title.MatrixMessageReceivedNotificationPlugin</string>
             </field>
             <field name="order">
               <string>4</string>
@@ -281,7 +288,7 @@
               <string>matrix</string>
             </field>
             <field name="bundlePath">
-              <string>locale.notification.MatrixChatNotification</string>
+              <string>locale.notification.MatrixChat</string>
             </field>
             <field name="mutable">
               <boolean>false</boolean>
@@ -291,6 +298,7 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
+  -->
 
   <external-component-plugins>
     <target-component>org.exoplatform.services.resources.ResourceBundleService</target-component>
@@ -301,11 +309,11 @@
       <init-params>
         <values-param>
           <name>classpath.resources</name>
-          <value>locale.shared.MatrixChat</value>
+          <value>locale.notification.MatrixChat</value>
         </values-param>
         <values-param>
           <name>portal.resource.names</name>
-          <value>locale.shared.MatrixChat</value>
+          <value>locale.notification.MatrixChat</value>
         </values-param>
       </init-params>
     </component-plugin>

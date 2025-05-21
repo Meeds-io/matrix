@@ -26,6 +26,7 @@ import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.User;
+import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
@@ -91,7 +92,7 @@ public class MatrixHttpClient {
         }
       }
     } catch (Exception e) {
-      LOG.error("Could not authenticate Admin account with JWT on Matrix", e);
+      LOG.error("Could not authenticate Admin account with JWT on Matrix", e.getMessage());
       throw e;
     }
 
@@ -296,6 +297,18 @@ public class MatrixHttpClient {
   }
 
   /**
+   * Saves the user account on Matrix
+   * @param user the user identity
+   * @param matrixUserId the user Matrix ID to set
+   * @param isNew if the user has been just created
+   * @param token the authorization token
+   * @return the user Matrix ID
+   */
+  public String saveUserAccount(Identity user, String matrixUserId, boolean isNew, String token) {
+    return saveUserAccount(user, matrixUserId, isNew, token, false, true);
+  }
+
+  /**
    * Saves the user account
    * 
    * @param user the User
@@ -307,7 +320,7 @@ public class MatrixHttpClient {
    * @return the user Matrix ID
    */
 
-  public String saveUserAccount(User user, String matrixUserId, boolean isNew, String token, boolean isEnableUserOperation) {
+  public String saveUserAccount(Identity user, String matrixUserId, boolean isNew, String token, boolean isEnableUserOperation, boolean isUserEnabled) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -331,29 +344,27 @@ public class MatrixHttpClient {
                     "address": "%s"
                 }
             ],
-            "admin": false,
-            "deactivated": %s,
             "user_type": null,
             "locked": false
           }
-          """.formatted(password, user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
-    } else if (isEnableUserOperation && user.isEnabled()) {
+          """.formatted(password, user.getRemoteId(), user.getProfile().getEmail());
+    } else if (isEnableUserOperation && isUserEnabled) {
       payload = """
           {
            "password": "%s",
            "displayname": "%s",
            "threepids": [
-               {
-                   "medium": "email",
-                   "address": "%s"
-               }
+             {
+               "medium": "email",
+               "address": "%s"
+             }
            ],
            "deactivated": %s
            }
           """.formatted(PasswordGenerator.generatePassword(10),
-                        user.getDisplayName(),
-                        user.getEmail(),
-                        String.valueOf(!user.isEnabled()));
+                        user.getProfile().getFullName(),
+                        user.getProfile().getEmail(),
+                        String.valueOf(false));
     } else {
       payload = """
           {
@@ -366,7 +377,7 @@ public class MatrixHttpClient {
             ],
             "deactivated": %s
           }
-          """.formatted(user.getDisplayName(), user.getEmail(), String.valueOf(!user.isEnabled()));
+          """.formatted(user.getProfile().getFullName(), user.getProfile().getEmail(), String.valueOf(!isUserEnabled));
     }
     try {
       HttpResponse<String> response = sendHttpPutRequest(url, token, payload);
@@ -377,7 +388,7 @@ public class MatrixHttpClient {
         // If the user is a new user, we need to authenticate him
         if (isNew) {
           String accessTokenOfCreatedUser = authenticateUser(matrixUserId, password);
-          LOG.info("User {} authenticated successfully", user.getUserName());
+          LOG.info("User {} authenticated successfully", user.getRemoteId());
         }
         return fullMatrixID.substring(1, fullMatrixID.indexOf(":"));
       } else {

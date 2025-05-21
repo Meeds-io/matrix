@@ -4,13 +4,20 @@ import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MeedsChatMessage from './components/chatMessage.vue';
+import MeedsChatMessageContent from './components/chatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
+import AudioMessage from './components/message/AudioMessage.vue';
+import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
+import QuotedMessageUser from './components/message/QuotedMessageUser.vue';
+import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
+
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
+import './icons-extensions.js'
 
 const components = {
   'matrix-component': MatrixComponent,
@@ -19,9 +26,14 @@ const components = {
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
   'meeds-chat-message': MeedsChatMessage,
-  'popover-chat-button': PopoverChatButton,
+  'meeds-chat-message-content': MeedsChatMessageContent,
+  'meeds-popover-chat-button': PopoverChatButton,
   'meeds-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
+  'audio-message': AudioMessage,
+  'message-reply-quote': MessageReplyQuote,
+  'quoted-message-user': QuotedMessageUser,
+  'message-upload-file-input': MessageUploadFileInput,
 };
 
 for (const key in components) {
@@ -37,6 +49,8 @@ window.Object.defineProperty(Vue.prototype, '$chatConstants', {
 window.Object.defineProperty(Vue.prototype, '$timeUtils', {
   value: timeUtils,
 });
+
+Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'files-icons-extension');
 
 const appId = 'matrixChatButton';
 const lang = window?.eXo?.env?.portal?.language || 'fr';
