@@ -105,7 +105,13 @@ export default {
       const remoteId = this.participant.remoteId;
       if(remoteId) {
         this.close();
-        this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName);
+        this.$identityService.getIdentityByProviderIdAndRemoteId('organization', remoteId, 'settings').then(identity => {
+          const matrixProperty = identity.profile.dataEntity.properties.filter(property => property.propertyName === 'matrixId');
+          if(matrixProperty && matrixProperty.length > 0) {
+            const invitedUserMatrixId = matrixProperty[0].value;
+            this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName, matrixUserId, invitedUserMatrixId);
+          }
+        });
       }
     }
   }
