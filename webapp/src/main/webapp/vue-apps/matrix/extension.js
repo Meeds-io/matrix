@@ -24,8 +24,9 @@ export function registerChatExtensions(chatTitle) {
       const userName = profile.userName || profile.username;
       if(userName) {
         const matrixProperty = profile.properties.filter(property => property.propertyName === 'matrixId');
-        if(matrixProperty && matrixProperty.length) {
-          matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName);
+        if(matrixProperty && matrixProperty.length > 0) {
+          const invitedUserMatrixId = matrixProperty[0].value;
+          matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName, matrixUserId, invitedUserMatrixId);
         }
       } else {
         matrixService.openSpaceRoom(profile.id);
