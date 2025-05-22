@@ -121,7 +121,7 @@ export function loadRoom(roomId) {
   });
 }
 
-export function createMatrixDMRoom(matrixIDUserOne, matrixIdUserTwo, serverName) {
+export function createMatrixDMRoom(matrixIdUserTwo, serverName) {
   const payLoad = {
                      "preset": "trusted_private_chat",
                      "visibility": "private",
@@ -437,13 +437,13 @@ export function getSpaceRoom(spaceId) {
   });
 }
 
-export function getDMRoom(firstParticipant, secondParticipant, serverName) {
+export function getDMRoom(firstParticipant, secondParticipant, serverName, firstUserMatrixId, secondUserMatrixId) {
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
   }).then(resp => {
     if (!resp || !resp.ok) {
       if(resp.status === 404) {
-        return createMatrixDMRoom(firstParticipant, secondParticipant, serverName).then(data => {
+        return createMatrixDMRoom(secondUserMatrixId || secondParticipant, serverName).then(data => {
           const payload = {
                             "roomId": data.room_id,
                             "firstParticipant": firstParticipant,
@@ -479,8 +479,8 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
   });
 }
 
-export function openDMRoom(firstParticipant, secondParticipant, matrixServerName) {
-  getDMRoom(firstParticipant, secondParticipant, matrixServerName).then(data => {
+export function openDMRoom(firstParticipant, secondParticipant, matrixServerName, firstUserMatrixId, secondUserMatrixId) {
+  getDMRoom(firstParticipant, secondParticipant, matrixServerName, firstUserMatrixId, secondUserMatrixId).then(data => {
     document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
   }).catch(e => {
     console.log(e)
