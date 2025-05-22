@@ -47,7 +47,7 @@ export default {
           if(matrixIdProperty) {
             this.contactMatrixId = matrixIdProperty.value;
             if(this.contactMatrixId) {
-              this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName);
+              this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName, matrixUserId, this.contactMatrixId);
             }
           }
         });
