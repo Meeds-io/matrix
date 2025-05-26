@@ -37,11 +37,9 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
-import static java.lang.Character.toLowerCase;
 
 @Component
 public class MatrixHttpClient {
@@ -921,22 +919,7 @@ public class MatrixHttpClient {
    * @return String the cleaned username
    */
   public String cleanMatrixUsername(String userName) {
-    String matrixAllowedCharacters = "_-./=+";
-    StringBuilder formattedMatrixUserId = new StringBuilder();
-    if (StringUtils.isNotBlank(userName)) {
-      // remove accents if exists
-      String normalizedUserName = Normalizer.normalize(userName, Normalizer.Form.NFKD).replaceAll("\\p{M}", "");
-      for (int i = 0; i < normalizedUserName.length(); ++i) {
-        final int codePoint = normalizedUserName.codePointAt(i);
-        if (Character.isAlphabetic(codePoint) || Character.isDigit(codePoint)
-            || matrixAllowedCharacters.indexOf(normalizedUserName.charAt(i)) >= 0) {
-          formattedMatrixUserId.append(toLowerCase(normalizedUserName.charAt(i)));// Matrix usernames should be lowercased
-        } else {
-          formattedMatrixUserId.append("-");
-        }
-      }
-    }
-    return formattedMatrixUserId.toString();
+    return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
   }
 
   public String getUserDisplayName(String userMatrixId,
