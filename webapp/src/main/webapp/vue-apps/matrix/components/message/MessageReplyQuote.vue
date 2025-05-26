@@ -50,7 +50,10 @@
       </div>
       <div class="flex-column">
         <div class="flex-row">
-          <quoted-message-user :user-id="targetMessage.targetUser" />
+          <message-user
+            :sender-id="targetMessage.targetUser"
+            :room="room"
+            :quoted="true" />
         </div>
         <v-sheet
           :max-width="isFile && 265 || 'auto'"
@@ -72,6 +75,10 @@
 export default {
   props: {
     message: {
+      type: Object,
+      default: null
+    },
+    room: {
       type: Object,
       default: null
     }
