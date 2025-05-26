@@ -31,6 +31,10 @@ import java.io.Serializable;
 public class Member implements Serializable {
   private String id;
 
+  private String userId;
+
+  private String matrixId;
+
   private String name;
 
   private String avatarUrl;
