@@ -72,11 +72,8 @@
       lastMessageSender() {
         return this.room?.lastMessage?.sender;
       },
-      lastMessageSenderId() {
-        return this.lastMessageSender?.slice(1, this.lastMessageSender?.indexOf(':'));
-      },
       isLastMessageSenderCurrentUser() {
-        return this.lastMessageSenderId === eXo.env.portal.userName;
+        return this.lastMessageSender === matrixUserId;
       },
       lastMessageContent() {
         return this.room?.lastMessage?.content;
