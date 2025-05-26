@@ -72,6 +72,9 @@
       lastMessageSender() {
         return this.room?.lastMessage?.sender;
       },
+      lastMessageSenderId() {
+        return this.lastMessageSender?.slice(1, this.lastMessageSender?.indexOf(':'));
+      },
       isLastMessageSenderCurrentUser() {
         return this.lastMessageSender === matrixUserId;
       },
