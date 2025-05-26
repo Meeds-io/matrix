@@ -100,9 +100,11 @@ export function processRooms(rooms) {
   }).then(resp => {
     if (!resp || !resp.ok) {
       throw new Error('Could not process rooms : Response code indicates a server error', resp);
-    } else {
-      return resp.json();
     }
+    return resp.json();
+  }).then(processedRooms => {
+    processRoomUsers(processedRooms.rooms);
+    return processedRooms
   });
 }
 
@@ -650,26 +652,27 @@ export function getUserPresence(userIdOnMatrix) {
     });
 }
 
-export function getUserByMatrixId(userIdOnMatrix) {
-  let senderMatrixId = userIdOnMatrix;
-  if (senderMatrixId.includes('@')) {
-    senderMatrixId = userIdOnMatrix.substr(1, userIdOnMatrix.indexOf(":") - 1);
+export function getUserByMatrixId(userIdOnMatrix, room) {
+  if (!userIdOnMatrix || !room) {
+    return Promise.resolve(null);
   }
 
-  if (userCache.has(senderMatrixId)) {
-    return Promise.resolve(userCache.get(senderMatrixId));
+  const matrixId = userIdOnMatrix.startsWith('@')
+      ? userIdOnMatrix.slice(1, userIdOnMatrix.indexOf(':'))
+      : userIdOnMatrix;
+
+  const cachedUser = userCache.get(matrixId);
+  if (cachedUser) {
+    return Promise.resolve(cachedUser);
   }
 
-  return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${senderMatrixId}`, {
-    method: 'GET',
-    credentials: 'include',
-  }).then(resp => {
-    if (!resp || !resp.ok) {
-      throw new Error('Get User by Matrix ID : Response code indicates a server error');
-    }
-    return resp.json();
-  }).then(user => {
-    userCache.set(senderMatrixId, user);
+  const memberId = extractUserIdFromRoomMembers(room, matrixId);
+  if (!memberId) {
+    return Promise.resolve(null);
+  }
+
+  return getUserIdentity(memberId).then(user => {
+    userCache.set(matrixId, user);
     return user;
   });
 }
@@ -850,8 +853,15 @@ export function markRoomAsFullyRead(roomId, eventId) {
 }
 
 export function formatMentionsInMessage(message) {
-  return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<a href=\"\/matrix\/rest\/matrix\/profile\/$1\" class=\"font-weight-bold text-decoration-none\" target=\"_blank\">@$2<\/a>')
-                      .replace(/\n/g, '<br />') || '';
+  return message
+      .replace(
+          /<a href="https:\/\/matrix\.to\/#\/([^"]+)">([^<]+)<\/a>/g,
+          (match, matrixId, displayName) => {
+            const userId = userCache.get(matrixId.slice(1, matrixId.indexOf(':')))?.remoteId;
+            const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
+            return `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${displayName}</a>`;
+          }
+      ).replace(/\n/g, '<br />') || '';
 }
 export function formatMentionsInRoomList(message) {
   return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
@@ -1013,4 +1023,48 @@ export async function getMaxUploadSize() {
   } catch (error) {
     console.error('Error fetching data:', error);
   }
+}
+
+export async function processRoomUsers(rooms) {
+  for (const room of rooms) {
+    if (room.spaceId) {
+      for (const member of room.members || []) {
+        const user = await getUserIdentity(member.userId);
+        userCache.set(member.matrixId, user)
+      }
+    } else {
+      const user = await getUserIdentity(room.userId);
+      userCache.set(room.matrixId, user);
+    }
+  }
+}
+
+export function getParticipantInfo(userId) {
+  return fetch(`/matrix/rest/matrix/participant/${userId}`, {
+    method: 'GET',
+    credentials: 'include',
+  }).then(resp => {
+    if (!resp?.ok) {
+      throw new Error('Error while getting invited participant info');
+    }
+    return resp.json();
+  });
+}
+
+export async function getUserIdentity(userId) {
+  if (userCache.has(userId)) {
+    return userCache.get(userId);
+  }
+  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId);
+  if (user) {
+    userCache.set(userId, user);
+  }
+  return user;
+}
+
+function extractUserIdFromRoomMembers(room, matrixId) {
+  if (room.spaceId) {
+    return room.members.find(member => member.matrixId === matrixId)?.userId
+  }
+  return room.userId
 }
