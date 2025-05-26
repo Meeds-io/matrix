@@ -870,6 +870,7 @@ export function formatMentionsInRoomList(message) {
 
 export function processMessages(messageItems) {
   const messagesMap = new Map();
+  const replyDependencyMap = new Map();
   const leftReactions = [];
 
   messageItems.forEach(item => {
@@ -877,7 +878,7 @@ export function processMessages(messageItems) {
       const relatesTo = item.content['m.relates_to'];
       const newContent = item.content['m.new_content'];
 
-      // Check if this is an edit (m.replace)
+      // Handle edits
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
         const targetEventId = relatesTo.event_id;
         const originalMessage = messagesMap.get(targetEventId);
@@ -887,45 +888,69 @@ export function processMessages(messageItems) {
           originalMessage.edited = true;
           originalMessage.updatedAt = item.origin_server_ts;
 
-          for (const message of messagesMap.values()) {
-            if (message?.replyTo?.targetEventId === targetEventId) {
-              message.replyTo = buildReplyToObject(messagesMap, message.replyTo.targetEventId);
+          const dependents = replyDependencyMap.get(targetEventId) || [];
+          for (const messageId of dependents) {
+            const message = messagesMap.get(messageId);
+            if (message) {
+              message.replyTo = buildReplyToObject(messagesMap, targetEventId);
             }
           }
         }
       } else {
         item.reactions = item.reactions || [];
+
         const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
         if (inReplyTo) {
           item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
+
+          if (!replyDependencyMap.has(inReplyTo)) {
+            replyDependencyMap.set(inReplyTo, []);
+          }
+          replyDependencyMap.get(inReplyTo).push(item.event_id);
         }
+
         messagesMap.set(item.event_id, item);
       }
     } else if (item.type === 'm.reaction') {
-      const reactionInfo = item.content['m.relates_to']?.rel_type === 'm.annotation' && item.content['m.relates_to'];
-      const messageReactedTo = messagesMap.get(reactionInfo?.event_id);
-      if (messageReactedTo && reactionInfo) {
-        messagesMap.set(reactionInfo.event_id, processMessageReaction(messageReactedTo, item));
-      } else {
-        leftReactions.push(item);
+      const relatesTo = item.content['m.relates_to'];
+      const isAnnotation = relatesTo?.rel_type === 'm.annotation';
+
+      if (isAnnotation) {
+        const messageReactedTo = messagesMap.get(relatesTo.event_id);
+        if (messageReactedTo) {
+          processMessageReaction(messageReactedTo, item); // mutate in-place
+        } else {
+          leftReactions.push(item);
+        }
       }
     }
   });
-  return { messages: Array.from(messagesMap.values()), leftReactions };
+
+  return {
+    messages: Array.from(messagesMap.values()),
+    leftReactions,
+  };
 }
 
 
 export function processMessageReaction(messageReactedTo, reactionItem) {
-  if(!messageReactedTo.reactions) {
-    messageReactedTo.reactions = [];
-  }
-  if(!messageReactedTo.reactionsMap) {
+  if (!messageReactedTo.reactionsMap) {
     messageReactedTo.reactionsMap = new Map();
   }
+
   const key = reactionItem.content['m.relates_to'].key;
-  let reactionUsers = messageReactedTo.reactionsMap.get(key) && messageReactedTo.reactionsMap.get(key).userIds || [];
-  reactionUsers.push(reactionItem.user_id);
-  messageReactedTo.reactionsMap.set(key, {'key':key, 'userIds': reactionUsers});
+  const userId = reactionItem.user_id;
+
+  let entry = messageReactedTo.reactionsMap.get(key);
+  if (!entry) {
+    entry = {key, userIds: []};
+    messageReactedTo.reactionsMap.set(key, entry);
+  }
+
+  if (!entry.userIds.includes(userId)) {
+    entry.userIds.push(userId);
+  }
+
   messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
   return messageReactedTo;
 }
@@ -1052,6 +1077,9 @@ export function getParticipantInfo(userId) {
 }
 
 export async function getUserIdentity(userId) {
+  if (!userId) {
+    return;
+  }
   if (userCache.has(userId)) {
     return userCache.get(userId);
   }

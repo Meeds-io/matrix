@@ -41,9 +41,17 @@
         <v-img
           :src="avatarUrl"
           :lazy-src="avatarUrl"
-          class="meeds-chat-contact-avatar z-index-two ma-0 size-8 d-flex rounded-circle"
+          class="meeds-chat-contact-avatar z-index-two ma-0 size-8 d-flex rounded-circle overflow-hidden"
           :alt="displayName"
-          cover />
+          cover>
+          <template #placeholder>
+            <v-skeleton-loader
+              type="avatar"
+              class="mt-n2 w-100 h-100"
+              :loading="true"
+              boilerplate />
+          </template>
+        </v-img>
         <span
           class="align-content-start line-height-1 mx-1 text-title text-subtitle-1 text-truncate"
           :style="userNameColor">

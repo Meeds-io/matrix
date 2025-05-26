@@ -72,9 +72,6 @@
       lastMessageSender() {
         return this.room?.lastMessage?.sender;
       },
-      lastMessageSenderId() {
-        return this.lastMessageSender?.slice(1, this.lastMessageSender?.indexOf(':'));
-      },
       isLastMessageSenderCurrentUser() {
         return this.lastMessageSender === matrixUserId;
       },
@@ -84,14 +81,14 @@
     },
     methods: {
       async updateLastMessageContent() {
-        if (this.hasUpdatedLastMessageContent) {
+        const content = this.room?.lastMessage?.content || '';
+        if (!content || this.hasUpdatedLastMessageContent) {
           return;
         }
         const senderLabel = this.isLastMessageSenderCurrentUser
             ? this.$t('matrix.words.you')
             : (await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room))?.profile?.fullname || this.lastMessageSender;
 
-        const content = this.room.lastMessage.content || '';
         this.room.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {
           0: senderLabel,
           1: content,
