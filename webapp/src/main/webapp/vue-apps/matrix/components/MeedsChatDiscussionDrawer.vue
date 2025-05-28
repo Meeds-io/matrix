@@ -72,7 +72,8 @@
             :message="message"
             :previous-message="i > 0 && messages[i-1]"
             :next-message="i < (messages.length - 1) && messages[i+1]"
-            :room="room"/>
+            :room="room"
+            @reply="replyToMessage" />
         </div>
       </div>
     </template>
@@ -84,17 +85,31 @@
          drop-target="ChatDiscussionDrawer"
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
         <div
-          id="messageComposerArea"
-          :placeholder="$t('matrix.chat.message.label')"
-          ref="messageComposerArea"
-          contenteditable="true"
-          class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2"
-          @keypress.enter.prevent
-          @keydown.enter="checkIfMentioning"
-          @keyup.enter="sendMessageWithEnter"
-          @keyup="resizeComposerArea($event)"
-          @focus="resizeComposerArea($event)"
-          @input="onComposerInput">
+           class="flex-grow-1 border-radius-16"
+          :class="{'border-color-grey-lighten': hasReplyQuote}">
+          <message-reply-quote
+            v-if="hasReplyQuote"
+            ref="replyQuote"
+            :message="targetReplyMessage"
+            :room="room"
+            class="background-grey-primary mx-2 mt-2"
+            read-only
+            closeable
+            @close="targetReplyMessage = null" />
+          <div
+            id="messageComposerArea"
+            :class="{'no-border': hasReplyQuote}"
+            :placeholder="$t('matrix.chat.message.label')"
+            ref="messageComposerArea"
+            contenteditable="true"
+            class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2"
+            @keypress.enter.prevent
+            @keydown.enter="checkIfMentioning"
+            @keyup.enter="sendMessageWithEnter"
+            @keyup="resizeComposerArea"
+            @focus="resizeComposerArea"
+            @input="onComposerInput">
+          </div>
         </div>
         <div class="d-flex flex-column justify-end">
           <v-btn
@@ -115,6 +130,7 @@
 </template>
 <script>
 
+
 export default {
   data() {
     return {
@@ -131,10 +147,14 @@ export default {
       leftReactions: [],
       composerDefaultHeight: 40,
       messageContent: null,
-      insertedNewLine: false
+      insertedNewLine: false,
+      targetReplyMessage: null
     };
   },
   computed: {
+    hasReplyQuote() {
+      return !!this.targetReplyMessage;
+    },
     disableSendMessage() {
       return !this.messageContent?.trim()?.length;
     },
@@ -179,6 +199,12 @@ export default {
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
   },
   methods: {
+    replyToMessage(targetMessage) {
+      this.targetReplyMessage = {
+        ...targetMessage,
+        replyTo: this.$matrixService.buildReplyToObject(this.messages, targetMessage.event_id)
+      };
+    },
     onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
@@ -188,6 +214,7 @@ export default {
       this.$refs.messageComposerArea.innerHTML = '';
       this.messageContent = null;
       this.insertedNewLine = false;
+      this.targetReplyMessage = null;
     },
     openDiscussion(e) {
       this.loading = true;
@@ -339,12 +366,12 @@ export default {
         });
       }, 1000);
     },
-    resizeComposerArea(e) {
+    resizeComposerArea() {
       if (this.room?.spaceId) {
         this.initSuggester();
       }
 
-      const composerElement = e.target;
+      const composerElement = this.$refs.messageComposerArea;
       const minHeight = this.composerDefaultHeight;
       const maxHeight = 300;
 
@@ -377,7 +404,7 @@ export default {
     sendMessage() {
       let messageText = this.$refs.messageComposerArea.innerText;
       messageText = messageText.trim();
-      if(!messageText) {
+      if (!messageText) {
         return;
       }
       let message = {'body': messageText,
@@ -393,6 +420,13 @@ export default {
         message.format="org.matrix.custom.html";
         message.formatted_body=messageHTML;
         message['m.mentions'] = {'user_ids': this.mentionsArray}
+      }
+      if (this.targetReplyMessage) {
+        message['m.relates_to'] = {
+          'm.in_reply_to': {
+            event_id: this.targetReplyMessage?.event_id
+          }
+        };
       }
       this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
       this.resetComposer();

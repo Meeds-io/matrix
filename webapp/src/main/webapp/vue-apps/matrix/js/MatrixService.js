@@ -444,7 +444,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName, first
     method: 'GET',
   }).then(resp => {
     if (!resp || !resp.ok) {
-      if(resp.status === 404) {
+      if (resp.status === 404) {
         return createMatrixDMRoom(secondUserMatrixId || secondParticipant, serverName).then(data => {
           const payload = {
                             "roomId": data.room_id,

@@ -17,7 +17,8 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content-body text-break"
+  <div
+    class="chat-message-content-body text-break"
     :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
     :style="isImage && {
               'height': imageThumbnailMaxHeight + 'px',
@@ -29,7 +30,8 @@
     <message-reply-quote
       v-if="message?.replyTo"
       :message="message"
-      :room="room" />
+      :room="room"
+      class="mb-2" />
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
@@ -67,7 +69,7 @@
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
         class="position-absolute">
-        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
+        <div v-if="isGifImage" class="position-absolute transparent border-radius ms-2 mt-2">
           <v-chip
             label
             small>

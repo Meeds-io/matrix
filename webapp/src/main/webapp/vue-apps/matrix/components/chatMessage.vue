@@ -41,17 +41,45 @@
           :room="room"
           :sender-id="message.sender" />
         <div
-          class="message-container"
-          :class="{'ms-4 position-relative': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
-          <meeds-chat-message-content
-            :message="message"
-            :display-sender="displaySender"
-            :css-class="messageContentClass"
-            :display-timestamp="displayTimestamp"
-            :next-message="nextMessage"
-            :is-self-message="isSelfMessage"
-            :timestamp="formattedTimestamp"
-            :room="room" />
+          class="message-container position-relative"
+          :class="{
+            'ms-4': !isMyMessage && !room.directChat,
+            'float-right ms-11': isMyMessage,
+            'float-left': !isMyMessage}">
+          <v-menu
+            v-model="menu"
+            content-class="no-min-width"
+            :nudge-left="isMyMessage && 42 || 0"
+            close-on-content-click
+            open-on-hover
+            offset-y
+            :offset-x="isMyMessage"
+            :bottom="isBottom"
+            :top="!isBottom"
+            :right="isBottom && isMyMessage"
+            :left="!isMyMessage"
+            attach>
+            <template #activator="{ on, attrs }">
+              <div
+                ref="menuActivator"
+                v-bind="attrs"
+                v-on="on"
+                @mouseover="adjustMenuPosition">
+                <meeds-chat-message-content
+                  :message="message"
+                  :display-sender="displaySender"
+                  :css-class="messageContentClass"
+                  :display-timestamp="displayTimestamp"
+                  :next-message="nextMessage"
+                  :is-self-message="isSelfMessage"
+                  :timestamp="formattedTimestamp"
+                  :room="room" />
+              </div>
+            </template>
+            <message-action-list
+              :message="message"
+              @reply="$emit('reply', $event)" />
+          </v-menu>
           <div
             class="message-reactions d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
@@ -60,7 +88,7 @@
               :class="{
                 'current-user-reaction': isCurrentUserReaction(reaction),
                 'other-user-reaction': !isCurrentUserReaction(reaction),
-                'ml-2': isMyMessage, ' me-2': !isMyMessage,
+                'ms-2': isMyMessage, ' me-2': !isMyMessage,
               }"
               class="message-reaction-item px-2 mb-2"
               v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
@@ -103,6 +131,8 @@
         },
         defaultThumbnailMaxWidth: 345,
         defaultThumbnailMaxHeight: 275,
+        menu: false,
+        isBottom: true,
       };
     },
     created() {
@@ -228,6 +258,14 @@
       },
       currentUserId() {
         return localStorage.getItem('matrix_user_id');
+      },
+      adjustMenuPosition() {
+        this.$nextTick(() => {
+          const activator = this.$refs?.menuActivator;
+          const rect = activator.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          this.isBottom = (viewportHeight - rect.bottom > 100);
+        });
       }
     }
   }
