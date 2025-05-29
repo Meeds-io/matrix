@@ -10,8 +10,8 @@ import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vu
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
 import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
-import QuotedMessageUser from './components/message/QuotedMessageUser.vue';
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
+import MessageUser from './components/message/MessageUser.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -32,8 +32,8 @@ const components = {
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
   'audio-message': AudioMessage,
   'message-reply-quote': MessageReplyQuote,
-  'quoted-message-user': QuotedMessageUser,
   'message-upload-file-input': MessageUploadFileInput,
+  'message-user': MessageUser,
 };
 
 for (const key in components) {

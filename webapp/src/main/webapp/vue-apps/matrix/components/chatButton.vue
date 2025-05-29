@@ -156,7 +156,7 @@
                                               this.$t('matrix.words.you')).replace('{1}', messageText);
           } else {
             const senderMatrixId = receivedMessage.sender.substr(1, receivedMessage.sender.indexOf(":") - 1);
-            this.$matrixService.getUserByMatrixId(senderMatrixId).then(senderIdentity => {
+            this.$matrixService.getUserByMatrixId(senderMatrixId, updatedRoom).then(senderIdentity => {
               updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
                                                 senderIdentity.profile.fullname).replace('{1}', messageText);
             });
@@ -171,7 +171,7 @@
         if (updatedRoom) {
           if (updatedRoom.lastMessage?.eventId === eventId) {
             const deletedBy = sender === matrixUserId ? this.$t('matrix.words.you') :
-                (await this.$matrixService.getUserByMatrixId(sender))?.profile?.fullname || sender;
+                (await this.$matrixService.getUserByMatrixId(sender, updatedRoom))?.profile?.fullname || sender;
 
             updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {0: deletedBy, 1: this.$t('matrix.chat.message.deleted')});
             updatedRoom.lastMessage.redacted = true;

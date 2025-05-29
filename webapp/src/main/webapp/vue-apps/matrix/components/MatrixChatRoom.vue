@@ -18,10 +18,10 @@
           {{ room.name }} <span v-if="room.external">{{ externalTag }}</span>
         </div>
         <div
-          v-if="room.lastMessage"
+          v-if="lastMessageContent"
           class="chat-room-last-message text-truncate mt-1"
           :class="lastMessageStyle"
-          v-sanitized-html="room.lastMessage.content">
+          v-sanitized-html="lastMessageContent">
         </div>
         <div v-else class="text-subtitle text-truncate mt-1">
           {{ $t('matrix.chat.start.conversation') }}
@@ -42,16 +42,19 @@
   </v-hover>
 </template>
 <script>
+
   export default {
+    data: () => ({
+      hasUpdatedLastMessageContent: false
+    }),
     props: {
       room: {
         type: Object,
         default: null,
       }
     },
-    data: () => ({
-    }),
-    mounted() {
+    async mounted() {
+      await this.updateLastMessageContent();
     },
     computed : {
       avatarBorderClass() {
@@ -66,8 +69,32 @@
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
+      lastMessageSender() {
+        return this.room?.lastMessage?.sender;
+      },
+      isLastMessageSenderCurrentUser() {
+        return this.lastMessageSender === matrixUserId;
+      },
+      lastMessageContent() {
+        return this.room?.lastMessage?.content;
+      }
     },
     methods: {
+      async updateLastMessageContent() {
+        const content = this.room?.lastMessage?.content || '';
+        if (!content || this.hasUpdatedLastMessageContent) {
+          return;
+        }
+        const senderLabel = this.isLastMessageSenderCurrentUser
+            ? this.$t('matrix.words.you')
+            : (await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room))?.profile?.fullname || this.lastMessageSender;
+
+        this.room.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {
+          0: senderLabel,
+          1: content,
+        });
+        this.hasUpdatedLastMessageContent = true;
+      },
       openRoom() {
         document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, { detail: this.room }));
       },
@@ -75,7 +102,7 @@
         return this.$matrixService.formatDate(room.updated);
       },
       getUserPresence() {
-        this.$matrixService.getUserPresence(this.room.dmMemberId).then(status => {
+        return this.$matrixService.getUserPresence(this.room.dmMemberId).then(status => {
           this.presenceClass = `matrix-status-${status.presence}`;
         });
       }

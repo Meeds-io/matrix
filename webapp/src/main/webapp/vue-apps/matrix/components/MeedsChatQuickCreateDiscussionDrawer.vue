@@ -66,12 +66,9 @@
 <script>
 
 export default {
-  name: 'MeedsChatDrawer',
-
   data() {
     return {
       participant: null,
-      fullName: '',
     };
   },
   computed: {
@@ -96,22 +93,20 @@ export default {
     openDrawer() {
       this.$refs.QuickCreateDiscussionDrawer.open();
     },
-    close(){
+    close() {
       this.participant = null;
-      this.fullName = '' ;
       this.$refs.QuickCreateDiscussionDrawer.close();
     },
     quickCreateChatDiscussion() {
       const remoteId = this.participant.remoteId;
-      if(remoteId) {
+      if (remoteId) {
         this.close();
-        this.$identityService.getIdentityByProviderIdAndRemoteId('organization', remoteId, 'settings').then(identity => {
-          const matrixProperty = identity.profile.dataEntity.properties.filter(property => property.propertyName === 'matrixId');
-          if(matrixProperty && matrixProperty.length > 0) {
-            const invitedUserMatrixId = matrixProperty[0].value;
-            this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName, matrixUserId, invitedUserMatrixId);
+        this.$matrixService.getParticipantInfo(remoteId).then(participant => {
+          if (participant?.matrixId) {
+            this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName,
+              matrixUserId, participant.matrixId);
           }
-        });
+        })
       }
     }
   }
