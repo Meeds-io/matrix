@@ -141,6 +141,7 @@ class MatrixRestTest {
     Space space = new Space();
     space.setDisplayName("Space of Heroes");
     space.setAvatarUrl("/Url/Of/Avatar.png");
+    space.setMembers(new String[]{"user1", "user2"});
     when(spaceService.getSpaceById("spaceId")).thenReturn(space);
     ResultActions response = mockMvc.perform(post(REST_PATH + "/processRooms").with(simpleUser())
                                                                               .contentType(MediaType.APPLICATION_JSON)
@@ -160,8 +161,6 @@ class MatrixRestTest {
     profile.setProperty("lastName", "Root");
     identity.setProfile(profile);
     when(identityManager.getOrCreateUserIdentity("root")).thenReturn(identity);
-    when(matrixService.extractUserId(anyString())).thenCallRealMethod();
-    when(resourceBundleService.getSharedString(anyString(), any())).thenReturn("This is a translated Message ");
 
     ResultActions response1 = mockMvc.perform(post(REST_PATH + "/processRooms").with(simpleUser())
                                                                                .contentType(MediaType.APPLICATION_JSON)
@@ -185,8 +184,8 @@ class MatrixRestTest {
     room.setId("!testRoom" + index + ":matrix.meeds.tn");
     room.setAvatarUrl("/avatar/" + index);
     room.setName("Chat number " + index);
-    Member root = new Member("1", "root", "/user/avatar" + 1, System.currentTimeMillis());
-    Member user = new Member("2", "user", "/user/avatar" + 2, System.currentTimeMillis());
+    Member root = new Member("1", "userId", "matrixId","root", "/user/avatar" + 1, System.currentTimeMillis());
+    Member user = new Member("2", "userId", "matrixId", "user", "/user/avatar" + 2, System.currentTimeMillis());
     room.setMembers(Arrays.asList(user, root));
     room.setUnreadMessages(index);
     room.setPresence("online");
@@ -223,25 +222,6 @@ class MatrixRestTest {
                                                                           .content(asJsonString(presence)));
     response.andExpect(status().isOk());
     response.andExpect(content().string("online"));
-  }
-
-  @Test
-  void getIdentityByUserMatrixId() throws Exception {
-    ResultActions response = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
-                                                                               .contentType(MediaType.APPLICATION_JSON)
-                                                                               .param("userMatrixId", "@user:matrix.meeds.tn"));
-    response.andExpect(status().isNotFound());
-
-    Identity identity = new Identity();
-    identity.setRemoteId("user");
-    ENTITY_BUILDER.when(() -> EntityBuilder.buildEntityProfile(any(Profile.class), anyString(), anyString()))
-                  .thenReturn(new ProfileEntity());
-    REST_UTILS.when(() -> RestUtils.getRestUrl(anyString(), anyString(), anyString())).thenReturn("/matrix/rest/matrix");
-    when(matrixService.findUserByMatrixId(eq("@user:matrix.meeds.tn"))).thenReturn(identity);
-    ResultActions response1 = mockMvc.perform(get(REST_PATH + "/userByMatrixId").with(simpleUser())
-                                                                                .contentType(MediaType.APPLICATION_JSON)
-                                                                                .param("userMatrixId", "@user:matrix.meeds.tn"));
-    response1.andExpect(status().isOk());
   }
 
   @Test
@@ -296,21 +276,4 @@ class MatrixRestTest {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/sync").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
   }
-
-    @Test
-    void redirectToProfile() throws Exception {
-      Identity identity = new Identity();
-      identity.setRemoteId("user");
-      identity.setId("1");
-      Profile profile = new Profile();
-      profile.setAvatarUrl("/avatar/of/userOne");
-      profile.setProperty("firstName", "User");
-      profile.setProperty("lastName", "One");
-      identity.setProfile(profile);
-      when(matrixService.findUserByMatrixId(anyString())).thenReturn(identity);
-      when(matrixService.extractUserId(anyString())).thenCallRealMethod();
-      LINK_PROVIDER.when(() -> LinkProvider.getProfileUri(anyString())).thenReturn("/portal/meeds/profile/userOne");
-      ResultActions response = mockMvc.perform(get(REST_PATH + "/profile/@userOne:matrix.meeds.tn").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
-      response.andExpect(status().is3xxRedirection());
-    }
 }
