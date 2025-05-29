@@ -28,7 +28,8 @@
     @click="isImage && openImagePreview(message)">
     <message-reply-quote
       v-if="message?.replyTo"
-      :message="message" />
+      :message="message"
+      :room="room" />
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
@@ -181,6 +182,10 @@
       cssClass: {
         type: String,
         default: ''
+      },
+      room: {
+        type: Object,
+        default: null
       }
     },
     data() {
