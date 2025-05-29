@@ -454,30 +454,6 @@ public class MatrixService {
   }
 
   /**
-   * Searches for a user having the provided Matrix ID
-   * 
-   * @param userIdOnMatrix the ID of the user on Matrix
-   * @return The identity of the user
-   */
-  public Identity findUserByMatrixId(String userIdOnMatrix) {
-    ProfileFilter profileFilter = new ProfileFilter();
-    Map<String, String> matrixProperty = new HashMap<>();
-    matrixProperty.put(USER_MATRIX_ID, userIdOnMatrix);
-    profileFilter.setProfileSettings(matrixProperty);
-    ListAccess<Identity> userIdentities = identityManager.getIdentitiesByProfileFilter(OrganizationIdentityProvider.NAME,
-                                                                                       profileFilter,
-                                                                                       true);
-    try {
-      if (userIdentities != null && userIdentities.getSize() >= 1) {
-        return userIdentities.load(0, 1)[0];
-      }
-    } catch (Exception e) {
-      LOG.error("Couldn't find a user having the Matrix ID : {}", userIdOnMatrix, e);
-    }
-    return null;
-  }
-
-  /**
    * Extracts the user ID from the full User Id on Matrix
    * 
    * @param fullMatrixUserId the full Matrix user Id

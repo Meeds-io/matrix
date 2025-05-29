@@ -51,6 +51,8 @@ public class RoomEntity implements Serializable {
 
   private String       userId;
 
+  private String       matrixId;
+
   private String       prettyName;
 
   private String       identityId;

@@ -23,10 +23,7 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.Message;
-import io.meeds.chat.rest.model.Presence;
-import io.meeds.chat.rest.model.RoomEntity;
-import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.MatrixSynchronizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -68,10 +65,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.exoplatform.social.rest.api.EntityBuilder.IDENTITIES_TYPE;
@@ -377,32 +371,6 @@ public class MatrixRest implements ResourceContainer {
     return ResponseEntity.ok().body(roomEntity);
   }
 
-  @GetMapping("userByMatrixId")
-  @Secured("users")
-  @Operation(summary = "Get the user Identity for the provided matrix user Id", method = "GET", description = "Get the user Identity for the provided matrix user Id")
-  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-      @ApiResponse(responseCode = "404", description = "User not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<IdentityEntity> getIdentityByUserMatrixId(HttpServletRequest request,
-                                                                  WebRequest webRequest,
-                                                                  @Parameter(description = "The user Id on Matrix")
-                                                                  @RequestParam(name = "userMatrixId")
-                                                                  String userMatrixId) {
-
-    String requestURI = request.getRequestURI();
-    Identity foundIdentity = matrixService.findUserByMatrixId(userMatrixId);
-    if (foundIdentity == null) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-    }
-
-    if (webRequest.checkNotModified(String.valueOf(foundIdentity.getCacheTime()), foundIdentity.getCacheTime())) {
-      return null;
-    }
-    return ResponseEntity.ok()
-                         .eTag(String.valueOf(foundIdentity.getCacheTime()))
-                         .body(buildIdentityEntity(foundIdentity, requestURI, "settings"));
-  }
-
   @PostMapping("processRooms")
   @Secured("users")
   @Operation(summary = "Process the list of rooms and add needed information", method = "POST", description = "Process the list of rooms and add needed information")
@@ -449,19 +417,26 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
-  @GetMapping("/profile/{userMatrixId}")
+  @GetMapping("participant/{userId}")
   @Secured("users")
-  @Operation(summary = "Redirect to the user profile using the matrix user Id", method = "GET", description = "Redirect to the user profile using the matrix user Id")
-  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-      @ApiResponse(responseCode = "404", description = "User not found"),
-      @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public void redirectToProfile(HttpServletResponse response,
-                                @Parameter(description = "The user Id on Matrix")
-                                @PathVariable(name = "userMatrixId")
-                                String userMatrixId) throws IOException {
-    Identity userIdentity = matrixService.findUserByMatrixId(matrixService.extractUserId(userMatrixId));
-    if(userIdentity != null) {
-      response.sendRedirect(LinkProvider.getProfileUri(userIdentity.getRemoteId()));
+  @Operation(
+          summary = "Get participant info including its created matrix id using its user Id",
+          method = "GET",
+          description = "Get participant info including its created matrix id using its user Id")
+  @ApiResponses(value = {
+          @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+          @ApiResponse(responseCode = "404", description = "User not found"),
+          @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<?> getParticipantInfo(@PathVariable("userId")
+  String userId) {
+    try {
+      if (userId == null) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("user id is mandatory");
+      }
+      return ResponseEntity.ok().body(buildRoomMember(userId));
+    } catch (Exception e) {
+      LOG.error("Could not get participant info of userId: {}", userId, e);
+      return ResponseEntity.internalServerError().build();
     }
   }
 
@@ -546,6 +521,9 @@ public class MatrixRest implements ResourceContainer {
           room.setSpaceId(matrixRoom.getSpaceId());
           room.setPrettyName(space.getPrettyName());
           room.setDirectChat(false);
+          ArrayList<Member> members = new ArrayList<>();
+          Arrays.stream(space.getMembers()).forEach(member -> members.add(buildRoomMember(member)));
+          room.setMembers(members);
         }
       } else if (StringUtils.isNotBlank(matrixRoom.getFirstParticipant())
           && StringUtils.isNotBlank(matrixRoom.getSecondParticipant())) {
@@ -564,37 +542,27 @@ public class MatrixRest implements ResourceContainer {
           room.setExternal(identity.isExternal());
           room.setEnabledUser(identity.isEnable());
           room.setDeletedUser(identity.isDeleted());
+          room.setMatrixId((String) identity.getProfile().getProperty(USER_MATRIX_ID));
         }
       }
     }
-
-    // Get last message
-    Message message = room.getLastMessage();
-    if (message != null && StringUtils.isNotBlank(message.getSender())) {
-      Identity identity = matrixService.findUserByMatrixId(matrixService.extractUserId(message.getSender()));
-      if (identity != null) {
-        String updatedContent;
-        Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
-        if (!identity.getRemoteId().equals(currentUserName)) {
-          updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
-                                                .replace("{0}", identity.getProfile().getFullName())
-                                                .replace("{1}", message.getContent());
-        } else {
-          String you = resourceBundleService.getSharedString(YOU_STRING, locale);
-          updatedContent = resourceBundleService.getSharedString(LAST_MESSAGE_PATTERN_STRING, locale)
-                                                .replace("{0}", you)
-                                                .replace("{1}", message.getContent());
-        }
-        message.setContent(updatedContent);
-        room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
-      }
-    }
-
     // Add update Date
     if (room.getUpdated() == 0) {
       room.setUpdated(System.currentTimeMillis());
     }
     return room;
+  }
+  
+  private Member buildRoomMember(String userName) {
+    Identity identity = identityManager.getOrCreateUserIdentity(userName);
+    if (identity == null || identity.getProfile() == null) {
+      return null;
+    }
+    Member member = new Member();
+    member.setId(identity.getId());
+    member.setUserId(userName);
+    member.setMatrixId((String) identity.getProfile().getProperty(USER_MATRIX_ID));
+    return member;
   }
 
 }

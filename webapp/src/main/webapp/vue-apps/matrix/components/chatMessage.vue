@@ -33,29 +33,14 @@
       class="px-4"
       :class="{'mt-3' : message.sender !== previousMessage.sender}">
       <div class="d-relative">
-        <div
+        <message-user
           v-if="displaySender"
-          class="avatar-of-user mb-n4 width-fit-content">
-          <a :href="profileUrl">
-            <div class="d-flex">
-              <div
-                :style="`backgroundImage: url(${sender && sender.profile && sender.profile.avatar})`"
-                class="meeds-chat-contact-avatar ma-0 size-8 d-flex rounded-circle">
-              </div>
-              <span
-                class="meeds-chat-contact-avatar-name mx-1 text-title text-subtitle-1 text-truncate"
-                :style="userNameColor">
-                {{sender.profile && sender.profile.fullname || message.sender}}
-                <span v-if="sender.profile?.dataEntity?.external === 'true'">
-                  {{ externalTag }}
-                </span>
-              </span>
-            </div>
-          </a>
-        </div>
+          class="mb-n4 width-fit-content"
+          :room="room"
+          :sender-id="message.sender" />
         <div
           class="message-container"
-          :class="{'ml-5 position-relative me-10': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
+          :class="{'ms-4 position-relative': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
           <meeds-chat-message-content
             :message="message"
             :display-sender="displaySender"
@@ -63,7 +48,8 @@
             :display-timestamp="displayTimestamp"
             :next-message="nextMessage"
             :is-self-message="isSelfMessage"
-            :timestamp="formattedTimestamp" />
+            :timestamp="formattedTimestamp"
+            :room="room" />
           <div
             class="message-reactions d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
@@ -118,7 +104,7 @@
       };
     },
     created() {
-      this.$matrixService.getUserByMatrixId(this.message.sender).then(sender => {
+      this.$matrixService.getUserByMatrixId(this.message.sender, this.room).then(sender => {
         this.sender = sender;
         this.$matrixService.getUserPresence(this.message.sender).then(status => {
           this.presenceClass = `matrix-status-${status}`;
@@ -130,13 +116,6 @@
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     },
     computed: {
-      formattedMessage() {
-        let formatMessage = this.message.content.format === 'org.matrix.custom.html'
-                            && this.message.content.formatted_body
-                            || this.message.content.body.replace(/\n/g, '<br />')
-                            || '';
-        return this.$matrixService.formatMentionsInMessage(formatMessage);
-      },
       displaySender() {
         return !this.isMyMessage && ((this.previousHasReactions && !this.room.directChat) ||
             ((this.previousMessage.sender !== this.message.sender ||
@@ -202,7 +181,7 @@
         }
       },
       profileUrl() {
-        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender.remoteId}`;
+        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender?.remoteId}`;
       },
       userNameColor() {
         return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);

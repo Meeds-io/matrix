@@ -192,23 +192,31 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
-      if(!this.$refs.ChatDiscussionDrawer?.drawer) {
+      if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
       }
-      this.$matrixService.loadRoomMessages(this.room.id).then(resp => {
-        if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
-          this.hasMoreMessages = false;
-        }
-        this.from = resp.start;
-        this.to = resp.end;
-        const processedMessages = this.$matrixService.processMessages(resp.chunk.reverse());
-        this.messages = processedMessages.messages;
-        this.leftReactions = processedMessages.leftReactions;
-        this.$nextTick().then(() => {
-          this.scrollToEnd();
-          this.loading = false;
-          this.$root.$emit('room-discussion-opened');
-        });
+      this.$nextTick(() => {
+        // Slight delay allows browser to paint before heavy JS
+        setTimeout(async () => {
+          const resp = await this.$matrixService.loadRoomMessages(this.room.id);
+
+          if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+            this.hasMoreMessages = false;
+          }
+
+          this.from = resp.start;
+          this.to = resp.end;
+
+          const processedMessages = this.$matrixService.processMessages(resp.chunk.reverse());
+          this.messages = processedMessages.messages;
+          this.leftReactions = processedMessages.leftReactions;
+
+          this.$nextTick().then(() => {
+            this.scrollToEnd();
+            this.loading = false;
+            this.$root.$emit('room-discussion-opened');
+          });
+        }, 0);
       });
     },
     close(){
