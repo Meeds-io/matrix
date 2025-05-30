@@ -17,56 +17,85 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div
-    class="chat-message-content"
-    :class="{'mb-3':!nextMessage, 'mb-1': nextMessage}">
+  <v-hover v-slot="{ hover }">
     <div
-      v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
-      class="mb-5 text-font-small-size font-weight-bold text-center"
-      :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
-      <v-chip color="primaryBackground" class="message-date-chip">
-        {{ formattedDate }}
-      </v-chip>
-    </div>
-    <div
-      :id="message.event_id"
-      class="px-4"
-      :class="{'mt-3' : message.sender !== previousMessage.sender}">
-      <div class="d-relative">
-        <message-user
-          v-if="displaySender"
-          class="mb-n4 width-fit-content"
-          :room="room"
-          :sender-id="message.sender" />
-        <div
-          class="message-container"
-          :class="{'ms-4 position-relative': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
-          <meeds-chat-message-content
-            :message="message"
-            :display-sender="displaySender"
-            :css-class="messageContentClass"
-            :display-timestamp="displayTimestamp"
-            :next-message="nextMessage"
-            :is-self-message="isSelfMessage"
-            :timestamp="formattedTimestamp"
-            :room="room" />
+      class="chat-message-content"
+      :class="{
+        'mb-3':!nextMessage,
+        'mb-1': nextMessage}">
+      <div
+        v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
+        class="mb-5 text-font-small-size font-weight-bold text-center"
+        :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
+        <v-chip color="primaryBackground" class="message-date-chip">
+          {{ formattedDate }}
+        </v-chip>
+      </div>
+      <div
+        :id="message.event_id"
+        class="px-4"
+        :class="{'mt-3' : message.sender !== previousMessage.sender}">
+        <div class="d-relative">
+          <message-user
+            v-if="displaySender"
+            class="mb-n4 width-fit-content"
+            :room="room"
+            :sender-id="message.sender" />
           <div
-            class="message-reactions d-flex flex-wrap"
-            :class="{'justify-end': isMyMessage}">
+            class="message-container position-relative"
+            :class="{
+              'ms-4': !isMyMessage && !room.directChat,
+              'float-right ms-11': isMyMessage,
+              'float-left': !isMyMessage}">
+            <v-menu
+              :value="hover"
+              :right="isMyMessage"
+              :left="!isMyMessage"
+              :offset-x="isMyMessage"
+              :nudge-left="isMyMessage && 42 || -20"
+              :nudge-top="-10"
+              content-class="no-min-width"
+              close-on-content-click
+              offset-y
+              top
+              attach>
+              <template #activator="{ on, attrs }">
+                <div
+                  v-bind="attrs"
+                  v-on="on">
+                  <meeds-chat-message-content
+                    :message="message"
+                    :display-sender="displaySender"
+                    :css-class="messageContentClass"
+                    :display-timestamp="displayTimestamp"
+                    :next-message="nextMessage"
+                    :is-self-message="isSelfMessage"
+                    :timestamp="formattedTimestamp"
+                    :room="room" />
+                </div>
+              </template>
+              <message-action-list
+                :message="message"
+                @reply="$emit('reply', $event)" />
+            </v-menu>
             <div
-              v-for="reaction in message.reactions"
-              :class="{
-                'current-user-reaction': isCurrentUserReaction(reaction),
-                'other-user-reaction': !isCurrentUserReaction(reaction),
-                'ml-2': isMyMessage, ' me-2': !isMyMessage,
-              }"
-              class="message-reaction-item px-2 mb-2"
-              v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
+              class="message-reactions d-flex flex-wrap"
+              :class="{'justify-end': isMyMessage}">
+              <div
+                v-for="reaction in message.reactions"
+                :class="{
+                  'current-user-reaction': isCurrentUserReaction(reaction),
+                  'other-user-reaction': !isCurrentUserReaction(reaction),
+                  'ms-2': isMyMessage, ' me-2': !isMyMessage,
+                }"
+                class="message-reaction-item px-2 mb-2"
+                v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </v-hover>
 </template>
 <script>
   export default {
@@ -101,6 +130,7 @@
         },
         defaultThumbnailMaxWidth: 345,
         defaultThumbnailMaxHeight: 275,
+        menu: false,
       };
     },
     created() {
