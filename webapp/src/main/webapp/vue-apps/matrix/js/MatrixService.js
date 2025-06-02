@@ -3,6 +3,8 @@ import * as timeUtils from './timeUtils.js';
 
 const replyToCache = new Map();
 const userCache = new Map();
+const reactionEvents = new Map();
+
 
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
@@ -250,14 +252,29 @@ export function processEvents(response) {
               sender: e.sender
             }
           }));
+          handleRedactReaction(redactedEventId, roomId);
         }
-        if(e.type === 'm.reaction') {
-          document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
-                                                                                      roomId: roomId,
-                                                                                      message: e,
-                                                                                  }}));
-        } // Joined a new room
-        else if(e.type === 'm.room.member') {
+        if (e.type === 'm.reaction') {
+          const relatedEventId = e.content?.['m.relates_to']?.event_id;
+          const emojiKey = e.content?.['m.relates_to']?.key;
+          const sender = e.sender;
+
+          if (relatedEventId && emojiKey && sender) {
+            reactionEvents.set(e.event_id, {
+              targetEventId: relatedEventId,
+              emoji: emojiKey,
+              userId: sender
+            });
+
+            document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', {
+              detail: {
+                roomId: roomId,
+                message: e,
+                user_id: sender
+              }
+            }));
+          }
+        } else if(e.type === 'm.room.member') {
           if(e.content.membership === 'join') {
             const member = {};
             member.id = e.sender;
@@ -918,7 +935,7 @@ export function processMessages(messageItems) {
       if (isAnnotation) {
         const messageReactedTo = messagesMap.get(relatesTo.event_id);
         if (messageReactedTo) {
-          processMessageReaction(messageReactedTo, item); // mutate in-place
+          processMessageReaction(messageReactedTo, item);
         } else {
           leftReactions.push(item);
         }
@@ -939,7 +956,9 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   }
 
   const key = reactionItem.content['m.relates_to'].key;
-  const userId = reactionItem.user_id;
+  const userId = reactionItem.user_id || reactionItem.sender;
+  const targetEventId = reactionItem.content?.['m.relates_to']?.event_id;
+  const reactionEventId = reactionItem.event_id;
 
   let entry = messageReactedTo.reactionsMap.get(key);
   if (!entry) {
@@ -950,7 +969,13 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   if (!entry.userIds.includes(userId)) {
     entry.userIds.push(userId);
   }
-
+  if (reactionEventId) {
+    reactionEvents.set(reactionEventId, {
+      targetEventId: targetEventId,
+      emoji: key,
+      userId: userId
+    });
+  }
   messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
   return messageReactedTo;
 }
@@ -1076,6 +1101,73 @@ export function getParticipantInfo(userId) {
   });
 }
 
+export async function reactToMessage(emoji, roomId, eventId) {
+  const txnId = `m${Date.now()}`; // unique txn id
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.reaction/${txnId}`;
+
+  const body = {
+    "m.relates_to": {
+      "rel_type": "m.annotation",
+      "event_id": eventId,
+      "key": emoji
+    }
+  };
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to send reaction: ${error}`);
+  }
+
+  return await response.json();
+}
+
+export async function redactEvent(roomId, eventId) {
+  const txnId = `r${Date.now()}`;
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/redact/${eventId}/${txnId}`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to redact reaction: ${error}`);
+  }
+}
+
+export async function findReactionEventId(emoji, targetEventId, userId, roomId) {
+  const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${targetEventId}?rel_type=m.annotation&limit=100`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+    }
+  });
+
+  if (!response.ok) {
+    return null
+  }
+  const data = await response.json();
+  const match = data.chunk.find(e =>
+      e.sender === userId &&
+      e.content?.['m.relates_to']?.key === emoji
+  );
+
+  return match?.event_id || null;
+}
+
 export async function getUserIdentity(userId) {
   if (!userId) {
     return;
@@ -1095,4 +1187,20 @@ function extractUserIdFromRoomMembers(room, matrixId) {
     return room.members.find(member => member.matrixId === matrixId)?.userId
   }
   return room.userId
+}
+
+function handleRedactReaction(redactedEventId, roomId) {
+  if (reactionEvents.has(redactedEventId)) {
+    const reaction = reactionEvents.get(redactedEventId);
+
+    document.dispatchEvent(new CustomEvent('matrix-message-reaction-removed', {
+      detail: {
+        roomId: roomId,
+        reactionEventId: redactedEventId,
+        targetEventId: reaction.targetEventId,
+        emoji: reaction.emoji,
+        userId: reaction.userId
+      }
+    }));
+  }
 }
