@@ -45,18 +45,17 @@
             class="message-container position-relative"
             :class="{
               'ms-4': !isMyMessage && !room.directChat,
-              'float-right ms-11': isMyMessage,
+              'float-right': isMyMessage,
               'float-left': !isMyMessage}">
             <v-menu
               :value="hover"
-              :right="isMyMessage"
-              :left="!isMyMessage"
               :offset-x="isMyMessage"
-              :nudge-left="isMyMessage && 42 || -20"
+              :nudge-right="isMyMessage ? -212 : 20"
+              :close-on-content-click="false"
               :nudge-top="-10"
               content-class="no-min-width"
-              close-on-content-click
               offset-y
+              right
               top
               attach>
               <template #activator="{ on, attrs }">
@@ -75,8 +74,10 @@
                 </div>
               </template>
               <message-action-list
-                :message="message"
-                @reply="$emit('reply', $event)" />
+                ref="actionList"
+                :activator="hover"
+                @reply="$emit('reply', message)"
+                @reaction="$emit('reaction', $event, message)" />
             </v-menu>
             <div
               class="message-reactions d-flex flex-wrap"
@@ -140,10 +141,12 @@
           this.presenceClass = `matrix-status-${status}`;
         })
       });
-      document.addEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
+      document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
+      document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
     },
     beforeDestroy() {
-      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
+      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
+      document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
     },
     computed: {
       displaySender() {
@@ -210,12 +213,6 @@
           return this.$matrixService.formatDateString(this.message.origin_server_ts);
         }
       },
-      profileUrl() {
-        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender?.remoteId}`;
-      },
-      userNameColor() {
-        return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
-      },
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
@@ -247,9 +244,28 @@
         }
       },
       reactionAdded(event) {
-        if(this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
+        if (this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
           this.message = this.$matrixService.processMessageReaction(this.message, event.detail.message);
         }
+      },
+      reactionRemoved(event) {
+        const {roomId, targetEventId, emoji, userId} = event.detail;
+
+        if (this.room.id !== roomId || this.message.event_id !== targetEventId) {
+          return;
+        }
+        const map = this.message.reactionsMap;
+        if (!map || !map.has(emoji)) {
+          return;
+        }
+
+        const entry = map.get(emoji);
+        entry.userIds = entry.userIds.filter(id => id !== userId);
+        if (!entry?.userIds?.length) {
+          map.delete(emoji);
+        }
+
+        this.message.reactions = Array.from(map.values());
       },
       isCurrentUserReaction(reaction) {
         return reaction.userIds.includes(this.currentUserId());
