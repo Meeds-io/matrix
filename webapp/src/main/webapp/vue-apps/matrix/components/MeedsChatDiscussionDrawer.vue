@@ -73,7 +73,8 @@
             :previous-message="i > 0 && messages[i-1]"
             :next-message="i < (messages.length - 1) && messages[i+1]"
             :room="room"
-            @reply="replyToMessage" />
+            @reply="replyToMessage"
+            @reaction="reactToMessage" />
         </div>
       </div>
     </template>
@@ -129,7 +130,6 @@
   </exo-drawer>
 </template>
 <script>
-
 
 export default {
   data() {
@@ -194,7 +194,6 @@ export default {
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-    document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
   },
@@ -211,6 +210,22 @@ export default {
     cancelReply() {
       this.targetReplyMessage = null;
       this.$refs?.messageComposerArea?.focus();
+    },
+    async reactToMessage(emoji, targetMessage) {
+      const existingReaction = targetMessage?.reactions?.find?.(reaction => reaction.key === emoji
+        && reaction.userIds.includes(matrixUserId));
+      if (existingReaction) {
+        const reactionEventId = await this.$matrixService.findReactionEventId(
+            emoji,
+            targetMessage.event_id,
+            matrixUserId,
+            this.room.id);
+        if (reactionEventId) {
+          await this.$matrixService.redactEvent(this.room.id, reactionEventId);
+        }
+      } else {
+        await this.$matrixService.reactToMessage(emoji, this.room.id, targetMessage.event_id);
+      }
     },
     onComposerInput(event) {
       this.messageContent = event.target?.innerText;
