@@ -262,4 +262,16 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertNotEquals(0, createdRoom.getId());
     assertEquals(directMessagingRoom.getRoomId(), createdRoom.getRoomId());
   }
+
+    @Test
+    void getById() throws Exception {
+      Space space = getSpaceInstance(1);
+      String roomId = matrixService.createRoom(space);
+      assertNotNull(roomId);
+      Room room = matrixService.getById(roomId);
+      assertNotNull(room);
+      String splitRoomId = roomId.substring(0, roomId.indexOf(":"));
+      Room room1 = matrixService.getById(splitRoomId);
+      assertNotNull(room1);
+    }
 }
