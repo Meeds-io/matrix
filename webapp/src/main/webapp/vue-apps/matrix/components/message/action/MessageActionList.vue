@@ -23,14 +23,19 @@
     border-box-sizing border-radius"
     dense>
     <v-list-item class="ma-0 height-auto px-2 py-1">
-      <div>
+      <div class="d-flex">
+        <emoji-picker-button
+          @select-emoji="$emit('reaction', $event)" />
+        <v-divider
+          class="mx-2"
+          vertical />
         <v-btn
           width="28"
           height="28"
           min-width="28"
           class="pa-0"
           icon
-          @click="$emit('reply', message)">
+          @click="$emit('reply')">
           <v-icon
             size="16"
             class="icon-default-color">
@@ -45,11 +50,5 @@
 <script>
 
 export default {
-  props: {
-    message: {
-      type: Object,
-      default: null
-    }
-  }
 };
 </script>

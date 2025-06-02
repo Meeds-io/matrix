@@ -65,6 +65,9 @@
         <module>vueDraggable</module>
       </depends>
       <depends>
+        <module>emojiPicker</module>
+      </depends>
+      <depends>
         <module>jquery</module>
         <as>$</as>
       </depends>
