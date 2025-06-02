@@ -165,6 +165,7 @@ public class MatrixService {
    * @return Room
    */
   public Room getById(String roomId) {
+    roomId = extractRoomId(roomId);
     return matrixRoomStorage.getById(roomId);
   }
 
@@ -463,6 +464,19 @@ public class MatrixService {
     String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
     if (fullMatrixUserId.startsWith("@") && fullMatrixUserId.endsWith(serverName)) {
       return fullMatrixUserId.substring(1, fullMatrixUserId.indexOf(":"));
+    }
+    return fullMatrixUserId;
+  }
+  /**
+   * Extracts the room ID from the full room Id on Matrix
+   *
+   * @param fullMatrixUserId the full Matrix user Id
+   * @return the user Identifier
+   */
+  public String extractRoomId(String fullMatrixUserId) {
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    if (fullMatrixUserId.startsWith("!") && fullMatrixUserId.endsWith(serverName)) {
+      return fullMatrixUserId.substring(0, fullMatrixUserId.indexOf(":"));
     }
     return fullMatrixUserId;
   }
