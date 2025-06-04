@@ -81,15 +81,12 @@
             <div
               class="message-reactions d-flex flex-wrap"
               :class="{'justify-end': isMyMessage}">
-              <div
+              <message-reaction-item
                 v-for="reaction in message.reactions"
-                :class="{
-                  'current-user-reaction': isCurrentUserReaction(reaction),
-                  'other-user-reaction': !isCurrentUserReaction(reaction),
-                  'ms-2': isMyMessage, ' me-2': !isMyMessage,
-                }"
-                class="message-reaction-item px-2 mb-2"
-                v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
+                :key="reaction.key"
+                :reaction="reaction"
+                :is-my-message="isMyMessage"
+                @reaction="$emit('reaction', $event, message)" />
             </div>
           </div>
         </div>
@@ -265,12 +262,6 @@
         }
 
         this.message.reactions = Array.from(map.values());
-      },
-      isCurrentUserReaction(reaction) {
-        return reaction.userIds.includes(this.currentUserId());
-      },
-      currentUserId() {
-        return localStorage.getItem('matrix_user_id');
       }
     }
   }
