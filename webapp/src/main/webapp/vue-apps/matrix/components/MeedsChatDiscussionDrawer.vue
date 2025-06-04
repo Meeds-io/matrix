@@ -215,16 +215,19 @@ export default {
       const existingReaction = targetMessage?.reactions?.find?.(reaction => reaction.key === emoji
         && reaction.userIds.includes(matrixUserId));
       if (existingReaction) {
-        const reactionEventId = await this.$matrixService.findReactionEventId(
-            emoji,
-            targetMessage.event_id,
-            matrixUserId,
-            this.room.id);
-        if (reactionEventId) {
-          await this.$matrixService.redactEvent(this.room.id, reactionEventId);
-        }
+        await this.removeReaction(emoji, targetMessage)
       } else {
         await this.$matrixService.reactToMessage(emoji, this.room.id, targetMessage.event_id);
+      }
+    },
+    async removeReaction(emoji, targetMessage) {
+      const reactionEventId = await this.$matrixService.findReactionEventId(
+          emoji,
+          targetMessage.event_id,
+          matrixUserId,
+          this.room.id);
+      if (reactionEventId) {
+        await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
     onComposerInput(event) {
