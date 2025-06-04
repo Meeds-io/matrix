@@ -13,6 +13,7 @@ import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
 import MessageUser from './components/message/MessageUser.vue';
 import MessageActionList from './components/message/action/MessageActionList.vue'
+import MessageReactionItem from './components/message/MessageReactionItem.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -35,7 +36,8 @@ const components = {
   'message-reply-quote': MessageReplyQuote,
   'message-upload-file-input': MessageUploadFileInput,
   'message-user': MessageUser,
-  'message-action-list': MessageActionList
+  'message-action-list': MessageActionList,
+  'message-reaction-item': MessageReactionItem
 };
 
 for (const key in components) {
