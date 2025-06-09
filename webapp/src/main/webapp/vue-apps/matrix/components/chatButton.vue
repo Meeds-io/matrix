@@ -106,6 +106,7 @@
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
@@ -136,31 +137,32 @@
         this.open = true;
         this.$refs.meedsChatDrawer?.open();
       },
-      messageReceived(event) {
+      async messageReceived(event) {
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if(updatedRoom) {
+        if (updatedRoom) {
           updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
           const receivedMessage = event.detail.message;
           updatedRoom.lastMessage.eventId = receivedMessage.event_id;
-          if(matrixUserId !== receivedMessage.sender) {
-            this.totalUnreadMessages ++;
+          if (matrixUserId !== receivedMessage.sender) {
+            this.totalUnreadMessages++;
             updatedRoom.unreadMessages += 1;
           }
           this.rooms.splice(updatedRoomIndex, 1);
           this.rooms.unshift(updatedRoom);
           updatedRoom.updated = receivedMessage.origin_server_ts;
           const messageText = receivedMessage.content.format === 'org.matrix.custom.html' && this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body) || receivedMessage.content.body;
-          if(receivedMessage.sender === localStorage.getItem('matrix_user_id')) {
-            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                              this.$t('matrix.words.you')).replace('{1}', messageText);
-          } else {
-            const senderMatrixId = receivedMessage.sender.substr(1, receivedMessage.sender.indexOf(":") - 1);
-            this.$matrixService.getUserByMatrixId(senderMatrixId, updatedRoom).then(senderIdentity => {
-              updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                                senderIdentity.profile.fullname).replace('{1}', messageText);
-            });
-          }
+          updatedRoom.lastMessage.content = await this.buildLastMessageContent(receivedMessage.sender, messageText, updatedRoom);
+        }
+      },
+     async reactionReceived(event) {
+        const {roomId, message, user_id, emojiKey, targetMessageBody} = event.detail;
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === roomId);
+        const updatedRoom = this.rooms?.[updatedRoomIndex];
+
+        if (updatedRoom) {
+          updatedRoom.lastMessage.content = await this.buildLastMessageContent(user_id, this.$t('matrix.message.reacted.with', {0: emojiKey, 1: targetMessageBody}), updatedRoom);
+          updatedRoom.updated = message.origin_server_ts;
         }
       },
       async messageDeleted(event) {
@@ -170,10 +172,7 @@
 
         if (updatedRoom) {
           if (updatedRoom.lastMessage?.eventId === eventId) {
-            const deletedBy = sender === matrixUserId ? this.$t('matrix.words.you') :
-                (await this.$matrixService.getUserByMatrixId(sender, updatedRoom))?.profile?.fullname || sender;
-
-            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {0: deletedBy, 1: this.$t('matrix.chat.message.deleted')});
+            updatedRoom.lastMessage.content = await this.buildLastMessageContent(sender, this.$t('matrix.chat.message.deleted'), updatedRoom);
             updatedRoom.lastMessage.redacted = true;
 
             if (updatedRoom.unreadMessages === 1) {
@@ -237,6 +236,11 @@
             timestamp: Date.now()
           }
         }));
+      },
+      async buildLastMessageContent(userId, message, updatedRoom) {
+        const user = userId === matrixUserId ? this.$t('matrix.words.you') :
+            (await this.$matrixService.getUserByMatrixId(userId, updatedRoom))?.profile?.fullname || userId;
+        return this.$t('matrix.chat.lastMessage.pattern', {0: user, 1: message});
       },
     }
   };
