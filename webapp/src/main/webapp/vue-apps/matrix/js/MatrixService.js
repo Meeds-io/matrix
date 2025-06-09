@@ -68,7 +68,8 @@ export function loadChatRooms(currentMemberId) {
                         "unread_thread_notifications":true,
                         "limit":50,
                         "types": [
-                          "m.room.message"
+                          "m.room.message",
+                          "m.reaction"
                         ]
                       },
                       "state":{
@@ -214,12 +215,12 @@ export function sync(filter, since, timeout) {
   });
 }
 
-export function processEvents(response) {
+export async function processEvents(response) {
   const updatedRooms = response?.rooms?.join;
   if(updatedRooms) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
-      roomEvents.forEach(e => {
+      for (const e of roomEvents) {
         if (e.type === 'm.room.message') {
           const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
           const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(e.content.msgtype);
@@ -265,12 +266,15 @@ export function processEvents(response) {
               emoji: emojiKey,
               userId: sender
             });
-
+            const targetEvent = await getEvent(roomId, relatedEventId);
+            const targetMessageBody = targetEvent?.content?.body || '';
             document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', {
               detail: {
                 roomId: roomId,
                 message: e,
-                user_id: sender
+                user_id: sender,
+                emojiKey: emojiKey,
+                targetMessageBody: targetMessageBody
               }
             }));
           }
@@ -294,7 +298,7 @@ export function processEvents(response) {
             }
           }
         }
-      });
+      }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
       ephemeralEvents.forEach(e => {
         //Users are typing in the room
@@ -335,7 +339,7 @@ export async function toRoomObject(rooms, currentMemberId) {
     let roomItem = {};
     let members = [];
     const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
-    roomEvents.forEach(e => {
+    for (const e of roomEvents) {
       if(e.type === 'm.room.create'){
         roomItem.created = e.origin_server_ts;
       }
@@ -396,8 +400,25 @@ export async function toRoomObject(rooms, currentMemberId) {
             };
           }
         }
+      } else if (e.type === 'm.reaction') {
+        const reactionKey = e.content?.['m.relates_to']?.key;
+        const reactedEventId = e.content?.['m.relates_to']?.event_id;
+
+        if (reactionKey && reactedEventId) {
+          const targetMessage = rooms[property]?.timeline?.events?.find?.(ev => ev.event_id === reactedEventId);
+          const targetMessageBody = targetMessage?.content?.body || '';
+          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
+            roomItem.updated = e.origin_server_ts;
+            roomItem.lastMessage = {
+              content: exoi18n.i18n.t('matrix.message.reacted.with', {0: reactionKey, 1 : targetMessageBody}),
+              sender: e.sender,
+              eventId: reactedEventId,
+              reaction: true
+            };
+          }
+        }
       }
-    });
+    }
     roomItem.members = members;
 
     roomItem.id = property;
@@ -1166,6 +1187,18 @@ export async function findReactionEventId(emoji, targetEventId, userId, roomId) 
   );
 
   return match?.event_id || null;
+}
+
+export async function getEvent(roomId, eventId) {
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/event/${encodeURIComponent(eventId)}`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+    }
+  });
+
+  if (!response.ok) throw new Error(`Failed to fetch event: ${response.statusText}`);
+  return await response.json();
 }
 
 export async function getUserIdentity(userId) {
