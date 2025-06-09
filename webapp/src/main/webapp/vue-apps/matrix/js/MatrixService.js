@@ -393,6 +393,23 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
           break;
         }
+      } else if (e.type === 'm.reaction') {
+        const reactionKey = e.content?.['m.relates_to']?.key;
+        const reactedEventId = e.content?.['m.relates_to']?.event_id;
+
+        if (reactionKey && reactedEventId) {
+          const targetMessage = rooms[property]?.timeline?.events?.find?.(ev => ev.event_id === reactedEventId);
+          const targetMessageBody = getFormattedMessageBody(targetMessage);
+          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
+            roomItem.updated = e.origin_server_ts;
+            roomItem.lastMessage = {
+              content: exoi18n.i18n.t('matrix.message.reacted.with', {0: reactionKey, 1 : targetMessageBody}),
+              sender: e.sender,
+              eventId: reactedEventId,
+              reaction: true
+            };
+          }
+        }
       }
     }
 
@@ -911,7 +928,7 @@ export function processMessages(messageItems) {
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
         const targetEventId = relatesTo.event_id;
         const originalMessage = messagesMap.get(targetEventId);
-        if (originalMessage) {
+        if (originalMessage && !isRedacted(originalMessage)) {
           originalMessage.content.body = newContent.body;
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
           if(newContent.format && newContent.format === 'org.matrix.custom.html') {
@@ -1238,6 +1255,9 @@ export async function getRoomLastMessage(roomId) {
     const events = data.chunk || [];
     const filteredEvents = [];
 
+    if (events.length === 0 && !data.next_batch) {
+      break;
+    }
     for (const event of events) {
       if (event.unsigned?.redacted_because) {
         continue;
@@ -1389,6 +1409,10 @@ function getFormattedMessageBody(targetMessage) {
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRedacted(event) {
+  return !!event.unsigned?.redacted_because || !!event.redacted_because;
 }
 
 export function enableOrDisableChat(spaceId, enable) {
