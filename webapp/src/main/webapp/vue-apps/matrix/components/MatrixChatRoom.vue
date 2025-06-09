@@ -91,7 +91,7 @@
 
         this.room.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {
           0: senderLabel,
-          1: content,
+          1: content?.replace(new RegExp(`^${senderLabel}\\s*:`), '')
         });
         this.hasUpdatedLastMessageContent = true;
       },
