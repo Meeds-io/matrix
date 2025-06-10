@@ -63,7 +63,8 @@
           v-show="messages && !loading"
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
-          @scroll="loadMoreMessages">
+          @scroll="loadMoreMessages"
+          @click="forceCloseMenus">
           <meeds-chat-message
             :id="'chat-message-' + i"
             :ref="'message' + i"
@@ -142,13 +143,13 @@ export default {
       lastScrollTop: 0,
       roomActionComponents: [],
       initializedActions: [],
-      mentionsArray: [],
       mentioningInProgress: false,
       leftReactions: [],
       composerDefaultHeight: 40,
       messageContent: null,
       insertedNewLine: false,
-      targetReplyMessage: null
+      targetReplyMessage: null,
+      messageToEdit: null,
     };
   },
   computed: {
@@ -185,6 +186,7 @@ export default {
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
+    this.$root.$on('chat-edit-message', e => this.editMessage(e));
   },
   watch:{
     room() {
@@ -196,6 +198,7 @@ export default {
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
+    this.$root.$off('chat-edit-message', e => this.editMessage(e));
   },
   methods: {
     replyToMessage(targetMessage) {
@@ -434,17 +437,17 @@ export default {
       }
       let message = {'body': messageText,
                      'msgtype': 'm.text'};
-      this.mentionsArray = [];
+      let mentionsArray = [];
       this.$refs.messageComposerArea.querySelectorAll('span[data-user-id]').forEach(selectedSpan => {
           const userId = '@' + selectedSpan.getAttribute('data-user-id') + ':' + matrixServerName;
-          this.mentionsArray.indexOf(userId) === -1 && this.mentionsArray.push(userId);
+          mentionsArray.indexOf(userId) === -1 && mentionsArray.push(userId);
           });
-      if(this.mentionsArray && this.mentionsArray.length) {
+      if(mentionsArray && mentionsArray.length) {
         const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;\/#.()]*<\/span>/gu;
         const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(regexForMentions, '<a href=\"https://matrix.to/#/@$1:' + matrixServerName + '\">$2</a>');
         message.format="org.matrix.custom.html";
         message.formatted_body=messageHTML;
-        message['m.mentions'] = {'user_ids': this.mentionsArray}
+        message['m.mentions'] = {'user_ids': mentionsArray}
       }
       if (this.targetReplyMessage) {
         message['m.relates_to'] = {
@@ -453,11 +456,28 @@ export default {
           }
         };
       }
-      this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
+      if(!this.messageToEdit) {
+        this.$matrixService.sendMessage(message, this.room.id);
+        this.$root.$emit('message-sent-statistics', message, this.room);
+      } else {
+        message['m.new_content'] = {
+                                     'msgtype': 'm.text',
+                                     'body': message.body,
+                                     'm.mentions': message['m.mentions'] || {}
+                                   };
+        if(message.formatted_body) {
+          message['m.new_content'].formatted_body = message.formatted_body;
+          message['m.new_content'].format = message.format;
+        }
+        message['m.relates_to'] = {
+                                    'rel_type': 'm.replace',
+                                    'event_id': this.messageToEdit.event_id
+                                  }
+        this.$matrixService.sendMessage(message, this.room.id);
+      }
       this.resetComposer();
-      this.$root.$emit('message-sent-statistics', message, this.room);
-      this.mentionsArray = [];
       this.mentioningInProgress = false;
+      this.messageToEdit = null;
     },
     checkIfMentioning() {
       this.mentioningInProgress = this.$refs.messageComposerArea.lastElementChild?.className === 'atwho-query' && !this.$refs.messageComposerArea.lastChild.wholeText;
@@ -592,6 +612,23 @@ export default {
       //init suggester
       $messageSuggestor.suggester(suggesterData);
     },
+    editMessage(message) {
+      this.$root.$emit('close-message-child-menu');
+      const composerArea = this.$refs.messageComposerArea;
+      this.messageToEdit = message;
+      composerArea.innerHTML = message.content.formatted_body || message.content.body ;
+      composerArea.focus();
+      // Move the cursor to the end of the message
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.setStart(composerArea, composerArea.childNodes.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
+    forceCloseMenus() {
+      this.$root.$emit('force-close-message-menu');
+    }
   },
 };
 </script>
