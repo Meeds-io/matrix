@@ -43,6 +43,49 @@
             fas fa-reply
           </v-icon>
         </v-btn>
+        <v-menu
+          v-if="displayEditMenu"
+          class="message-action-menu border-radius-8"
+          :nudge-right="-97"
+          :nudge-top="-8"
+          open-on-click
+          close-on-content-click
+          offset-y>
+          <template v-slot:activator="{ on }">
+            <v-btn
+              v-on="on"
+              width="28"
+              height="28"
+              min-width="28"
+              :title="$t('matrix.chat.openMessageMenu')"
+              icon
+              @touchstart.stop="0"
+              @touchend.stop="0"
+              @mousedown.stop="0"
+              @mouseup.stop="0"
+              @click.prevent.stop="openMenu">
+              <v-icon
+                size="16"
+                class="icon-default-color">
+                fa-ellipsis-v
+              </v-icon>
+            </v-btn>
+          </template>
+          <v-list class="py-1">
+            <v-list-item
+              class="chat-action-menu-item"
+              :title="$t('matrix.chat.label.editMessage')"
+              :aria-label="$t('matrix.chat.label.editMessage')"
+              @click="handleEditMessage">
+              <v-icon
+                class="me-1"
+                size="16">
+                fa-edit
+              </v-icon>
+              {{ $t('matrix.chat.label.editMessage') }}
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </div>
     </v-list-item>
   </v-list>
@@ -51,5 +94,35 @@
 <script>
 
 export default {
+  props: {
+    message: {
+      type: Object,
+      default: {},
+    },
+  },
+  data() {
+    return {
+      showMoreActions: false,
+    };
+  },
+  computed: {
+    displayEditMenu() {
+      return matrixUserId === this.message.sender && this.message.content.msgtype === 'm.text';
+    }
+  },
+  methods: {
+    openMenu() {
+      if(!this.showMoreActions) {
+        this.$root.$emit('open-message-child-menu');
+      } else {
+        this.$root.$emit('close-message-child-menu');
+      }
+      this.showMoreActions = !this.showMoreActions;
+    },
+    handleEditMessage() {
+      this.$root.$emit('close-message-child-menu');
+      this.$root.$emit('chat-edit-message', this.message);
+    }
+  },
 };
 </script>

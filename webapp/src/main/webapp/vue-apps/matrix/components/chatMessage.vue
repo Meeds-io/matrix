@@ -17,84 +17,87 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <v-hover v-slot="{ hover }">
-    <div
-      class="chat-message-content"
-      :class="{
+  <div
+    class="chat-message-content"
+    :class="{
         'mb-3':!nextMessage,
-        'mb-1': nextMessage}">
-      <div
-        v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
-        class="mb-5 text-font-small-size font-weight-bold text-center"
-        :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
-        <v-chip color="primaryBackground" class="message-date-chip">
-          {{ formattedDate }}
-        </v-chip>
-      </div>
-      <div
-        :id="message.event_id"
-        class="px-4"
-        :class="{'mt-3' : message.sender !== previousMessage.sender}">
-        <div class="d-relative">
-          <message-user
-            v-if="displaySender"
-            class="mb-n4 width-fit-content"
-            :room="room"
-            :sender-id="message.sender" />
+        'mb-1': nextMessage
+      }"
+    @mouseleave="!isMobile && closeMenu()"
+    @mouseenter="!isMobile && openMenu()"
+    @click="openMenu">
+    <div
+      v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
+      class="mb-5 text-font-small-size font-weight-bold text-center"
+      :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
+      <v-chip color="primaryBackground" class="message-date-chip">
+        {{ formattedDate }}
+      </v-chip>
+    </div>
+    <div
+      :id="message.event_id"
+      class="px-4"
+      :class="{'mt-3' : message.sender !== previousMessage.sender}">
+      <div class="d-relative">
+        <message-user
+          v-if="displaySender"
+          class="mb-n4 width-fit-content"
+          :room="room"
+          :sender-id="message.sender" />
+        <div
+          class="message-container full-width position-relative"
+          :class="{
+            'ms-4': !isMyMessage && !room.directChat,
+            'float-right': isMyMessage,
+            'float-left': !isMyMessage}">
+          <v-menu
+            :disabled="isRedacted"
+            v-model="parentMenu"
+            :offset-x="isMyMessage"
+            :nudge-right="nudgeRight"
+            :close-on-content-click="false"
+            :nudge-top="-10"
+            content-class="no-min-width border-radius-8"
+            offset-y
+            right
+            top
+            attach>
+            <template #activator="{ on, attrs }">
+              <div
+                v-bind="attrs"
+                v-on="on">
+                <meeds-chat-message-content
+                  :message="message"
+                  :display-sender="displaySender"
+                  :css-class="messageContentClass"
+                  :display-timestamp="displayTimestamp"
+                  :next-message="nextMessage"
+                  :is-self-message="isSelfMessage"
+                  :timestamp="formattedTimestamp"
+                  :room="room"
+                  :is-redacted="isRedacted" />
+              </div>
+            </template>
+            <message-action-list
+              ref="actionList"
+              :message="message"
+              @reply="$emit('reply', message)"
+              @reaction="$emit('reaction', $event, message)" />
+          </v-menu>
           <div
-            class="message-container full-width position-relative"
-            :class="{
-              'ms-4': !isMyMessage && !room.directChat,
-              'float-right': isMyMessage,
-              'float-left': !isMyMessage}">
-            <v-menu
-              :value="hover"
-              :disabled="isRedacted"
-              :offset-x="isMyMessage"
-              :nudge-right="isMyMessage ? -249 : 20"
-              :close-on-content-click="false"
-              :nudge-top="-10"
-              content-class="no-min-width border-radius-8"
-              offset-y
-              right
-              top
-              attach>
-              <template #activator="{ on, attrs }">
-                <div
-                  v-bind="attrs"
-                  v-on="on">
-                  <meeds-chat-message-content
-                    :message="message"
-                    :display-sender="displaySender"
-                    :css-class="messageContentClass"
-                    :display-timestamp="displayTimestamp"
-                    :next-message="nextMessage"
-                    :is-self-message="isSelfMessage"
-                    :timestamp="formattedTimestamp"
-                    :room="room"
-                    :is-redacted="isRedacted" />
-                </div>
-              </template>
-              <message-action-list
-                ref="actionList"
-                @reply="$emit('reply', message)"
-                @reaction="$emit('reaction', $event, message)" />
-            </v-menu>
-            <div
-              class="message-reactions d-flex flex-wrap"
-              :class="{'justify-end': isMyMessage}">
-              <message-reaction-item
-                v-for="reaction in message.reactions"
-                :key="reaction.key"
-                :reaction="reaction"
-                :is-my-message="isMyMessage"
-                @reaction="$emit('reaction', $event, message)" />
-            </div>
+            class="message-reactions d-flex flex-wrap"
+            :class="{'justify-end': isMyMessage}">
+            <message-reaction-item
+              v-for="reaction in message.reactions"
+              :key="reaction.key"
+              :reaction="reaction"
+              :is-my-message="isMyMessage"
+              @reaction="$emit('reaction', $event, message)" />
           </div>
         </div>
       </div>
     </div>
-  </v-hover>
+  </div>
 </template>
 <script>
   export default {
@@ -130,6 +133,8 @@
         defaultThumbnailMaxWidth: 345,
         defaultThumbnailMaxHeight: 275,
         menu: false,
+        parentMenu: false,
+        childMenu: ''
       };
     },
     created() {
@@ -141,10 +146,18 @@
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      this.$root.$on('close-message-menu', this.closeMenu);
+      this.$root.$on('close-message-child-menu', this.closeChildMenu);
+      this.$root.$on('open-message-child-menu', this.openChildMenu);
+      this.$root.$on('force-close-message-menu', this.forceCloseMenu);
     },
     beforeDestroy() {
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      this.$root.$off('close-message-menu', this.closeMenu);
+      this.$root.$off('close-message-child-menu', this.closeChildMenu);
+      this.$root.$off('open-message-child-menu', this.openChildMenu);
+      this.$root.$off('force-close-message-menu', this.forceCloseMenu);
     },
     computed: {
       displaySender() {
@@ -158,6 +171,12 @@
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
+      },
+      nudgeRight() {
+        return this.isMyMessage ? this.message.content.msgtype === 'm.text' ? -276 : -249 : 20;
+      },
+      isMobile() {
+        return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
       },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
@@ -267,6 +286,27 @@
         }
 
         this.message.reactions = Array.from(map.values());
+      },
+      openMenu() {
+        if(this.childMenu === '') {
+          this.parentMenu = true;
+        }
+      },
+      closeMenu() {
+        if(this.childMenu !== this.message.event_id) {
+          this.childMenu = '';
+          this.parentMenu = false;
+        }
+      },
+      openChildMenu() {
+        this.childMenu = this.message.event_id;
+      },
+      closeChildMenu() {
+        this.childMenu = '';
+      },
+      forceCloseMenu() {
+        this.childMenu = '';
+        this.parentMenu = false;
       }
     }
   }
