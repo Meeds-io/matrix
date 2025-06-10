@@ -19,6 +19,7 @@ import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
+import * as matrixUtils from './js/matrixUtils'
 import './icons-extensions.js'
 
 const components = {
@@ -52,6 +53,9 @@ window.Object.defineProperty(Vue.prototype, '$chatConstants', {
 });
 window.Object.defineProperty(Vue.prototype, '$timeUtils', {
   value: timeUtils,
+});
+window.Object.defineProperty(Vue.prototype, '$matrixUtils', {
+  value: matrixUtils,
 });
 
 Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'files-icons-extension');

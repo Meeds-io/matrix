@@ -1,4 +1,4 @@
-<!--
+/*
  This file is part of the Meeds project (https://meeds.io/).
 
  Copyright (C) 2025 Meeds Association contact@meeds.io
@@ -15,41 +15,21 @@
  You should have received a copy of the GNU Lesser General Public License
  along with this program; if not, write to the Free Software Foundation,
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
--->
+ */
 
-<template>
-  <v-list
-    class="ma-0 py-0 text-no-wrap width-fit-content
-    border-box-sizing border-radius"
-    dense>
-    <v-list-item class="ma-0 height-auto px-2 py-1">
-      <div class="d-flex">
-        <emoji-picker-button
-          use-quick-emojis
-          @select-emoji="$emit('reaction', $event)" />
-        <v-divider
-          class="mx-2"
-          vertical />
-        <v-btn
-          width="28"
-          height="28"
-          min-width="28"
-          class="pa-0"
-          icon
-          @click="$emit('reply')">
-          <v-icon
-            size="16"
-            class="icon-default-color">
-            fas fa-reply
-          </v-icon>
-        </v-btn>
-      </div>
-    </v-list-item>
-  </v-list>
-</template>
-
-<script>
-
-export default {
-};
-</script>
+export function placeCaretAtEnd(el) {
+  el.focus();
+  if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else if (typeof document.body.createTextRange != "undefined") {
+    const textRange = document.body.createTextRange();
+    textRange.moveToElementText(el);
+    textRange.collapse(false);
+    textRange.select();
+  }
+}
