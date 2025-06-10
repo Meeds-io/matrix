@@ -25,6 +25,7 @@
     <v-list-item class="ma-0 height-auto px-2 py-1">
       <div class="d-flex">
         <emoji-picker-button
+          use-quick-emojis
           @select-emoji="$emit('reaction', $event)" />
         <v-divider
           class="mx-2"

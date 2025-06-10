@@ -116,6 +116,7 @@
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
+      document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.removeEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
