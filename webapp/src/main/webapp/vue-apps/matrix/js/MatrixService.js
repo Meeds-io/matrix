@@ -949,6 +949,18 @@ export function processMessages(messageItems) {
         if (originalMessage) {
           originalMessage.content.body = newContent.body;
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
+          if(newContent.format && newContent.format === 'org.matrix.custom.html') {
+            originalMessage.content.format = newContent.format;
+            originalMessage.content.formatted_body = newContent.formatted_body;
+          } else {
+            delete originalMessage.content.format;
+            delete originalMessage.content.formatted_body;
+          }
+          if(newContent['m.mentions'] && newContent['m.mentions'].user_ids?.length > 0) {
+            originalMessage.content['m.mentions'] = newContent['m.mentions'];
+          } else {
+            delete originalMessage.content['m.mentions'];
+          }
           originalMessage.edited = true;
           originalMessage.updatedAt = item.origin_server_ts;
 
