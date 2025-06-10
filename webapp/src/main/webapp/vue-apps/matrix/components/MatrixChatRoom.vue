@@ -45,7 +45,7 @@
 
   export default {
     data: () => ({
-      hasUpdatedLastMessageContent: false
+      hasFormattedLastMessageContent: false,
     }),
     props: {
       room: {
@@ -54,7 +54,11 @@
       }
     },
     async mounted() {
-      await this.updateLastMessageContent();
+      if (this.room?.lastMessage?.content) {
+        await this.updateLastMessageContent();
+      } else {
+        this.hasFormattedLastMessageContent = false;
+      }
     },
     computed : {
       avatarBorderClass() {
@@ -81,19 +85,29 @@
     },
     methods: {
       async updateLastMessageContent() {
-        const content = this.room?.lastMessage?.content || '';
-        if (!content || this.hasUpdatedLastMessageContent) {
+        const content = this.room?.lastMessage?.content;
+        if (!content) {
+          this.hasFormattedLastMessageContent = false;
           return;
         }
-        const senderLabel = this.isLastMessageSenderCurrentUser
-            ? this.$t('matrix.words.you')
-            : (await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room))?.profile?.fullname || this.lastMessageSender;
 
-        this.room.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {
+        let senderLabel;
+        if (this.isLastMessageSenderCurrentUser) {
+          senderLabel = this.$t('matrix.words.you');
+        } else {
+          const user = await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room);
+          senderLabel = user?.profile?.fullname || this.lastMessageSender;
+        }
+        const contentWithoutPreviousSender = content.replace(new RegExp(`^${senderLabel}\\s*:`), '').trim();
+        const formattedContent = this.$t('matrix.chat.lastMessage.pattern', {
           0: senderLabel,
-          1: content?.replace(new RegExp(`^${senderLabel}\\s*:`), '')
+          1: contentWithoutPreviousSender
         });
-        this.hasUpdatedLastMessageContent = true;
+
+        if (this.room.lastMessage.content !== formattedContent) {
+          this.$set(this.room.lastMessage, 'content', formattedContent);
+        }
+        this.hasFormattedLastMessageContent = true;
       },
       openRoom() {
         document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, { detail: this.room }));
