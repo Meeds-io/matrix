@@ -17,12 +17,19 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <v-hover v-slot="{ hover }">
-    <div
-      class="chat-message-content"
-      :class="{
+  <div
+    class="chat-message-content"
+    :class="{
         'mb-3':!nextMessage,
-        'mb-1': nextMessage}">
+        'mb-1': nextMessage
+      }"
+      @mouseleave="closeMenu() && cancelPress()"
+      @mouseenter="openMenu"
+      @touchstart="startPress"
+      @touchend="cancelPress"
+      @touchmove="cancelPress"
+      @mousedown="startPress"
+      @mouseup="cancelPress">
       <div
         v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
         class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -48,7 +55,7 @@
               'float-right': isMyMessage,
               'float-left': !isMyMessage}">
             <v-menu
-              :value="hover"
+              v-model="parentMenu"
               :offset-x="isMyMessage"
               :nudge-right="isMyMessage ? -249 : 20"
               :close-on-content-click="false"
@@ -75,6 +82,7 @@
               </template>
               <message-action-list
                 ref="actionList"
+                :message="message"
                 @reply="$emit('reply', message)"
                 @reaction="$emit('reaction', $event, message)" />
             </v-menu>
@@ -128,6 +136,8 @@
         defaultThumbnailMaxWidth: 345,
         defaultThumbnailMaxHeight: 275,
         menu: false,
+        parentMenu: false,
+        childMenu: ''
       };
     },
     created() {
@@ -139,10 +149,18 @@
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      this.$root.$on('close-message-menu', this.closeMenu);
+      this.$root.$on('close-message-child-menu', this.closeChildMenu);
+      this.$root.$on('open-message-child-menu', this.openChildMenu);
+      this.$root.$on('force-close-message-menu', this.forceCloseMenu);
     },
     beforeDestroy() {
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      this.$root.$off('close-message-menu', this.closeMenu);
+      this.$root.$off('close-message-child-menu', this.closeChildMenu);
+      this.$root.$off('open-message-child-menu', this.openChildMenu);
+      this.$root.$off('force-close-message-menu', this.forceCloseMenu);
     },
     computed: {
       displaySender() {
@@ -262,6 +280,40 @@
         }
 
         this.message.reactions = Array.from(map.values());
+      },
+      startPress(e) {
+        if (e.type === 'click' && e.button !== 0) return;
+        this.pressTimer = setTimeout(() => {
+          this.onLongPress();
+        }, 500);
+      },
+      cancelPress() {
+        clearTimeout(this.pressTimer);
+        this.pressTimer = null;
+      },
+      onLongPress() {
+        this.openMenu();
+      },
+      openMenu() {
+        if(this.childMenu === '') {
+          this.parentMenu = true;
+        }
+      },
+      closeMenu() {
+        if(this.childMenu !== this.message.event_id) {
+          this.childMenu = '';
+          this.parentMenu = false;
+        }
+      },
+      openChildMenu() {
+        this.childMenu = this.message.event_id;
+      },
+      closeChildMenu() {
+        this.childMenu = '';
+      },
+      forceCloseMenu() {
+        this.childMenu = '';
+        this.parentMenu = false;
       }
     }
   }
