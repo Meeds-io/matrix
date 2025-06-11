@@ -23,13 +23,9 @@
         'mb-3':!nextMessage,
         'mb-1': nextMessage
       }"
-      @mouseleave="closeMenu() && cancelPress()"
-      @mouseenter="openMenu"
-      @touchstart="startPress"
-      @touchend="cancelPress"
-      @touchmove="cancelPress"
-      @mousedown="startPress"
-      @mouseup="cancelPress">
+    @mouseleave="!isMobile && closeMenu()"
+    @mouseenter="!isMobile && openMenu()"
+    @click="openMenu">
       <div
         v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
         class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -57,7 +53,7 @@
             <v-menu
               v-model="parentMenu"
               :offset-x="isMyMessage"
-              :nudge-right="isMyMessage ? -249 : 20"
+              :nudge-right="nudgeRight"
               :close-on-content-click="false"
               :nudge-top="-10"
               content-class="no-min-width border-radius-8"
@@ -175,6 +171,12 @@
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
       },
+      nudgeRight() {
+        return this.isMyMessage ? this.message.content.msgtype === 'm.text' ? -276 : -249 : 20;
+      },
+      isMobile() {
+        return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
+      },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
         let cssSameMessageSenderSelf = 'border-bottom-right-radius-16';
@@ -280,19 +282,6 @@
         }
 
         this.message.reactions = Array.from(map.values());
-      },
-      startPress(e) {
-        if (e.type === 'click' && e.button !== 0) return;
-        this.pressTimer = setTimeout(() => {
-          this.onLongPress();
-        }, 500);
-      },
-      cancelPress() {
-        clearTimeout(this.pressTimer);
-        this.pressTimer = null;
-      },
-      onLongPress() {
-        this.openMenu();
       },
       openMenu() {
         if(this.childMenu === '') {
