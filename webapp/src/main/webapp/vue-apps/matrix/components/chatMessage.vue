@@ -49,6 +49,7 @@
               'float-left': !isMyMessage}">
             <v-menu
               :value="hover"
+              :disabled="isRedacted"
               :offset-x="isMyMessage"
               :nudge-right="isMyMessage ? -249 : 20"
               :close-on-content-click="false"
@@ -70,7 +71,8 @@
                     :next-message="nextMessage"
                     :is-self-message="isSelfMessage"
                     :timestamp="formattedTimestamp"
-                    :room="room" />
+                    :room="room"
+                    :is-redacted="isRedacted" />
                 </div>
               </template>
               <message-action-list
@@ -214,7 +216,10 @@
       },
       isSelfMessage() {
         return localStorage.getItem('matrix_user_id') === this.message?.sender;
-      }
+      },
+      isRedacted() {
+        return !this.message.content.body && this.message.redacted_because?.redacts;
+      },
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
