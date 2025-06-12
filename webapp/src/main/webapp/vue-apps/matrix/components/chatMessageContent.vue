@@ -188,6 +188,10 @@
       room: {
         type: Object,
         default: null
+      },
+      isRedacted: {
+        type: Boolean,
+        default: false
       }
     },
     data() {
@@ -225,9 +229,6 @@
       },
       isText() {
         return this.message.content.msgtype === 'm.text';
-      },
-      isRedacted() {
-        return !this.message.content.body && this.message.redacted_because?.redacts;
       },
       isAudio() {
         return this.message?.content?.msgtype === 'm.audio';

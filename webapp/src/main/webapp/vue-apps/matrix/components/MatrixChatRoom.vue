@@ -80,7 +80,7 @@
         return this.lastMessageSender === matrixUserId;
       },
       lastMessageContent() {
-        return this.room?.lastMessage?.content;
+        return this.room?.lastMessageContent;
       }
     },
     methods: {
@@ -91,21 +91,21 @@
           return;
         }
 
-        let senderLabel;
-        if (this.isLastMessageSenderCurrentUser) {
-          senderLabel = this.$t('matrix.words.you');
-        } else {
-          const user = await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room);
-          senderLabel = user?.profile?.fullname || this.lastMessageSender;
-        }
-        const contentWithoutPreviousSender = content.replace(new RegExp(`^${senderLabel}\\s*:`), '').trim();
-        const formattedContent = this.$t('matrix.chat.lastMessage.pattern', {
-          0: senderLabel,
-          1: contentWithoutPreviousSender
-        });
+        let formattedContent;
 
-        if (this.room.lastMessage.content !== formattedContent) {
-          this.$set(this.room.lastMessage, 'content', formattedContent);
+        if (this.room?.lastMessage?.reaction) {
+          formattedContent = await this.formatReactionLastMessageContent(this.room.lastMessage);
+        } else {
+          const senderLabel = await this.resolveLastMessageSenderLabel();
+          const contentWithoutPreviousSender = content.replace(new RegExp(`^${senderLabel}\\s*:`), '').trim();
+          formattedContent = this.$t('matrix.chat.lastMessage.pattern', {
+            0: senderLabel,
+            1: contentWithoutPreviousSender
+          });
+        }
+
+        if (this.room?.lastMessageContent !== formattedContent) {
+          this.$set(this.room, 'lastMessageContent', formattedContent)
         }
         this.hasFormattedLastMessageContent = true;
       },
@@ -119,6 +119,28 @@
         return this.$matrixService.getUserPresence(this.room.dmMemberId).then(status => {
           this.presenceClass = `matrix-status-${status.presence}`;
         });
+      },
+      async formatReactionLastMessageContent(lastMessage) {
+        const {sender, reactionKey, content} = lastMessage;
+        const isSelf = sender === matrixUserId;
+
+        let reactedBy = sender;
+        if (!isSelf) {
+          const user = await this.$matrixService.getUserByMatrixId(sender, this.room);
+          reactedBy = user?.profile?.fullname || sender;
+        }
+
+        return isSelf
+          ? this.$t('matrix.message.you.reacted.with', {0: reactionKey, 1: content})
+          : this.$t('matrix.message.user.reacted.with', {0: reactedBy, 1: reactionKey, 2: content});
+      },
+      async resolveLastMessageSenderLabel() {
+        if (this.isLastMessageSenderCurrentUser) {
+          return this.$t('matrix.words.you');
+        }
+
+        const user = await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room);
+        return user?.profile?.fullname || this.lastMessageSender;
       }
     }
   }
