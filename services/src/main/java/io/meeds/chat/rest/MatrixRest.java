@@ -32,7 +32,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
@@ -41,7 +40,6 @@ import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.notification.impl.NotificationContextImpl;
 import org.exoplatform.commons.utils.PropertyManager;
-import org.exoplatform.portal.localization.LocaleContextInfoUtils;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.resources.ResourceBundleService;
@@ -49,7 +47,6 @@ import org.exoplatform.services.rest.resource.ResourceContainer;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
-import org.exoplatform.social.core.service.LinkProvider;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.rest.api.RestUtils;
@@ -64,7 +61,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -102,9 +98,10 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "2rest00", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public RoomEntity getMatrixRoomBySpaceId(@Parameter(description = "The space Id")
-  @RequestParam(name = "spaceId")
-  String spaceId) {
+  public RoomEntity getMatrixRoomBySpaceId(HttpServletRequest request,
+                                           @Parameter(description = "The space Id")
+                                           @RequestParam(name = "spaceId")
+                                           String spaceId) {
     if (StringUtils.isBlank(spaceId)) {
       LOG.error("Could not get the URL for the space, missing space ID");
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the space Id parameter is required!");
@@ -114,7 +111,7 @@ public class MatrixRest implements ResourceContainer {
       LOG.error("Could not find a space with id {}", spaceId);
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Can not find a space with Id = " + spaceId);
     }
-    String userName = ConversationState.getCurrent().getIdentity().getUserId();
+    String userName = request.getRemoteUser();
     if (!spaceService.isMember(space, userName) && !spaceService.isManager(space, userName)
         && !spaceService.isSuperManager(userName)) {
       LOG.error("User is not allowed to get the team associated with the space {}", space.getDisplayName());
@@ -224,40 +221,42 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public boolean linkSpaceToRoom(@RequestParam("spaceGroupId")
-  String spaceGroupId, @RequestParam(name = "roomId")
-  String roomId, @RequestParam(name = "create", required = false)
-  Boolean create) {
-    try {
-      if (StringUtils.isBlank(spaceGroupId)) {
-        LOG.error("Could not connect the space to a team, space name is missing");
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space group Id is required");
-      }
-
-      Space space = spaceService.getSpaceByGroupId("/spaces/" + spaceGroupId);
-
-      if (space == null) {
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "space with group Id " + spaceGroupId + "was not found");
-      }
-
-      Room room = matrixService.getRoomBySpace(space);
-      if (StringUtils.isNotBlank(room.getRoomId())) {
-        throw new ResponseStatusException(HttpStatus.CONFLICT,
-                                          "space with group Id " + spaceGroupId + "has already a room with ID "
-                                              + room.getRoomId());
-      }
-
-      if (StringUtils.isBlank(roomId) && create) {
-        roomId = matrixService.createRoomForSpaceOnMatrix(space);
-      }
-
-      matrixService.linkSpaceToMatrixRoom(space, roomId);
-      return true;
-    } catch (Exception e) {
-      LOG.error("Could not link space {} to Matrix room {}", spaceGroupId, roomId, e);
-      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                                        "Could not link space " + spaceGroupId + " to Matrix room " + roomId + " : "
-                                            + e.getMessage());
+                                 String spaceGroupId,
+                                 @RequestParam(name = "roomId")
+                                 String roomId,
+                                 @RequestParam(name = "create", required = false)
+                                 Boolean create) {
+    if (StringUtils.isBlank(spaceGroupId)) {
+      LOG.error("Could not connect the space to a team, space name is missing");
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space group Id is required");
     }
+
+    Space space = spaceService.getSpaceByGroupId("/spaces/" + spaceGroupId);
+
+    if (space == null) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "space with group Id " + spaceGroupId + " was not found");
+    }
+
+    Room room = matrixService.getRoomBySpace(space);
+    if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                        "space with group Id " + spaceGroupId + "has already a room with ID "
+                                            + room.getRoomId());
+    }
+
+    if (StringUtils.isBlank(roomId) && create) {
+      try {
+        roomId = matrixService.createRoomForSpaceOnMatrix(space);
+      } catch (Exception e) {
+        LOG.error("Could not link space {} to Matrix room {}", spaceGroupId, roomId, e);
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Could not link space " + spaceGroupId + " to Matrix room " + roomId + " : "
+                        + e.getMessage());
+      }
+    }
+
+    matrixService.linkSpaceToMatrixRoom(space, roomId);
+    return true;
   }
 
   @GetMapping("dmRooms")
@@ -267,8 +266,8 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public Map<String, String[]> getUserDirectMessagingRooms(@Parameter(description = "The user")
-  @RequestParam(name = "user")
-  String user) {
+                                                           @RequestParam(name = "user")
+                                                           String user) {
 
     Map<String, String[]> userDMRooms = new HashMap<>();
     List<Room> rooms = matrixService.getMatrixDMRoomsOfUser(user);
@@ -333,6 +332,9 @@ public class MatrixRest implements ResourceContainer {
                                                 @Parameter(description = "The room Id")
                                                 @RequestParam(name = "roomId")
                                                 String roomId) {
+    if(StringUtils.isBlank(roomId)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "roomId parameter is required");
+    }
     String userName = request.getRemoteUser();
     Room room = matrixService.getById(roomId);
     if (room == null || !matrixService.canAccess(room, userName)) {
@@ -466,7 +468,12 @@ public class MatrixRest implements ResourceContainer {
 
   private RoomEntity buildRoomEntityFromRoom(Room room, String currentUserName) {
     RoomEntity roomEntity = new RoomEntity();
-    roomEntity.setId(room.getRoomId());
+    String roomId = room.getRoomId();
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    if(!roomId.contains(serverName)) {
+      roomId = roomId + ":" + serverName;
+    }
+    roomEntity.setId(roomId);
     if (StringUtils.isNotBlank(room.getSpaceId())) {
       roomEntity.setSpaceId(room.getSpaceId());
       roomEntity.setDirectChat(false);
@@ -499,9 +506,25 @@ public class MatrixRest implements ResourceContainer {
       throw new IllegalArgumentException("The username of the current user is mandatory");
     }
 
+    List<String> spaceIds = spaceService.getMemberSpacesIds(currentUserName, 0, -1);
+
     for (RoomEntity room : roomList.getRooms()) {
       updateRoomEntity(room, currentUserName);
+      //check missing rooms
+      if(!room.isDirectChat()) {
+        spaceIds.remove(room.getSpaceId());
+      }
     }
+    if(!spaceIds.isEmpty()) {
+      for(String spaceId : spaceIds) {
+        Room missingRoom = matrixService.getRoomBySpaceId(spaceId);
+        if(missingRoom != null) {
+          RoomEntity missingRoomEntity = buildRoomEntityFromRoom(missingRoom, currentUserName);
+          roomList.getRooms().addFirst(missingRoomEntity);
+        }
+      }
+    }
+
     return roomList;
   }
 
