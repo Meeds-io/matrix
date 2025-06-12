@@ -16,54 +16,27 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
+
 package io.meeds.chat.rest.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.List;
 
+@EqualsAndHashCode(callSuper = true)
+@AllArgsConstructor
+@NoArgsConstructor
 @Data
-public class RoomEntity implements Serializable {
+public class LastMessage extends Message implements Serializable {
 
-  private LastMessage  lastMessage;
+  private String  eventId;
 
-  private String       topic;
+  private boolean redacted;
 
-  private String       name;
+  private boolean reaction;
 
-  private String       avatarUrl;
-
-  private String       id;
-
-  private boolean      enabledUser;
-
-  private boolean      deletedUser;
-
-  private String       presence = "offline"; //"online", "offline" or "unavailable"
-
-  private boolean      directChat;
-
-  private long         updated;
-
-  private long         unreadMessages;
-
-  private String       dmMemberId;
-
-  private String       userId;
-
-  private String       matrixId;
-
-  private String       prettyName;
-
-  private String       identityId;
-
-  private String       spaceId;
-
-  private boolean      favorite;
-
-  private boolean      external;
-
-  private List<Member> members;
-
+  private String reactionKey;
 }
