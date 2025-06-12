@@ -22,6 +22,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
@@ -151,11 +152,20 @@ public class MatrixService {
   /**
    * Returns the ID of the room linked to a space
    * 
-   * @param space
+   * @param space the space
    * @return the roomId linked to the space
    */
   public Room getRoomBySpace(Space space) {
-    return matrixRoomStorage.getMatrixRoomBySpaceId(space.getId());
+    return getRoomBySpaceId(space.getId());
+  }
+  /**
+   * Returns the ID of the room linked to a space
+   *
+   * @param spaceId the space Id
+   * @return the roomId linked to the space
+   */
+  public Room getRoomBySpaceId(String spaceId) {
+    return matrixRoomStorage.getMatrixRoomBySpaceId(spaceId);
   }
 
   /**
@@ -511,5 +521,14 @@ public class MatrixService {
       Space space = spaceService.getSpaceById(room.getSpaceId());
       return spaceService.canViewSpace(space, userName);
     }
+  }
+
+  /**
+   * Load the list of space rooms
+   * @param spaceIds : list of space IDs
+   * @return List of Rooms
+   */
+  public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
+    return matrixRoomStorage.getSpaceRoomsBySpaceIds(spaceIds);
   }
 }

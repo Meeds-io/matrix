@@ -869,6 +869,7 @@ export function sendMessage(payload, roomId) {
   let index = localStorage.getItem('matrix_transaction_index') || 1;
   const transactionId = `${new Date().getTime()}-${index}`;
   const eventType = 'm.room.message';
+  roomId = roomId.includes(matrixServerName) ? roomId : roomId + ":" + matrixServerName;
   return fetch(`/_matrix/client/v3/rooms/${roomId}/send/${eventType}/${transactionId}`, {
     method: 'PUT',
     headers: {

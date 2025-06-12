@@ -45,4 +45,6 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
   public RoomEntity findByRoomIdStartsWith(String roomId);
 
   public List<RoomEntity> findBySpaceIdIsNotNull();
+
+  public List<RoomEntity> findBySpaceIdIn(List<String> spaceIds);
 }
