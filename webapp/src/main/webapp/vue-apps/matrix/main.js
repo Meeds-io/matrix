@@ -10,6 +10,7 @@ import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vu
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
 import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
+import MessageEditBanner from "./components/message/MessageEditBanner.vue";
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
 import MessageUser from './components/message/MessageUser.vue';
 import MessageActionList from './components/message/action/MessageActionList.vue'
@@ -35,6 +36,7 @@ const components = {
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
   'audio-message': AudioMessage,
   'message-reply-quote': MessageReplyQuote,
+  'message-edit-banner': MessageEditBanner,
   'message-upload-file-input': MessageUploadFileInput,
   'message-user': MessageUser,
   'message-action-list': MessageActionList,
