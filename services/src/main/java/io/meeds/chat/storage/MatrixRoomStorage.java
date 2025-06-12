@@ -154,4 +154,13 @@ public class MatrixRoomStorage {
   public List<Room> getSpaceRooms() {
     return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNull());
   }
+
+  /**
+   * Load the list of space rooms
+   * @param spaceIds : list of space IDs
+   * @return List of Rooms
+   */
+  public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
+    return toRoomList(matrixRoomDAO.findBySpaceIdIn(spaceIds));
+  }
 }
