@@ -88,7 +88,7 @@
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
         <div
            class="flex-grow-1 border-radius-16"
-          :class="{'border-color-grey-lighten': hasReplyQuote}">
+          :class="{'border-color-grey-lighten': hasReplyQuote || messageToEdit}">
           <message-reply-quote
             v-if="hasReplyQuote"
             ref="replyQuote"
@@ -98,8 +98,12 @@
             read-only
             closeable
             @close="cancelReply" />
+          <message-edit-banner
+            v-if="messageToEdit"
+            ref="editMessageBanner"
+            @close="cancelEditMessage" />
           <div
-            :class="{'no-border': hasReplyQuote}"
+            :class="{'no-border': hasReplyQuote || messageToEdit}"
             class="d-flex border-color-grey-lighten border-radius-16">
             <div
               id="messageComposerArea"
@@ -234,6 +238,8 @@ export default {
       composer.dispatchEvent(event);
     },
     replyToMessage(targetMessage) {
+      this.messageToEdit = null;
+      this.$refs.messageComposerArea.innerHTML = '';
       this.targetReplyMessage = {
         ...targetMessage,
         replyTo: this.$matrixService.buildReplyToObject(this.messages, targetMessage.event_id)
@@ -244,6 +250,11 @@ export default {
     },
     cancelReply() {
       this.targetReplyMessage = null;
+      this.$refs?.messageComposerArea?.focus();
+    },
+    cancelEditMessage() {
+      this.messageToEdit = null;
+      this.$refs.messageComposerArea.innerHTML = '';
       this.$refs?.messageComposerArea?.focus();
     },
     async reactToMessage(emoji, targetMessage) {
@@ -306,7 +317,7 @@ export default {
         }, 0);
       });
     },
-    close(){
+    close() {
       this.messages = null;
       this.hasMoreMessages = true;
       this.resetComposer();
@@ -647,6 +658,7 @@ export default {
     editMessage(message) {
       this.$root.$emit('close-message-child-menu');
       const composerArea = this.$refs.messageComposerArea;
+      this.targetReplyMessage = null;
       this.messageToEdit = message;
       composerArea.innerHTML = message.content.formatted_body || message.content.body ;
       composerArea.focus();
