@@ -228,8 +228,10 @@ class MatrixRestTest {
     room.setPresence("online");
     room.setTopic("No topic");
     room.setUpdated(System.currentTimeMillis());
-    Message message = new Message("This is a new message", "@root:matrix.meeds.tn");
-    room.setLastMessage(message);
+    LastMessage lastMessage = new LastMessage();
+    lastMessage.setContent("This is a new message");
+    lastMessage.setSender("@root:matrix.meeds.tn");
+    room.setLastMessage(lastMessage);
     return room;
   }
 

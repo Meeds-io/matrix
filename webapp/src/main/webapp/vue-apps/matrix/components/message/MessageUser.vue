@@ -21,19 +21,9 @@
   <div
     v-if="quoted"
     class="d-flex">
-    <span
-      v-if="sender"
-      class="text-color font-weight-bold">
-      {{ fullName }}
-      <span v-if="isExternal">{{ externalTag }}</span>
-    </span>
-    <span v-else>
-     <v-skeleton-loader
-       v-if="!sender"
-       type="text"
-       height="24"
-       width="100" />
-    </span>
+    <message-sender-name
+      class="text-color font-weight-bold"
+      :sender="sender" />
   </div>
   <div v-else>
     <a :href="profileUrl">
@@ -52,12 +42,10 @@
               boilerplate />
           </template>
         </v-img>
-        <span
+        <message-sender-name
           class="align-content-start line-height-1 mx-1 text-title text-subtitle-1 text-truncate"
-          :style="userNameColor">
-          {{ fullName }}
-          <span v-if="isExternal">{{ externalTag }}</span>
-        </span>
+          :style="userNameColor"
+          :sender="sender" />
       </div>
     </a>
   </div>
@@ -69,7 +57,6 @@ export default {
   data() {
     return {
       sender: null,
-      externalTag: `( ${this.$t('matrix.chat.user.external')} )`
     }
   },
   props: {

@@ -4,6 +4,7 @@ import * as timeUtils from './timeUtils.js';
 const replyToCache = new Map();
 const userCache = new Map();
 const reactionEvents = new Map();
+let isPolling = false;
 
 
 // variables that will be get from the server
@@ -106,7 +107,6 @@ export function processRooms(rooms) {
     }
     return resp.json();
   }).then(processedRooms => {
-    processRoomUsers(processedRooms.rooms);
     return processedRooms
   });
 }
@@ -188,32 +188,38 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
     });
 }
 
-export function sync(filter, since, timeout) {
-  const formData = new FormData();
+export function sync(filter, since, timeoutMs = 30000) {
+  const params = new URLSearchParams();
 
-  if(filter) {
-    if(!isNaN(parseFloat(filter))) {
-      formData.append('filter', Number(filter));
-    } else {
-      formData.append('filter', JSON.stringify(filter));
-    }
+  if (filter) {
+    params.append('filter', typeof filter === 'string' ? filter : JSON.stringify(filter));
   } else {
-    formData.append('filter', "0");
+    params.append('filter', '0');
   }
-  if(since) {
-    formData.append('since', since);
+
+  if (since) {
+    params.append('since', since);
   }
-  if(timeout) {
-    formData.append('timeout', timeout);
+  if (timeoutMs) {
+    params.append('timeout', timeoutMs);
   }
-  const dataParams = new URLSearchParams(formData).toString();
-  return fetch(`/_matrix/client/v3/sync?${dataParams}`, {
+
+  const controller = new AbortController();
+
+  // fail after timeoutMs + buffer
+  const browserTimeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs + 5000);
+
+  return fetch(`/_matrix/client/v3/sync?${params.toString()}`, {
     method: 'GET',
+    signal: controller.signal,
     headers: {
-      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
     }
-  });
+  }).finally(() => clearTimeout(browserTimeout));
 }
+
 
 export async function processEvents(response) {
   const updatedRooms = response?.rooms?.join;
@@ -332,136 +338,128 @@ export async function processEvents(response) {
 }
 
 export async function toRoomObject(rooms, currentMemberId) {
-  let myRooms = {};
-  myRooms.rooms = [];
-  myRooms.totalUnreadMessages = 0;
-  for (const property in rooms) {
-    let roomItem = {};
-    let members = [];
-    const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
-    for (const e of roomEvents) {
-      if(e.type === 'm.room.create'){
-        roomItem.created = e.origin_server_ts;
-      }
-      if(e.type === 'm.room.topic'){
-        roomItem.topic = e.content.topic;
-      }
-      if(e.type === 'm.room.name'){
-        roomItem.name = e.content.name;
-      }
-      if(e.type === 'm.room.avatar'){
-        if(!roomItem.avatarLastUpdated || roomItem.avatarLastUpdated < e.origin_server_ts) {
-          const avatarUrl = e.content.url ? e.content.url.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
-          roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
-          roomItem.avatarLastUpdated = e.origin_server_ts;
-        }
-      }
-      if(e.type === 'm.room.member'){
-        if(e.content.membership === 'join') {
-          const oldMemberIndex = members.findIndex(element => element.id === e.sender);
-          if(oldMemberIndex < 0 || (members && members.length > oldMemberIndex && members[oldMemberIndex].lastUpdated && members[oldMemberIndex].lastUpdated <= e.origin_server_ts)) {
-            let member = oldMemberIndex > -1 ? members[oldMemberIndex] : {};
-            member.id = e.sender;
-            member.name = e.content.displayname;
-            member.avatarUrl = e.content.avatar_url;
-            member.lastUpdated = e.origin_server_ts;
-            if(oldMemberIndex >= 0) {
-              members[oldMemberIndex] = member;
-            } else {
-              members.push(member);
+  let myRooms = {rooms: [], totalUnreadMessages: 0};
+
+  for (const roomId in rooms) {
+    const roomData = rooms[roomId];
+    const events = [...roomData.timeline.events, ...roomData.state.events];
+
+    let roomItem = {
+      id: roomId,
+      enabledUser: true,
+      external: false,
+      favorite: false,
+      unreadMessages: roomData.unread_notifications.notification_count,
+      members: [],
+    };
+
+    let membersMap = {};
+    for (const e of events) {
+      switch (e.type) {
+        case 'm.room.create':
+          roomItem.created = e.origin_server_ts;
+          break;
+        case 'm.room.topic':
+          roomItem.topic = e.content.topic;
+          break;
+        case 'm.room.name':
+          roomItem.name = e.content.name;
+          break;
+        case 'm.room.avatar':
+          if (!roomItem.avatarLastUpdated || roomItem.avatarLastUpdated < e.origin_server_ts) {
+            const url = e.content.url ? e.content.url.substring(6) : DEFAULT_ROOM_AVATAR;
+            roomItem.avatarUrl = `/_matrix/media/v3/thumbnail/${url}?width=32&height=32&method=crop&allow_redirect=true`;
+            roomItem.avatarLastUpdated = e.origin_server_ts;
+          }
+          break;
+        case 'm.room.member':
+          if (e.content.membership === 'join') {
+            const member = membersMap[e.sender] ?? {};
+            if (!member.lastUpdated || member.lastUpdated <= e.origin_server_ts) {
+              membersMap[e.sender] = {
+                id: e.sender,
+                name: e.content.displayname,
+                avatarUrl: e.content.avatar_url,
+                lastUpdated: e.origin_server_ts
+              };
             }
           }
-        }
-      }
-      if (e.type === 'm.room.message') {
-        const isRedacted = !!e.unsigned.redacted_because;
-        const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
-        const content = isReplacement ? e.content['m.new_content'] : e.content;
-        const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
-        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content.msgtype);
+          break;
+        case 'm.room.message': {
+          const isRedacted = !!e.unsigned?.redacted_because;
+          const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
+          const content = isReplacement ? e.content['m.new_content'] : e.content;
+          const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
+          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content?.msgtype);
 
-        if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
-          roomItem.updated = e.origin_server_ts;
-          if (isRedacted) {
-            roomItem.lastMessage = {
-              content: exoi18n.i18n.t('matrix.chat.message.deleted'),
-              sender: e.sender,
-              eventId,
-              redacted: true
-            };
-          } else if (isSupportedMsgType) {
-            roomItem.lastMessage = {
-              content: content.format === 'org.matrix.custom.html'
-                  ? formatMentionsInRoomList(content.formatted_body)
-                  : content.body,
-              sender: e.sender,
-              eventId,
-              ...(isReplacement && {edited: true})
-            };
-          }
-        }
-      } else if (e.type === 'm.reaction') {
-        const reactionKey = e.content?.['m.relates_to']?.key;
-        const reactedEventId = e.content?.['m.relates_to']?.event_id;
-
-        if (reactionKey && reactedEventId) {
-          const targetMessage = rooms[property]?.timeline?.events?.find?.(ev => ev.event_id === reactedEventId);
-          const targetMessageBody = getFormattedMessageBody(targetMessage);
           if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
             roomItem.updated = e.origin_server_ts;
+            if (isRedacted) {
+              roomItem.lastMessage = {
+                content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+                sender: e.sender,
+                eventId,
+                redacted: true
+              };
+            } else if (isSupportedMsgType) {
+              roomItem.lastMessage = {
+                content: content.format === 'org.matrix.custom.html'
+                    ? formatMentionsInRoomList(content.formatted_body)
+                    : content.body,
+                sender: e.sender,
+                eventId,
+                ...(isReplacement && {edited: true})
+              };
+            }
+          }
+          break;
+        }
+        case 'm.reaction': {
+          const reactionKey = e.content?.['m.relates_to']?.key;
+          const reactedEventId = e.content?.['m.relates_to']?.event_id;
+          const target = roomData.timeline.events.find(ev => ev.event_id === reactedEventId);
+          const targetMessageBody = getFormattedMessageBody(target);
+          if (reactionKey && targetMessageBody && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+            roomItem.updated = e.origin_server_ts;
             roomItem.lastMessage = {
-              content: exoi18n.i18n.t('matrix.message.reacted.with', {0: reactionKey, 1 : targetMessageBody}),
+              content: targetMessageBody,
               sender: e.sender,
               eventId: reactedEventId,
+              reactionKey: reactionKey,
               reaction: true
             };
           }
+          break;
         }
       }
     }
-    roomItem.members = members;
 
-    roomItem.id = property;
-    roomItem.enabledUser = true;
-    roomItem.external = false;
-    roomItem.favorite = false;
-    roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
-    if(!roomItem.name && roomItem.members.length == 2 ) {
-      roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
-      let avatarUrl = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.avatarUrl;
-      roomItem.dmMemberId = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.id;
-      roomItem.presence = await getUserPresence(roomItem.dmMemberId);
-      if(avatarUrl) {
-        avatarUrl = avatarUrl.substring(6); // removes the 'mcx://' from the beginning of the URL sent by Matrix
-        roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
-      } else {
-        roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
-      }
+    roomItem.members = Object.values(membersMap);
+
+    // Fallback: if no name & 2-member DM
+    if (!roomItem.name && roomItem.members.length === 2) {
+      const other = roomItem.members.find(m => m.id !== currentMemberId);
+      roomItem.name = other?.name;
+      roomItem.dmMemberId = other?.id;
+      roomItem.presence = await getUserPresence(other?.id);
+      roomItem.avatarUrl = other?.avatarUrl
+          ? `/_matrix/media/v3/thumbnail/${other.avatarUrl.substring(6)}?width=32&height=32&method=crop&allow_redirect=true`
+          : DEFAULT_ROOM_AVATAR;
       roomItem.directChat = true;
     }
-    if(roomItem.members == 1) {
+
+    if (roomItem.members.length === 1) {
       roomItem.name = 'Empty Room';
     }
-    if(!roomItem.avatarUrl) {
-      roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
-    }
-    if(!roomItem.updated) {
-      roomItem.updated = roomItem.created || new Date().getTime();
-    }
+
+    roomItem.avatarUrl = roomItem.avatarUrl || DEFAULT_ROOM_AVATAR;
+    roomItem.updated = roomItem.updated || roomItem.created || Date.now();
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
-  myRooms.rooms.sort((roomOne, roomTwo) => {
-    if(roomOne.updated && roomTwo.updated) {
-      return roomTwo.updated - roomOne.updated;
-    } else if(roomOne.updated) {
-      return -1;
-    } else if (roomTwo.updated) {
-      return 1;
-    } else {
-      return roomOne.name.localeCompare(roomTwo.name, undefined, {numeric: true, sensitivity: 'base'}); // Natural sorting using room names
-    }
-  });
+
+  myRooms.rooms.sort((a, b) => b.updated - a.updated || a.name.localeCompare(b.name, undefined, {numeric: true}));
+
   return myRooms;
 }
 
@@ -548,26 +546,54 @@ export function getRoomById(roomId) {
    });
 }
 
-export async function longPollingSync(matrixFilterId) {
-  const since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
-  let response = await sync(matrixFilterId || '0', since, MATRIX_SYNC_TIMEOUT);
-
-  if (response.status == 502) {
-    // Status 502 is a connection timeout error, let's retry
-    await longPollingSync();
-  } else if (response.status != 200) {
-    console.error(response.statusText);
-    // Reconnect in five second
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    await longPollingSync();
-  } else {
-    // Get and show the message
-    let message = await response.json();
-    processEvents(message);
-    localStorage.setItem(MATRIX_SYNC_SINCE, message.next_batch);
-    // call again to get the next batch of data
-    await longPollingSync();
+export async function startMatrixSyncLoop(matrixFilterId) {
+  if (isPolling) {
+    return;
   }
+  isPolling = true;
+  let since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
+  let errorDelay = 5000;
+  const maxDelay = 300000;
+
+  while (isPolling) {
+    try {
+      const response = await sync(matrixFilterId || '0', since, MATRIX_SYNC_TIMEOUT);
+      if (response.status === 502) {
+        continue;
+      }
+      if (response.status === 401) {
+        console.warn('Unauthorized! Token may be expired.');
+        // Optionally stop polling or try to refresh token
+        break;
+      }
+
+      if (response.status !== 200) {
+        console.error('Matrix sync error:', response.status, response.statusText);
+        console.warn(`Retrying in ${Math.round(errorDelay / 1000)}s...`);
+        await delay(errorDelay);
+        errorDelay = Math.min(errorDelay * 2, maxDelay);
+        continue;
+      }
+
+      const data = await response.json();
+      await processEvents(data);
+
+      if (data.next_batch) {
+        since = data.next_batch;
+        localStorage.setItem(MATRIX_SYNC_SINCE, since);
+      }
+
+      errorDelay = 5000;
+
+    } catch (err) {
+      console.error('Matrix sync failed:', err);
+      console.warn(`Retrying in ${Math.round(errorDelay / 1000)}s...`);
+      await delay(errorDelay);
+      errorDelay = Math.min(errorDelay * 2, maxDelay);
+    }
+  }
+
+  isPolling = false;
 }
 
 export function saveFilter() {
@@ -1097,20 +1123,6 @@ export async function getMaxUploadSize() {
   }
 }
 
-export async function processRoomUsers(rooms) {
-  for (const room of rooms) {
-    if (room.spaceId) {
-      for (const member of room.members || []) {
-        const user = await getUserIdentity(member.userId);
-        userCache.set(member.matrixId, user)
-      }
-    } else {
-      const user = await getUserIdentity(room.userId);
-      userCache.set(room.matrixId, user);
-    }
-  }
-}
-
 export function getParticipantInfo(userId) {
   return fetch(`/matrix/rest/matrix/participant/${userId}`, {
     method: 'GET',
@@ -1246,4 +1258,8 @@ function getFormattedMessageBody(targetMessage) {
   return targetMessage.content.format === 'org.matrix.custom.html'
       ? formatMentionsInRoomList(targetMessage.content.formatted_body)
       : targetMessage.content.body;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
