@@ -45,8 +45,9 @@
         </v-btn>
         <v-menu
           v-if="displayEditMenu"
-          class="message-action-menu"
-          :nudge-right="-41"
+          class="message-action-menu border-radius-8"
+          :nudge-right="-97"
+          :nudge-top="-8"
           open-on-click
           close-on-content-click
           offset-y>
@@ -70,14 +71,14 @@
               </v-icon>
             </v-btn>
           </template>
-          <v-list>
+          <v-list class="py-1">
             <v-list-item
               class="chat-action-menu-item"
               :title="$t('matrix.chat.label.editMessage')"
               :aria-label="$t('matrix.chat.label.editMessage')"
               @click="handleEditMessage">
               <v-icon
-                class="ma-auto"
+                class="me-1"
                 size="16">
                 fa-edit
               </v-icon>
