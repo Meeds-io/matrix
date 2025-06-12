@@ -16,8 +16,11 @@ import MessageUser from './components/message/MessageUser.vue';
 import MessageActionList from './components/message/action/MessageActionList.vue'
 import MessageReactionItem from './components/message/MessageReactionItem.vue';
 import MessageSenderName from './components/message/MessageSenderName.vue';
+<<<<<<< HEAD
 import RoomLastMessage from './components/room/RoomLastMessage.vue';
 import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
+=======
+>>>>>>> f1a9423 (feat: Enhance display of last message reaction in room list - MEED-9292 - Meeds-io/MIPs#164 (#230))
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
