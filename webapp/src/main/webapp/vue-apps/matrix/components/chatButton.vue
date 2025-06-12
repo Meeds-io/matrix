@@ -50,6 +50,7 @@
   </v-app>
 </template>
 <script>
+
   export default {
     data: () => ({
       presence: 'online',
@@ -78,7 +79,8 @@
                 localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
-                  this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+                  this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+                  this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
               } else {
@@ -93,7 +95,8 @@
       } else {
         this.loadRooms();
         this.$matrixService.saveFilter().then(filterResponse => {
-          this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+          this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+          this.bindSyncPollingListeners(filterResponse.filter_id);
         });
         this.$matrixService.installPusher();
       }
@@ -162,7 +165,7 @@
         const updatedRoom = this.rooms?.[updatedRoomIndex];
 
         if (updatedRoom) {
-          updatedRoom.lastMessage.content = await this.buildLastMessageContent(user_id, this.$t('matrix.message.reacted.with', {0: emojiKey, 1: targetMessageBody}), updatedRoom);
+          updatedRoom.lastMessage.content = await this.buildLastReactionMessageContent(user_id, emojiKey, targetMessageBody, updatedRoom);
           updatedRoom.updated = message.origin_server_ts;
         }
       },
@@ -189,8 +192,8 @@
         }
       },
       updateUnreadMessages(event) {
-        const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
-        const updatedRoom = this.rooms[updatedRoomIndex];
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
+        const updatedRoom = this.rooms?.[updatedRoomIndex];
         if(updatedRoom) {
           this.totalUnreadMessages -= updatedRoom.unreadMessages;
           updatedRoom.unreadMessages = 0;
@@ -243,6 +246,24 @@
             (await this.$matrixService.getUserByMatrixId(userId, updatedRoom))?.profile?.fullname || userId;
         return this.$t('matrix.chat.lastMessage.pattern', {0: user, 1: message});
       },
+      async buildLastReactionMessageContent(userId, emoji, message, updatedRoom) {
+        const isSelf = userId === matrixUserId;
+        let reactedBy = userId;
+        if (!isSelf) {
+          const user = await this.$matrixService.getUserByMatrixId(userId, updatedRoom);
+          reactedBy = user?.profile?.fullname || userId;
+        }
+        return isSelf
+          ? this.$t('matrix.message.you.reacted.with', { 0: emoji, 1: message })
+          : this.$t('matrix.message.user.reacted.with', { 0: reactedBy, 1: emoji, 2: message });
+      },
+      bindSyncPollingListeners(matrixFilterId) {
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            this.$matrixService.startMatrixSyncLoop(matrixFilterId).catch(console.error);
+          }
+        });
+      }
     }
   };
 </script>
