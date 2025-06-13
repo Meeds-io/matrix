@@ -27,13 +27,14 @@
       small
       @click="$emit('close')">
       <v-icon
-        size="16">
+        size="16"
+        class="text-light-color">
         fa-solid fa-times
       </v-icon>
     </v-btn>
     <div class="d-flex flex-row">
       <v-icon
-        class="me-2 ms-1"
+        class="me-2 ms-1 text-light-color"
         size="16">
         fa-edit
       </v-icon>
