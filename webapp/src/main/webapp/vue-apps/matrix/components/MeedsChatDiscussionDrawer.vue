@@ -113,7 +113,7 @@
               class="meeds-chat-composer text-break no-border input-placeholder border-box-sizing ps-3 pe-1 py-2"
               @keypress.enter.prevent
               @keydown.enter="checkIfMentioning"
-              @keyup.enter="sendMessageWithEnter"
+              @keydown.enter.prevent="sendMessageWithEnter"
               @keyup="resizeComposerArea"
               @focus="resizeComposerArea"
               @input="onComposerInput">
@@ -121,6 +121,10 @@
             <div class="mb-0_5 me-1 d-flex flex-column justify-end">
               <emoji-picker-button
                 :icon-size="20"
+                @select-emoji="insertEmojiIntoComposer" />
+              <emoji-suggester
+                composer-id="messageComposerArea"
+                :min-width="258"
                 @select-emoji="insertEmojiIntoComposer" />
             </div>
           </div>
@@ -224,27 +228,30 @@ export default {
     this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   methods: {
-    insertEmojiIntoComposer(emoji) {
+    insertEmojiIntoComposer(emoji, range = null) {
       const composer = this.$refs.messageComposerArea;
       composer.focus();
-
       const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) {
-        composer.innerHTML += emoji;
-        this.$matrixUtils.placeCaretAtEnd(composer);
-        return;
+      let insertRange = range;
+      if (!insertRange) {
+        if (!selection || selection.rangeCount === 0) {
+          composer.innerHTML += emoji;
+          this.$matrixUtils.placeCaretAtEnd(composer);
+          return;
+        }
+        insertRange = selection.getRangeAt(0).cloneRange();
       }
-
-      const range = selection.getRangeAt(0);
-      const emojiNode = document.createTextNode(emoji);
-      range.deleteContents();
-      range.insertNode(emojiNode);
-
-      range.setStartAfter(emojiNode);
-      range.setEndAfter(emojiNode);
       selection.removeAllRanges();
-      selection.addRange(range);
 
+      const emojiNode = document.createTextNode(emoji);
+      insertRange.deleteContents();
+      insertRange.insertNode(emojiNode);
+
+      insertRange.setStartAfter(emojiNode);
+      insertRange.setEndAfter(emojiNode);
+      selection.addRange(insertRange);
+
+      // Notify Vue it's updated
       const event = new Event('input', { bubbles: true });
       composer.dispatchEvent(event);
     },
