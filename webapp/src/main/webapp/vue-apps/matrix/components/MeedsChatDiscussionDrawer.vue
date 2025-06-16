@@ -149,10 +149,6 @@
             </v-icon>
           </v-btn>
         </div>
-        <emoji-suggester
-          composer-id="messageComposerArea"
-          :min-width="258"
-          @select-emoji="insertEmojiIntoComposer" />
       </v-sheet>
       <exo-confirm-dialog
         ref="deleteConfirmDialog"
@@ -162,6 +158,10 @@
         :cancel-label="$t('matrix.chat.label.cancel')"
         @ok="deleteMessage"
         @closed="messageToDelete = null" />
+      <emoji-suggester
+        composer-id="messageComposerArea"
+        :min-width="258"
+        @select-emoji="insertEmojiIntoComposer" />
     </template>
   </exo-drawer>
 </template>
