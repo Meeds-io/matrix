@@ -84,6 +84,20 @@
               </v-icon>
               {{ $t('matrix.chat.label.editMessage') }}
             </v-list-item>
+            <v-list-item
+              class="chat-action-menu-item"
+              :title="$t('matrix.chat.label.deleteMessage')"
+              :aria-label="$t('matrix.chat.label.deleteMessage')"
+              @click="handleDeleteMessage">
+              <v-icon
+                class="me-1 error-color"
+                size="16">
+                fa-trash
+              </v-icon>
+              <span class="error--text">
+                {{ $t('matrix.chat.label.deleteMessage') }}
+              </span>
+            </v-list-item>
           </v-list>
         </v-menu>
       </div>
@@ -122,6 +136,10 @@ export default {
     handleEditMessage() {
       this.$root.$emit('close-message-child-menu');
       this.$root.$emit('chat-edit-message', this.message);
+    },
+    handleDeleteMessage() {
+      this.$root.$emit('close-message-child-menu');
+      this.$root.$emit('chat-delete-message', this.message);
     }
   },
 };
