@@ -14,6 +14,7 @@ import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
 import jakarta.servlet.Filter;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.resources.ResourceBundleService;
@@ -50,6 +51,9 @@ import org.springframework.web.context.WebApplicationContext;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -130,25 +134,58 @@ class MatrixRestTest {
 
   @Test
   public void testProcessRooms() throws Exception {
-    RoomEntity roomEntity = createRoomEntity(0);
-    Room room = new Room();
-    room.setRoomId("!testRoom0:matrix.meeds.tn");
-    room.setSpaceId("spaceId");
+    RoomEntity roomEntity1 = createRoomEntity(1);
+    roomEntity1.setSpaceId("1");
+    RoomEntity roomEntity2 = createRoomEntity(2);
+    roomEntity2.setSpaceId("2");
+    RoomEntity roomEntity3 = createRoomEntity(3);
+    roomEntity3.setSpaceId("3");
+    Room room1 = new Room();
+    room1.setRoomId("!testRoom1:matrix.meeds.tn");
+    room1.setSpaceId("1");
+    Room room2 = new Room();
+    room2.setRoomId("!testRoom2:matrix.meeds.tn");
+    room2.setSpaceId("2");
+    Room room3 = new Room();
+    room3.setRoomId("!testRoom3:matrix.meeds.tn");
+    room3.setSpaceId("3");
     RoomList roomsList = new RoomList();
     roomsList.setTotalUnreadMessages(5);
-    roomsList.setRooms(Collections.singletonList(roomEntity));
-    when(matrixService.getById("!testRoom0")).thenReturn(room);
-    Space space = new Space();
-    space.setDisplayName("Space of Heroes");
-    space.setAvatarUrl("/Url/Of/Avatar.png");
-    space.setMembers(new String[]{"user1", "user2"});
-    when(spaceService.getSpaceById("spaceId")).thenReturn(space);
+    roomsList.setRooms(List.of(roomEntity1, roomEntity2));
+    when(matrixService.getById("!testRoom1")).thenReturn(room1);
+    when(matrixService.getById("!testRoom2")).thenReturn(room2);
+    when(matrixService.getById("!testRoom3")).thenReturn(room3);
+    Space space1 = new Space();
+    space1.setDisplayName("Space of Heroes");
+    space1.setAvatarUrl("/Url/Of/Avatar.png");
+    space1.setMembers(new String[]{"user1", "user2"});
+    when(spaceService.getSpaceById("1")).thenReturn(space1);
+    Space space2 = new Space();
+    space2.setDisplayName("Space of Heroes");
+    space2.setAvatarUrl("/Url/Of/Avatar.png");
+    space2.setMembers(new String[]{"user1", "user2"});
+    when(spaceService.getSpaceById("2")).thenReturn(space2);
+    Space space3 = new Space();
+    space3.setDisplayName("Space of Heroes");
+    space3.setAvatarUrl("/Url/Of/Avatar.png");
+    space3.setMembers(new String[]{"user1", "user2"});
+    when(spaceService.getSpaceById("3")).thenReturn(space3);
+    when(matrixService.getRoomBySpaceId("3")).thenReturn(room3);
+    when(spaceService.getMemberSpacesIds(SIMPLE_USER, 0, -1)).thenReturn(new ArrayList<>(List.of(new String [] {"1", "2", "3"})));
     ResultActions response = mockMvc.perform(post(REST_PATH + "/processRooms").with(simpleUser())
                                                                               .contentType(MediaType.APPLICATION_JSON)
                                                                               .content(asJsonString(roomsList)));
     response.andExpect(status().isOk());
+    response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    // we should have roomEntity3 inside the response RoomList
+    RoomList expectedRoomList = fromJsonString(response.andReturn().getResponse().getContentAsString(), RoomList.class);
+    assertNotNull(expectedRoomList);
+    assertNotNull(expectedRoomList.getRooms());
+    assertEquals(3, expectedRoomList.getRooms().size());
+    assertEquals(5, expectedRoomList.getTotalUnreadMessages());
 
     //
+    Room room = new Room();
     room.setSpaceId(null);
     room.setFirstParticipant("root");
     room.setSecondParticipant("user");
@@ -275,5 +312,120 @@ class MatrixRestTest {
   void syncUsersAndSpaces() throws Exception {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/sync").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+  }
+
+  @Test
+  void getMatrixRoomBySpaceId() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH).with(adminUser())
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isBadRequest());
+
+    response = mockMvc.perform(get(REST_PATH).with(simpleUser())
+            .param("spaceId", "1")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isNotFound());
+
+    Space space = new Space();
+    space.setAvatarUrl("/avatar/of/the/space");
+    space.setDisplayName("Test space");
+    when(spaceService.getSpaceById("1")).thenReturn(space);
+    when(spaceService.isMember(space, SIMPLE_USER)).thenReturn(true);
+    Room room = new Room();
+    room.setRoomId("!testRoom:matrix.meeds.tn");
+    room.setSpaceId("1");
+    when(matrixService.getRoomBySpace(space)).thenReturn(room);
+    response = mockMvc.perform(get(REST_PATH).with(simpleUser())
+            .param("spaceId", "1")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+  }
+
+  @Test
+  void linkSpaceToRoom() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/linkRoom").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isBadRequest());
+    response = mockMvc.perform(get(REST_PATH + "/linkRoom").with(simpleUser())
+            .param("spaceGroupId", "groupOne")
+            .param("roomId", "!roomIdenitifier:matrix.meeds.tn")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isNotFound());
+    Space space = new Space();
+    space.setAvatarUrl("/avatar/of/the/space");
+    space.setDisplayName("Test space");
+    when(spaceService.getSpaceByGroupId("/spaces/groupOne")).thenReturn(space);
+    response = mockMvc.perform(get(REST_PATH + "/linkRoom").with(simpleUser())
+            .param("spaceGroupId", "groupOne")
+            .param("roomId", "!roomIdenitifier:matrix.meeds.tn")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+  }
+
+  @Test
+  void getByRoomId() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isBadRequest());
+
+    response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
+            .param("roomId", "!roomIdentifier")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isForbidden());
+
+    Room room = new Room();
+    room.setRoomId("!testRoom:matrix.meeds.tn");
+    room.setSpaceId("1");
+    when(matrixService.getById("!testRoom:matrix.meeds.tn")).thenReturn(room);
+    when(matrixService.canAccess(room, SIMPLE_USER)).thenReturn(true);
+    response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
+            .param("roomId", "!testRoom:matrix.meeds.tn")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+  }
+
+  @Test
+  void getUserDirectMessagingRooms() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/dmRooms").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isBadRequest());
+
+    response = mockMvc.perform(get(REST_PATH + "/dmRooms").with(simpleUser())
+            .param("user", "john")
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("{}"));
+
+    Room room = new Room();
+    room.setRoomId("!ThisIsARoom:matrix.meeds.tn");
+    room.setSpaceId(null);
+    room.setFirstParticipant("userOne");
+    room.setSecondParticipant(SIMPLE_USER);
+    when(matrixService.getMatrixDMRoomsOfUser(SIMPLE_USER)).thenReturn(Collections.singletonList(room));
+
+    Identity userIdentity = new Identity();
+    userIdentity.setRemoteId("userOne");
+    userIdentity.setId("1");
+    Profile profile = new Profile(userIdentity);
+    profile.getProperties().put(USER_MATRIX_ID, "userOne");
+    userIdentity.setProfile(profile);
+    when(identityManager.getOrCreateUserIdentity("userOne")).thenReturn(userIdentity);
+
+    response = mockMvc.perform(get(REST_PATH + "/dmRooms").with(simpleUser())
+            .param("user", SIMPLE_USER)
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("{\"@userOne:matrix.meeds.tn\":[\"!ThisIsARoom:matrix.meeds.tn\"]}"));
+  }
+
+  @SneakyThrows
+  public static final String toJsonString(Object object) {
+    return OBJECT_MAPPER.writeValueAsString(object);
+  }
+
+  @SneakyThrows
+  public static final <T> T fromJsonString(String value, Class<T> resultClass) {
+    if (StringUtils.isBlank(value)) {
+      return null;
+    }
+    return OBJECT_MAPPER.readValue(value, resultClass);
   }
 }
