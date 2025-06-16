@@ -150,11 +150,19 @@
             </v-icon>
           </v-btn>
         </div>
-        <emoji-suggester
-          composer-id="messageComposerArea"
-          :min-width="258"
-          @select-emoji="insertEmojiIntoComposer" />
       </v-sheet>
+      <exo-confirm-dialog
+        ref="deleteConfirmDialog"
+        :title="$t('matrix.chat.label.confirmDeleteTitle')"
+        :message="$t('matrix.chat.label.confirmDeleteMessage')"
+        :ok-label="$t('matrix.chat.label.confirm')"
+        :cancel-label="$t('matrix.chat.label.cancel')"
+        @ok="deleteMessage"
+        @closed="messageToDelete = null" />
+      <emoji-suggester
+        composer-id="messageComposerArea"
+        :min-width="258"
+        @select-emoji="insertEmojiIntoComposer" />
     </template>
   </exo-drawer>
 </template>
@@ -178,6 +186,7 @@ export default {
       insertedNewLine: false,
       targetReplyMessage: null,
       messageToEdit: null,
+      messageToDelete: null,
       expanded: false,
       drawerWidth: 420
     };
@@ -226,6 +235,7 @@ export default {
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
     this.$root.$on('chat-edit-message', e => this.editMessage(e));
+    this.$root.$on('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   watch:{
     room() {
@@ -238,6 +248,7 @@ export default {
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
     this.$root.$off('chat-edit-message', e => this.editMessage(e));
+    this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   methods: {
     handleExpand(expanded) {
@@ -708,6 +719,22 @@ export default {
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
+    },
+    openDeleteMessageDialog(e) {
+      this.messageToDelete = e;
+      this.$refs.deleteConfirmDialog.open();
+    },
+    deleteMessage() {
+      if(this.messageToDelete?.event_id) {
+        this.$matrixService.redactEvent(this.room.id, this.messageToDelete.event_id).then(deletionEvent => {
+          this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.success'), 'success');
+        })
+        .catch(err => {
+          this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
+        });
+      } else {
+        this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
+      }
     },
     forceCloseMenus() {
       this.$root.$emit('force-close-message-menu');
