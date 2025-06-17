@@ -26,7 +26,6 @@
               :title="$t('matrix.chat.button.tooltip')"
               class="text-xs-center"
               @click="openDrawer"
-              :color="color"
               icon>
               <v-badge
                 :value="totalUnreadMessages > 0"
