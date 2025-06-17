@@ -7,7 +7,6 @@
         <v-btn
           :ripple="false"
           icon
-          color="primary"
           @click="openChatDrawer($event)">
           <v-icon size="18">fas fa-comments</v-icon>
         </v-btn>
@@ -35,7 +34,6 @@ export default {
     matrixDMRoom: String
   }),
   created() {
-
   },
   methods: {
     openChatDrawer(event) {
@@ -43,18 +41,18 @@ export default {
       event.stopPropagation();
       const matrixRoom = '';
       const currentUserMatrixId = localStorage.getItem("matrix_user_id");
-      this.$userService.getUser(this.identityId, 'settings').then(data => {
-        const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();
-
-        if(matrixIdProperty) {
-          this.contactMatrixId = matrixIdProperty.value;
-          if(this.contactMatrixId) {
-            this.$matrixService.openDMRoom(eXo.env.portal.userName, this.identityId, matrixServerName);
+      if(this.identityType === 'USER_TIPTIP') {
+        this.$userService.getUser(this.identityId, 'settings').then(data => {
+          const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();
+          if(matrixIdProperty) {
+            this.contactMatrixId = matrixIdProperty.value;
+            if(this.contactMatrixId) {
+              this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName, matrixUserId, this.contactMatrixId);
+            }
           }
-        }
-      });
-      if(matrixRoom) {
-        document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, this.matrixDMRoom));
+        });
+      } else if (this.identityType === 'space'){
+        this.$matrixService.openSpaceRoom(this.identityId);
       }
     },
   }

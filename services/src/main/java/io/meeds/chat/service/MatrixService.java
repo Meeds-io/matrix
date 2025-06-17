@@ -20,16 +20,13 @@ package io.meeds.chat.service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import io.meeds.chat.model.DirectMessagingRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.model.SpaceRoom;
-import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
-import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.file.model.FileItem;
@@ -37,12 +34,10 @@ import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
-import org.exoplatform.portal.localization.LocaleContextInfoUtils;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.Membership;
 import org.exoplatform.services.organization.OrganizationService;
-import org.exoplatform.services.organization.User;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
@@ -58,8 +53,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.Instant;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -90,6 +84,12 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient      matrixHttpClient;
 
+  /**
+   * -- GETTER -- Checks if the Matrix service is available
+   */
+  @Getter
+  private boolean               serviceAvailable;
+
   private String                matrixAccessToken;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
@@ -105,14 +105,20 @@ public class MatrixService {
   }
 
   @PostConstruct
-  public void init() throws JsonException, IOException, InterruptedException {
-    this.getMatrixAccessToken();
+  public void init() {
+    try {
+      this.getMatrixAccessToken();
 
-    String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
-        + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
-    if (StringUtils.isNotBlank(displayName)) {
-      this.updateUserDisplayName(userFullMatrixID, displayName);
+      String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
+          + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
+      if (StringUtils.isNotBlank(displayName)) {
+        this.updateUserDisplayName(userFullMatrixID, displayName);
+      }
+      this.serviceAvailable = true;
+    } catch (Exception e) {
+      LOG.error("Could not initialize Matrix service, the service is unavailable", e.getMessage());
+      this.serviceAvailable = false;
     }
   }
 
@@ -135,6 +141,9 @@ public class MatrixService {
       if (StringUtils.isNotBlank(currentUserDisplayName) && !currentUserDisplayName.equals(newDisplayName)) {
         matrixHttpClient.updateUserDisplayName(matrixFullID, newDisplayName, getMatrixAccessToken());
       }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      LOG.error("Couldn't update the display name of the user {}", matrixFullID, ie);
     } catch (Exception e) {
       LOG.error("Couldn't update the display name of the user {}", matrixFullID, e);
     }
@@ -143,34 +152,30 @@ public class MatrixService {
   /**
    * Returns the ID of the room linked to a space
    * 
-   * @param space
+   * @param space the space
    * @return the roomId linked to the space
    */
-  public String getRoomBySpace(Space space) {
-    return matrixRoomStorage.getMatrixRoomBySpaceId(space.getId());
+  public Room getRoomBySpace(Space space) {
+    return getRoomBySpaceId(space.getId());
   }
-
   /**
-   * Returns the Space linked to the room
-   * 
-   * @param roomId the Matrix room ID
-   * @return the space
-   */
-  public Space getSpaceByRoomId(String roomId) {
-    return matrixRoomStorage.getSpaceIdByMatrixRoomId(roomId);
-  }
-
-  /**
-   * Returns the DM room by room ID
+   * Returns the ID of the room linked to a space
    *
-   * @param roomId the Matrix room ID
-   * @return the Direct messaging room
+   * @param spaceId the space Id
+   * @return the roomId linked to the space
    */
-  public DirectMessagingRoom getDMRoomByRoomId(String roomId) {
-    return matrixRoomStorage.getDMRoomByRoomId(roomId);
+  public Room getRoomBySpaceId(String spaceId) {
+    return matrixRoomStorage.getMatrixRoomBySpaceId(spaceId);
   }
 
+  /**
+   * Get a room by its technical ID
+   * 
+   * @param roomId the room technical ID
+   * @return Room
+   */
   public Room getById(String roomId) {
+    roomId = extractRoomId(roomId);
     return matrixRoomStorage.getById(roomId);
   }
 
@@ -181,7 +186,7 @@ public class MatrixService {
    * @param roomId the ID of the matrix room
    * @return the room ID
    */
-  public SpaceRoom linkSpaceToMatrixRoom(Space space, String roomId) {
+  public Room linkSpaceToMatrixRoom(Space space, String roomId) {
     return matrixRoomStorage.saveRoomForSpace(space.getId(), roomId);
   }
 
@@ -222,12 +227,28 @@ public class MatrixService {
    * @return String
    */
   public String getJWTSessionToken(String userNameOnMatrix) {
+    Date expirtaionDate = Date.from(Instant.now().plusSeconds(7 * 24 * 60 * 60L)); // adds one week to the current instant
+    userNameOnMatrix = userNameOnMatrix.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-");
     return Jwts.builder()
                .setSubject(userNameOnMatrix)
                .signWith(Keys.hmacShaKeyFor(PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes()))
-               .setExpiration(Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant()))
+               .setExpiration(expirtaionDate)
                .compact();
 
+  }
+
+  /**
+   * Saves a new user on Matrix
+   * @param user the user identity
+   * @param isNew if the user has been just created
+   * @return the matrix user ID
+   * @throws JsonException
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public String saveUserAccount(Identity user,
+                                boolean isNew) throws JsonException, IOException, InterruptedException {
+    return saveUserAccount(user, isNew, false, true);
   }
 
   /**
@@ -237,15 +258,17 @@ public class MatrixService {
    * @param isNew boolean if the user is new, then true
    * @return String the matrix user ID
    */
-  public String saveUserAccount(User user, boolean isNew, boolean isEnableUserOperation) throws JsonException,
-                                                                                         IOException,
-                                                                                         InterruptedException {
+  public String saveUserAccount(Identity user,
+                                boolean isNew,
+                                boolean isEnableUserOperation,
+                                boolean isUserEnabled) throws JsonException, IOException, InterruptedException {
     String matrixId = matrixHttpClient.saveUserAccount(user,
-                                                       user.getUserName(),
+                                                       user.getRemoteId(),
                                                        isNew,
                                                        this.getMatrixAccessToken(),
-                                                       isEnableUserOperation);
-    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+                                                       isEnableUserOperation,
+                                                       isUserEnabled);
+    Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getRemoteId());
     Profile userProfile = userIdentity.getProfile();
     if (StringUtils.isNotBlank(matrixId) && (userProfile.getProperty(USER_MATRIX_ID) == null
         || StringUtils.isBlank(userProfile.getProperty(USER_MATRIX_ID).toString()))) {
@@ -384,7 +407,7 @@ public class MatrixService {
     return matrixRoomStorage.getSpaceRoomCount();
   }
 
-  public DirectMessagingRoom getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
+  public Room getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
     return matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
   }
 
@@ -400,7 +423,7 @@ public class MatrixService {
     }
   }
 
-  public DirectMessagingRoom createDirectMessagingRoom(DirectMessagingRoom directMessagingRoom) throws ObjectAlreadyExistsException {
+  public Room createDirectMessagingRoom(Room directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();
     if (StringUtils.isBlank(firstParticipant) || StringUtils.isBlank(secondParticipant)) {
@@ -410,7 +433,7 @@ public class MatrixService {
         || identityManager.getOrCreateUserIdentity(directMessagingRoom.getSecondParticipant()) == null) {
       throw new IllegalArgumentException("The ids of the room participants should be valid user identity ids");
     }
-    DirectMessagingRoom matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
+    Room matrixRoom = matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
     if (matrixRoom == null) {
       return matrixRoomStorage.saveDirectMessagingRoom(directMessagingRoom.getFirstParticipant(),
                                                        directMessagingRoom.getSecondParticipant(),
@@ -421,7 +444,7 @@ public class MatrixService {
     }
   }
 
-  public List<DirectMessagingRoom> getMatrixDMRoomsOfUser(String user) {
+  public List<Room> getMatrixDMRoomsOfUser(String user) {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
 
@@ -437,100 +460,8 @@ public class MatrixService {
    * 
    * @return List of Space rooms
    */
-  public List<SpaceRoom> getSpaceRooms() {
+  public List<Room> getSpaceRooms() {
     return matrixRoomStorage.getSpaceRooms();
-  }
-
-  /**
-   * Searches for a user having the provided Matrix ID
-   * 
-   * @param userIdOnMatrix the ID of the user on Matrix
-   * @return The identity of the user
-   */
-  public Identity findUserByMatrixId(String userIdOnMatrix) {
-    ProfileFilter profileFilter = new ProfileFilter();
-    Map<String, String> matrixProperty = new HashMap<>();
-    matrixProperty.put(USER_MATRIX_ID, userIdOnMatrix);
-    profileFilter.setProfileSettings(matrixProperty);
-    ListAccess<Identity> userIdentities = identityManager.getIdentitiesByProfileFilter(OrganizationIdentityProvider.NAME,
-                                                                                       profileFilter,
-                                                                                       true);
-    try {
-      if (userIdentities != null && userIdentities.getSize() >= 1) {
-        return userIdentities.load(0, 1)[0];
-      }
-    } catch (Exception e) {
-      LOG.error("Couldn't find a user having the Matrix ID : {}", userIdOnMatrix, e);
-    }
-    return null;
-  }
-
-  /**
-   * Process the Matrix rooms and adds the missing information of users and spaces
-   * 
-   * @param roomList the room list received from Matrix par sync API
-   * @param currentUserName the current user
-   * @return the roo List after processing
-   */
-  public RoomList processRooms(RoomList roomList, String currentUserName) {
-    if(roomList == null || roomList.getRooms() == null) {
-      throw new IllegalArgumentException("The room list Object is empty");
-    }
-    if(StringUtils.isBlank(currentUserName)) {
-      throw new IllegalArgumentException("The username of the current user is mandatory");
-    }
-
-    for (RoomEntity room : roomList.getRooms()) {
-      // Update room information
-      String roomId = room.getId().substring(0, room.getId().indexOf(":"));// remove server part
-      Room matrixRoom = this.getById(roomId);
-      if(matrixRoom != null) {
-        if(StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
-          Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
-          if(space != null) {
-            room.setName(space.getDisplayName());
-            room.setAvatarUrl(space.getAvatarUrl());
-            room.setSpaceId(matrixRoom.getSpaceId());
-          } else {
-            continue;
-          }
-        } else {
-          Identity identity = null;
-          if(matrixRoom.getFirstParticipant().equals(currentUserName)) {
-            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());
-          } else if(matrixRoom.getSecondParticipant().equals(currentUserName)) {
-            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getFirstParticipant());
-          }
-          if(identity != null) {
-            room.setName(identity.getProfile().getFullName());
-            room.setAvatarUrl(identity.getProfile().getAvatarUrl());
-            room.setUserId(identity.getRemoteId());
-          } else {
-            continue;
-          }
-        }
-      }
-      
-      // Get last message
-      Message message = room.getLastMessage();
-      if(message != null && StringUtils.isNotBlank(message.getSender())) {
-        Identity identity = this.findUserByMatrixId(extractUserId(message.getSender()));
-        if (identity != null) {
-          String updatedContent;
-          if (!identity.getRemoteId().equals(currentUserName)) {
-            updatedContent = identity.getProfile().getFullName() + ":" + message.getContent();
-            message.setContent(updatedContent);
-          } else {
-            Locale locale = LocaleContextInfoUtils.getUserLocale(currentUserName);
-            String you = resourceBundleService.getSharedString(YOU_STRING, locale);
-            updatedContent = you + message.getContent();
-            message.setContent(updatedContent);
-          }
-          room.setLastMessage(new Message(updatedContent, identity.getProfile().getFullName()));
-        }
-      }
-    }
-    return roomList;
   }
 
   /**
@@ -543,6 +474,19 @@ public class MatrixService {
     String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
     if (fullMatrixUserId.startsWith("@") && fullMatrixUserId.endsWith(serverName)) {
       return fullMatrixUserId.substring(1, fullMatrixUserId.indexOf(":"));
+    }
+    return fullMatrixUserId;
+  }
+  /**
+   * Extracts the room ID from the full room Id on Matrix
+   *
+   * @param fullMatrixUserId the full Matrix user Id
+   * @return the user Identifier
+   */
+  public String extractRoomId(String fullMatrixUserId) {
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    if (fullMatrixUserId.startsWith("!") && fullMatrixUserId.endsWith(serverName)) {
+      return fullMatrixUserId.substring(0, fullMatrixUserId.indexOf(":"));
     }
     return fullMatrixUserId;
   }
@@ -561,5 +505,30 @@ public class MatrixService {
       LOG.error("Could not update the presence onf the user {} on Matrix", userIdOnMatrix, e);
     }
     return null;
+  }
+
+  /**
+   * Checks if the user able to access the room
+   * 
+   * @param room the room
+   * @param userName the username of the user
+   * @return true if he has access, false otherwise
+   */
+  public boolean canAccess(Room room, String userName) {
+    if (StringUtils.isBlank(room.getSpaceId())) {
+      return userName.equals(room.getFirstParticipant()) || userName.equals(room.getSecondParticipant());
+    } else {
+      Space space = spaceService.getSpaceById(room.getSpaceId());
+      return spaceService.canViewSpace(space, userName);
+    }
+  }
+
+  /**
+   * Load the list of space rooms
+   * @param spaceIds : list of space IDs
+   * @return List of Rooms
+   */
+  public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
+    return matrixRoomStorage.getSpaceRoomsBySpaceIds(spaceIds);
   }
 }

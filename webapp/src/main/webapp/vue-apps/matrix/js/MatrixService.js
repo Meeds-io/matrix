@@ -1,6 +1,9 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
 
+const replyToCache = new Map();
+const userCache = new Map();
+
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
 const JWT_COOKIE_NAME = 'matrix_jwt_token';
@@ -61,11 +64,14 @@ export function loadChatRooms(currentMemberId) {
                     "room":{
                       "timeline":{
                         "unread_thread_notifications":true,
-                        "limit":20
+                        "limit":50,
+                        "types": [
+                          "m.room.message"
+                        ]
                       },
                       "state":{
                         "lazy_load_members":true
-                      }
+                      },
                     }
                   };
   return sync(filter).then(resp => {
@@ -81,6 +87,7 @@ export function loadChatRooms(currentMemberId) {
     return processRooms(roomsResponse);
   });
 }
+
 export function processRooms(rooms) {
   return fetch(`/matrix/rest/matrix/processRooms`, {
     credentials: 'include',
@@ -93,11 +100,14 @@ export function processRooms(rooms) {
   }).then(resp => {
     if (!resp || !resp.ok) {
       throw new Error('Could not process rooms : Response code indicates a server error', resp);
-    } else {
-      return resp.json();
     }
+    return resp.json();
+  }).then(processedRooms => {
+    processRoomUsers(processedRooms.rooms);
+    return processedRooms
   });
 }
+
 export function loadRoom(roomId) {
   return fetch(`/_matrix/client/v3/directory/room/${roomId}`, {
     method: 'GET',
@@ -113,7 +123,7 @@ export function loadRoom(roomId) {
   });
 }
 
-export function createMatrixDMRoom(matrixIDUserOne, matrixIdUserTwo, serverName) {
+export function createMatrixDMRoom(matrixIdUserTwo, serverName) {
   const payLoad = {
                      "preset": "trusted_private_chat",
                      "visibility": "private",
@@ -208,11 +218,44 @@ export function processEvents(response) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
       roomEvents.forEach(e => {
-        //message received in a room
-        if(e.type === 'm.room.message') {
-          if(e.content.msgtype === 'm.text') {
-            document.dispatchEvent(new CustomEvent('matrix-message-received', { detail: {roomId: roomId, sender: e.sender, message: e.content.body, origin_server_ts: e.origin_server_ts}}));
+        if (e.type === 'm.room.message') {
+          const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
+          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(e.content.msgtype);
+
+          // Normal or edit message
+          if (e.type === 'm.room.message' && (isReplacement || isSupportedMsgType)) {
+            const message = isReplacement && e.content?.['m.new_content']
+                ? {
+                  ...e,
+                  content: e.content['m.new_content'],
+                  edited: true,
+                  updatedAt: e.origin_server_ts,
+                  event_id: e.content['m.relates_to'].event_id
+                }
+                : e;
+            document.dispatchEvent(new CustomEvent('matrix-message-received', {
+              detail: {
+                roomId: roomId,
+                message: message
+              }
+            }));
           }
+        } else if (e.type === 'm.room.redaction') {
+          const redactedEventId = e.redacts;
+          document.dispatchEvent(new CustomEvent('matrix-message-deleted', {
+            detail: {
+              roomId: roomId,
+              eventId: redactedEventId,
+              redaction: e,
+              sender: e.sender
+            }
+          }));
+        }
+        if(e.type === 'm.reaction') {
+          document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
+                                                                                      roomId: roomId,
+                                                                                      message: e,
+                                                                                  }}));
         } // Joined a new room
         else if(e.type === 'm.room.member') {
           if(e.content.membership === 'join') {
@@ -224,10 +267,33 @@ export function processEvents(response) {
             room.members = [];
             room.members.push(member);
             room.id = roomId;
+            if(!room.updated) {
+              room.updated = new Date().getTime();
+            }
             if(localStorage.getItem('matrix_user_id') !== e.sender) {
-              room.name = e.content.displayname;
-              room.avatarUrl = e.content.avatar_url ? '/_matrix/media/v3/thumbnail/' + e.content.avatar_url.substring(6) + '?width=32&height=32&method=crop&allow_redirect=true': chatConstants.DEFAULT_ROOM_AVATAR;
-              document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: room }));
+              getRoomById(roomId).then(roomItem => {
+                document.dispatchEvent(new CustomEvent('matrix-joined-room', { detail: roomItem }));
+              });
+            }
+          }
+        }
+      });
+      const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
+      ephemeralEvents.forEach(e => {
+        //Users are typing in the room
+        if(e.type === 'm.typing') {
+          if(e.content.user_ids?.length) {
+            console.log(`Users ${e.content.user_ids} are typing on room ${roomId}`);
+            //document.dispatchEvent(new CustomEvent('matrix-room-user-typing-received', { detail: {roomId: roomId, usersTyping: e.content.user_ids}}));
+          }
+        }
+        //User sent a read receipt of a room
+        if(e.type === 'm.receipt') {
+          if(e.content) {
+            for (const eventId in e.content) {
+              if(e.content[eventId]["m.read"][matrixUserId]?.thread_id) {
+                document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: {roomId: roomId}}));
+              }
             }
           }
         }
@@ -253,6 +319,9 @@ export async function toRoomObject(rooms, currentMemberId) {
     let members = [];
     const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
     roomEvents.forEach(e => {
+      if(e.type === 'm.room.create'){
+        roomItem.created = e.origin_server_ts;
+      }
       if(e.type === 'm.room.topic'){
         roomItem.topic = e.content.topic;
       }
@@ -283,12 +352,32 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
         }
       }
-      if(e.type === 'm.room.message') {;
-        if(e.content.msgtype === 'm.text' && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
+      if (e.type === 'm.room.message') {
+        const isRedacted = !!e.unsigned.redacted_because;
+        const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
+        const content = isReplacement ? e.content['m.new_content'] : e.content;
+        const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
+        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content.msgtype);
+
+        if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
           roomItem.updated = e.origin_server_ts;
-          roomItem.lastMessage = {};
-          roomItem.lastMessage.content = e.content.body;
-          roomItem.lastMessage.sender = e.sender;
+          if (isRedacted) {
+            roomItem.lastMessage = {
+              content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+              sender: e.sender,
+              eventId,
+              redacted: true
+            };
+          } else if (isSupportedMsgType) {
+            roomItem.lastMessage = {
+              content: content.format === 'org.matrix.custom.html'
+                  ? formatMentionsInRoomList(content.formatted_body)
+                  : content.body,
+              sender: e.sender,
+              eventId,
+              ...(isReplacement && {edited: true})
+            };
+          }
         }
       }
     });
@@ -319,26 +408,44 @@ export async function toRoomObject(rooms, currentMemberId) {
       roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
     }
     if(!roomItem.updated) {
-      roomItem.updated = 0;
+      roomItem.updated = roomItem.created || new Date().getTime();
     }
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
-  myRooms.rooms.sort((roomOne, roomTwo) => roomOne.updated <= roomTwo.updated);
+  myRooms.rooms.sort((roomOne, roomTwo) => {
+    if(roomOne.updated && roomTwo.updated) {
+      return roomTwo.updated - roomOne.updated;
+    } else if(roomOne.updated) {
+      return -1;
+    } else if (roomTwo.updated) {
+      return 1;
+    } else {
+      return roomOne.name.localeCompare(roomTwo.name, undefined, {numeric: true, sensitivity: 'base'}); // Natural sorting using room names
+    }
+  });
   return myRooms;
 }
 
-export function getRedirectURLOfRoom(roomId, serverName) {
-  return 'https://matrix.to/#/' + roomId + '?via=' + serverName;
+export function getSpaceRoom(spaceId) {
+  return fetch(`/matrix/rest/matrix/spaceRoom?spaceId=${spaceId}`, {
+    method: 'GET',
+  }).then(resp => {
+    if (!resp || !resp.ok) {
+      throw new Error('Get room by space : Response code indicates a server error', resp);
+    } else {
+      return resp.json();
+    }
+  });
 }
 
-export function getDMRoom(firstParticipant, secondParticipant, serverName) {
+export function getDMRoom(firstParticipant, secondParticipant, serverName, firstUserMatrixId, secondUserMatrixId) {
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
   }).then(resp => {
     if (!resp || !resp.ok) {
       if(resp.status === 404) {
-        return createMatrixDMRoom(firstParticipant, secondParticipant, serverName).then(data => {
+        return createMatrixDMRoom(secondUserMatrixId || secondParticipant, serverName).then(data => {
           const payload = {
                             "roomId": data.room_id,
                             "firstParticipant": firstParticipant,
@@ -359,7 +466,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
                 return getDMRoomsAccountData(firstParticipant).then(accountData =>
                   updateDMRoomsAccountData(`${localStorage.getItem('matrix_user_id')}`, accountData)
                   ).then(dataResp => {
-                    document.dispatchEvent(new CustomEvent('chat-load-chat-rooms'));
+                    //document.dispatchEvent(new CustomEvent('chat-load-chat-rooms'));
                     return createdRoom.json();
                   });
               }
@@ -374,12 +481,33 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName) {
   });
 }
 
-export function openDMRoom(firstParticipant, secondParticipant, matrixServerName) {
-  getDMRoom(firstParticipant, secondParticipant, matrixServerName).then(data => {
-    window.open('https://matrix.to/#/' + data.roomId + '?via=' + matrixServerName);
+export function openDMRoom(firstParticipant, secondParticipant, matrixServerName, firstUserMatrixId, secondUserMatrixId) {
+  getDMRoom(firstParticipant, secondParticipant, matrixServerName, firstUserMatrixId, secondUserMatrixId).then(data => {
+    document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
   }).catch(e => {
     console.log(e)
   });
+}
+
+export function openSpaceRoom(spaceId) {
+  getSpaceRoom(spaceId).then(data => {
+    document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_ROOM, { detail : data }));
+  }).catch(e => {
+    console.log(e)
+  });
+}
+
+export function getRoomById(roomId) {
+ return fetch(`/matrix/rest/matrix/byRoomId?roomId=${roomId}`, {
+     method: 'GET',
+     credentials: 'include',
+   }).then(resp => {
+     if (!resp || !resp.ok) {
+       throw new Error('Get Room by Room Id : Response code indicates a server error or space not found', resp);
+     } else {
+       return resp.json();
+     }
+   });
 }
 
 export async function longPollingSync(matrixFilterId) {
@@ -421,7 +549,6 @@ export function saveFilter() {
     }
   });
 }
-
 
 export function savePushGateway(kind, pushKey) {
   const payload =
@@ -505,6 +632,7 @@ export function getByRoomId(roomId) {
       }
     });
 }
+
 export function getUserPresence(userIdOnMatrix) {
     return fetch(`/_matrix/client/v3/presence/${userIdOnMatrix}/status`, {
       method: 'GET',
@@ -520,58 +648,452 @@ export function getUserPresence(userIdOnMatrix) {
     }).then(status => {
       return status.presence;
     }).catch(e => {
-      console.error(e);
       return 'offline';
     });
 }
 
-export function getUserByMatrixId(userIdOnMatrix) {
-  let senderMatrixId = userIdOnMatrix;
-  if(senderMatrixId.includes('@')) {
-    senderMatrixId = userIdOnMatrix.substr(1, userIdOnMatrix.indexOf(":") - 1);
+export function getUserByMatrixId(userIdOnMatrix, room) {
+  if (!userIdOnMatrix || !room) {
+    return Promise.resolve(null);
   }
-  return fetch(`/matrix/rest/matrix/userByMatrixId?userMatrixId=${senderMatrixId}`, {
-    method: 'GET',
-    credentials: 'include',
-  },).then(resp => {
-    if (!resp || !resp.ok) {
-      throw new Error('Get User by Matrix ID : Response code indicates a server error', resp);
-    } else {
-      return resp.json();
-    }
+
+  const matrixId = userIdOnMatrix.startsWith('@')
+      ? userIdOnMatrix.slice(1, userIdOnMatrix.indexOf(':'))
+      : userIdOnMatrix;
+
+  const cachedUser = userCache.get(matrixId);
+  if (cachedUser) {
+    return Promise.resolve(cachedUser);
+  }
+
+  const memberId = extractUserIdFromRoomMembers(room, matrixId);
+  if (!memberId) {
+    return Promise.resolve(null);
+  }
+
+  return getUserIdentity(memberId).then(user => {
+    userCache.set(matrixId, user);
+    return user;
   });
 }
 
-export function loadRoomMessages(roomId) {
-  const filter = {types:['m.room.message'],};
+export async function loadRoomMessages(roomId, from, to) {
+  const filter = {'lazy_load_members': true, types: ['m.room.message', 'm.reaction']};
   const formData = new FormData();
-  formData.append('limit', 50);
-  formData.append('dir', 'f'); // f: chronological order, b: revers-chronological order
+  formData.append('limit', chatConstants.MESSAGES_LOAD_LIMIT);
+  if(from) {
+    formData.append('from', from);
+  }
+  if(to) {
+    formData.append('to', to);
+  }
+  formData.append('dir', 'b'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
+  if(!roomId.includes(":")) {
+    roomId = `${roomId}:${matrixServerName}`;
+  }
   return fetch(`/_matrix/client/v3/rooms/${roomId}/messages?${params}`, {
     method: 'GET',
     headers: {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
-  },).then(resp => {
+  }).then(resp => {
     if (!resp || !resp.ok) {
-      throw new Error('Get room messages : Response code indicates a server error', resp);
+      throw new Error('Load room messages : Response code indicates a server error', resp);
     } else {
       return resp.json();
     }
   });
 }
 
-export function formatDate(timestamp) {
+export async function loadAllRoomMessages(roomId, loadAll) {
+  let from = 's0_0_0_0_0_0_0_0_0_0';
+  if(!loadAll) {
+    from = localStorage.getItem(`${roomId}-latest-messages-from`) || 's0_0_0_0_0_0_0_0_0_0';
+  }
+  let to = localStorage.getItem(`${roomId}-latest-messages-to`) || '';
+  localStorage.setItem(`${roomId}-latest-messages-from`, from);
+  let allData = [];
+  let loadFrom = from;
+  while (true) {
+    const response = await loadRoomMessages(roomId, loadFrom);
+    const data = await response.json();
+    if (!data.chunk?.length) {
+      localStorage.setItem(`${roomId}-latest-messages-from`, from);
+      localStorage.setItem(`${roomId}-latest-messages-to`, to);
+      break;
+    }
+    from = data.start;
+    to = data.end;
+    loadFrom = to;
+    allData.push(...data.chunk);
+  }
+  return allData;
+}
+
+export function formatDate(timestamp, dateIfSameDay) {
   if (!timestamp) {
     return '';
   }
-  if (timeUtils.isSameDay(timestamp, new Date().getTime())) {
+  if (timeUtils.isSameDay(timestamp, new Date().getTime()) && !dateIfSameDay) {
     return timeUtils.getTimeString(timestamp);
   } else if (timestamp === -1){
     return '';
   } else {
     return timeUtils.getDayDateString(timestamp);
   }
+}
+
+/**
+* Format the date to return : today, yesterday,
+* or short format of date i.e
+* in the same year : Thur, 25 April
+* in previous year :  12 Oct 2023
+* params : dateToFormat : timestamp
+*/
+export function formatDateString(dateToFormat) {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const resetDateToFormat = new Date(dateToFormat);
+  resetDateToFormat.setHours(0,0,0,0);
+  let options = {};
+  const localeOfUser = eXo.env.portal.language.replace('_', '-');
+  if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 7){ // In the same week
+    options = {
+      weekday: "long"
+    };
+    return new Date(resetDateToFormat).toLocaleDateString(localeOfUser, options);
+  } else if (timeUtils.differenceInDays(today.getTime(), resetDateToFormat.getTime()) < 31) {// In the last 31 days
+    options = {
+      weekday: "short",
+      style: "short",
+      month: "short",
+      day: "numeric",
+    };
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
+  } else {// Difference more than a month
+    options = {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    };
+    return new Date(resetDateToFormat.getTime()).toLocaleDateString(localeOfUser, options);
+  }
+}
+
+export function getUserDisplayNameFontColor(identityId) {
+  const colors = ["rgb(239, 83, 80)", // copied from org.exoplatform.social.core.image.ImageUtils.createDefaultAvatar
+                  "rgb(25, 118, 210)",
+                  "rgb(171, 71, 188)",
+                  "rgb(0, 137, 123)",
+                  "rgb(158, 157, 36)",
+                  "rgb(251, 192, 45)",
+                  "rgb(0, 191, 165)",
+                  "rgb(117, 117, 117)",
+                  "rgb(244, 67, 54)",
+                  "rgb(33, 150, 243)",
+                  "rgb(124, 179, 66)",
+                  "rgb(48, 63, 159)",
+                  "rgb(69, 39, 160)",
+                  "rgb(141, 110, 99)",
+                  "rgb(255, 111, 0)"];
+  return `color: ${colors[Number(identityId) % colors.length]} !important`;
+}
+
+export function sendMessage(payload, roomId) {
+  let index = localStorage.getItem('matrix_transaction_index') || 1;
+  const transactionId = `${new Date().getTime()}-${index}`;
+  const eventType = 'm.room.message';
+  roomId = roomId.includes(matrixServerName) ? roomId : roomId + ":" + matrixServerName;
+  return fetch(`/_matrix/client/v3/rooms/${roomId}/send/${eventType}/${transactionId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp?.ok) {
+      console.warn(`Request failed for sending message : \n text = [${message}] \n roomId = ${roomId} \n transactionId ${transactionId}`);
+      throw new Error('Response code indicates a server error', resp);
+    } else {
+      localStorage.setItem('matrix_transaction_index', index ++);
+      return true;
+    }
+  });
+}
+
+export function markRoomAsFullyRead(roomId, eventId) {
+  if(!roomId) {
+    console.warn('No roomId provided, Mark as read call will be canceled')
+    return;
+  }
+  if(!eventId) {
+    console.warn('No event Id provided, Mark as read call will be canceled')
+    return;
+  }
+  if(!roomId.includes(":")) {
+    roomId = `${roomId}:${matrixServerName}`;
+  }
+  const payload = {
+                    "thread_id": "main"
+                  };
+  return fetch(`/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+    },
+    body: JSON.stringify(payload)
+  }).then(resp => {
+    if (!resp?.ok) {
+      throw new Error('Mark room as fully read : Response code indicates a server error', resp);
+    } else {
+      return true;
+    }
+  });
+}
+
+export function formatMentionsInMessage(message) {
+  return message
+      .replace(
+          /<a href="https:\/\/matrix\.to\/#\/([^"]+)">([^<]+)<\/a>/g,
+          (match, matrixId, displayName) => {
+            const userId = userCache.get(matrixId.slice(1, matrixId.indexOf(':')))?.remoteId;
+            const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
+            return `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${displayName}</a>`;
+          }
+      ).replace(/\n/g, '<br />') || '';
+}
+export function formatMentionsInRoomList(message) {
+  return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
+                      .replace(/\n/g, '<br />') || '';
+}
+
+export function processMessages(messageItems) {
+  const messagesMap = new Map();
+  const replyDependencyMap = new Map();
+  const leftReactions = [];
+
+  messageItems.forEach(item => {
+    if (item.type === 'm.room.message') {
+      const relatesTo = item.content['m.relates_to'];
+      const newContent = item.content['m.new_content'];
+
+      // Handle edits
+      if (relatesTo?.rel_type === 'm.replace' && newContent) {
+        const targetEventId = relatesTo.event_id;
+        const originalMessage = messagesMap.get(targetEventId);
+        if (originalMessage) {
+          originalMessage.content.body = newContent.body;
+          originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
+          originalMessage.edited = true;
+          originalMessage.updatedAt = item.origin_server_ts;
+
+          const dependents = replyDependencyMap.get(targetEventId) || [];
+          for (const messageId of dependents) {
+            const message = messagesMap.get(messageId);
+            if (message) {
+              message.replyTo = buildReplyToObject(messagesMap, targetEventId);
+            }
+          }
+        }
+      } else {
+        item.reactions = item.reactions || [];
+
+        const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
+        if (inReplyTo) {
+          item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
+
+          if (!replyDependencyMap.has(inReplyTo)) {
+            replyDependencyMap.set(inReplyTo, []);
+          }
+          replyDependencyMap.get(inReplyTo).push(item.event_id);
+        }
+
+        messagesMap.set(item.event_id, item);
+      }
+    } else if (item.type === 'm.reaction') {
+      const relatesTo = item.content['m.relates_to'];
+      const isAnnotation = relatesTo?.rel_type === 'm.annotation';
+
+      if (isAnnotation) {
+        const messageReactedTo = messagesMap.get(relatesTo.event_id);
+        if (messageReactedTo) {
+          processMessageReaction(messageReactedTo, item); // mutate in-place
+        } else {
+          leftReactions.push(item);
+        }
+      }
+    }
+  });
+
+  return {
+    messages: Array.from(messagesMap.values()),
+    leftReactions,
+  };
+}
+
+
+export function processMessageReaction(messageReactedTo, reactionItem) {
+  if (!messageReactedTo.reactionsMap) {
+    messageReactedTo.reactionsMap = new Map();
+  }
+
+  const key = reactionItem.content['m.relates_to'].key;
+  const userId = reactionItem.user_id;
+
+  let entry = messageReactedTo.reactionsMap.get(key);
+  if (!entry) {
+    entry = {key, userIds: []};
+    messageReactedTo.reactionsMap.set(key, entry);
+  }
+
+  if (!entry.userIds.includes(userId)) {
+    entry.userIds.push(userId);
+  }
+
+  messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
+  return messageReactedTo;
+}
+
+export function buildReplyToObject(messages, eventId) {
+  const getMessageById = (id) =>
+      (messages instanceof Map)
+          ? messages.get(id)
+          : (Array.isArray(messages) ? messages.find(msg => msg.event_id === id) : null);
+
+  const parentEvent = getMessageById(eventId);
+  if (!parentEvent) {
+    return null;
+  }
+
+  const cachedReplyTo = replyToCache.get(eventId);
+  const parentUpdatedAt = parentEvent.updatedAt || parentEvent.origin_server_ts;
+
+  if (cachedReplyTo && cachedReplyTo.updatedAt === parentUpdatedAt) {
+    return cachedReplyTo.replyTo;
+  }
+
+  const parentRelatesTo = parentEvent.content?.['m.relates_to'];
+  const isReplyToReply = !!parentRelatesTo?.['m.in_reply_to'];
+
+  let targetUser = parentEvent.sender;
+  let targetEventId = parentEvent.event_id;
+  let targetType = parentEvent.content?.msgtype
+  let targetThumbnailURL = parentEvent.content?.thumbnail_url;
+  let targetUrl = parentEvent.content?.url;
+  let targetThumbnailWidth = parentEvent.content?.info?.w || parentEvent.content?.w;
+  let targetThumbnailHeight = parentEvent.content?.info?.h || parentEvent.content?.h
+  let fileMimeType = parentEvent.content?.info?.mimetype;
+  let isUploadedAudioFile = targetType === 'm.audio' && (!parentEvent?.content?.['org.matrix.msc3245.voice']
+                                              && !parentEvent?.content?.['org.matrix.msc2516.voice']);
+
+  const replyToObject = {
+    body: parentEvent.content.body,
+    isReplyToReply: isReplyToReply,
+    targetUser: targetUser,
+    targetEventId: targetEventId,
+    targetType: targetType,
+    targetThumbnailURL: targetThumbnailURL,
+    targetUrl: targetUrl,
+    targetThumbnailWidth: targetThumbnailWidth,
+    targetThumbnailHeight: targetThumbnailHeight,
+    fileMimeType: fileMimeType,
+    isUploadedAudioFile: isUploadedAudioFile,
+  };
+
+  replyToCache.set(eventId, { replyTo: replyToObject, updatedAt: parentUpdatedAt });
+  return replyToObject;
+}
+
+export function uploadMatrixImage(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const uploadUrl = `/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`;
+    const xhr = new XMLHttpRequest();
+
+    xhr.open('POST', uploadUrl, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('matrix_access_token')}`);
+    xhr.setRequestHeader('Content-Type', file.type);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 95);
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        onProgress(100);
+        const response = JSON.parse(xhr.responseText);
+        resolve(response.content_uri);
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Upload error'));
+    xhr.send(file);
+  });
+}
+
+export async function getMaxUploadSize() {
+  try {
+    const response = await fetch('/_matrix/media/v3/config', {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      },
+    });
+    const data = await response.json();
+    return data?.['m.upload.size'] || 20 * 1024 * 1024;
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  }
+}
+
+export async function processRoomUsers(rooms) {
+  for (const room of rooms) {
+    if (room.spaceId) {
+      for (const member of room.members || []) {
+        const user = await getUserIdentity(member.userId);
+        userCache.set(member.matrixId, user)
+      }
+    } else {
+      const user = await getUserIdentity(room.userId);
+      userCache.set(room.matrixId, user);
+    }
+  }
+}
+
+export function getParticipantInfo(userId) {
+  return fetch(`/matrix/rest/matrix/participant/${userId}`, {
+    method: 'GET',
+    credentials: 'include',
+  }).then(resp => {
+    if (!resp?.ok) {
+      throw new Error('Error while getting invited participant info');
+    }
+    return resp.json();
+  });
+}
+
+export async function getUserIdentity(userId) {
+  if (!userId) {
+    return;
+  }
+  if (userCache.has(userId)) {
+    return userCache.get(userId);
+  }
+  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId);
+  if (user) {
+    userCache.set(userId, user);
+  }
+  return user;
+}
+
+function extractUserIdFromRoomMembers(room, matrixId) {
+  if (room.spaceId) {
+    return room.members.find(member => member.matrixId === matrixId)?.userId
+  }
+  return room.userId
 }

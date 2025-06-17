@@ -54,30 +54,31 @@ public class MatrixAuthJWTFilter implements Filter {
 
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     HttpServletResponse httpResponse = (HttpServletResponse) response;
-    Cookie[] cookies = httpRequest.getCookies();
-    if(cookies != null) {
-      if (httpRequest.getRemoteUser() != null && Arrays.stream(cookies).noneMatch(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))) {
-        MatrixService matrixService = ExoContainerContext.getCurrentContainer().getComponentInstanceOfType(MatrixService.class);
-        String sessionToken = matrixService.getJWTSessionToken(httpRequest.getRemoteUser());
-        Cookie cookie = new Cookie(MATRIX_JWT_COOKIE, sessionToken);
-        cookie.setPath("/");
-        cookie.setMaxAge(604800); // 7 days in seconds
-        cookie.setHttpOnly(false);
-        cookie.setSecure(request.isSecure());
-        httpResponse.addCookie(cookie);
-      } else if (StringUtils.isBlank(httpRequest.getRemoteUser())) {
-        Cookie oldCookie = Arrays.stream(cookies).filter(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName())).findFirst().orElse(null);
-        if(oldCookie != null) {
-          oldCookie.setValue("");
-          oldCookie.setMaxAge(0);
-          oldCookie.setPath("/");
-          oldCookie.setHttpOnly(false);
-          oldCookie.setSecure(request.isSecure());
-          httpResponse.addCookie(oldCookie);
+    MatrixService matrixService = ExoContainerContext.getCurrentContainer().getComponentInstanceOfType(MatrixService.class);
+    if(matrixService.isServiceAvailable()) {
+      Cookie[] cookies = httpRequest.getCookies();
+      if (cookies != null) {
+        if (httpRequest.getRemoteUser() != null && Arrays.stream(cookies).noneMatch(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))) {
+          String sessionToken = matrixService.getJWTSessionToken(httpRequest.getRemoteUser());
+          Cookie cookie = new Cookie(MATRIX_JWT_COOKIE, sessionToken);
+          cookie.setPath("/");
+          cookie.setMaxAge(604800); // 7 days in seconds
+          cookie.setHttpOnly(false);
+          cookie.setSecure(request.isSecure());
+          httpResponse.addCookie(cookie);
+        } else if (StringUtils.isBlank(httpRequest.getRemoteUser())) {
+          Cookie oldCookie = Arrays.stream(cookies).filter(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName())).findFirst().orElse(null);
+          if (oldCookie != null) {
+            oldCookie.setValue("");
+            oldCookie.setMaxAge(0);
+            oldCookie.setPath("/");
+            oldCookie.setHttpOnly(false);
+            oldCookie.setSecure(request.isSecure());
+            httpResponse.addCookie(oldCookie);
+          }
         }
       }
     }
-
     chain.doFilter(request, response);
   }
 
