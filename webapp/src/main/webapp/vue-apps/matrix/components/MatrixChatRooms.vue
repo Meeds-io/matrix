@@ -4,7 +4,7 @@
     class="d-flex flex-column">
     <matrix-chat-room
       v-for="(room, i) in rooms"
-      :key="i"
+      :key="room.id"
       :id="'room-'+i"
       :room="room" />
   </div>

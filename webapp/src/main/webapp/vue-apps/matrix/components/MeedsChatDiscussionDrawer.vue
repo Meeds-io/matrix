@@ -288,6 +288,9 @@ export default {
       this.resizeComposerArea(event);
     },
     resetComposer() {
+      if (!this.$refs.messageComposerArea) {
+        return;
+      }
       this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
       this.$refs.messageComposerArea.innerHTML = '';
       this.messageContent = null;
