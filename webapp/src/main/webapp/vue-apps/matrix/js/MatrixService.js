@@ -385,52 +385,6 @@ export async function toRoomObject(rooms, currentMemberId) {
             }
           }
           break;
-        case 'm.room.message': {
-          const isRedacted = !!e.unsigned?.redacted_because;
-          const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
-          const content = isReplacement ? e.content['m.new_content'] : e.content;
-          const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
-          const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content?.msgtype);
-
-          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
-            roomItem.updated = e.origin_server_ts;
-            if (isRedacted) {
-              roomItem.lastMessage = {
-                content: exoi18n.i18n.t('matrix.chat.message.deleted'),
-                sender: e.sender,
-                eventId,
-                redacted: true
-              };
-            } else if (isSupportedMsgType) {
-              roomItem.lastMessage = {
-                content: content.format === 'org.matrix.custom.html'
-                    ? formatMentionsInRoomList(content.formatted_body)
-                    : content.body,
-                sender: e.sender,
-                eventId,
-                ...(isReplacement && {edited: true})
-              };
-            }
-          }
-          break;
-        }
-        case 'm.reaction': {
-          const reactionKey = e.content?.['m.relates_to']?.key;
-          const reactedEventId = e.content?.['m.relates_to']?.event_id;
-          const target = roomData.timeline.events.find(ev => ev.event_id === reactedEventId);
-          const targetMessageBody = getFormattedMessageBody(target);
-          if (reactionKey && targetMessageBody && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
-            roomItem.updated = e.origin_server_ts;
-            roomItem.lastMessage = {
-              content: targetMessageBody,
-              sender: e.sender,
-              eventId: reactedEventId,
-              reactionKey: reactionKey,
-              reaction: true
-            };
-          }
-          break;
-        }
       }
     }
 
@@ -1224,6 +1178,115 @@ export async function getEvent(roomId, eventId) {
 
   if (!response.ok) throw new Error(`Failed to fetch event: ${response.statusText}`);
   return await response.json();
+}
+
+export async function getRoomLastMessage(roomId) {
+  const filter = {
+    types: ['m.room.message', 'm.reaction']
+  };
+
+  const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
+  let limit = 3;
+  const maxLimit = 50;
+  let from = null;
+  let iterations = 0;
+  const maxIterations = 5;
+
+  while (limit <= maxLimit && iterations < maxIterations) {
+    const params = new URLSearchParams({
+      dir: 'b',
+      limit: limit.toString(),
+      filter: JSON.stringify(filter)
+    });
+
+    if (from) {
+      params.set('from', from);
+    }
+
+    const url = `${baseUrl}?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch messages:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const events = data.chunk || [];
+
+    // Filter: exclude redacted reactions only
+    const sortedEvents = events
+        .filter(event => !(event.type === 'm.reaction' && event.unsigned?.redacted_because))
+        .sort((a, b) => b.origin_server_ts - a.origin_server_ts);
+
+    const lastValidEvent = sortedEvents[0];
+    if (lastValidEvent) {
+      return lastValidEvent;
+    }
+
+    from = data.next_batch;
+    limit = Math.min(limit * 2, maxLimit);
+    iterations++;
+  }
+
+  return null;
+}
+
+export async function buildRoomLastMessage(e, type, roomItem, roomData) {
+  switch (type) {
+    case 'm.room.message': {
+      const isRedacted = !!e.unsigned?.redacted_because;
+      const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
+      const content = isReplacement ? e.content['m.new_content'] : e.content;
+      const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
+      const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content?.msgtype);
+
+      if (isRedacted) {
+        return {
+          content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+          sender: e.sender,
+          eventId,
+          redacted: true
+        };
+      } else if (isSupportedMsgType) {
+        return {
+          content: content.format === 'org.matrix.custom.html'
+              ? formatMentionsInRoomList(content.formatted_body)
+              : content.body,
+          sender: e.sender,
+          eventId,
+          edited: isReplacement ? true : undefined
+        };
+      }
+      return null;
+    }
+
+    case 'm.reaction': {
+      const reactionKey = e.content?.['m.relates_to']?.key;
+      const reactedEventId = e.content?.['m.relates_to']?.event_id;
+      let target = roomData?.timeline?.events?.find(ev => ev.event_id === reactedEventId);
+      if (!target && reactedEventId) {
+        target = await getEvent(roomItem.id, reactedEventId);
+      }
+      const targetMessageBody = getFormattedMessageBody(target);
+      if (reactionKey && targetMessageBody) {
+        return {
+          content: targetMessageBody,
+          sender: e.sender,
+          eventId: reactedEventId,
+          reactionKey,
+          reaction: true
+        };
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
 }
 
 export async function getUserIdentity(userId) {

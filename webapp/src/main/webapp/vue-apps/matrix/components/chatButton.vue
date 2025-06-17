@@ -26,7 +26,6 @@
               :title="$t('matrix.chat.button.tooltip')"
               class="text-xs-center"
               @click="openDrawer"
-              :color="color"
               icon>
               <v-badge
                 :value="totalUnreadMessages > 0"
@@ -143,23 +142,45 @@
       },
       async messageReceived(event) {
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
-        const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if (updatedRoom) {
-          updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
-          const receivedMessage = event.detail.message;
-          updatedRoom.lastMessage.eventId = receivedMessage.event_id;
-          if (matrixUserId !== receivedMessage.sender) {
-            this.totalUnreadMessages++;
-            updatedRoom.unreadMessages += 1;
-          }
-          this.rooms.splice(updatedRoomIndex, 1);
-          this.rooms.unshift(updatedRoom);
-          updatedRoom.updated = receivedMessage.origin_server_ts;
-          const messageText = receivedMessage.content.format === 'org.matrix.custom.html' && this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body) || receivedMessage.content.body;
-          updatedRoom.lastMessageContent = await this.buildLastMessageContent(receivedMessage.sender, messageText, updatedRoom);
+        if (updatedRoomIndex === -1 || updatedRoomIndex == null) {
+          return;
+        }
+        const existingRoom = this.rooms[updatedRoomIndex];
+        const receivedMessage = event.detail.message;
+
+        const isNewMessageFromOtherUser = matrixUserId !== receivedMessage.sender;
+        const newUnreadCount = isNewMessageFromOtherUser ? existingRoom.unreadMessages + 1 : existingRoom.unreadMessages;
+
+        const messageText =
+            receivedMessage.content.format === 'org.matrix.custom.html'
+              ? this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body)
+              : receivedMessage.content.body;
+
+        const lastMessageContent = await this.buildLastMessageContent(
+            receivedMessage.sender,
+            messageText,
+            existingRoom
+        );
+
+        const updatedRoom = {
+          ...existingRoom,
+          lastMessage: {
+            ...(existingRoom.lastMessage || {}),
+            eventId: receivedMessage.event_id,
+          },
+          unreadMessages: newUnreadCount,
+          updated: receivedMessage.origin_server_ts,
+          lastMessageContent,
+        };
+
+        this.rooms.splice(updatedRoomIndex, 1);
+        this.rooms.unshift(updatedRoom);
+
+        if (isNewMessageFromOtherUser) {
+          this.totalUnreadMessages++;
         }
       },
-     async reactionReceived(event) {
+      async reactionReceived(event) {
         const {roomId, message, user_id, emojiKey, targetMessageBody} = event.detail;
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
