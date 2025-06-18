@@ -36,19 +36,25 @@ export function registerChatExtensions(chatTitle) {
 
   if (extensionRegistry) {
     extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
+
+    extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
+      id: 'meeds-chat-space-settings',
+      vueComponent: Vue.options.components['meeds-chat-space-settings'],
+      rank: 10,
+    });
+
+    document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
+
+    extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
+      id: 'matrix-chat',
+      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      rank: 40,
+    });
+
+    extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
+      id: 'matrix-chat',
+      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      rank: 40,
+    });
   }
-
-  document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
-
-  extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
-    id: 'matrix-chat',
-    vueComponent: Vue.options.components['meeds-popover-chat-button'],
-    rank: 40,
-  });
-
-  extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
-    id: 'matrix-chat',
-    vueComponent: Vue.options.components['meeds-popover-chat-button'],
-    rank: 40,
-  });
 }
