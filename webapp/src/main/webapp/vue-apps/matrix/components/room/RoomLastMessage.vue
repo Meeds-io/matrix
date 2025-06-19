@@ -77,10 +77,12 @@ export default{
         if (!message) {
           return;
         }
+        if (!this.room.updated || this.room.updated <= message.origin_server_ts) {
+          this.$set(this.room, 'updated', message.origin_server_ts);
+        }
         const lastMessage = await this.$matrixService.buildRoomLastMessage(message, message.type, this.room);
         if (lastMessage) {
           this.$set(this.room, 'lastMessage', lastMessage);
-          this.room.updated = message.origin_server_ts;
           await this.$nextTick();
           await this.updateLastMessageContent();
         }
