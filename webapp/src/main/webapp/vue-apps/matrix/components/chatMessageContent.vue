@@ -136,7 +136,9 @@
         size="3"
         :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
         class="ms-2 me-1 align-center">fas fa-circle</v-icon>
-      <v-tooltip bottom>
+      <v-tooltip
+        open-delay="2000"
+        bottom>
       <template #activator="{on, bind}">
         <div v-on="on"
            v-bind="bind"

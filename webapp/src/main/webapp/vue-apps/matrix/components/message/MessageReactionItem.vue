@@ -18,22 +18,42 @@
 -->
 
 <template>
-  <v-chip
-    v-sanitized-html="formattedReactionLabel"
-    :class="{
-      'current-user-reaction': isCurrentUserReaction,
-      'other-user-reaction': !isCurrentUserReaction,
-      'ms-2': isMyMessage,
-      'me-2': !isMyMessage
-    }"
-    class="message-reaction-item px-2 mb-2 text-font-size"
-    @click="$emit('reaction', emojiChar)"/>
+  <v-tooltip
+    max-width="340"
+    open-delay="1500"
+    bottom>
+    <template #activator="{ on, attrs }">
+      <v-chip
+        v-sanitized-html="formattedReactionLabel"
+        v-bind="attrs"
+        v-on="on"
+        :class="{
+          'current-user-reaction': isCurrentUserReaction,
+          'other-user-reaction': !isCurrentUserReaction,
+          'ms-2': isMyMessage,
+          'me-2': !isMyMessage
+        }"
+        class="message-reaction-item px-2 mb-2 text-font-size"
+        @click="$emit('reaction', emojiChar)"/>
+    </template>
+    <span>{{ tooltipText }}</span>
+  </v-tooltip>
 </template>
 
 <script>
 
 export default {
+  data() {
+    return {
+      tooltipText: '',
+      andLabel: this.$t('matrix.chat.label.and')
+    };
+  },
   props: {
+    room: {
+      type: Object,
+      default: null
+    },
     reaction: {
       type: Array,
       default: null
@@ -43,17 +63,56 @@ export default {
       default: false
     }
   },
+  watch: {
+    reactionUserIds: {
+      immediate: true,
+      handler: 'updateTooltip'
+    }
+  },
   computed: {
     isCurrentUserReaction() {
-      return this.reaction.userIds.includes(matrixUserId);
+      return this.reactionUserIds.includes(matrixUserId);
+    },
+    reactionUserIds() {
+      return this.reaction?.userIds;
     },
     formattedReactionLabel() {
-      const count = this.reaction.userIds.length;
+      const count = this.reactionUserIds.length;
       const displayCount = count > 1 ? (count > 9 ? '9+' : count) : '';
       return `${this.reaction.key} ${displayCount}`;
     },
     emojiChar() {
       return this.reaction?.key;
+    }
+  },
+  methods: {
+    parseMatrixUserId(userId) {
+      if (!userId) {
+        return;
+      }
+      const regex = new RegExp(`^@([^:]+):${matrixServerName.replace(/\./g, '\\.')}$`);
+      const match = userId.match(regex);
+      return match ? match[1] : null;
+    },
+    async updateTooltip() {
+      const userIds = this.reactionUserIds ?? [];
+      const usernames = (await Promise.all(userIds.map(userId => this.extractMemberFullName(userId)))).filter(Boolean);
+      this.tooltipText = this.formatUserList(usernames);
+    },
+    formatUserList(usernames) {
+      const length = usernames.length;
+      if (!length) return '';
+      if (length === 1) return usernames[0];
+      if (length === 2) return `${usernames[0]} ${this.andLabel} ${usernames[1]}`;
+      return `${usernames.slice(0, -1).join(', ')} ${this.andLabel} ${usernames[length - 1]}`;
+    },
+    async extractMemberFullName(matrixUserId) {
+      if (!this.room.spaceId) {
+        return this.room.userId;
+      }
+      const member = this.room?.members?.find?.(member => member.matrixId === this.parseMatrixUserId(matrixUserId));
+      const user = await this.$matrixService.getUserByMatrixId(member?.userId, this.room);
+      return user?.profile?.fullname || this.member?.userId;
     }
   }
 };
