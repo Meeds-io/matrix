@@ -92,6 +92,7 @@
               v-for="reaction in message.reactions"
               :key="reaction.key"
               :reaction="reaction"
+              :room="room"
               :is-my-message="isMyMessage"
               @reaction="$emit('reaction', $event, message)" />
           </div>
