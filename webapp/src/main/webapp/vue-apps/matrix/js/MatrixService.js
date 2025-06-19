@@ -385,6 +385,13 @@ export async function toRoomObject(rooms, currentMemberId) {
             }
           }
           break;
+        case 'm.room.message':
+        case 'm.reaction': {
+          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
+            roomItem.updated = e.origin_server_ts;
+          }
+          break;
+        }
       }
     }
 
@@ -411,9 +418,6 @@ export async function toRoomObject(rooms, currentMemberId) {
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
     myRooms.rooms.push(roomItem);
   }
-
-  myRooms.rooms.sort((a, b) => b.updated - a.updated || a.name.localeCompare(b.name, undefined, {numeric: true}));
-
   return myRooms;
 }
 
@@ -1180,17 +1184,27 @@ export async function getEvent(roomId, eventId) {
   return await response.json();
 }
 
+export async function isEventRedacted(roomId, eventId) {
+  try {
+    const event = await getEvent(roomId, eventId);
+    return !!event.unsigned?.redacted_because;
+  } catch (e) {
+    console.warn(`Could not fetch event ${eventId}:`, e.message);
+    return true;
+  }
+}
+
 export async function getRoomLastMessage(roomId) {
   const filter = {
-    types: ['m.room.message', 'm.reaction']
+    types: ['m.room.message', 'm.reaction', 'm.room.redaction']
   };
 
   const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
   let limit = 3;
   const maxLimit = 50;
   let from = null;
-  let iterations = 0;
   const maxIterations = 5;
+  let iterations = 0;
 
   while (limit <= maxLimit && iterations < maxIterations) {
     const params = new URLSearchParams({
@@ -1203,8 +1217,7 @@ export async function getRoomLastMessage(roomId) {
       params.set('from', from);
     }
 
-    const url = `${baseUrl}?${params.toString()}`;
-    const response = await fetch(url, {
+    const response = await fetch(`${baseUrl}?${params.toString()}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
       }
@@ -1217,16 +1230,24 @@ export async function getRoomLastMessage(roomId) {
 
     const data = await response.json();
     const events = data.chunk || [];
+    const filteredEvents = [];
 
-    // Filter: exclude redacted reactions only
-    const sortedEvents = events
-        .filter(event => !(event.type === 'm.reaction' && event.unsigned?.redacted_because))
-        .sort((a, b) => b.origin_server_ts - a.origin_server_ts);
+    for (const event of events) {
+      if (event.unsigned?.redacted_because) continue;
 
-    const lastValidEvent = sortedEvents[0];
-    if (lastValidEvent) {
-      return lastValidEvent;
+      if (event.type === 'm.reaction') {
+        const relatedEventId = event.content?.['m.relates_to']?.event_id;
+        if (!relatedEventId) continue;
+
+        const redacted = await isEventRedacted(roomId, relatedEventId);
+        if (redacted) continue;
+      }
+
+      filteredEvents.push(event);
     }
+
+    const sorted = filteredEvents.sort((a, b) => b.origin_server_ts - a.origin_server_ts);
+    if (sorted[0]) return sorted[0];
 
     from = data.next_batch;
     limit = Math.min(limit * 2, maxLimit);
@@ -1264,7 +1285,6 @@ export async function buildRoomLastMessage(e, type, roomItem, roomData) {
       }
       return null;
     }
-
     case 'm.reaction': {
       const reactionKey = e.content?.['m.relates_to']?.key;
       const reactedEventId = e.content?.['m.relates_to']?.event_id;
@@ -1283,6 +1303,14 @@ export async function buildRoomLastMessage(e, type, roomItem, roomData) {
         };
       }
       return null;
+    }
+    case 'm.room.redaction': {
+      return {
+        content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+        sender: e.sender,
+        eventId: e.event_id,
+        redacted: true
+      };
     }
     default:
       return null;

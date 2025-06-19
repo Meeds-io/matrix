@@ -1,12 +1,14 @@
 <template>
   <exo-drawer
-    ref="ChatDiscussionDrawer"
     id="ChatDiscussionDrawer"
+    ref="ChatDiscussionDrawer"
     :loading="loading"
     v-draggable="true"
+    allow-expand
     hide-footer-divider
     go-back-button
     right
+    @expand-updated="handleExpand"
     @closed="close">
     <template slot="title">
       <a :href="url">
@@ -15,10 +17,16 @@
             :style="`backgroundImage: url(${room.avatarUrl})`"
             :class="avatarBorderClass"
             class="meeds-chat-contact-avatar ma-0 size-9 d-flex">
-            <div v-if="room.directChat" class="matrix-user-status size-2" :class="[presenceClass, avatarBorderClass]"></div>
+            <div
+             v-if="room.directChat"
+             :class="[presenceClass, avatarBorderClass]"
+             class="matrix-user-status size-2" />
           </div>
           <span class="mx-3 text-title text-truncate content-align">
-            {{room.name}} <span v-if="room.external">{{ externalTag }}</span>
+            {{room.name}}
+            <span v-if="room.external">
+              {{ externalTag }}
+            </span>
           </span>
         </div>
       </a>
@@ -66,13 +74,13 @@
           @scroll="loadMoreMessages"
           @click="forceCloseMenus">
           <meeds-chat-message
-            :id="'chat-message-' + i"
-            :ref="'message' + i"
+            :id="`chat-message-${i}`"
+            :ref="`chat-message-${i}`"
             :key="message.event_id"
             v-for="(message, i) in messages"
             :message="message"
-            :previous-message="i > 0 && messages[i-1]"
-            :next-message="i < (messages.length - 1) && messages[i+1]"
+            :previous-message="messages?.[i - 1]"
+            :next-message="messages?.[i + 1]"
             :room="room"
             @reply="replyToMessage"
             @reaction="reactToMessage" />
@@ -80,21 +88,25 @@
       </div>
     </template>
     <template slot="footer">
-      <div class="d-flex">
+      <v-sheet
+        :max-width="composerContainerMaxWidth"
+        :class="{'justify-self-center': expanded}"
+        class="d-flex"
+        width="100%">
         <message-upload-file-input
          :room="room"
          paste-target="messageComposerArea"
          drop-target="ChatDiscussionDrawer"
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
         <div
-           class="flex-grow-1 border-radius-16"
+          class="flex-grow-1 no-min-width border-radius-16"
           :class="{'border-color-grey-lighten': hasReplyQuote || messageToEdit}">
           <message-reply-quote
             v-if="hasReplyQuote"
             ref="replyQuote"
             :message="targetReplyMessage"
             :room="room"
-            class="background-grey-primary mx-2 mt-2"
+            class="background-grey-primary no-min-width mx-2 mt-2"
             read-only
             closeable
             @close="cancelReply" />
@@ -122,10 +134,6 @@
               <emoji-picker-button
                 :icon-size="20"
                 @select-emoji="insertEmojiIntoComposer" />
-              <emoji-suggester
-                composer-id="messageComposerArea"
-                :min-width="258"
-                @select-emoji="insertEmojiIntoComposer" />
             </div>
           </div>
         </div>
@@ -142,15 +150,19 @@
             </v-icon>
           </v-btn>
         </div>
-      </div>
+      </v-sheet>
       <exo-confirm-dialog
         ref="deleteConfirmDialog"
         :title="$t('matrix.chat.label.confirmDeleteTitle')"
-        :message="$t('matrix.chat.label.confirmDeleteMessage', {0: `<br><strong>${nameToDelete}</strong>`})"
+        :message="$t('matrix.chat.label.confirmDeleteMessage')"
         :ok-label="$t('matrix.chat.label.confirm')"
         :cancel-label="$t('matrix.chat.label.cancel')"
         @ok="deleteMessage"
         @closed="messageToDelete = null" />
+      <emoji-suggester
+        composer-id="messageComposerArea"
+        :min-width="258"
+        @select-emoji="insertEmojiIntoComposer" />
     </template>
   </exo-drawer>
 </template>
@@ -175,9 +187,20 @@ export default {
       targetReplyMessage: null,
       messageToEdit: null,
       messageToDelete: null,
+      expanded: false,
+      drawerWidth: 420
+    };
+  },
+  provide() {
+    return {
+      getIsExpanded: () => this.expanded,
+      getParentDrawerWidth: () => this.drawerWidth
     };
   },
   computed: {
+    composerContainerMaxWidth() {
+      return this.expanded && this.drawerWidth * 2 / 3 || undefined
+    },
     hasReplyQuote() {
       return !!this.targetReplyMessage;
     },
@@ -228,6 +251,12 @@ export default {
     this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   methods: {
+    handleExpand(expanded) {
+      setTimeout(() => {
+        this.expanded = expanded;
+        this.drawerWidth = this.$refs?.ChatDiscussionDrawer?.$el?.clientWidth;
+      }, 300)
+    },
     insertEmojiIntoComposer(emoji, range = null) {
       const composer = this.$refs.messageComposerArea;
       composer.focus();

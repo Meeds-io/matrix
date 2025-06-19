@@ -17,15 +17,20 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div
+  <v-sheet
+    :class="[
+      cssClass,
+      {'mt-0-5':!displaySender},
+      {'px-3 py-2':!isImage},
+      {
+        'my-message-text': isSelfMessage && !isImage,
+        'others-message-text': !isSelfMessage && !isImage
+      },
+      {'clickable overflow-hidden': isImage}]"
+    :height="isImage && imageThumbnailMaxHeight || undefined"
+    :width="messageContentWidth"
+    :max-width="expanded && messageMaxWidth || undefined"
     class="chat-message-content-body text-break"
-    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
-    :style="isImage && {
-              'height': imageThumbnailMaxHeight + 'px',
-              'width': imageThumbnailMaxWidth + 'px',
-              'cursor': 'pointer',
-              'overflow': 'hidden'
-             }"
     @click="isImage && openImagePreview(message)">
     <message-reply-quote
       v-if="message?.replyTo"
@@ -81,7 +86,7 @@
       v-if="isFile"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      class="message-file">
+      class="text-no-wrap max-width-fit">
       <a
         :href="fileDownloadLink"
         :alt="message.content.body"
@@ -95,7 +100,7 @@
           </v-icon>
         </div>
         <div
-          class="message-file-name text-truncate">
+          class="message-file-name align-self-center text-truncate">
           {{ message.content.body }}
         </div>
       </a>
@@ -105,6 +110,8 @@
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
       :message="message"
+      :expanded="expanded"
+      :container-max-width="messageMaxWidth"
       :next-message="nextMessage" />
     <div class="d-flex full-width justify-end">
     <v-tooltip
@@ -151,11 +158,12 @@
           :format="dateFormat" />
     </v-tooltip>
     </div>
-  </div>
+  </v-sheet>
 </template>
 
 <script>
   export default {
+    inject: ['getIsExpanded', 'getParentDrawerWidth'],
     props: {
       message: {
         type: Object,
@@ -224,6 +232,15 @@
       },
     },
     computed: {
+      expanded() {
+        return this.getIsExpanded();
+      },
+      messageMaxWidth() {
+        return this.getParentDrawerWidth() * (2 / 3);
+      },
+      messageContentWidth() {
+        return this.isImage ? this.imageThumbnailMaxWidth : this.isFile ? this.messageMaxWidth : undefined;
+      },
       isImage() {
         return this.message.content.msgtype === 'm.image';
       },
