@@ -116,6 +116,7 @@
     <div class="d-flex full-width justify-end">
     <v-tooltip
       v-if="message?.edited"
+      open-delay="800"
       bottom>
       <template #activator="{on, bind}">
         <div
@@ -136,7 +137,9 @@
         size="3"
         :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
         class="ms-2 me-1 align-center">fas fa-circle</v-icon>
-      <v-tooltip bottom>
+      <v-tooltip
+        open-delay="800"
+        bottom>
       <template #activator="{on, bind}">
         <div v-on="on"
            v-bind="bind"
