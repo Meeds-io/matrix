@@ -88,6 +88,7 @@
             class="message-reactions d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
             <message-reaction-item
+              v-if="!isRedacted"
               v-for="reaction in message.reactions"
               :key="reaction.key"
               :reaction="reaction"
