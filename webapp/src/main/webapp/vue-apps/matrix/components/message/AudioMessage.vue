@@ -19,7 +19,7 @@
 <template>
   <div
     :class="{'my-audio-message': isSelfMessage, 'others-audio-message': !isSelfMessage}"
-    class="d-flex align-center mb-1 audio-message">
+    class="d-flex text-truncate text-no-wrap overflow-hidden align-center mb-1 audio-message">
     <v-tooltip bottom>
       <template #activator="{ on, attrs }">
         <v-btn
@@ -44,7 +44,7 @@
     </v-tooltip>
     <span
       :class="{'text-sub-title': !isSelfMessage, 'white--text': isSelfMessage}"
-      class="mx-2 text-caption">
+      class="mx-2 text-caption flex-grow-1">
       {{ formattedDuration }}
     </span>
     <canvas ref="waveform" class="flex-1"></canvas>
@@ -77,6 +77,14 @@ export default {
     nextMessage: {
       type: Object,
       default: null
+    },
+    expanded: {
+      type: Boolean,
+      default: false
+    },
+    containerMaxWidth: {
+      type: Number,
+      default: null
     }
   },
   computed: {
@@ -94,7 +102,11 @@ export default {
       const totalSeconds = Math.floor(this.currentTime);
       const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
       const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-      return `${minutes}:${seconds}`;    }
+      return `${minutes}:${seconds}`;
+    },
+    canvasWidth() {
+      return this.containerMaxWidth - (this.isSelfMessage ? 42 : 60) - (this.expanded ? 59 : 0);
+    }
   },
   created() {
     this.$root.$on('auto-play-audio-message', this.handleAutoPlay)
@@ -106,7 +118,25 @@ export default {
       this.$refs?.audio?.load();
     });
   },
+  watch: {
+    expanded() {
+      this.$nextTick(() => {
+        requestAnimationFrame(() => {
+          this.resizeCanvas();
+        });
+      });
+    }
+  },
   methods: {
+    resizeCanvas() {
+      const canvas = this.$refs.waveform;
+      if (!canvas) return;
+
+      canvas.width = this.canvasWidth;
+      canvas.height = 15;
+
+      this.drawStaticWaveform();
+    },
     handleAutoPlay(target) {
       if (this.message.origin_server_ts === target.origin_server_ts) {
         this.toggleAudio();
@@ -192,7 +222,7 @@ export default {
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
 
-      canvas.width = this.isSelfMessage ? 238 : 220;
+      canvas.width = this.canvasWidth;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;
@@ -212,7 +242,7 @@ export default {
       const audio = this.$refs.audio;
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
           || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
-      canvas.width = this.isSelfMessage ? 238 : 220;
+      canvas.width = this.canvasWidth;
       canvas.height = 15;
 
       const barWidth = canvas.width / waveform.length;

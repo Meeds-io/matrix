@@ -56,7 +56,7 @@
             contain />
         </div>
       </div>
-      <div class="flex-column">
+      <div class="flex-column no-min-width max-width-fit">
         <div class="flex-row">
           <message-user
             :sender-id="targetMessage.targetUser"
@@ -64,7 +64,6 @@
             :quoted="true" />
         </div>
         <v-sheet
-          :max-width="maxWidth"
           class="flex-row overflow-hidden flex-grow-1 transparent">
           <div
             :class="{
@@ -162,9 +161,6 @@ export default {
     },
     fileIcon() {
       return this.isFile && this.getFileIcon(this.fileMimeType);
-    },
-    maxWidth() {
-      return this.isFile || this.isImage ? this.readOnly ? 200 : 265 : 'auto'
     }
   },
   methods: {
