@@ -16,7 +16,7 @@
           <div
             :style="`backgroundImage: url(${room.avatarUrl})`"
             :class="avatarBorderClass"
-            class="meeds-chat-contact-avatar ma-0 size-9 d-flex">
+            class="flex-shrink-0 meeds-chat-contact-avatar ma-0 size-9 d-flex">
             <div
              v-if="room.directChat"
              :class="[presenceClass, avatarBorderClass]"
