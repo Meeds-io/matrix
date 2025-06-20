@@ -19,6 +19,7 @@
 package io.meeds.chat.storage;
 
 import io.meeds.chat.dao.MatrixRoomDAO;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.entity.RoomEntity;
 import org.apache.commons.lang3.StringUtils;
@@ -42,33 +43,13 @@ public class MatrixRoomStorage {
   @Autowired
   private SpaceService     spaceService;
 
-  public Room getMatrixRoomBySpaceId(String spaceId) {
+  public Room getMatrixRoomBySpaceId(String spaceId, boolean includeDisabled) {
     RoomEntity roomEntity = matrixRoomDAO.findBySpaceId(spaceId);
-    if (roomEntity != null) {
+    if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
+        || includeDisabled)) {
       return toRoomModel(roomEntity);
     } else {
       LOG.warn("Can not find an associated matrix room for the space with ID {}", spaceId);
-      return null;
-    }
-  }
-
-  public Space getSpaceIdByMatrixRoomId(String roomId) {
-    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
-    if (roomEntity != null && StringUtils.isNotBlank(roomEntity.getSpaceId())) {
-      return spaceService.getSpaceById(String.valueOf(roomEntity.getSpaceId()));
-    } else {
-      LOG.warn("Can not find an associated space for the matrix room with ID {}", roomId);
-      return null;
-    }
-  }
-
-  public Room getDMRoomByRoomId(String roomId) {
-    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
-    if (roomEntity != null && StringUtils.isNotBlank(roomEntity.getFirstParticipant())
-        && StringUtils.isNotBlank(roomEntity.getSecondParticipant())) {
-      return toRoomModel(roomEntity);
-    } else {
-      LOG.warn("Can not find an associated space for the matrix room with ID {}", roomId);
       return null;
     }
   }
@@ -96,10 +77,6 @@ public class MatrixRoomStorage {
     return rooms;
   }
 
-  public long getSpaceRoomCount() {
-    return matrixRoomDAO.count();
-  }
-
   public Room getDirectMessagingRoom(String firstParticipantId, String secondParticipantId) {
     RoomEntity directMessagingRoom = matrixRoomDAO.findByFirstParticipantAndSecondParticipant(firstParticipantId,
                                                                                               secondParticipantId);
@@ -122,9 +99,10 @@ public class MatrixRoomStorage {
     matrixRoomDAO.delete(roomEntity);
   }
 
-  public Room getById(String roomId) {
+  public Room getById(String roomId, boolean includeDisabled) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomIdStartsWith(roomId);
-    if(roomEntity != null) {
+    if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
+        || (includeDisabled && roomEntity.getStatus().equals(RoomStatus.DISABLED)))) {
       return toRoomModel(roomEntity);
     }
     return null;
@@ -143,6 +121,7 @@ public class MatrixRoomStorage {
     room.setSpaceId(roomEntity.getSpaceId());
     room.setFirstParticipant(roomEntity.getFirstParticipant());
     room.setSecondParticipant(roomEntity.getSecondParticipant());
+    room.setStatus(roomEntity.getStatus().name());
     return room;
   }
 
@@ -152,15 +131,19 @@ public class MatrixRoomStorage {
    * @return List of SpaceRoom
    */
   public List<Room> getSpaceRooms() {
-    return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNull());
+    return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNullAndStatusIs(RoomStatus.ENABLED));
   }
 
   /**
-   * Load the list of space rooms
-   * @param spaceIds : list of space IDs
-   * @return List of Rooms
+   * Enable or disable a room
+   * 
+   * @param roomId the ID of the Chat room
+   * @param status the status to set: ENABLE, DISABLED, ENABLE_IN6PROGRESS, DISABLE_IN_PROGRESS
+   * @return the updated room
    */
-  public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
-    return toRoomList(matrixRoomDAO.findBySpaceIdIn(spaceIds));
+  public Room setRoomEnabled(String roomId, RoomStatus status) {
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
+    roomEntity.setStatus(status);
+    return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 }

@@ -1,8 +1,13 @@
 package io.meeds.chat.service.utils;
 
+import io.meeds.chat.model.Events;
+import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUserPermission;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.impl.UserImpl;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +16,9 @@ import org.mockito.MockedStatic;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,6 +38,8 @@ class MatrixHttpClientTest {
   HttpResponse<String>     responseTooManyRequests;
 
   MatrixHttpClient         matrixHttpClient = new MatrixHttpClient();
+
+  private HttpResponse     responseNotOK;
 
   @Test
   void getAdminAccessToken() throws JsonException, IOException, InterruptedException {
@@ -89,6 +99,9 @@ class MatrixHttpClientTest {
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString(), any()))
                       .thenReturn(responseOK);
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseOK);
+
+    responseNotOK = mock(HttpResponse.class);
+    when(responseNotOK.statusCode()).thenReturn(500);
 
   }
 
@@ -227,6 +240,27 @@ class MatrixHttpClientTest {
 
   @Test
   void saveUserAccount() {
+    Identity identity = new Identity();
+    identity.setRemoteId("userOne");
+    Profile profile = new Profile();
+    profile.setProperty(Profile.FULL_NAME, "User One");
+    profile.setProperty(Profile.EMAIL, "user@email.com");
+    identity.setProfile(profile);
+    String userIdOnMatrix = "userOneOnMatrix";
+
+    when(responseOK.body()).thenReturn("{\"name\": \"@userOneOnMatrix:matrix.meeds.tn\",\"access_token\":\"accessTokenForUserOne\"}");
+    String returnedUserId = matrixHttpClient.saveUserAccount(identity, userIdOnMatrix, true, accessToken);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
+
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userIdOnMatrix, false, accessToken, true, true);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
+
+
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userIdOnMatrix, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
   }
 
   @Test
@@ -247,6 +281,37 @@ class MatrixHttpClientTest {
 
   @Test
   void joinUserToRoom() {
+    String matrixUserId = "userIdOnMatrix";
+    String roomId = "matrixRoomId";
+    boolean result = matrixHttpClient.joinUserToRoom(roomId, matrixUserId, accessToken);
+    assertTrue(result);
+
+    // Error HTTP 429 : too many requests
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseTooManyRequests, responseOK);
+    try {
+      result = matrixHttpClient.joinUserToRoom(roomId, matrixUserId, accessToken);
+
+      assertTrue(result);
+      verify(responseTooManyRequests, times(1)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
+    // Error HTTP 500
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseNotOK);
+    try {
+      result = matrixHttpClient.joinUserToRoom(roomId, matrixUserId, accessToken);
+
+      assertFalse(result);
+      verify(responseNotOK, times(1)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
   }
 
   @Test
@@ -258,7 +323,44 @@ class MatrixHttpClientTest {
   }
 
   @Test
-  void updateRoomSettings() {
+  void updateRoomSettings() throws JsonException, IOException, InterruptedException {
+    String roomId = "matrixRoomId";
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    MatrixUserPermission userPermission = new MatrixUserPermission();
+    userPermission.setUserName("userOne");
+    userPermission.setUserRole(SIMPLE_USER_ROLE);
+    matrixRoomPermissions.setUsers(List.of(userPermission));
+    Events events = new Events("roomName", "50", "50", "50", "50", "50", "50", "50");
+    matrixRoomPermissions.setEvents(events);
+
+    when(responseOK.body()).thenReturn("{\"event_id\": \"thisIsAnEventId\"}");
+    String result = matrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, accessToken);
+    assertNotNull(result);
+    assertEquals("thisIsAnEventId", result);
+
+    // Error HTTP 429 : too many requests
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseTooManyRequests, responseOK);
+    try {
+      result = matrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, accessToken);
+
+      assertNotNull(result);
+      verify(responseTooManyRequests, times(1)).body();
+      verify(responseOK, times(2)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
+
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    try {
+      matrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, accessToken);
+      fail();
+    } catch (Exception e) {
+      // Expected
+    }
   }
 
   @Test
@@ -267,10 +369,58 @@ class MatrixHttpClientTest {
 
   @Test
   void updateRoomAvatar() {
+    String roomId = "matrixRoomId";
+    String avatarUrl = "/path/to/avatar/url";
+    boolean result = matrixHttpClient.updateRoomAvatar(roomId, avatarUrl, accessToken);
+    assertTrue(result);
+
+    // Error HTTP 429 : too many requests
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseTooManyRequests, responseOK);
+    try {
+      result = matrixHttpClient.updateRoomAvatar(roomId, avatarUrl, accessToken);
+
+      assertTrue(result);
+      verify(responseTooManyRequests, times(1)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    try {
+      matrixHttpClient.updateRoomAvatar(roomId, avatarUrl, accessToken);
+      fail();
+    } catch (Exception e) {
+      // Expected
+    }
+    
   }
 
   @Test
   void updateUserAvatar() {
+    String userId = "matrixIdOfUserOne";
+    String avatarUrl = "/path/to/avatar/url";
+    boolean result = matrixHttpClient.updateUserAvatar(userId, avatarUrl, accessToken);
+    assertTrue(result);
+
+    // Error HTTP 429 : too many requests
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString()))
+            .thenReturn(responseTooManyRequests, responseOK);
+    try {
+      result = matrixHttpClient.updateUserAvatar(userId, avatarUrl, accessToken);
+      assertTrue(result);
+      verify(responseTooManyRequests, times(1)).body();
+
+    } catch (Exception e) {
+      fail();
+    }
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    result = matrixHttpClient.updateUserAvatar(userId, avatarUrl, accessToken);
+    assertFalse(result);
   }
 
   @Test
@@ -322,4 +472,40 @@ class MatrixHttpClientTest {
       fail();
     }
   }
+
+    @Test
+    void overrideRateLimitForUser() {
+      try {
+        matrixHttpClient.overrideRateLimitForUser("user", 0, 0, accessToken);
+      } catch (Exception e) {
+        fail();
+      }
+      verify(responseOK, times(1)).body();
+
+      MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+      try {
+        matrixHttpClient.overrideRateLimitForUser("user", 0, 0, accessToken);
+        fail();
+      } catch (Exception e) {
+        // Expected
+      }
+    }
+
+    @Test
+    void getOverriddenRateLimitForUser() {
+      try {
+        matrixHttpClient.getOverriddenRateLimitForUser("user", accessToken);
+      } catch (Exception e) {
+        fail();
+      }
+      verify(responseOK, times(1)).body();
+      
+      MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(responseNotOK);
+      try {
+        matrixHttpClient.getOverriddenRateLimitForUser("user", accessToken);
+        fail();
+      } catch (Exception e) {
+        // Expected
+      }
+    }
 }
