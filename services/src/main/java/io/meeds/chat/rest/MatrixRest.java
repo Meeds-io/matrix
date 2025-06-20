@@ -360,7 +360,12 @@ public class MatrixRest implements ResourceContainer {
     if (space == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
-    Room room = matrixService.getRoomBySpace(space);
+    Room room;
+    if(spaceService.canManageSpace(space, userName)) {
+      room = matrixService.getRoomBySpace(space, true);
+    } else {
+      room = matrixService.getRoomBySpace(space);
+    }
 
     if (room == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND);
@@ -442,6 +447,58 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  @PutMapping("enable/{spaceId}")
+  @Secured("users")
+  @Operation(summary = "Enable the chat for a given space", method = "GET", description = "Enable the chat for a space ")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public RoomEntity enableChat(HttpServletRequest request, @PathVariable("spaceId")
+  String spaceId) {
+    String currentUserName = request.getRemoteUser();
+
+    if (StringUtils.isBlank(spaceId)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Space id is mandatory");
+    }
+    Space space = spaceService.getSpaceById(spaceId);
+    if (!spaceService.canManageSpace(space, currentUserName)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "Current user does not have the needed privileges to enable the chat of the space");
+    }
+    try {
+      return buildRoomEntityFromRoom(matrixService.enableSpaceChat(space, true), currentUserName);
+    } catch (Exception e) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                        "Could not enable the chat for the space with id " + spaceId);
+    }
+  }
+  
+  @PutMapping("disable/{spaceId}")
+  @Secured("users")
+  @Operation(summary = "Enable the chat for a given space", method = "GET", description = "Enable the chat for a space ")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public RoomEntity disableChat(HttpServletRequest request, @PathVariable("spaceId")
+  String spaceId) {
+    String currentUserName = request.getRemoteUser();
+
+    if (StringUtils.isBlank(spaceId)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Space id is mandatory");
+    }
+    Space space = spaceService.getSpaceById(spaceId);
+    if (!spaceService.canManageSpace(space, currentUserName)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                        "Current user does not have the needed privileges to disable the chat of the space");
+    }
+    try {
+      return buildRoomEntityFromRoom(matrixService.enableSpaceChat(space, false), currentUserName);
+    } catch (Exception e) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                        "Could not disable the chat for the space with id " + spaceId);
+    }
+  }
+
   private void sendPushNotification(String participant, String roomId, int unreadCount) {
     NotificationContext ctx = NotificationContextImpl.cloneInstance();
     ctx.append(MATRIX_ROOM_ID, roomId);
@@ -474,6 +531,7 @@ public class MatrixRest implements ResourceContainer {
       roomId = roomId + ":" + serverName;
     }
     roomEntity.setId(roomId);
+    roomEntity.setEnabled(room.isEnabled());
     if (StringUtils.isNotBlank(room.getSpaceId())) {
       roomEntity.setSpaceId(room.getSpaceId());
       roomEntity.setDirectChat(false);

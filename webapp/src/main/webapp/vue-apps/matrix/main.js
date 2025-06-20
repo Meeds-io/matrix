@@ -17,6 +17,7 @@ import MessageActionList from './components/message/action/MessageActionList.vue
 import MessageReactionItem from './components/message/MessageReactionItem.vue';
 import MessageSenderName from './components/message/MessageSenderName.vue';
 import RoomLastMessage from './components/room/RoomLastMessage.vue';
+import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -44,7 +45,8 @@ const components = {
   'message-action-list': MessageActionList,
   'message-reaction-item': MessageReactionItem,
   'message-sender-name': MessageSenderName,
-  'room-last-message': RoomLastMessage
+  'room-last-message': RoomLastMessage,
+  'meeds-chat-space-settings': SpaceSettingsAdministration,
 };
 
 for (const key in components) {
