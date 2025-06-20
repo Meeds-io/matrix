@@ -22,16 +22,15 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.RoomList;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.commons.utils.CommonsUtils;
-import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
 import org.exoplatform.services.log.ExoLogger;
@@ -41,14 +40,14 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
-import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
-import org.exoplatform.social.core.profile.ProfileFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
+import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
+import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -109,8 +108,10 @@ public class MatrixService {
     try {
       this.getMatrixAccessToken();
 
+
       String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
           + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      this.overrideAdminRateLimit(userFullMatrixID);
       String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
       if (StringUtils.isNotBlank(displayName)) {
         this.updateUserDisplayName(userFullMatrixID, displayName);
@@ -158,6 +159,16 @@ public class MatrixService {
   public Room getRoomBySpace(Space space) {
     return getRoomBySpaceId(space.getId());
   }
+
+  /**
+   * Returns the ID of the room linked to a space
+   *
+   * @param space the space
+   * @return the roomId linked to the space
+   */
+  public Room getRoomBySpace(Space space, boolean includeDisabled) {
+    return getRoomBySpaceId(space.getId(), includeDisabled);
+  }
   /**
    * Returns the ID of the room linked to a space
    *
@@ -165,7 +176,16 @@ public class MatrixService {
    * @return the roomId linked to the space
    */
   public Room getRoomBySpaceId(String spaceId) {
-    return matrixRoomStorage.getMatrixRoomBySpaceId(spaceId);
+    return this.getRoomBySpaceId(spaceId, false);
+  }
+  /**
+   * Returns the ID of the room linked to a space
+   *
+   * @param spaceId the space Id
+   * @return the roomId linked to the space
+   */
+  public Room getRoomBySpaceId(String spaceId, boolean includeDisabled) {
+    return matrixRoomStorage.getMatrixRoomBySpaceId(spaceId, includeDisabled);
   }
 
   /**
@@ -175,8 +195,19 @@ public class MatrixService {
    * @return Room
    */
   public Room getById(String roomId) {
+    return this.getById(roomId, false);
+  }
+
+  /**
+   * Get a room by its technical ID
+   *
+   * @param roomId the room technical ID
+   * @param includeDisabled return room even if it is disabled
+   * @return Room
+   */
+  public Room getById(String roomId, boolean includeDisabled) {
     roomId = extractRoomId(roomId);
-    return matrixRoomStorage.getById(roomId);
+    return matrixRoomStorage.getById(roomId, includeDisabled);
   }
 
   /**
@@ -403,10 +434,6 @@ public class MatrixService {
     return matrixRoomId;
   }
 
-  public long getAllLinkedRooms() {
-    return matrixRoomStorage.getSpaceRoomCount();
-  }
-
   public Room getDirectMessagingRoom(String firstParticipant, String secondParticipant) {
     return matrixRoomStorage.getDirectMessagingRoom(firstParticipant, secondParticipant);
   }
@@ -524,11 +551,75 @@ public class MatrixService {
   }
 
   /**
-   * Load the list of space rooms
-   * @param spaceIds : list of space IDs
-   * @return List of Rooms
+   * Enable the chat for the space
+   *
+   * @param space the space where the chat will be disabled/enabled
+   * @return Room the updated room
    */
-  public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
-    return matrixRoomStorage.getSpaceRoomsBySpaceIds(spaceIds);
+  public Room enableSpaceChat(Space space, boolean enabled) throws ObjectNotFoundException {
+    if (space == null) {
+      throw new IllegalArgumentException("The space should not be null");
+    }
+    Room spaceRoom = this.getRoomBySpace(space, true);
+    if (spaceRoom == null) {
+      throw new ObjectNotFoundException("Could not find a chat room for the space " + space.getDisplayName());
+    }
+    String matrixAdminUsername = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    for (String member : space.getMembers()) {
+      String matrixIdOfMember = getMatrixIdForUser(member);
+      if (!matrixAdminUsername.equals(matrixIdOfMember)) {
+        try {
+          if (enabled) {
+            joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
+          } else {
+            kickUserFromRoom(spaceRoom.getRoomId(),
+                    matrixIdOfMember,
+                    "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
+                            member));
+          }
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          LOG.error("couldn't remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+        } catch (Exception e) {
+          LOG.error("couldn't remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+        }
+      }
+    }
+    spaceRoom = this.setRoomEnabled(spaceRoom.getRoomId(), enabled);
+    return spaceRoom;
+  }
+
+  /**
+   * Enable or disable a room
+   * @param roomId the ID of the Chat room
+   * @param enabled the status to set:! true for enabled, false for disabled
+   * @return Room the updated room
+   */
+  private Room setRoomEnabled(String roomId, boolean enabled) {
+    return matrixRoomStorage.setRoomEnabled(roomId, enabled);
+  }
+
+  /**
+   * Overrides the rate limits for the current administrator to unlimited
+   * 
+   * @param adminUserId the admin username on Matrix
+   */
+  public void overrideAdminRateLimit(String adminUserId) {
+    try {
+      String currentRateLimits = matrixHttpClient.getOverriddenRateLimitForUser(adminUserId, getMatrixAccessToken());
+      JsonValue currentLimits = new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
+      JsonValue messagePerSecond = currentLimits.getElement("messages_per_second");
+      JsonValue burstCount = currentLimits.getElement("burst_count");
+      if (messagePerSecond == null || burstCount == null || messagePerSecond.getIntValue() > 0 || burstCount.getIntValue() > 0) {
+        // set the messages per second to zero -> unlimited
+        // set the burst count to 0 : No burst count
+        matrixHttpClient.overrideRateLimitForUser(adminUserId, 0, 0, getMatrixAccessToken());
+      }
+    } catch (Exception e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      LOG.error("Could not update the rate limits for the Matrix admin user", e);
+    }
   }
 }
