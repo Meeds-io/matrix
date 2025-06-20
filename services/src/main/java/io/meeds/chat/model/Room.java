@@ -22,13 +22,15 @@ import lombok.Data;
 
 @Data
 public class Room {
-  private long   id;
+  private long    id;
 
-  private String roomId;
+  private String  roomId;
 
-  private String spaceId;
+  private String  spaceId;
 
-  private String firstParticipant;
+  private String  firstParticipant;
 
-  private String secondParticipant;
+  private String  secondParticipant;
+
+  private String  status;
 }

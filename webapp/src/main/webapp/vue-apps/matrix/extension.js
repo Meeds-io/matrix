@@ -1,7 +1,5 @@
 import * as matrixService from './js/MatrixService.js';
 
-export const roomActionComponents = extensionRegistry ? extensionRegistry.loadExtensions('chat', 'chat-drawer-title-action-component') : [];
-
 export function registerChatExtensions(chatTitle) {
   const profileExtensionAction = {
     id: 'profile-matrix-chat',
@@ -10,14 +8,15 @@ export function registerChatExtensions(chatTitle) {
     class: 'fas fa-comments',
     iconOnly: true,
     order: 10,
-    enabled: (identity) => {
+    enabled: async function(identity) {
       if(identity.userName || identity.username) {
         const userMatrixId = identity.properties?.some(property => property.propertyName === 'matrixId') && identity.properties?.find(property => property.propertyName === 'matrixId').value;
         return identity?.enabled && identity.username !== eXo.env.portal.userName
                && localStorage.getItem("matrix_user_id")
                && userMatrixId;
       } else {
-        return true;
+        const room = await matrixService.getSpaceRoom(identity.id);
+        return room.status === 'ENABLED';
       }
     },
     click: (profile) => {
@@ -36,19 +35,29 @@ export function registerChatExtensions(chatTitle) {
 
   if (extensionRegistry) {
     extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
+
+    extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
+      id: 'meeds-chat-space-settings',
+      vueComponent: Vue.options.components['meeds-chat-space-settings'],
+      rank: 10,
+    });
+
+    document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
+
+    extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
+      id: 'matrix-chat-space-popover',
+      isEnabled: async function (params) {
+        const room = await matrixService.getSpaceRoom(params.identityId);
+        return room.status === 'ENABLED';
+      },
+      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      rank: 40,
+    });
+
+    extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
+      id: 'matrix-chat-user-popover',
+      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      rank: 40,
+    });
   }
-
-  document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
-
-  extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
-    id: 'matrix-chat',
-    vueComponent: Vue.options.components['meeds-popover-chat-button'],
-    rank: 40,
-  });
-
-  extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
-    id: 'matrix-chat',
-    vueComponent: Vue.options.components['meeds-popover-chat-button'],
-    rank: 40,
-  });
 }
