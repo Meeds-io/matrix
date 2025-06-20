@@ -419,15 +419,58 @@ class MatrixRestTest {
   }
 
   @SneakyThrows
-  public static final String toJsonString(Object object) {
-    return OBJECT_MAPPER.writeValueAsString(object);
-  }
-
-  @SneakyThrows
   public static final <T> T fromJsonString(String value, Class<T> resultClass) {
     if (StringUtils.isBlank(value)) {
       return null;
     }
     return OBJECT_MAPPER.readValue(value, resultClass);
+  }
+
+  @Test
+  void enableChat() throws Exception {
+    ResultActions response = mockMvc.perform(put(REST_PATH + "/enable/1").with(simpleUser())
+                                                                         .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isForbidden());
+
+    Space space1 = new Space();
+    space1.setId(1);
+    space1.setDisplayName("Space of Heroes");
+    space1.setAvatarUrl("/Url/Of/Avatar.png");
+    space1.setMembers(new String[]{"user1", "user2"});
+    Room room = new Room();
+    room.setRoomId("!testRoom:matrix.meeds.tn");
+    room.setSpaceId("1");
+    when(matrixService.enableSpaceChat(space1, true)).thenReturn(room);
+
+    when(spaceService.getSpaceById("1")).thenReturn(space1);
+    when(spaceService.canManageSpace(space1, SIMPLE_USER)).thenReturn(true);
+
+    response = mockMvc.perform(put(REST_PATH + "/enable/1").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+  }
+
+  @Test
+  void disableChat() throws Exception {
+    ResultActions response = mockMvc.perform(put(REST_PATH + "/disable/1").with(simpleUser())
+                                                                          .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isForbidden());
+
+    Space space1 = new Space();
+    space1.setId(1);
+    space1.setDisplayName("Space of Heroes");
+    space1.setAvatarUrl("/Url/Of/Avatar.png");
+    space1.setMembers(new String[]{"user1", "user2"});
+    Room room = new Room();
+    room.setRoomId("!testRoom:matrix.meeds.tn");
+    room.setSpaceId("1");
+    when(matrixService.enableSpaceChat(space1, false)).thenReturn(room);
+
+    when(spaceService.getSpaceById("1")).thenReturn(space1);
+    when(spaceService.canManageSpace(space1, SIMPLE_USER)).thenReturn(true);
+
+    response = mockMvc.perform(put(REST_PATH + "/disable/1").with(simpleUser())
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
   }
 }

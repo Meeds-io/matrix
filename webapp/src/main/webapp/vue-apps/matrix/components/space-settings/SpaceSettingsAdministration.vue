@@ -40,8 +40,9 @@
             <v-list-item-action>
               <v-switch
                 v-model="spaceChatEnabled"
-                @change="enableDisableChat"
+                @change="enableOrDisableChat"
                 class="pt-5"
+                :title="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)"
                 :aria-label="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)" />
             </v-list-item-action>
           </v-list-item>
@@ -52,13 +53,22 @@
 </template>
 <script>
 export default {
+  props: {
+    spaceId: {
+      type: Object,
+      default: {},
+    }
+  },
   data: () => ({
-    id: `ChatApp${parseInt(Math.random() * 10000)}`,
-    spaceChatEnabled: false,
+    spaceChatEnabled: true,
     displayed: true,
   }),
   created() {
     //check if space's chat is enabled
+    this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
+      this.spaceChatEnabled = room.enabled;
+    });
+
     document.addEventListener('hideSettingsApps', (event) => {
       if (event?.detail && this.id !== event.detail) {
         this.displayed = false;
@@ -73,8 +83,19 @@ export default {
   },
   methods: {
     enableOrDisableChat() {
-      console.log('enable or disable Matrix chat in the space');
-    },
-  }
+      document.dispatchEvent(new CustomEvent('displayTopBarLoading'));
+      this.$matrixService.enableOrDisableChat(this.spaceId, this.spaceChatEnabled).then(room => {
+        this.spaceChatEnabled = room.enabled;
+        this.$root.$emit('alert-message', this.$t('matrix.chat.disable.success'), 'success');
+      }).catch(e => {
+        if(e.message.startsWith('Timeout')) {
+          this.$root.$emit('alert-message', this.$t(`matrix.chat.${this.switchAriaLabel}.inprogress`), 'warning');
+        } else {
+          this.spaceChatEnabled = !this.spaceChatEnabled;
+          this.$root.$emit('alert-message', this.$t('matrix.chat.disable.error', {0: e}), 'error');
+        }
+      }).finally(() => document.dispatchEvent(new CustomEvent('hideTopBarLoading')));
+    }
+  },
 };
 </script>
