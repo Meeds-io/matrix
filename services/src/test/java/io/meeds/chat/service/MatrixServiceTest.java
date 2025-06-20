@@ -1,6 +1,7 @@
 package io.meeds.chat.service;
 
 import io.meeds.chat.MatrixBaseTest;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.model.Room;
@@ -13,6 +14,7 @@ import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
+import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -63,7 +65,9 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   private List<Space>    spacesToDelete = new ArrayList<>();
 
-  private String         matrixRoomId   = "!thisIsACreatedRoom:matrix.exo.tn";
+  private List<String>   roomsToDelete  = new ArrayList<>();
+
+  private String         matrixRoomId   = "!thisIsACreatedRoom:matrix.meeds.tn";
 
   private String         accessToken    = "ThisIsAnAccessToken";
 
@@ -86,7 +90,6 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    getContainer();
     begin();
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
@@ -95,6 +98,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn(accessToken);
 
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
+    when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(true);
     MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
     matrixUserPermission.setUserName("demo");
     matrixUserPermission.setUserRole(MANAGER_ROLE);
@@ -123,15 +127,23 @@ class MatrixServiceTest extends MatrixBaseTest {
         // Nothing to do
       }
     }
+    for (String roomId : roomsToDelete) {
+      try {
+        this.matrixService.deleteRoom(roomId);
+      } catch (Exception e) {
+        // Nothing to do
+      }
+    }
     end();
   }
 
   @Test
   void createRoom() throws Exception {
     Space space = getSpaceInstance(1);
-    String returnedMatrixRoomId = matrixService.createRoom(space);
-    assertNotNull(matrixRoomId);
-    assertEquals(matrixRoomId, returnedMatrixRoomId);
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+    assertNotNull(spaceRoom);
+    roomsToDelete.add(spaceRoom.getRoomId());
+    assertEquals(matrixRoomId, spaceRoom.getRoomId());
   }
 
   private Space getSpaceInstance(int number) {
@@ -142,6 +154,10 @@ class MatrixServiceTest extends MatrixBaseTest {
     space.setDescription("add new space " + number);
     space.setVisibility(Space.PUBLIC);
     space.setRegistration(Space.VALIDATION);
+    Identity spaceIdentity = new Identity();
+    spaceIdentity.setRemoteId(space.getPrettyName());
+    spaceIdentity.setProviderId(SpaceIdentityProvider.NAME);
+    identityStorage.saveIdentity(spaceIdentity);
     Space createdSpace = this.spaceService.createSpace(space, "root");
     String[] managers = new String[] { "demo", "tom" };
     String[] members = new String[] { "demo", "raul", "ghost", "dragon" };
@@ -160,7 +176,7 @@ class MatrixServiceTest extends MatrixBaseTest {
   void updateUserPresence() throws JsonException, IOException, InterruptedException {
     when(matrixHttpClient.setUserPresence(anyString(), anyString(), anyString(), anyString())).thenReturn("online");
 
-    String presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+    String presence = matrixService.updateUserPresence("@user:matrix.meeds.tn", "online", "I am available");
     assertNotNull(presence);
     assertEquals("online", presence);
 
@@ -169,7 +185,7 @@ class MatrixServiceTest extends MatrixBaseTest {
                                           anyString(),
                                           anyString())).thenThrow(new JsonException("Error"));
 
-    presence = matrixService.updateUserPresence("@user:matrix.exo.tn", "online", "I am available");
+    presence = matrixService.updateUserPresence("@user:matrix.meeds.tn", "online", "I am available");
     assertNull(presence);
   }
 
@@ -205,6 +221,7 @@ class MatrixServiceTest extends MatrixBaseTest {
   void getRoomBySpace() throws Exception {
     Space space = getSpaceInstance(1);
     Room room = matrixService.getRoomBySpace(space);
+    roomsToDelete.add(room.getRoomId());
     assertNotNull(room);
     assertEquals(matrixRoomId, room.getRoomId());
   }
@@ -233,6 +250,8 @@ class MatrixServiceTest extends MatrixBaseTest {
   @Test
   void updateRoomAvatar() throws Exception {
     Space space = getSpaceInstance(1);
+    String roomId = matrixService.createRoom(space);
+    roomsToDelete.add(roomId);
     InputStream inputStream = getClass().getClassLoader().getResourceAsStream("meeds.png");
 
     AvatarAttachment attachment = new AvatarAttachment(null, "meeds.png", "image/png", inputStream, System.currentTimeMillis());
@@ -262,20 +281,54 @@ class MatrixServiceTest extends MatrixBaseTest {
     directMessagingRoom.setFirstParticipant("demo");
     directMessagingRoom.setSecondParticipant("raul");
     Room createdRoom = matrixService.createDirectMessagingRoom(directMessagingRoom);
+    roomsToDelete.add(createdRoom.getRoomId());
     assertNotNull(createdRoom);
     assertNotEquals(0, createdRoom.getId());
     assertEquals(directMessagingRoom.getRoomId(), createdRoom.getRoomId());
   }
 
-    @Test
-    void getById() throws Exception {
-      Space space = getSpaceInstance(1);
-      String roomId = matrixService.createRoom(space);
-      assertNotNull(roomId);
-      Room room = matrixService.getById(roomId);
-      assertNotNull(room);
-      String splitRoomId = roomId.substring(0, roomId.indexOf(":"));
-      Room room1 = matrixService.getById(splitRoomId);
-      assertNotNull(room1);
-    }
+  @Test
+  void getById() throws Exception {
+    Space space = getSpaceInstance(1);
+    String roomId = matrixService.createRoom(space);
+    roomsToDelete.add(roomId);
+    assertNotNull(roomId);
+    Room room = matrixService.getById(roomId);
+    assertNotNull(room);
+    String splitRoomId = roomId.substring(0, roomId.indexOf(":"));
+    Room room1 = matrixService.getById(splitRoomId);
+    assertNotNull(room1);
+  }
+
+  @Test
+  void enableSpaceChat() throws Exception {
+    Space space = getSpaceInstance(1);
+    roomsToDelete.add(matrixRoomId);
+    Room room = matrixService.getById(matrixRoomId);
+    assertEquals(room.getStatus(), RoomStatus.ENABLED.name());
+    matrixService.enableSpaceChat(space, false);
+    verify(matrixHttpClient, times(1)).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
+    matrixService.enableSpaceChat(space, true);
+    verify(matrixHttpClient, times(2)).joinUserToRoom(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void overrideAdminRateLimit() throws IOException, InterruptedException {
+    String admin = "admin";
+    when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("""
+                                                                                                          {
+                                                                                                            "messages_per_second": 0,
+                                                                                                            "burst_count": 0
+                                                                                                          }""");
+    matrixService.overrideAdminRateLimit(admin);
+    verify(matrixHttpClient, times(0)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+
+    when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("""
+                                                                                                          {
+                                                                                                            "messages_per_second": 10,
+                                                                                                            "burst_count": 20
+                                                                                                          }""");
+    matrixService.overrideAdminRateLimit(admin);
+    verify(matrixHttpClient, times(1)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+  }
 }

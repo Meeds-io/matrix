@@ -385,10 +385,10 @@ public class MatrixHttpClient {
         String fullMatrixID = userAccount.getElement("name").getStringValue();
         // If the user is a new user, we need to authenticate him
         if (isNew) {
-          String accessTokenOfCreatedUser = authenticateUser(matrixUserId, password);
+          authenticateUser(matrixUserId, password);
           LOG.info("User {} authenticated successfully", user.getRemoteId());
         }
-        return fullMatrixID.substring(1, fullMatrixID.indexOf(":"));
+        return fullMatrixID.contains(":") ? fullMatrixID.substring(1, fullMatrixID.indexOf(":")) : fullMatrixID;
       } else {
         throw new RuntimeException("Error creating a user account, Matrix server returned HTTP %s error %s".formatted(response.statusCode(),
                                                                                                                       response.body()));
@@ -1018,6 +1018,71 @@ public class MatrixHttpClient {
                                                                                                                                      String.valueOf(response.statusCode()),
                                                                                                                                      response.body()));
       }
+    }
+  }
+
+  /**
+   * Overrides the rate limits for a given user
+   * @param userIdOnMatrix the user Id on Matrix
+   * @param messagesPerSecond the allowed number of messages per second
+   * @param burstCount how many actions that can be performed before being limited
+   * @param accessToken the access token
+   * @return String the applied rate limits configuration
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public String overrideRateLimitForUser(String userIdOnMatrix,
+                                          int messagesPerSecond,
+                                          int burstCount,
+                                          String accessToken) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(userIdOnMatrix, StandardCharsets.UTF_8);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/users/" + encodedUserMatrixId
+        + "/override_ratelimit";
+
+    String payload = """
+        {
+          "messages_per_second": %s,
+          "burst_count": %s
+        }
+        """.formatted(messagesPerSecond, burstCount);
+
+    HttpResponse<String> response = sendHttpPostRequest(url, accessToken, payload);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return response.body();
+    } else {
+      throw new RuntimeException("Error overriding the rate limits for the user %s ,Matrix server returned HTTP %s error %s".formatted(userIdOnMatrix,
+                                                                                                                                       String.valueOf(response.statusCode()),
+                                                                                                                                       response.body()));
+    }
+  }
+
+  /**
+   * Gets the overridden the rate limits for a given user
+   * @param userIdOnMatrix the user Id on Matrix
+   * @param accessToken the access token
+   * @return String the applied rate limits configuration
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public String getOverriddenRateLimitForUser(String userIdOnMatrix, String accessToken) throws IOException,
+                                                                                         InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(userIdOnMatrix, StandardCharsets.UTF_8);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/users/" + encodedUserMatrixId
+        + "/override_ratelimit";
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return response.body();
+    } else {
+      throw new RuntimeException("Error overriding the rate limits for the user %s ,Matrix server returned HTTP %s error %s".formatted(userIdOnMatrix,
+                                                                                                                                       String.valueOf(response.statusCode()),
+                                                                                                                                       response.body()));
     }
   }
 }
