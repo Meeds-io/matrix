@@ -64,6 +64,8 @@ public class RoomEntity implements Serializable {
 
   private boolean      external;
 
+  private boolean      enabled;
+
   private List<Member> members;
 
 }

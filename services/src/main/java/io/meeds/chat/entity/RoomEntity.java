@@ -49,6 +49,9 @@ public class RoomEntity implements Serializable {
   @Column(name = "SECOND_PARTICIPANT")
   public String             secondParticipant;
 
+  @Column(name = "ENABLED")
+  public boolean             enabled = true;
+
 
 
   public Long getId() {
@@ -89,5 +92,13 @@ public class RoomEntity implements Serializable {
 
   public void setSecondParticipant(String secondParticipant) {
     this.secondParticipant = secondParticipant;
+  }
+
+  public boolean isEnabled() {
+    return enabled;
+  }
+
+  public void setEnabled(boolean enabled) {
+    this.enabled = enabled;
   }
 }

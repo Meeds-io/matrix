@@ -1390,3 +1390,24 @@ function getFormattedMessageBody(targetMessage) {
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+export function enableOrDisableChat(spaceId, enable) {
+  if(!spaceId) {
+    console.warn('the space Id parameter should not be null');
+    return;
+  }
+  let statusChange = enable && 'enable' || 'disable';
+  return fetch(`/matrix/rest/matrix/${statusChange}/${spaceId}`, {
+    method: 'PUT',
+    credentials: 'include',
+  }).then(resp => {
+    if (!resp?.ok) {
+      if(resp.status === 504) {
+        throw new Error('Timeout : operation is still in progress');
+      } else {
+        throw new Error(`Error while ${enable ? 'enabling' : 'disabling'} the chat on this space : response status = ${resp.status}`);
+      }
+    }
+    return resp.json();
+  });
+}
