@@ -45,15 +45,21 @@
         </v-btn>
         <v-menu
           v-if="displayEditMenu"
-          class="message-action-menu border-radius-8"
-          :nudge-right="-97"
-          :nudge-top="-8"
+          v-model="showMoreActions"
+          content-class="l-auto r-0 border-radius-8"
+          :attach="`#message${message.origin_server_ts}`"
+          :top="openOnTop"
+          :nudge-top="openOnTop && 28 || -14"
+          absolute
           open-on-click
           close-on-content-click
+          offset-x
           offset-y>
-          <template v-slot:activator="{ on }">
+          <template #activator="{ on, attrs }">
             <v-btn
+              ref="activator"
               v-on="on"
+              v-bind="attrs"
               width="28"
               height="28"
               min-width="28"
@@ -63,7 +69,7 @@
               @touchend.stop="0"
               @mousedown.stop="0"
               @mouseup.stop="0"
-              @click.prevent.stop="openMenu">
+              @click.prevent.stop>
               <v-icon
                 size="16"
                 class="icon-default-color">
@@ -117,21 +123,39 @@ export default {
   data() {
     return {
       showMoreActions: false,
+      openOnTop: false
     };
   },
   computed: {
     displayEditMenu() {
       return matrixUserId === this.message.sender && this.message.content.msgtype === 'm.text';
+    },
+  },
+  watch: {
+    showMoreActions() {
+      if (this.showMoreActions) {
+        this.$root.$emit('message-child-menu-opened');
+        this.adjustMenuPosition();
+      } else {
+        this.$root.$emit('message-child-menu-closed');
+      }
     }
   },
   methods: {
-    openMenu() {
-      if(!this.showMoreActions) {
-        this.$root.$emit('open-message-child-menu');
-      } else {
-        this.$root.$emit('close-message-child-menu');
-      }
-      this.showMoreActions = !this.showMoreActions;
+    adjustMenuPosition() {
+      this.$nextTick(() => {
+        const activator = this.$refs.activator.$el;
+        if (!activator) {
+          return;
+        }
+        const activatorRect = activator.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - activatorRect.bottom;
+        const spaceAbove = activatorRect.top;
+        const estimatedMenuHeight = 140;
+
+        this.openOnTop = spaceBelow < estimatedMenuHeight && spaceAbove > estimatedMenuHeight;
+      });
     },
     handleEditMessage() {
       this.$root.$emit('close-message-child-menu');
