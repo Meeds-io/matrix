@@ -71,8 +71,7 @@
           v-show="messages && !loading"
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
-          @scroll="loadMoreMessages"
-          @click="forceCloseMenus">
+          @scroll="loadMoreMessages">
           <meeds-chat-message
             :id="`chat-message-${i}`"
             :ref="`chat-message-${i}`"
@@ -735,9 +734,6 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
-    },
-    forceCloseMenus() {
-      this.$root.$emit('force-close-message-menu');
     }
   },
 };

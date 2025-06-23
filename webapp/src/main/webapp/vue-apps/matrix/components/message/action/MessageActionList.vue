@@ -45,14 +45,18 @@
         </v-btn>
         <v-menu
           v-if="displayEditMenu"
-          class="message-action-menu border-radius-8"
-          :nudge-right="-97"
-          :nudge-top="-8"
+          v-model="showMoreActions"
+          content-class="message-action-menu border-radius-8"
+          :attach="`#message${message.origin_server_ts}`"
+          :top="openOnTop"
+          :nudge-top="openOnTop && 30 || 18"
+          :nudge-right="42"
           open-on-click
           close-on-content-click
           offset-y>
           <template v-slot:activator="{ on }">
             <v-btn
+              ref="activator"
               v-on="on"
               width="28"
               height="28"
@@ -117,6 +121,7 @@ export default {
   data() {
     return {
       showMoreActions: false,
+      openOnTop: false
     };
   },
   computed: {
@@ -124,14 +129,37 @@ export default {
       return matrixUserId === this.message.sender && this.message.content.msgtype === 'm.text';
     }
   },
+  watch: {
+    showMoreActions() {
+      if (!this.showMoreActions) {
+        this.$root.$emit('close-message-child-menu');
+      }
+    }
+  },
   methods: {
     openMenu() {
-      if(!this.showMoreActions) {
+      if (!this.showMoreActions) {
         this.$root.$emit('open-message-child-menu');
+        this.adjustMenuPosition();
       } else {
         this.$root.$emit('close-message-child-menu');
       }
-      this.showMoreActions = !this.showMoreActions;
+    },
+    adjustMenuPosition() {
+      this.$nextTick(() => {
+        const activator = this.$refs.activator.$el;
+        if (!activator) {
+          return;
+        }
+        const activatorRect = activator.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - activatorRect.bottom;
+        const spaceAbove = activatorRect.top;
+        const estimatedMenuHeight = 140;
+
+        console.log(spaceBelow, estimatedMenuHeight, spaceAbove)
+        this.openOnTop = spaceBelow < estimatedMenuHeight && spaceAbove > estimatedMenuHeight;
+      });
     },
     handleEditMessage() {
       this.$root.$emit('close-message-child-menu');
