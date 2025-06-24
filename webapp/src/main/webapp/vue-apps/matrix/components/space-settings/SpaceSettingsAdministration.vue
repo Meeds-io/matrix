@@ -39,11 +39,18 @@
             </v-list-item-content>
             <v-list-item-action>
               <v-switch
+                v-show="!displayLoading"
                 v-model="spaceChatEnabled"
-                @change="enableOrDisableChat"
+                @change="enableOrDisableChat(!spaceChatEnabled)"
                 class="pt-5"
                 :title="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)"
                 :aria-label="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)" />
+              <v-progress-circular
+                v-show="displayLoading"
+                color="primary"
+                size="32"
+                indeterminate
+                class="my-auto" />
             </v-list-item-action>
           </v-list-item>
         </v-list>
@@ -60,13 +67,21 @@ export default {
     }
   },
   data: () => ({
-    spaceChatEnabled: true,
+    spaceChatStatus: 'ENABLED',
     displayed: true,
+    progress: true,
+    updateInterval: 0,
   }),
   created() {
     //check if space's chat is enabled
     this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
-      this.spaceChatEnabled = room.enabled;
+      this.spaceChatStatus = room.status;
+      if(room.status === 'ENABLED' || room.status === 'DISABLED') {
+        this.progress = false;
+      } else {
+        this.progress = true;
+        this.startCheckingStatus();
+      }
     });
 
     document.addEventListener('hideSettingsApps', (event) => {
@@ -78,23 +93,42 @@ export default {
   },
   computed: {
     switchAriaLabel() {
-      return this.spaceChatEnabled && 'disable' || 'enable';
+      return this.spaceChatStatus === 'ENABLED' && 'disable' || 'enable';
     },
+    spaceChatEnabled() {
+      return this.spaceChatStatus !== 'DISABLED';
+    },
+    roomEnabled() {
+      return this.spaceChatStatus === 'ENABLED';
+    },
+    roomDisabled() {
+      return this.spaceChatStatus === 'DISABLED';
+    },
+    displayLoading() {
+      return this.progress || this.spaceChatStatus === 'DISABLE_IN_PROGRESS' || this.spaceChatStatus === 'ENABLE_IN_PROGRESS';
+    }
   },
   methods: {
-    enableOrDisableChat() {
-      document.dispatchEvent(new CustomEvent('displayTopBarLoading'));
-      this.$matrixService.enableOrDisableChat(this.spaceId, this.spaceChatEnabled).then(room => {
-        this.spaceChatEnabled = room.enabled;
-        this.$root.$emit('alert-message', this.$t('matrix.chat.disable.success'), 'success');
+    enableOrDisableChat(status) {
+      this.progress = true;
+      this.$matrixService.enableOrDisableChat(this.spaceId, status).then(() => {
+        this.startCheckingStatus();
       }).catch(e => {
-        if(e.message.startsWith('Timeout')) {
-          this.$root.$emit('alert-message', this.$t(`matrix.chat.${this.switchAriaLabel}.inprogress`), 'warning');
-        } else {
-          this.spaceChatEnabled = !this.spaceChatEnabled;
-          this.$root.$emit('alert-message', this.$t('matrix.chat.disable.error', {0: e}), 'error');
-        }
-      }).finally(() => document.dispatchEvent(new CustomEvent('hideTopBarLoading')));
+        this.$root.$emit('alert-message', this.$t(`matrix.chat.${status}.error`, {0: e}), 'error');
+        this.progress = false;
+      });
+    },
+    startCheckingStatus() {
+      this.updateInterval = setInterval(() => {
+       this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
+         this.spaceChatStatus = room.status;
+         if(room.status === 'ENABLED' || room.status === 'DISABLED') {
+           this.progress = false;
+           this.$root.$emit('alert-message', this.$t(`matrix.chat.${room.status === 'ENABLED' && 'enable' || 'disable'}.success`), 'success');
+           clearInterval(this.updateInterval);
+         }
+       });
+     }, 3000);
     }
   },
 };

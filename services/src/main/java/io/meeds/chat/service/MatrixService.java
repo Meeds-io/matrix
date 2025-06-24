@@ -20,6 +20,7 @@ package io.meeds.chat.service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.utils.MatrixHttpClient;
@@ -108,7 +109,6 @@ public class MatrixService {
     try {
       this.getMatrixAccessToken();
 
-
       String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
           + PropertyManager.getProperty(MATRIX_SERVER_NAME);
       this.overrideAdminRateLimit(userFullMatrixID);
@@ -169,6 +169,7 @@ public class MatrixService {
   public Room getRoomBySpace(Space space, boolean includeDisabled) {
     return getRoomBySpaceId(space.getId(), includeDisabled);
   }
+
   /**
    * Returns the ID of the room linked to a space
    *
@@ -178,6 +179,7 @@ public class MatrixService {
   public Room getRoomBySpaceId(String spaceId) {
     return this.getRoomBySpaceId(spaceId, false);
   }
+
   /**
    * Returns the ID of the room linked to a space
    *
@@ -270,6 +272,7 @@ public class MatrixService {
 
   /**
    * Saves a new user on Matrix
+   * 
    * @param user the user identity
    * @param isNew if the user has been just created
    * @return the matrix user ID
@@ -277,8 +280,7 @@ public class MatrixService {
    * @throws IOException
    * @throws InterruptedException
    */
-  public String saveUserAccount(Identity user,
-                                boolean isNew) throws JsonException, IOException, InterruptedException {
+  public String saveUserAccount(Identity user, boolean isNew) throws JsonException, IOException, InterruptedException {
     return saveUserAccount(user, isNew, false, true);
   }
 
@@ -504,6 +506,7 @@ public class MatrixService {
     }
     return fullMatrixUserId;
   }
+
   /**
    * Extracts the room ID from the full room Id on Matrix
    *
@@ -554,9 +557,10 @@ public class MatrixService {
    * Enable the chat for the space
    *
    * @param space the space where the chat will be disabled/enabled
+   * @param enable true to enable the room, false to disable it
    * @return Room the updated room
    */
-  public Room enableSpaceChat(Space space, boolean enabled) throws ObjectNotFoundException {
+  public Room enableSpaceChat(Space space, boolean enable) throws ObjectNotFoundException {
     if (space == null) {
       throw new IllegalArgumentException("The space should not be null");
     }
@@ -565,38 +569,49 @@ public class MatrixService {
       throw new ObjectNotFoundException("Could not find a chat room for the space " + space.getDisplayName());
     }
     String matrixAdminUsername = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    for (String member : space.getMembers()) {
-      String matrixIdOfMember = getMatrixIdForUser(member);
-      if (!matrixAdminUsername.equals(matrixIdOfMember)) {
-        try {
-          if (enabled) {
-            joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
-          } else {
-            kickUserFromRoom(spaceRoom.getRoomId(),
-                    matrixIdOfMember,
-                    "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
-                            member));
+
+    RoomStatus currentRoomStatus = RoomStatus.valueOf(spaceRoom.getStatus());
+    this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLE_IN_PROGRESS : RoomStatus.DISABLED_IN_PROGRESS);
+    try {
+      for (String member : space.getMembers()) {
+        String matrixIdOfMember = getMatrixIdForUser(member);
+        if (!matrixAdminUsername.equals(matrixIdOfMember)) {
+          try {
+            if (enable) {
+              joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
+            } else {
+              kickUserFromRoom(spaceRoom.getRoomId(),
+                      matrixIdOfMember,
+                      "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
+                              member));
+            }
+          } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+              Thread.currentThread().interrupt();
+            }
+            LOG.error("couldn't invite / remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
           }
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          LOG.error("couldn't remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
-        } catch (Exception e) {
-          LOG.error("couldn't remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
         }
       }
+      spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLED : RoomStatus.DISABLED);
+    } catch (Exception e) {
+      // reset room to original status
+      spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), currentRoomStatus);
+      LOG.error("An error occurred when enabling/disabling the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
     }
-    spaceRoom = this.setRoomEnabled(spaceRoom.getRoomId(), enabled);
     return spaceRoom;
   }
 
   /**
    * Enable or disable a room
+   * 
    * @param roomId the ID of the Chat room
-   * @param enabled the status to set:! true for enabled, false for disabled
+   * @param status the status to set: ENABLED, DISABLED, ENABLE_IN_PROGRESS,
+   *          DISABLED_IN_PROGRESS
    * @return Room the updated room
    */
-  private Room setRoomEnabled(String roomId, boolean enabled) {
-    return matrixRoomStorage.setRoomEnabled(roomId, enabled);
+  private Room changeRoomStatus(String roomId, RoomStatus status) {
+    return matrixRoomStorage.setRoomEnabled(roomId, status);
   }
 
   /**

@@ -1402,6 +1402,5 @@ export function enableOrDisableChat(spaceId, enable) {
         throw new Error(`Error while ${enable ? 'enabling' : 'disabling'} the chat on this space : response status = ${resp.status}`);
       }
     }
-    return resp.json();
   });
 }
