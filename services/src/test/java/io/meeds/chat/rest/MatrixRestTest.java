@@ -441,6 +441,7 @@ class MatrixRestTest {
     room.setRoomId("!testRoom:matrix.meeds.tn");
     room.setSpaceId("1");
     when(matrixService.enableSpaceChat(space1, true)).thenReturn(room);
+    when(matrixService.getRoomBySpace(space1, true)).thenReturn(room);
 
     when(spaceService.getSpaceById("1")).thenReturn(space1);
     when(spaceService.canManageSpace(space1, SIMPLE_USER)).thenReturn(true);
@@ -465,6 +466,7 @@ class MatrixRestTest {
     room.setRoomId("!testRoom:matrix.meeds.tn");
     room.setSpaceId("1");
     when(matrixService.enableSpaceChat(space1, false)).thenReturn(room);
+    when(matrixService.getRoomBySpace(space1, true)).thenReturn(room);
 
     when(spaceService.getSpaceById("1")).thenReturn(space1);
     when(spaceService.canManageSpace(space1, SIMPLE_USER)).thenReturn(true);

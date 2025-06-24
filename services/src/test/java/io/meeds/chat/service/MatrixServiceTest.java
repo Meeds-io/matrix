@@ -1,6 +1,7 @@
 package io.meeds.chat.service;
 
 import io.meeds.chat.MatrixBaseTest;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.model.Room;
@@ -304,7 +305,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     Space space = getSpaceInstance(1);
     roomsToDelete.add(matrixRoomId);
     Room room = matrixService.getById(matrixRoomId);
-    assertTrue(room.isEnabled());
+    assertEquals(room.getStatus(), RoomStatus.ENABLED.name());
     matrixService.enableSpaceChat(space, false);
     verify(matrixHttpClient, times(1)).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
     matrixService.enableSpaceChat(space, true);

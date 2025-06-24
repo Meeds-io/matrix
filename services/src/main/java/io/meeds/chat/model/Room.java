@@ -32,5 +32,5 @@ public class Room {
 
   private String  secondParticipant;
 
-  private boolean enabled;
+  private String  status;
 }

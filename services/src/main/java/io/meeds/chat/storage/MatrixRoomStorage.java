@@ -19,6 +19,7 @@
 package io.meeds.chat.storage;
 
 import io.meeds.chat.dao.MatrixRoomDAO;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.entity.RoomEntity;
 import org.apache.commons.lang3.StringUtils;
@@ -44,7 +45,8 @@ public class MatrixRoomStorage {
 
   public Room getMatrixRoomBySpaceId(String spaceId, boolean includeDisabled) {
     RoomEntity roomEntity = matrixRoomDAO.findBySpaceId(spaceId);
-    if (roomEntity != null && (roomEntity.isEnabled() || includeDisabled && !roomEntity.isEnabled())) {
+    if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
+        || includeDisabled)) {
       return toRoomModel(roomEntity);
     } else {
       LOG.warn("Can not find an associated matrix room for the space with ID {}", spaceId);
@@ -99,7 +101,8 @@ public class MatrixRoomStorage {
 
   public Room getById(String roomId, boolean includeDisabled) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomIdStartsWith(roomId);
-    if(roomEntity != null && (roomEntity.isEnabled() || (includeDisabled && !roomEntity.isEnabled()))) {
+    if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
+        || (includeDisabled && roomEntity.getStatus().equals(RoomStatus.DISABLED)))) {
       return toRoomModel(roomEntity);
     }
     return null;
@@ -118,7 +121,7 @@ public class MatrixRoomStorage {
     room.setSpaceId(roomEntity.getSpaceId());
     room.setFirstParticipant(roomEntity.getFirstParticipant());
     room.setSecondParticipant(roomEntity.getSecondParticipant());
-    room.setEnabled(roomEntity.isEnabled());
+    room.setStatus(roomEntity.getStatus().name());
     return room;
   }
 
@@ -128,18 +131,19 @@ public class MatrixRoomStorage {
    * @return List of SpaceRoom
    */
   public List<Room> getSpaceRooms() {
-    return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNullAndEnabledTrue());
+    return toRoomList(matrixRoomDAO.findBySpaceIdIsNotNullAndStatusIs(RoomStatus.ENABLED));
   }
 
   /**
    * Enable or disable a room
+   * 
    * @param roomId the ID of the Chat room
-   * @param enabled the status to set:! true for enabled, false for disabled
+   * @param status the status to set: ENABLE, DISABLED, ENABLE_IN6PROGRESS, DISABLE_IN_PROGRESS
    * @return the updated room
    */
-  public Room setRoomEnabled(String roomId, boolean enabled) {
+  public Room setRoomEnabled(String roomId, RoomStatus status) {
     RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
-    roomEntity.setEnabled(enabled);
+    roomEntity.setStatus(status);
     return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 }
