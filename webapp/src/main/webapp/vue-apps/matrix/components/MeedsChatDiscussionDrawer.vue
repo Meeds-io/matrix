@@ -71,8 +71,7 @@
           v-show="messages && !loading"
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
-          @scroll="loadMoreMessages"
-          @click="forceCloseMenus">
+          @scroll="loadMoreMessages">
           <meeds-chat-message
             :id="`chat-message-${i}`"
             :ref="`chat-message-${i}`"
@@ -122,7 +121,7 @@
               :placeholder="$t('matrix.chat.message.label')"
               ref="messageComposerArea"
               contenteditable="true"
-              class="meeds-chat-composer text-break no-border input-placeholder border-box-sizing ps-3 pe-1 py-2"
+              class="meeds-chat-composer specific-scrollbar text-break no-border input-placeholder border-box-sizing ps-3 pe-1 py-2"
               @keypress.enter.prevent
               @keydown.enter="checkIfMentioning"
               @keydown.enter.prevent="sendMessageWithEnter"
@@ -735,9 +734,6 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
-    },
-    forceCloseMenus() {
-      this.$root.$emit('force-close-message-menu');
     }
   },
 };

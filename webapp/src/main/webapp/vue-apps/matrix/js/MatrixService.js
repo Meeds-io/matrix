@@ -339,6 +339,7 @@ export async function processEvents(response) {
 
 export async function toRoomObject(rooms, currentMemberId) {
   let myRooms = {rooms: [], totalUnreadMessages: 0};
+  const roomMap = new Map();
 
   for (const roomId in rooms) {
     const roomData = rooms[roomId];
@@ -416,8 +417,13 @@ export async function toRoomObject(rooms, currentMemberId) {
     roomItem.avatarUrl = roomItem.avatarUrl || DEFAULT_ROOM_AVATAR;
     roomItem.updated = roomItem.updated || roomItem.created || Date.now();
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
-    myRooms.rooms.push(roomItem);
+
+    const existing = roomMap.get(roomId);
+    if (!existing || existing.updated < roomItem.updated) {
+      roomMap.set(roomId, roomItem);
+    }
   }
+  myRooms.rooms = Array.from(roomMap.values());
   return myRooms;
 }
 
