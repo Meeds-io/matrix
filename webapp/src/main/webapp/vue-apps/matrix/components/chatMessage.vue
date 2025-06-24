@@ -24,9 +24,8 @@
         'mb-1': nextMessage
       }"
     @mouseleave="!isMobile && closeMenu()"
-    @mouseenter="!isMobile && openMenu()"
-    @click="openMenu">
-    <div
+    @mouseenter="!isMobile && openMenu()">
+  <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
       :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
@@ -45,6 +44,7 @@
           :room="room"
           :sender-id="message.sender" />
         <div
+          :id="`message${message.origin_server_ts}`"
           class="message-container full-width position-relative"
           :class="{
             'ms-4': !isMyMessage && !room.directChat,
@@ -136,7 +136,7 @@
         defaultThumbnailMaxHeight: 275,
         menu: false,
         parentMenu: false,
-        childMenu: ''
+        childMenu: null
       };
     },
     created() {
@@ -148,18 +148,14 @@
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
-      this.$root.$on('close-message-menu', this.closeMenu);
-      this.$root.$on('close-message-child-menu', this.closeChildMenu);
-      this.$root.$on('open-message-child-menu', this.openChildMenu);
-      this.$root.$on('force-close-message-menu', this.forceCloseMenu);
+      this.$root.$on('message-child-menu-closed', this.closeChildMenu);
+      this.$root.$on('message-child-menu-opened', this.openChildMenu);
     },
     beforeDestroy() {
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
-      this.$root.$off('close-message-menu', this.closeMenu);
-      this.$root.$off('close-message-child-menu', this.closeChildMenu);
-      this.$root.$off('open-message-child-menu', this.openChildMenu);
-      this.$root.$off('force-close-message-menu', this.forceCloseMenu);
+      this.$root.$off('message-child-menu-opened', this.openChildMenu);
+      this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
     computed: {
       displaySender() {
@@ -290,13 +286,13 @@
         this.message.reactions = Array.from(map.values());
       },
       openMenu() {
-        if(this.childMenu === '') {
+        if (!this.childMenu) {
           this.parentMenu = true;
         }
       },
       closeMenu() {
-        if(this.childMenu !== this.message.event_id) {
-          this.childMenu = '';
+        if (this.childMenu !== this.message.event_id) {
+          this.childMenu = null;
           this.parentMenu = false;
         }
       },
@@ -304,11 +300,7 @@
         this.childMenu = this.message.event_id;
       },
       closeChildMenu() {
-        this.childMenu = '';
-      },
-      forceCloseMenu() {
-        this.childMenu = '';
-        this.parentMenu = false;
+        this.childMenu = null;
       }
     }
   }
