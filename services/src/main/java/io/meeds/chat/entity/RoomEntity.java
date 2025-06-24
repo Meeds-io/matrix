@@ -49,10 +49,9 @@ public class RoomEntity implements Serializable {
   @Column(name = "SECOND_PARTICIPANT")
   public String             secondParticipant;
 
-  @Column(name = "ENABLED")
-  public boolean             enabled = true;
-
-
+  @Enumerated(EnumType.ORDINAL)
+  @Column(name = "STATUS")
+  public RoomStatus         status           = RoomStatus.ENABLED;
 
   public Long getId() {
     return id;
@@ -94,11 +93,11 @@ public class RoomEntity implements Serializable {
     this.secondParticipant = secondParticipant;
   }
 
-  public boolean isEnabled() {
-    return enabled;
+  public RoomStatus getStatus() {
+    return status;
   }
 
-  public void setEnabled(boolean enabled) {
-    this.enabled = enabled;
+  public void setStatus(RoomStatus status) {
+    this.status = status;
   }
 }
