@@ -240,10 +240,20 @@
           this.loading = false;
         });
       },
-      openRoom(roomId) {
+      addRoomIfNotExists(room) {
+        if (!room?.id) {
+          return;
+        }
+        const exists = this.rooms?.some(r => r.id === room.id);
+        if (!exists) {
+          this.rooms.push(room);
+        }
+      },
+      openRoom(room) {
+        this.addRoomIfNotExists(room);
         this.openDrawer();
         setTimeout(() => {
-          this.$root.$emit("open-chat-discussion", roomId);
+          this.$root.$emit("open-chat-discussion", room);
         }, 100);
       },
       sendMessageStatistics(message, room) {

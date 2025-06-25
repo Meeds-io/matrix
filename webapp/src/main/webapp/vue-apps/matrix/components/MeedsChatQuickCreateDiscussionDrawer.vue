@@ -21,26 +21,44 @@
     right
     @closed="close">
     <template slot="title">
-      <span class="PopupTitle"> <v-icon left @click="close">mdi-arrow-left</v-icon>{{ $t('matrix.chat.quick.create.discussion') }}</span>
+      <span class="d-flex my-auto text-header-title font-weight-bold text-color">
+        <v-icon
+          size="18"
+          class="icon-default-color icon-default-size"
+          left
+          @click="close">fas fa-arrow-left
+        </v-icon>
+        {{ $t('matrix.chat.quick.create.discussion') }}
+      </span>
     </template>
     <template slot="content">
-      <v-form ref="QuickCreateRoom" id="QuickCreateRoom" class="px-2 ms-2 mt-5">
+      <v-form
+        id="QuickCreateRoom"
+        ref="QuickCreateRoom"
+        class="px-2 ms-2 mt-5">
         <div class="d-flex flex-column flex-grow-1">
           <div class="d-flex flex-column mb-2">
-            <label class="d-flex flex-row font-weight-bold my-2">{{ $t('matrix.chat.quick.create.discussion.add.people') }}</label>
+            <label class="d-flex flex-row font-weight-bold">
+              {{ $t('matrix.chat.quick.create.discussion.add.people') }}
+            </label>
             <div class="d-flex flex-row">
               <v-flex class="user-suggester text-truncate">
                 <exo-identity-suggester
                   ref="invitedPeopleAutoCompleteToRoom"
                   v-model="participant"
-                  :multiple="false"
+                  :multiple="canCreatePrivateRooms"
                   :search-options="{}"
                   :labels="suggesterLabels"
                   include-users />
               </v-flex>
             </div>
-            <div class="caption font-weight-light ps-1 muted font-italic">
-                <span class="mr-2"><v-icon small>info</v-icon></span>{{ $t('matrix.chat.quick.create.discussion.info') }}.
+            <div
+              v-if="!canCreatePrivateRooms"
+              class="caption font-weight-light ps-1 muted font-italic">
+                <span class="mr-2">
+                  <v-icon small>info</v-icon>
+                  {{ $t('matrix.chat.quick.create.discussion.info') }}.
+                </span>
             </div>
           </div>
         </div>
@@ -55,6 +73,7 @@
         </v-btn>
         <v-btn
           :disabled="disabledSaveButton"
+          :loading="loading"
           class="btn btn-primary"
           @click="quickCreateChatDiscussion">
           {{ $t('matrix.chat.quick.discussion.add') }}
@@ -69,9 +88,17 @@ export default {
   data() {
     return {
       participant: null,
+      loading: false,
+      spaceCircleTemplate: null
     };
   },
   computed: {
+    canCreatePrivateRooms() {
+      return !!this.spaceCircleTemplate;
+    },
+    invitedSpaceMembers() {
+      return this.participant?.length > 1 && this.participant || null;
+    },
     suggesterLabels() {
       return {
         placeholder: this.$t('matrix.chat.team.help'),
@@ -81,8 +108,8 @@ export default {
       return !this.participant;
     }
   },
-
   created() {
+    this.checkCanCreatePrivateRooms();
     this.$root.$on(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
   },
   beforeDestroy() {
@@ -97,17 +124,51 @@ export default {
       this.participant = null;
       this.$refs.QuickCreateDiscussionDrawer.close();
     },
-    quickCreateChatDiscussion() {
-      const remoteId = this.participant.remoteId;
-      if (remoteId) {
-        this.close();
-        this.$matrixService.getParticipantInfo(remoteId).then(participant => {
+    createPrivateRoom() {
+      this.loading = true
+      const space = {
+        invitedMembers: this.invitedSpaceMembers,
+        subscription: this.spaceCircleTemplate.spaceDefaultRegistration?.toLowerCase?.(),
+        visibility: this.spaceCircleTemplate.spaceDefaultVisibility?.toLowerCase?.(),
+        templateId: this.spaceCircleTemplate.id
+      };
+      this.$spaceService.createSpace(space).then((createdSpace) => {
+        this.openChatRoom(createdSpace.id, true);
+      }).finally(() => this.loading = false );
+    },
+    openChatRoom(id, space) {
+      if (!space) {
+        this.$matrixService.getParticipantInfo(id).then(participant => {
           if (participant?.matrixId) {
-            this.$matrixService.openDMRoom(eXo.env.portal.userName, remoteId, matrixServerName,
-              matrixUserId, participant.matrixId);
+            this.$matrixService.openDMRoom(eXo.env.portal.userName, id, matrixServerName,
+                matrixUserId, participant.matrixId);
           }
         })
+      } else {
+        this.$matrixService.openSpaceRoom(id)
       }
+      this.close();
+    },
+    quickCreateChatDiscussion() {
+      if (this.invitedSpaceMembers) {
+        this.createPrivateRoom();
+        return;
+      }
+      const remoteId = Array.isArray(this.participant) && this.participant[0].remoteId
+                                                       || this.participant.remoteId;
+      this.openChatRoom(remoteId);
+    },
+    checkCanCreatePrivateRooms() {
+      this.$spaceTemplateService.getSpaceTemplates(false).then(templates => {
+        const circleTemplate = templates?.find?.(template => template.system && template.layout === 'circle');
+        if (circleTemplate) {
+          this.$spaceTemplateService.canCreateSpaceWithTemplate(circleTemplate.id).then(data => {
+            if (data?.canCreate) {
+              this.spaceCircleTemplate = circleTemplate;
+            }
+          });
+        }
+      });
     }
   }
 };
