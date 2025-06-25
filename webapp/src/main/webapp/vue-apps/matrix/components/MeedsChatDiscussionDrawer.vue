@@ -548,23 +548,23 @@ export default {
           }
         };
       }
-      if(!this.messageToEdit) {
+      if (!this.messageToEdit) {
         this.$matrixService.sendMessage(message, this.room.id);
         this.$root.$emit('message-sent-statistics', message, this.room);
       } else {
         message['m.new_content'] = {
-                                     'msgtype': 'm.text',
-                                     'body': message.body,
-                                     'm.mentions': message['m.mentions'] || {}
-                                   };
-        if(message.formatted_body) {
+          'msgtype': 'm.text',
+          'body': message.body,
+          'm.mentions': message['m.mentions'] || {}
+        };
+        if (message.formatted_body) {
           message['m.new_content'].formatted_body = message.formatted_body;
           message['m.new_content'].format = message.format;
         }
         message['m.relates_to'] = {
-                                    'rel_type': 'm.replace',
-                                    'event_id': this.messageToEdit.event_id
-                                  }
+          'rel_type': 'm.replace',
+          'event_id': this.messageToEdit.event_id
+        }
         this.$matrixService.sendMessage(message, this.room.id);
       }
       this.resetComposer();
@@ -705,7 +705,6 @@ export default {
       $messageSuggestor.suggester(suggesterData);
     },
     editMessage(message) {
-      this.$root.$emit('close-message-child-menu');
       const composerArea = this.$refs.messageComposerArea;
       this.targetReplyMessage = null;
       this.messageToEdit = message;
