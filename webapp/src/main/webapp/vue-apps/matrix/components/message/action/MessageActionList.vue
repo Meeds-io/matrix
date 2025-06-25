@@ -44,7 +44,7 @@
           </v-icon>
         </v-btn>
         <v-menu
-          v-if="displayEditMenu"
+          v-if="isMyMessage"
           v-model="showMoreActions"
           content-class="l-auto r-0 border-radius-8"
           :attach="`#message${message.origin_server_ts}`"
@@ -79,6 +79,7 @@
           </template>
           <v-list class="py-1">
             <v-list-item
+              v-if="isText"
               class="chat-action-menu-item"
               :title="$t('matrix.chat.label.editMessage')"
               :aria-label="$t('matrix.chat.label.editMessage')"
@@ -119,6 +120,10 @@ export default {
       type: Object,
       default: {},
     },
+    isMyMessage: {
+      type: Boolean,
+      default: false
+    }
   },
   data() {
     return {
@@ -127,8 +132,8 @@ export default {
     };
   },
   computed: {
-    displayEditMenu() {
-      return matrixUserId === this.message.sender && this.message.content.msgtype === 'm.text';
+    isText() {
+      return this.message.content.msgtype === 'm.text';
     },
   },
   watch: {

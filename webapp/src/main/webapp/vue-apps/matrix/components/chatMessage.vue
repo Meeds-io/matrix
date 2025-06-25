@@ -54,7 +54,7 @@
             :disabled="isRedacted"
             v-model="parentMenu"
             :offset-x="isMyMessage"
-            :nudge-right="nudgeRight"
+            :nudge-right="isMyMessage && -276 || 20"
             :close-on-content-click="false"
             :nudge-top="-10"
             content-class="no-min-width border-radius-8"
@@ -81,6 +81,7 @@
             <message-action-list
               ref="actionList"
               :message="message"
+              :is-my-message="isMyMessage"
               @reply="$emit('reply', message)"
               @reaction="$emit('reaction', $event, message)" />
           </v-menu>
@@ -169,9 +170,6 @@
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
-      },
-      nudgeRight() {
-        return this.isMyMessage ? this.message.content.msgtype === 'm.text' ? -276 : -249 : 20;
       },
       isMobile() {
         return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
