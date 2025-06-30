@@ -21,10 +21,17 @@
     class="chat-message-content"
     :class="{
         'mb-3':!nextMessage,
-        'mb-1': nextMessage
+        'mb-1': nextMessage,
+        'no-select': isMobile
       }"
     @mouseleave="!isMobile && closeMenu()"
-    @mouseenter="!isMobile && openMenu()">
+    @mouseenter="!isMobile && openMenu()"
+    @contextmenu="preventIfIsMobile"
+    @dragstart="preventIfIsMobile"
+    @selectstart="preventIfIsMobile"
+    @touchstart="onTouchStart"
+    @touchend="onTouchEnd"
+    @touchcancel="onTouchCancel">
   <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -56,12 +63,13 @@
             :offset-x="isMyMessage"
             :nudge-right="isMyMessage && -276 || 20"
             :close-on-content-click="false"
+            :open-on-click="!isMobile"
+            :attach="`#message${message.origin_server_ts}`"
             :nudge-top="-10"
             content-class="no-min-width border-radius-8"
             offset-y
             right
-            top
-            attach>
+            top>
             <template #activator="{ on, attrs }">
               <div
                 v-bind="attrs"
@@ -137,7 +145,10 @@
         defaultThumbnailMaxHeight: 275,
         menu: false,
         parentMenu: false,
-        childMenu: null
+        childMenu: null,
+        touchHoldTimeout: null,
+        touchHeld: false,
+        holdStartTime: 0
       };
     },
     created() {
@@ -149,12 +160,16 @@
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.addEventListener('click', this.onClickOutside, true);
+      document.addEventListener('touchstart', this.onClickOutside, true);
       this.$root.$on('message-child-menu-closed', this.closeChildMenu);
       this.$root.$on('message-child-menu-opened', this.openChildMenu);
     },
     beforeDestroy() {
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.removeEventListener('click', this.onClickOutside, true);
+      document.removeEventListener('touchstart', this.onClickOutside, true);
       this.$root.$off('message-child-menu-opened', this.openChildMenu);
       this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
@@ -299,6 +314,54 @@
       },
       closeChildMenu() {
         this.childMenu = null;
+      },
+      onTouchStart() {
+        if (!this.isMobile) {
+          return;
+        }
+        if (!this.parentMenu) {
+          this.holdStartTime = Date.now();
+          this.touchHeld = false;
+          this.touchHoldTimeout = setTimeout(() => {
+            this.touchHeld = true;
+            this.openMenu();
+          }, 500);
+        }
+      },
+      onTouchEnd() {
+        clearTimeout(this.touchHoldTimeout);
+        const heldDuration = Date.now() - this.holdStartTime;
+        if (heldDuration < 500) {
+          this.touchHeld = false;
+        }
+      },
+      onTouchCancel() {
+        clearTimeout(this.touchHoldTimeout);
+      },
+      onClickOutside(event) {
+        if (this.isMobile && event.cancelable) {
+          event.preventDefault();
+        }
+
+        if (this.touchHeld && !this.parentMenu) {
+          this.touchHeld = false;
+          return;
+        }
+        const menuContent = this.$refs.actionList?.$el;
+        const messageContainer = this.$el;
+
+        if (
+            this.parentMenu &&
+            menuContent && !menuContent.contains(event.target) &&
+            messageContainer && !messageContainer.contains(event.target)
+        ) {
+          this.closeMenu();
+        }
+      },
+      preventIfIsMobile(event) {
+        if (this.isMobile) {
+          event.preventDefault();
+        }
       }
     }
   }
