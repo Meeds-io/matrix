@@ -56,9 +56,13 @@
       open: false,
       totalUnreadMessages: 0,
       rooms: null,
-      loading: false
+      loading: false,
+      messageEventQueue: [],
+      processingMessageQueue: false,
+      seenEventIds: new Map()
     }),
     created() {
+      this.scheduleSeenEventsCleanup();
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
@@ -107,7 +111,7 @@
 
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
-      document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
@@ -116,7 +120,7 @@
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
-      document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
@@ -136,28 +140,59 @@
       }
     },
     methods: {
+      enqueueMessageReceivedEvent(event) {
+        this.messageEventQueue.push(event);
+        this.processNextMessageEvent();
+      },
+      async processNextMessageEvent() {
+        if (this.processingMessageQueue || !this.messageEventQueue.length) {
+          return;
+        }
+
+        this.processingMessageQueue = true;
+        const event = this.messageEventQueue.shift();
+
+        try {
+          await this.handleMessageReceivedEvent(event);
+        } catch (err) {
+          console.error('Error while handling message event:', err);
+        } finally {
+          this.processingMessageQueue = false;
+          await this.processNextMessageEvent();
+        }
+      },
       openDrawer() {
         this.open = true;
         this.$refs.meedsChatDrawer?.open();
       },
-      async messageReceived(event) {
-        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
-        if (updatedRoomIndex === -1 || updatedRoomIndex == null) {
+      async handleMessageReceivedEvent(event) {
+        const {roomId, message} = event.detail || {};
+        if (!roomId || !message || !message.event_id) {
           return;
         }
-        const existingRoom = this.rooms[updatedRoomIndex];
-        const receivedMessage = event.detail.message;
+        if (this.seenEventIds.has(message.event_id)) {
+          return;
+        }
+        this.seenEventIds.set(message.event_id, Date.now());
 
-        const isNewMessageFromOtherUser = matrixUserId !== receivedMessage.sender;
-        const newUnreadCount = isNewMessageFromOtherUser ? existingRoom.unreadMessages + 1 : existingRoom.unreadMessages;
+        const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
+        if (roomIndex === -1 || roomIndex == null) {
+          return;
+        }
 
-        const messageText =
-            receivedMessage.content.format === 'org.matrix.custom.html'
-              ? this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body)
-              : receivedMessage.content.body;
+        const existingRoom = this.rooms[roomIndex];
+        const isNewMessageFromOtherUser = matrixUserId !== message.sender;
+
+        const newUnreadCount = isNewMessageFromOtherUser
+            ? existingRoom.unreadMessages + 1
+            : existingRoom.unreadMessages;
+
+        const messageText = message.content.format === 'org.matrix.custom.html'
+            ? this.$matrixService.formatMentionsInRoomList(message.content.formatted_body)
+            : message.content.body;
 
         const lastMessageContent = await this.buildLastMessageContent(
-            receivedMessage.sender,
+            message.sender,
             messageText,
             existingRoom
         );
@@ -166,19 +201,31 @@
           ...existingRoom,
           lastMessage: {
             ...(existingRoom.lastMessage || {}),
-            eventId: receivedMessage.event_id,
+            eventId: message.event_id,
           },
           unreadMessages: newUnreadCount,
-          updated: receivedMessage.origin_server_ts,
+          updated: message.origin_server_ts,
           lastMessageContent,
         };
 
-        this.rooms.splice(updatedRoomIndex, 1);
-        this.rooms.unshift(updatedRoom);
+        const updatedRooms = this.rooms.filter(room => room.id !== updatedRoom.id);
+        updatedRooms.unshift(updatedRoom);
+        this.rooms = updatedRooms;
 
         if (isNewMessageFromOtherUser) {
           this.totalUnreadMessages++;
         }
+      },
+      scheduleSeenEventsCleanup() {
+        setInterval(() => {
+          const now = Date.now();
+          const maxAge = 10 * 60 * 1000;
+          for (const [eventId, timestamp] of this.seenEventIds.entries()) {
+            if (now - timestamp > maxAge) {
+              this.seenEventIds.delete(eventId);
+            }
+          }
+        }, 5 * 60 * 1000);
       },
       async reactionReceived(event) {
         const {roomId, message, user_id, emojiKey, targetMessageBody} = event.detail;
@@ -186,8 +233,13 @@
         const updatedRoom = this.rooms?.[updatedRoomIndex];
 
         if (updatedRoom) {
-          updatedRoom.lastMessageContent = await this.buildLastReactionMessageContent(user_id, emojiKey, targetMessageBody, updatedRoom);
-          updatedRoom.updated = message.origin_server_ts;
+          const updatedRooms = [...this.rooms];
+          updatedRooms[updatedRoomIndex] = {
+            ...updatedRoom,
+            lastMessageContent: await this.buildLastReactionMessageContent(user_id, emojiKey, targetMessageBody, updatedRoom),
+            updated: message.origin_server_ts,
+          };
+          this.rooms = updatedRooms;
         }
       },
       async messageDeleted(event) {
