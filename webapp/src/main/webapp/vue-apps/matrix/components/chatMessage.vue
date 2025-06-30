@@ -21,10 +21,14 @@
     class="chat-message-content"
     :class="{
         'mb-3':!nextMessage,
-        'mb-1': nextMessage
+        'mb-1': nextMessage,
+        'no-select': isMobile
       }"
     @mouseleave="!isMobile && closeMenu()"
-    @mouseenter="!isMobile && openMenu()">
+    @mouseenter="!isMobile && openMenu()"
+    @contextmenu="preventIfIsMobile"
+    @dragstart="preventIfIsMobile"
+    @selectstart="preventIfIsMobile">
   <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -56,12 +60,13 @@
             :offset-x="isMyMessage"
             :nudge-right="isMyMessage && -276 || 20"
             :close-on-content-click="false"
+            :open-on-click="!isMobile"
+            :attach="`#message${message.origin_server_ts}`"
             :nudge-top="-10"
             content-class="no-min-width border-radius-8"
             offset-y
             right
-            top
-            attach>
+            top>
             <template #activator="{ on, attrs }">
               <div
                 v-bind="attrs"
@@ -137,7 +142,11 @@
         defaultThumbnailMaxHeight: 275,
         menu: false,
         parentMenu: false,
-        childMenu: null
+        childMenu: null,
+        touchHoldTimeout: null,
+        touchMoved: false,
+        touchStartY: 0,
+        ignoreClickUntil: 0
       };
     },
     created() {
@@ -149,12 +158,30 @@
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.addEventListener('click', this.onClickOutside, true);
+      document.addEventListener('touchstart', this.onClickOutside, true);
       this.$root.$on('message-child-menu-closed', this.closeChildMenu);
       this.$root.$on('message-child-menu-opened', this.openChildMenu);
     },
+    mounted() {
+      if (this.isMobile) {
+        this.$el?.addEventListener('touchstart', this.onTouchStart, {passive: false});
+        this.$el?.addEventListener('touchend', this.onTouchEnd, {passive: false});
+        this.$el?.addEventListener('touchcancel', this.onTouchCancel, {passive: false});
+        this.$el?.addEventListener('touchmove', this.onTouchMove, {passive: false});
+      }
+    },
     beforeDestroy() {
+      if (this.isMobile) {
+        this.$el?.removeEventListener('touchstart', this.onTouchStart);
+        this.$el?.removeEventListener('touchend', this.onTouchEnd);
+        this.$el?.removeEventListener('touchcancel', this.onTouchCancel);
+        this.$el?.removeEventListener('touchmove', this.onTouchMove);
+      }
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.removeEventListener('click', this.onClickOutside, true);
+      document.removeEventListener('touchstart', this.onClickOutside, true);
       this.$root.$off('message-child-menu-opened', this.openChildMenu);
       this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
@@ -299,6 +326,54 @@
       },
       closeChildMenu() {
         this.childMenu = null;
+      },
+      onTouchStart(event) {
+        if (!this.isMobile) return;
+        this.touchMoved = false;
+        this.touchStartY = event.touches[0].clientY;
+
+        this.touchHoldTimeout = setTimeout(() => {
+          if (!this.touchMoved) {
+            this.openMenu();
+            event.preventDefault();
+            this.ignoreClickUntil = Date.now() + 600;
+          }
+        }, 500);
+      },
+      onTouchMove(event) {
+        const deltaY = Math.abs(event.touches[0].clientY - this.touchStartY);
+        if (deltaY > 10) {
+          this.touchMoved = true;
+          clearTimeout(this.touchHoldTimeout);
+        }
+      },
+      onTouchEnd() {
+        clearTimeout(this.touchHoldTimeout);
+      },
+      onTouchCancel() {
+        clearTimeout(this.touchHoldTimeout);
+      },
+      onClickOutside(event) {
+        if (Date.now() < this.ignoreClickUntil) {
+          // block iOS ghost click
+          event.stopImmediatePropagation?.();
+          return;
+        }
+        const menuContent = this.$refs.actionList?.$el;
+        const messageContainer = this.$el;
+
+        if (
+            this.parentMenu &&
+            menuContent && !menuContent.contains(event.target) &&
+            messageContainer && !messageContainer.contains(event.target)
+        ) {
+          this.closeMenu();
+        }
+      },
+      preventIfIsMobile(event) {
+        if (this.isMobile) {
+          event.preventDefault();
+        }
       }
     }
   }
