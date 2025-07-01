@@ -1387,7 +1387,7 @@ export async function getUserIdentity(userId) {
   if (userCache.has(userId)) {
     return userCache.get(userId);
   }
-  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId);
+  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId, 'settings');
   if (user) {
     userCache.set(userId, user);
   }
