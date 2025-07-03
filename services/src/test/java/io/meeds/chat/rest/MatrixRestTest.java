@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.*;
@@ -143,34 +144,57 @@ class MatrixRestTest {
     Room room1 = new Room();
     room1.setRoomId("!testRoom1:matrix.meeds.tn");
     room1.setSpaceId("1");
+    room1.setStatus(RoomStatus.ENABLED.name());
     Room room2 = new Room();
     room2.setRoomId("!testRoom2:matrix.meeds.tn");
     room2.setSpaceId("2");
+    room2.setStatus(RoomStatus.ENABLED.name());
     Room room3 = new Room();
     room3.setRoomId("!testRoom3:matrix.meeds.tn");
     room3.setSpaceId("3");
-    RoomList roomsList = new RoomList();
-    roomsList.setTotalUnreadMessages(5);
-    roomsList.setRooms(List.of(roomEntity1, roomEntity2));
+    room3.setStatus(RoomStatus.ENABLED.name());
+
+    when(matrixService.getById("!testRoom1", true)).thenReturn(room1);
     when(matrixService.getById("!testRoom1")).thenReturn(room1);
+    when(matrixService.getById("!testRoom2", true)).thenReturn(room2);
     when(matrixService.getById("!testRoom2")).thenReturn(room2);
+    when(matrixService.getById("!testRoom3", true)).thenReturn(room3);
     when(matrixService.getById("!testRoom3")).thenReturn(room3);
     Space space1 = new Space();
-    space1.setDisplayName("Space of Heroes");
+    space1.setDisplayName("Space of Heroes 1");
     space1.setAvatarUrl("/Url/Of/Avatar.png");
     space1.setMembers(new String[]{"user1", "user2"});
     when(spaceService.getSpaceById("1")).thenReturn(space1);
+    when(matrixService.getRoomBySpaceId("1")).thenReturn(room1);
     Space space2 = new Space();
-    space2.setDisplayName("Space of Heroes");
+    space2.setDisplayName("Space of Heroes 2");
     space2.setAvatarUrl("/Url/Of/Avatar.png");
     space2.setMembers(new String[]{"user1", "user2"});
     when(spaceService.getSpaceById("2")).thenReturn(space2);
+    when(matrixService.getRoomBySpaceId("2")).thenReturn(room2);
     Space space3 = new Space();
-    space3.setDisplayName("Space of Heroes");
+    space3.setDisplayName("Space of Heroes 3");
     space3.setAvatarUrl("/Url/Of/Avatar.png");
     space3.setMembers(new String[]{"user1", "user2"});
     when(spaceService.getSpaceById("3")).thenReturn(space3);
     when(matrixService.getRoomBySpaceId("3")).thenReturn(room3);
+
+    RoomEntity privateRoomEntity1 = createRoomEntity(4);
+    privateRoomEntity1.setDirectChat(true);
+    Room privateRoom1 = new Room();
+    privateRoom1.setRoomId("!testRoom4:matrix.meeds.tn");
+    privateRoom1.setSpaceId(null);
+    privateRoom1.setFirstParticipant(SIMPLE_USER);
+    privateRoom1.setSecondParticipant("user2");
+    privateRoom1.setStatus(RoomStatus.ENABLED.name());
+    createUserIdentity("user2");
+    when(matrixService.getById("!testRoom4", true)).thenReturn(privateRoom1);
+    when(matrixService.getById("!testRoom4")).thenReturn(privateRoom1);
+
+    RoomList roomsList = new RoomList();
+    roomsList.setTotalUnreadMessages(5);
+    roomsList.setRooms(List.of(roomEntity1, roomEntity2, privateRoomEntity1));
+
     when(spaceService.getMemberSpacesIds(SIMPLE_USER, 0, -1)).thenReturn(new ArrayList<>(List.of(new String [] {"1", "2", "3"})));
     ResultActions response = mockMvc.perform(post(REST_PATH + "/processRooms").with(simpleUser())
                                                                               .contentType(MediaType.APPLICATION_JSON)
@@ -181,7 +205,7 @@ class MatrixRestTest {
     RoomList expectedRoomList = fromJsonString(response.andReturn().getResponse().getContentAsString(), RoomList.class);
     assertNotNull(expectedRoomList);
     assertNotNull(expectedRoomList.getRooms());
-    assertEquals(3, expectedRoomList.getRooms().size());
+    assertEquals(4, expectedRoomList.getRooms().size());
     assertEquals(5, expectedRoomList.getTotalUnreadMessages());
 
     //
@@ -189,15 +213,7 @@ class MatrixRestTest {
     room.setSpaceId(null);
     room.setFirstParticipant("root");
     room.setSecondParticipant("user");
-    Identity identity = new Identity();
-    identity.setRemoteId("user");
-    identity.setId("1");
-    Profile profile = new Profile();
-    profile.setAvatarUrl("/avatar/of/root");
-    profile.setProperty("firstName", "User");
-    profile.setProperty("lastName", "Root");
-    identity.setProfile(profile);
-    when(identityManager.getOrCreateUserIdentity("root")).thenReturn(identity);
+    createUserIdentity("root");
 
     ResultActions response1 = mockMvc.perform(post(REST_PATH + "/processRooms").with(simpleUser())
                                                                                .contentType(MediaType.APPLICATION_JSON)
@@ -205,15 +221,16 @@ class MatrixRestTest {
     response1.andExpect(status().isOk());
   }
 
-  private RoomList createRoomsList(int numberOfRooms) {
-    List<RoomEntity> rooms = new ArrayList<>();
-    for (int i = 0; i < numberOfRooms; i++) {
-      rooms.add(createRoomEntity(i));
-    }
-    RoomList roomList = new RoomList();
-    roomList.setTotalUnreadMessages(20);
-    roomList.setRooms(rooms);
-    return roomList;
+  private void createUserIdentity(String userName) {
+    Identity identity = new Identity();
+    identity.setRemoteId(userName);
+    identity.setId("1");
+    Profile profile = new Profile();
+    profile.setAvatarUrl("/avatar/of/root");
+    profile.setProperty("firstName", userName);
+    profile.setProperty("lastName", "The king");
+    identity.setProfile(profile);
+    when(identityManager.getOrCreateUserIdentity(userName)).thenReturn(identity);
   }
 
   private RoomEntity createRoomEntity(int index) {
@@ -232,6 +249,7 @@ class MatrixRestTest {
     lastMessage.setContent("This is a new message");
     lastMessage.setSender("@root:matrix.meeds.tn");
     room.setLastMessage(lastMessage);
+    room.setStatus(RoomStatus.ENABLED.name());
     return room;
   }
 

@@ -1,11 +1,15 @@
 <template>    
-  <v-tooltip bottom>
+  <v-tooltip
+    v-if="displayed"
+    bottom>
     <template #activator="{ on, attrs }">
       <div
         v-bind="attrs"
         v-on="on">
         <v-btn
           :ripple="false"
+          :id="`chat${identityType}${identityId}`"
+          :key="`chat${identityType}${identityId}`"
           icon
           @click="openChatDrawer($event)">
           <v-icon size="18">fas fa-comments</v-icon>
@@ -30,24 +34,24 @@ export default {
     }
   },
   data: () => ({
-    contactMatrixId: String,
-    matrixDMRoom: String
+    displayed: false,
   }),
   created() {
+    return this.$matrixService.getSpaceRoom(this.identityId).then(room => {
+      this.displayed = room.status === 'ENABLED';
+    });
   },
   methods: {
     openChatDrawer(event) {
       event.preventDefault();
       event.stopPropagation();
-      const matrixRoom = '';
-      const currentUserMatrixId = localStorage.getItem("matrix_user_id");
       if(this.identityType === 'USER_TIPTIP') {
         this.$userService.getUser(this.identityId, 'settings').then(data => {
           const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();
           if(matrixIdProperty) {
-            this.contactMatrixId = matrixIdProperty.value;
-            if(this.contactMatrixId) {
-              this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName, matrixUserId, this.contactMatrixId);
+            const contactMatrixId = matrixIdProperty.value;
+            if(contactMatrixId) {
+              this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName, matrixUserId, contactMatrixId);
             }
           }
         });
