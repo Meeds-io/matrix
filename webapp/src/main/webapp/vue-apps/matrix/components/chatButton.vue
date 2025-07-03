@@ -141,9 +141,9 @@
       },
     },
     computed: {
-      presenceClass() {
-        return `chat-button-status-${this.presence}`;
-      }
+      presenceColor() {
+        return this.presence && this.$root.statusMap[this.presence];
+      },
     },
     methods: {
       enqueueMessageReceivedEvent(event) {
