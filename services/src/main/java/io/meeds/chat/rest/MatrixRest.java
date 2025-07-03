@@ -583,11 +583,13 @@ public class MatrixRest implements ResourceContainer {
     for (int index = 0; index < roomList.getRooms().size(); index ++) {
       RoomEntity room = roomList.getRooms().get(index);
       room = updateRoomEntity(room, currentUserName);
+      // check missing rooms
       if (room != null) {
-        processedRooms.add(room);
-        // check missing rooms
-        if (!room.isDirectChat()) {
+        if(!room.isDirectChat()) {
           spaceIds.remove(room.getSpaceId());
+        }
+        if (room.getStatus() == null || RoomStatus.ENABLED.name().equals(room.getStatus())) {
+          processedRooms.add(room);
         }
       }
     }
@@ -615,47 +617,43 @@ public class MatrixRest implements ResourceContainer {
     }
     Room matrixRoom = matrixService.getById(roomId, true);
     if (matrixRoom != null) {
-      if (RoomStatus.ENABLED.name().equals(matrixRoom.getStatus())) {
-        if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
-          Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
-          if (space != null) {
-            room.setName(space.getDisplayName());
-            room.setAvatarUrl(space.getAvatarUrl());
-            room.setSpaceId(matrixRoom.getSpaceId());
-            room.setPrettyName(space.getPrettyName());
-            room.setDirectChat(false);
-            ArrayList<Member> members = new ArrayList<>();
-            Arrays.stream(space.getMembers()).forEach(member -> members.add(buildRoomMember(member)));
-            room.setMembers(members);
-          }
-        } else if (StringUtils.isNotBlank(matrixRoom.getFirstParticipant())
-                && StringUtils.isNotBlank(matrixRoom.getSecondParticipant())) {
-          Identity identity = null;
-          if (matrixRoom.getFirstParticipant().equals(currentUserName)) {
-            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());
-          } else if (matrixRoom.getSecondParticipant().equals(currentUserName)) {
-            identity = identityManager.getOrCreateUserIdentity(matrixRoom.getFirstParticipant());
-          }
-          if (identity != null) {
-            room.setName(identity.getProfile().getFullName());
-            room.setAvatarUrl(identity.getProfile().getAvatarUrl());
-            room.setUserId(identity.getRemoteId());
-            room.setIdentityId(identity.getId());
-            room.setDmMemberId(identity.getRemoteId());
-            room.setExternal(identity.isExternal());
-            room.setEnabledUser(identity.isEnable());
-            room.setDeletedUser(identity.isDeleted());
-            room.setMatrixId((String) identity.getProfile().getProperty(USER_MATRIX_ID));
-          }
+      if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
+        Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
+        if (space != null) {
+          room.setName(space.getDisplayName());
+          room.setAvatarUrl(space.getAvatarUrl());
+          room.setSpaceId(matrixRoom.getSpaceId());
+          room.setPrettyName(space.getPrettyName());
+          room.setDirectChat(false);
+          ArrayList<Member> members = new ArrayList<>();
+          Arrays.stream(space.getMembers()).forEach(member -> members.add(buildRoomMember(member)));
+          room.setMembers(members);
         }
-        // Add update Date
-        if (room.getUpdated() == 0) {
-          room.setUpdated(System.currentTimeMillis());
+      } else if (StringUtils.isNotBlank(matrixRoom.getFirstParticipant())
+              && StringUtils.isNotBlank(matrixRoom.getSecondParticipant())) {
+        Identity identity = null;
+        if (matrixRoom.getFirstParticipant().equals(currentUserName)) {
+          identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());
+        } else if (matrixRoom.getSecondParticipant().equals(currentUserName)) {
+          identity = identityManager.getOrCreateUserIdentity(matrixRoom.getFirstParticipant());
         }
-        return room;
-      } else {
-        return null;
+        if (identity != null) {
+          room.setName(identity.getProfile().getFullName());
+          room.setAvatarUrl(identity.getProfile().getAvatarUrl());
+          room.setUserId(identity.getRemoteId());
+          room.setIdentityId(identity.getId());
+          room.setDmMemberId(identity.getRemoteId());
+          room.setExternal(identity.isExternal());
+          room.setEnabledUser(identity.isEnable());
+          room.setDeletedUser(identity.isDeleted());
+          room.setMatrixId((String) identity.getProfile().getProperty(USER_MATRIX_ID));
+        }
       }
+      // Add update Date
+      if (room.getUpdated() == 0) {
+        room.setUpdated(System.currentTimeMillis());
+      }
+      return room;
     } else {
       return null;
     }
