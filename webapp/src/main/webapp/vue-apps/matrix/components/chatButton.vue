@@ -18,34 +18,28 @@
 -->
 <template>
   <v-app>
-    <div class="VuetifyApp">
-      <div class="v-application v-application--is-ltr theme--light">
-        <div class="v-application--wrap">
-          <v-btn
-              id="btnChatButtonNew"
-              :title="$t('matrix.chat.button.tooltip')"
-              class="text-xs-center"
-              @click="openDrawer"
-              icon>
-              <v-badge
-                :value="totalUnreadMessages > 0"
-                :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
-                flat
-                color="var(--allPagesBadgePrimaryColor, #d32a2a)"
-                overlap>
-                <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
-              </v-badge>
-          </v-btn>
-        </div>
-        <matrix-chat-drawer
-          v-if="open"
-          ref="meedsChatDrawer"
-          :rooms="rooms"
-          :loading="loading"
-          @closed="open = false" />
-        <meeds-chat-quick-create-discussion-drawer />
-      </div>
-    </div>
+    <v-btn
+      id="btnChatButtonNew"
+      :title="$t('matrix.chat.button.tooltip')"
+      class="text-xs-center"
+      icon
+      @click="openDrawer">
+      <v-badge
+        :value="totalUnreadMessages > 0"
+        :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
+        color="var(--allPagesBadgePrimaryColor, #d32a2a)"
+        flat
+        overlap>
+        <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
+      </v-badge>
+    </v-btn>
+    <matrix-chat-drawer
+      v-if="open"
+      ref="meedsChatDrawer"
+      :rooms="rooms"
+      :loading="loading"
+      @closed="open = false"/>
+    <meeds-chat-quick-create-discussion-drawer/>
   </v-app>
 </template>
 <script>
