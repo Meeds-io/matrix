@@ -22,7 +22,7 @@ export function checkAuthenticationTypes() {
   return fetch('/_matrix/client/r0/login', {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -50,7 +50,7 @@ export function authenticate() {
         'token': JWT
       })
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -79,7 +79,7 @@ export function loadChatRooms(currentMemberId) {
                     }
                   };
   return sync(filter).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -102,7 +102,7 @@ export function processRooms(rooms) {
     },
   body: JSON.stringify(rooms)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Could not process rooms : Response code indicates a server error', resp);
     }
     return resp.json();
@@ -118,7 +118,7 @@ export function loadRoom(roomId) {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     }
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -151,7 +151,7 @@ export function createMatrixDMRoom(matrixIdUserTwo, serverName) {
       },
       body: JSON.stringify(payLoad),
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -163,7 +163,7 @@ export function getDMRoomsAccountData(userName) {
   return fetch(`/matrix/rest/matrix/dmRooms?user=${userName}`, {
       method: 'GET',
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -180,7 +180,7 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
       },
       body: JSON.stringify(matrixUserDMRooms)
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return true;
@@ -431,7 +431,7 @@ export function getSpaceRoom(spaceId) {
   return fetch(`/matrix/rest/matrix/spaceRoom?spaceId=${spaceId}`, {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Get room by space : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -443,7 +443,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName, first
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       if (resp.status === 404) {
         return createMatrixDMRoom(secondUserMatrixId || secondParticipant, serverName).then(data => {
           const payload = {
@@ -460,7 +460,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName, first
             },
             body: JSON.stringify(payload)
             }).then(createdRoom => {
-              if (!createdRoom || !createdRoom.ok) {
+              if (!createdRoom?.ok) {
                 throw new Error('Response code indicates a server error', resp);
               } else {
                 return getDMRoomsAccountData(firstParticipant).then(accountData =>
@@ -502,7 +502,7 @@ export function getRoomById(roomId) {
      method: 'GET',
      credentials: 'include',
    }).then(resp => {
-     if (!resp || !resp.ok) {
+     if (!resp?.ok) {
        throw new Error('Get Room by Room Id : Response code indicates a server error or space not found', resp);
      } else {
        return resp.json();
@@ -570,7 +570,7 @@ export function saveFilter() {
     },
     body: JSON.stringify(payload)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Save Filter : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -601,7 +601,7 @@ export function savePushGateway(kind, pushKey) {
     },
     body: JSON.stringify(payload)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Save Push gateway : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -616,7 +616,7 @@ export function getPushers() {
      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Get Push gateway : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -653,7 +653,7 @@ export function getByRoomId(roomId) {
       method: 'GET',
       credentials: 'include',
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Get Space by Room Id : Response code indicates a server error or space not found', resp);
       } else {
         return resp.json();
@@ -668,7 +668,7 @@ export function getUserPresence(userIdOnMatrix) {
         'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
       }
     },).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Get User Presence on Matrix : Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -727,7 +727,7 @@ export async function loadRoomMessages(roomId, from, to) {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Load room messages : Response code indicates a server error', resp);
     } else {
       return resp.json();
