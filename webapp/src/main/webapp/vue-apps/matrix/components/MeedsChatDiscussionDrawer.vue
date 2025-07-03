@@ -362,6 +362,7 @@ export default {
             this.scrollToEnd();
             this.loading = false;
             this.$root.$emit('room-discussion-opened');
+            this.$refs?.messageComposerArea?.focus();
           });
         }, 0);
       });
