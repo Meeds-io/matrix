@@ -1,6 +1,6 @@
 package io.meeds.chat;
 
-import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.configuration.MatrixHealthCheck;
 import io.meeds.kernel.test.AbstractSpringTest;
 import io.meeds.kernel.test.KernelExtension;
 import io.meeds.spring.AvailableIntegration;
@@ -15,7 +15,9 @@ import org.exoplatform.container.component.RequestLifeCycle;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -32,6 +34,17 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
     @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/configuration.xml"),
     @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/matrix-test-configuration.xml"), })
 public class MatrixBaseTest extends AbstractSpringTest {
+
+  @TestConfiguration
+  public static class MockMatrixHealthCheckConfig {
+    @Bean
+    @Primary
+    public MatrixHealthCheck matrixHealthCheck() {
+        MatrixHealthCheck mock = org.mockito.Mockito.mock(MatrixHealthCheck.class);
+        org.mockito.Mockito.when(mock.checkMatrixServer()).thenReturn("https://matrix.exo.tn");
+        return mock;
+    }
+  }
 
   public static final String     MODULE_NAME    = "io.meeds.chat";
 

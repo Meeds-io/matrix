@@ -31,6 +31,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.jsoup.Jsoup;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -42,6 +43,7 @@ import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
+@DependsOn("matrixServerUrl")
 public class MatrixHttpClient {
   private static final Log LOG = ExoLogger.getLogger(MatrixHttpClient.class.toString());
 
