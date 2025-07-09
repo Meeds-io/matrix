@@ -37,9 +37,13 @@ export default {
     displayed: false,
   }),
   created() {
-    return this.$matrixService.getSpaceRoom(this.identityId).then(room => {
-      this.displayed = room.status === 'ENABLED';
-    });
+    if(this.identityType === 'space') {
+      return this.$matrixService.getSpaceRoom(this.identityId).then(room => {
+        this.displayed = room.status === 'ENABLED';
+      });
+    } else {
+      this.displayed = true;
+    }
   },
   methods: {
     openChatDrawer(event) {
