@@ -34,15 +34,15 @@
     <template slot="titleIcons">
       <div class="room-action-components">
         <div
-          v-for="action in enabledRoomActionComponents"
-          :key="action.key"
-          :class="`${action.appClass} ${action.typeClass}`"
-          :ref="action.key">
+            v-for="action in enabledRoomActionComponents"
+            :key="action.key"
+            :class="`${action.appClass} ${action.typeClass}`"
+            :ref="action.key">
           <div v-if="action.component">
             <component
-              v-dynamic-events="action.component.events"
-              v-bind="action.component.props ? action.component.props : {}"
-              :is="action.component.name" />
+                v-dynamic-events="action.component.events"
+                v-bind="action.component.props ? action.component.props : {}"
+                :is="action.component.name" />
           </div>
           <div v-else-if="action.element" v-html="action.element.outerHTML">
           </div>
