@@ -911,7 +911,7 @@ export function processMessages(messageItems) {
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
         const targetEventId = relatesTo.event_id;
         const originalMessage = messagesMap.get(targetEventId);
-        if (originalMessage) {
+        if (originalMessage && !isRedacted(originalMessage)) {
           originalMessage.content.body = newContent.body;
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
           if(newContent.format && newContent.format === 'org.matrix.custom.html') {
@@ -1389,6 +1389,10 @@ function getFormattedMessageBody(targetMessage) {
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRedacted(event) {
+  return !!event.unsigned?.redacted_because || !!event.redacted_because;
 }
 
 export function enableOrDisableChat(spaceId, enable) {

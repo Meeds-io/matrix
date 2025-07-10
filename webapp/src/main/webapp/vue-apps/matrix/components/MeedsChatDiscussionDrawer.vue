@@ -415,22 +415,21 @@ export default {
       }
     },
     messageDeleted(event) {
-      if (!this.messages) {
+      if (!this.messages || this.room?.id !== event.detail.roomId) {
         return;
       }
-      if (this.room?.id !== event.detail.roomId) {
-        return;
-      }
+
       const redactedEventId = event?.detail?.eventId;
       const redaction = event.detail?.redaction;
       const index = this.messages.findIndex(msg => msg.event_id === redactedEventId);
       if (index === -1) {
         return;
       }
+
       const original = this.messages[index];
-      this.$set(this.messages, index, {
+      const redacted = {
         ...original,
-        redacted_because: redaction || {redacts: redactedEventId, reason: 'Redacted'},
+        redacted_because: redaction || { redacts: redactedEventId, reason: 'Redacted' },
         content: {
           ...original.content,
           body: undefined,
@@ -438,8 +437,14 @@ export default {
           format: undefined,
           msgtype: undefined
         }
-      });
+      };
 
+      if (original.edited) {
+        redacted.edited = false;
+        redacted.updatedAt = undefined;
+      }
+
+      this.$set(this.messages, index, redacted);
     },
     scrollToEnd() {
       if(this.messages) {
