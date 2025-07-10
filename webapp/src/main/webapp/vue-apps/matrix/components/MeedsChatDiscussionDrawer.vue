@@ -50,6 +50,45 @@
           </div>
         </div>
       </div>
+      <v-menu
+        v-if="canEditSpace"
+        content-class="border-radius-8 overflow-hidden"
+        :nudge-left="-30"
+        open-on-click
+        left
+        close-on-content-click
+        offset-x
+        offset-y>
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-on="on"
+            v-bind="attrs"
+            icon>
+            <v-icon
+              size="20"
+              class="icon-default-color">
+              fa-ellipsis-v
+            </v-icon>
+          </v-btn>
+        </template>
+        <v-list class="pa-0">
+          <v-list-item
+            class="ps-2 pe-3 height-auto"
+            @click="editSpace">
+            <v-sheet
+              class="d-flex"
+              width="28"
+              height="36">
+              <v-icon
+                class="icon-default-color mx-auto"
+                size="16">
+                fas fa-cog
+              </v-icon>
+            </v-sheet>
+            {{ $t('matrix.room.space.editProperties') }}
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
     <template slot="content">
       <div id="chatMessagesContainer"
@@ -187,7 +226,8 @@ export default {
       messageToEdit: null,
       messageToDelete: null,
       expanded: false,
-      drawerWidth: 420
+      drawerWidth: 420,
+      space: null,
     };
   },
   provide() {
@@ -197,6 +237,9 @@ export default {
     };
   },
   computed: {
+    canEditSpace() {
+      return this.room?.spaceId && this.space?.canEdit;
+    },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
     },
@@ -229,6 +272,7 @@ export default {
     },
   },
   created() {
+    document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
@@ -339,6 +383,7 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
+      this.getSpaceById(this.room?.spaceId);
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
       }
@@ -774,6 +819,26 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
+    },
+    editSpace() {
+      document.dispatchEvent(new CustomEvent('editSpace', {detail: this.space}));
+    },
+    async getSpaceById(spaceId) {
+      if (this.space?.id === this.room?.spaceId || !spaceId) {
+        return;
+      }
+      try {
+        this.space = await this.$spaceService.getSpaceById(spaceId, null, true);
+      } catch (error) {
+        console.error('Failed to fetch space:', error);
+      }
+    },
+    handleSpaceSettingsUpdate(event) {
+      this.space = event.detail;
+      if (this.space.id !== this.room?.spaceId) {
+        return;
+      }
+      this.room.name = this.space.displayName;
     }
   },
 };
