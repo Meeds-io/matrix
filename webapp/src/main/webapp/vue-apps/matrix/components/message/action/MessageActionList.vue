@@ -20,7 +20,7 @@
 <template>
   <v-list
     class="ma-0 py-0 text-no-wrap width-fit-content
-    border-box-sizing border-radius"
+    border-box-sizing"
     dense>
     <v-list-item class="ma-0 height-auto px-2 py-1">
       <div class="d-flex">
@@ -46,7 +46,7 @@
         <v-menu
           v-if="isMyMessage"
           v-model="showMoreActions"
-          content-class="l-auto r-0 border-radius-8"
+          content-class="l-auto r-0 border-radius"
           :attach="`#message${message.origin_server_ts}`"
           :top="openOnTop"
           :nudge-top="openOnTop && 28 || -14"
