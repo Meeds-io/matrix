@@ -40,6 +40,7 @@
       :loading="loading"
       @closed="open = false"/>
     <meeds-chat-quick-create-discussion-drawer/>
+    <space-form-drawer />
   </v-app>
 </template>
 <script>

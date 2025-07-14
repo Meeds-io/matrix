@@ -68,6 +68,9 @@
         <module>emojiPicker</module>
       </depends>
       <depends>
+        <module>spaceForm</module>
+      </depends>
+      <depends>
         <module>jquery</module>
         <as>$</as>
       </depends>
