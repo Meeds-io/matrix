@@ -226,7 +226,8 @@ export default {
       messageToEdit: null,
       messageToDelete: null,
       expanded: false,
-      drawerWidth: 420
+      drawerWidth: 420,
+      space: null,
     };
   },
   provide() {
@@ -236,6 +237,9 @@ export default {
     };
   },
   computed: {
+    canEditSpace() {
+      return this.room?.spaceId && this.space?.canEdit;
+    },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
     },
@@ -268,6 +272,7 @@ export default {
     },
   },
   created() {
+    document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
@@ -378,6 +383,7 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
+      this.getSpaceById(this.room?.spaceId);
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
       }
