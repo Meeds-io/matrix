@@ -52,7 +52,7 @@
       </div>
       <v-menu
         v-if="canEditSpace"
-        content-class="border-radius-8 overflow-hidden"
+        content-class="border-radius overflow-hidden"
         :nudge-left="-30"
         open-on-click
         left
