@@ -20,7 +20,8 @@
 <div>
   <v-file-input
     ref="fileInput"
-    accept=".png,.jpg,.jpeg,.webp,.gif,.bmp"
+    :key="imagesOnly"
+    :accept="accept"
     class="d-none position-absolute"
     multiple
     hide-input
@@ -64,13 +65,27 @@
       class="ma-0 py-0 text-no-wrap width-fit-content border-box-sizing border-radius">
       <v-list-item
         class="ma-0 height-auto px-3 py-2"
-        @click="openFileExplorer">
+        @click="openFileExplorer(true)">
         <v-list-item-icon class="me-1 ms-0 my-auto">
           <v-icon size="16">
             fa-solid fa-image
           </v-icon>
         </v-list-item-icon>
-        <v-list-item-title>{{ $t('matrix.chat.image.label') }}</v-list-item-title>
+        <v-list-item-title>
+          {{ $t('matrix.chat.image.label') }}
+        </v-list-item-title>
+      </v-list-item>
+      <v-list-item
+        class="ma-0 height-auto px-3 py-2"
+        @click="openFileExplorer(false)">
+        <v-list-item-icon class="me-1 ms-0 my-auto">
+          <v-icon size="16">
+            fas fa-paperclip
+          </v-icon>
+        </v-list-item-icon>
+        <v-list-item-title>
+          {{ $t('matrix.chat.attachment.label') }}
+        </v-list-item-title>
       </v-list-item>
     </v-list>
   </v-menu>
@@ -90,7 +105,8 @@ export default {
       uploadedFiles: 0,
       ignoredFiles: 0,
       pasteTargetElement: null,
-      dropTargetElement: null
+      dropTargetElement: null,
+      imagesOnly: false
     };
   },
   props: {
@@ -119,15 +135,23 @@ export default {
     this.dropTargetElement?.removeEventListener('dragover', this.handleDragOver);
     this.dropTargetElement?.removeEventListener('drop', this.handleDrop);
   },
+  computed: {
+    accept() {
+      return this.imagesOnly && '.png,.jpg,.jpeg,.webp,.gif,.bmp' || '*/*';
+    }
+  },
   methods: {
     getMaxUploadSize() {
       return this.$matrixService.getMaxUploadSize()
           .then(maxSize => this.maxUploadSize = maxSize)
           .catch(err => console.error('Error occurred:', err));
     },
-    openFileExplorer() {
-      this.$refs.fileInput.$el.querySelector('input').click();
-    },
+    openFileExplorer(imagesOnly) {
+      this.imagesOnly = imagesOnly;
+      this.$nextTick(() => {
+        this.$refs.fileInput?.$el?.querySelector('input')?.click();
+      });
+      },
     async handleFileChange(files) {
       this.isUploading = true;
 

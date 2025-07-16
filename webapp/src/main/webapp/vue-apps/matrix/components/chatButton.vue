@@ -30,7 +30,7 @@
         color="var(--allPagesBadgePrimaryColor, #d32a2a)"
         flat
         overlap>
-        <v-icon size="20" :color="presenceColor">fa-comments</v-icon>
+        <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
       </v-badge>
     </v-btn>
     <matrix-chat-drawer
@@ -141,10 +141,9 @@
       },
     },
     computed: {
-      presenceColor() {
-        return this.presence && this.$root.statusMap[this.presence];
+      presenceClass() {
+        return `chat-button-status-${this.presence}`;
       },
-    },
     methods: {
       enqueueMessageReceivedEvent(event) {
         this.enableAndPlayBipSound(event);
