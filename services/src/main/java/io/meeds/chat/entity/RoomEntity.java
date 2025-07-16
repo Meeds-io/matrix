@@ -49,7 +49,9 @@ public class RoomEntity implements Serializable {
   @Column(name = "SECOND_PARTICIPANT")
   public String             secondParticipant;
 
-
+  @Enumerated(EnumType.ORDINAL)
+  @Column(name = "STATUS")
+  public RoomStatus         status           = RoomStatus.ENABLED;
 
   public Long getId() {
     return id;
@@ -89,5 +91,13 @@ public class RoomEntity implements Serializable {
 
   public void setSecondParticipant(String secondParticipant) {
     this.secondParticipant = secondParticipant;
+  }
+
+  public RoomStatus getStatus() {
+    return status;
+  }
+
+  public void setStatus(RoomStatus status) {
+    this.status = status;
   }
 }

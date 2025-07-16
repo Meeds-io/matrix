@@ -26,7 +26,6 @@
               :title="$t('matrix.chat.button.tooltip')"
               class="text-xs-center"
               @click="openDrawer"
-              :color="color"
               icon>
               <v-badge
                 :value="totalUnreadMessages > 0"
@@ -50,15 +49,20 @@
   </v-app>
 </template>
 <script>
+
   export default {
     data: () => ({
       presence: 'online',
       open: false,
       totalUnreadMessages: 0,
       rooms: null,
-      loading: false
+      loading: false,
+      messageEventQueue: [],
+      processingMessageQueue: false,
+      seenEventIds: new Map()
     }),
     created() {
+      this.scheduleSeenEventsCleanup();
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
@@ -78,7 +82,8 @@
                 localStorage.setItem("matrix_last_login", new Date().getTime());
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
-                  this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+                  this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+                  this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
               } else {
@@ -93,7 +98,8 @@
       } else {
         this.loadRooms();
         this.$matrixService.saveFilter().then(filterResponse => {
-          this.$matrixService.longPollingSync(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'))
+          this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+          this.bindSyncPollingListeners(filterResponse.filter_id);
         });
         this.$matrixService.installPusher();
       }
@@ -105,7 +111,8 @@
 
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
-      document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
+      document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
       document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
@@ -113,8 +120,9 @@
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
-      document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+      document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
+      document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
       document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.removeEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
@@ -132,35 +140,106 @@
       }
     },
     methods: {
+      enqueueMessageReceivedEvent(event) {
+        this.messageEventQueue.push(event);
+        this.processNextMessageEvent();
+      },
+      async processNextMessageEvent() {
+        if (this.processingMessageQueue || !this.messageEventQueue.length) {
+          return;
+        }
+
+        this.processingMessageQueue = true;
+        const event = this.messageEventQueue.shift();
+
+        try {
+          await this.handleMessageReceivedEvent(event);
+        } catch (err) {
+          console.error('Error while handling message event:', err);
+        } finally {
+          this.processingMessageQueue = false;
+          await this.processNextMessageEvent();
+        }
+      },
       openDrawer() {
         this.open = true;
         this.$refs.meedsChatDrawer?.open();
       },
-      messageReceived(event) {
-        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
+      async handleMessageReceivedEvent(event) {
+        const {roomId, message} = event.detail || {};
+        if (!roomId || !message || !message.event_id) {
+          return;
+        }
+        if (this.seenEventIds.has(message.event_id)) {
+          return;
+        }
+        this.seenEventIds.set(message.event_id, Date.now());
+
+        const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
+        if (roomIndex === -1 || roomIndex == null) {
+          return;
+        }
+
+        const existingRoom = this.rooms[roomIndex];
+        const isNewMessageFromOtherUser = matrixUserId !== message.sender;
+
+        const newUnreadCount = isNewMessageFromOtherUser
+            ? existingRoom.unreadMessages + 1
+            : existingRoom.unreadMessages;
+
+        const messageText = message.content.format === 'org.matrix.custom.html'
+            ? this.$matrixService.formatMentionsInRoomList(message.content.formatted_body)
+            : message.content.body;
+
+        const lastMessageContent = await this.buildLastMessageContent(
+            message.sender,
+            messageText,
+            existingRoom
+        );
+
+        const updatedRoom = {
+          ...existingRoom,
+          lastMessage: {
+            ...(existingRoom.lastMessage || {}),
+            eventId: message.event_id,
+          },
+          unreadMessages: newUnreadCount,
+          updated: message.origin_server_ts,
+          lastMessageContent,
+        };
+
+        const updatedRooms = this.rooms.filter(room => room.id !== updatedRoom.id);
+        updatedRooms.unshift(updatedRoom);
+        this.rooms = updatedRooms;
+
+        if (isNewMessageFromOtherUser) {
+          this.totalUnreadMessages++;
+        }
+      },
+      scheduleSeenEventsCleanup() {
+        setInterval(() => {
+          const now = Date.now();
+          const maxAge = 10 * 60 * 1000;
+          for (const [eventId, timestamp] of this.seenEventIds.entries()) {
+            if (now - timestamp > maxAge) {
+              this.seenEventIds.delete(eventId);
+            }
+          }
+        }, 5 * 60 * 1000);
+      },
+      async reactionReceived(event) {
+        const {roomId, message, user_id, emojiKey, targetMessageBody} = event.detail;
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if(updatedRoom) {
-          updatedRoom.lastMessage = updatedRoom.lastMessage ? updatedRoom.lastMessage : {};
-          const receivedMessage = event.detail.message;
-          updatedRoom.lastMessage.eventId = receivedMessage.event_id;
-          if(matrixUserId !== receivedMessage.sender) {
-            this.totalUnreadMessages ++;
-            updatedRoom.unreadMessages += 1;
-          }
-          this.rooms.splice(updatedRoomIndex, 1);
-          this.rooms.unshift(updatedRoom);
-          updatedRoom.updated = receivedMessage.origin_server_ts;
-          const messageText = receivedMessage.content.format === 'org.matrix.custom.html' && this.$matrixService.formatMentionsInRoomList(receivedMessage.content.formatted_body) || receivedMessage.content.body;
-          if(receivedMessage.sender === localStorage.getItem('matrix_user_id')) {
-            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                              this.$t('matrix.words.you')).replace('{1}', messageText);
-          } else {
-            const senderMatrixId = receivedMessage.sender.substr(1, receivedMessage.sender.indexOf(":") - 1);
-            this.$matrixService.getUserByMatrixId(senderMatrixId, updatedRoom).then(senderIdentity => {
-              updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern').replace('{0}',
-                                                senderIdentity.profile.fullname).replace('{1}', messageText);
-            });
-          }
+
+        if (updatedRoom) {
+          const updatedRooms = [...this.rooms];
+          updatedRooms[updatedRoomIndex] = {
+            ...updatedRoom,
+            lastMessageContent: await this.buildLastReactionMessageContent(user_id, emojiKey, targetMessageBody, updatedRoom),
+            updated: message.origin_server_ts,
+          };
+          this.rooms = updatedRooms;
         }
       },
       async messageDeleted(event) {
@@ -170,10 +249,7 @@
 
         if (updatedRoom) {
           if (updatedRoom.lastMessage?.eventId === eventId) {
-            const deletedBy = sender === matrixUserId ? this.$t('matrix.words.you') :
-                (await this.$matrixService.getUserByMatrixId(sender, updatedRoom))?.profile?.fullname || sender;
-
-            updatedRoom.lastMessage.content = this.$t('matrix.chat.lastMessage.pattern', {0: deletedBy, 1: this.$t('matrix.chat.message.deleted')});
+            updatedRoom.lastMessageContent = await this.buildLastMessageContent(sender, this.$t('matrix.chat.message.deleted'), updatedRoom);
             updatedRoom.lastMessage.redacted = true;
 
             if (updatedRoom.unreadMessages === 1) {
@@ -189,8 +265,8 @@
         }
       },
       updateUnreadMessages(event) {
-        const updatedRoomIndex = this.rooms.findIndex(room => room.id === event.detail.roomId);
-        const updatedRoom = this.rooms[updatedRoomIndex];
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
+        const updatedRoom = this.rooms?.[updatedRoomIndex];
         if(updatedRoom) {
           this.totalUnreadMessages -= updatedRoom.unreadMessages;
           updatedRoom.unreadMessages = 0;
@@ -238,6 +314,29 @@
           }
         }));
       },
+      async buildLastMessageContent(userId, message, updatedRoom) {
+        const user = userId === matrixUserId ? this.$t('matrix.words.you') :
+            (await this.$matrixService.getUserByMatrixId(userId, updatedRoom))?.profile?.fullname || userId;
+        return this.$t('matrix.chat.lastMessage.pattern', {0: user, 1: message});
+      },
+      async buildLastReactionMessageContent(userId, emoji, message, updatedRoom) {
+        const isSelf = userId === matrixUserId;
+        let reactedBy = userId;
+        if (!isSelf) {
+          const user = await this.$matrixService.getUserByMatrixId(userId, updatedRoom);
+          reactedBy = user?.profile?.fullname || userId;
+        }
+        return isSelf
+          ? this.$t('matrix.message.you.reacted.with', { 0: emoji, 1: message })
+          : this.$t('matrix.message.user.reacted.with', { 0: reactedBy, 1: emoji, 2: message });
+      },
+      bindSyncPollingListeners(matrixFilterId) {
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            this.$matrixService.startMatrixSyncLoop(matrixFilterId).catch(console.error);
+          }
+        });
+      }
     }
   };
 </script>

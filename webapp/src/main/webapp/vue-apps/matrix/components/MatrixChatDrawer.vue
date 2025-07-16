@@ -29,7 +29,7 @@
         :class="{'disabled-background': !rooms?.length}"
         class="fill-height overflow-y-auto specific-scrollbar">
         <matrix-chat-rooms
-          :rooms="rooms"
+          :rooms="sortedRooms"
           :loading="loading" />
         <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
       </div>
@@ -57,6 +57,16 @@ export default {
     },
     presenceClass() {
       return `matrix-status-${this.presence}`;
+    },
+    sortedRooms() {
+      if (!Array.isArray(this.rooms)) {
+        return [];
+      }
+      return [...this.rooms].sort(
+          (a, b) =>
+              (b.updated || 0) - (a.updated || 0) ||
+              a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
+      );
     }
   },
   watch: {

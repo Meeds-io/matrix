@@ -1,12 +1,14 @@
 <template>
   <exo-drawer
-    ref="ChatDiscussionDrawer"
     id="ChatDiscussionDrawer"
+    ref="ChatDiscussionDrawer"
     :loading="loading"
     v-draggable="true"
+    allow-expand
     hide-footer-divider
     go-back-button
     right
+    @expand-updated="handleExpand"
     @closed="close">
     <template slot="title">
       <a :href="url">
@@ -14,11 +16,17 @@
           <div
             :style="`backgroundImage: url(${room.avatarUrl})`"
             :class="avatarBorderClass"
-            class="meeds-chat-contact-avatar ma-0 size-9 d-flex">
-            <div v-if="room.directChat" class="matrix-user-status size-2" :class="[presenceClass, avatarBorderClass]"></div>
+            class="flex-shrink-0 meeds-chat-contact-avatar ma-0 size-9 d-flex">
+            <div
+             v-if="room.directChat"
+             :class="[presenceClass, avatarBorderClass]"
+             class="matrix-user-status size-2" />
           </div>
           <span class="mx-3 text-title text-truncate content-align">
-            {{room.name}} <span v-if="room.external">{{ externalTag }}</span>
+            {{room.name}}
+            <span v-if="room.external">
+              {{ externalTag }}
+            </span>
           </span>
         </div>
       </a>
@@ -65,36 +73,68 @@
           @wheel="loadMoreMessages"
           @scroll="loadMoreMessages">
           <meeds-chat-message
-            :id="'chat-message-' + i"
-            :ref="'message' + i"
+            :id="`chat-message-${i}`"
+            :ref="`chat-message-${i}`"
             :key="message.event_id"
             v-for="(message, i) in messages"
             :message="message"
-            :previous-message="i > 0 && messages[i-1]"
-            :next-message="i < (messages.length - 1) && messages[i+1]"
-            :room="room"/>
+            :previous-message="messages?.[i - 1]"
+            :next-message="messages?.[i + 1]"
+            :room="room"
+            @reply="replyToMessage"
+            @reaction="reactToMessage" />
         </div>
       </div>
     </template>
     <template slot="footer">
-      <div class="d-flex">
+      <v-sheet
+        :max-width="composerContainerMaxWidth"
+        :class="{'justify-self-center': expanded}"
+        class="d-flex"
+        width="100%">
         <message-upload-file-input
          :room="room"
          paste-target="messageComposerArea"
          drop-target="ChatDiscussionDrawer"
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
         <div
-          id="messageComposerArea"
-          :placeholder="$t('matrix.chat.message.label')"
-          ref="messageComposerArea"
-          contenteditable="true"
-          class="meeds-chat-composer input-placeholder border-box-sizing px-3 py-2"
-          @keypress.enter.prevent
-          @keydown.enter="checkIfMentioning"
-          @keyup.enter="sendMessageWithEnter"
-          @keyup="resizeComposerArea($event)"
-          @focus="resizeComposerArea($event)"
-          @input="onComposerInput">
+          class="flex-grow-1 no-min-width border-radius-16"
+          :class="{'border-color-grey-lighten': hasReplyQuote || messageToEdit}">
+          <message-reply-quote
+            v-if="hasReplyQuote"
+            ref="replyQuote"
+            :message="targetReplyMessage"
+            :room="room"
+            class="background-grey-primary no-min-width mx-2 mt-2"
+            read-only
+            closeable
+            @close="cancelReply" />
+          <message-edit-banner
+            v-if="messageToEdit"
+            ref="editMessageBanner"
+            @close="cancelEditMessage" />
+          <div
+            :class="{'no-border': hasReplyQuote || messageToEdit}"
+            class="d-flex border-color-grey-lighten border-radius-16">
+            <div
+              id="messageComposerArea"
+              :placeholder="$t('matrix.chat.message.label')"
+              ref="messageComposerArea"
+              contenteditable="true"
+              class="meeds-chat-composer specific-scrollbar text-break no-border input-placeholder border-box-sizing ps-3 pe-1 py-2"
+              @keypress.enter.prevent
+              @keydown.enter="checkIfMentioning"
+              @keydown.enter.prevent="sendMessageWithEnter"
+              @keyup="resizeComposerArea"
+              @focus="resizeComposerArea"
+              @input="onComposerInput">
+            </div>
+            <div class="mb-0_5 me-1 d-flex flex-column justify-end">
+              <emoji-picker-button
+                :icon-size="20"
+                @select-emoji="insertEmojiIntoComposer" />
+            </div>
+          </div>
         </div>
         <div class="d-flex flex-column justify-end">
           <v-btn
@@ -109,7 +149,19 @@
             </v-icon>
           </v-btn>
         </div>
-      </div>
+        <emoji-suggester
+          composer-id="messageComposerArea"
+          :min-width="258"
+          @select-emoji="insertEmojiIntoComposer" />
+      </v-sheet>
+      <exo-confirm-dialog
+        ref="deleteConfirmDialog"
+        :title="$t('matrix.chat.label.confirmDeleteTitle')"
+        :message="$t('matrix.chat.label.confirmDeleteMessage')"
+        :ok-label="$t('matrix.chat.label.confirm')"
+        :cancel-label="$t('matrix.chat.label.cancel')"
+        @ok="deleteMessage"
+        @closed="messageToDelete = null" />
     </template>
   </exo-drawer>
 </template>
@@ -126,15 +178,31 @@ export default {
       lastScrollTop: 0,
       roomActionComponents: [],
       initializedActions: [],
-      mentionsArray: [],
       mentioningInProgress: false,
       leftReactions: [],
       composerDefaultHeight: 40,
       messageContent: null,
-      insertedNewLine: false
+      insertedNewLine: false,
+      targetReplyMessage: null,
+      messageToEdit: null,
+      messageToDelete: null,
+      expanded: false,
+      drawerWidth: 420
+    };
+  },
+  provide() {
+    return {
+      getIsExpanded: () => this.expanded,
+      getParentDrawerWidth: () => this.drawerWidth
     };
   },
   computed: {
+    composerContainerMaxWidth() {
+      return this.expanded && this.drawerWidth * 2 / 3 || undefined
+    },
+    hasReplyQuote() {
+      return !!this.targetReplyMessage;
+    },
     disableSendMessage() {
       return !this.messageContent?.trim()?.length;
     },
@@ -165,6 +233,8 @@ export default {
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
+    this.$root.$on('chat-edit-message', e => this.editMessage(e));
+    this.$root.$on('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   watch:{
     room() {
@@ -174,20 +244,97 @@ export default {
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-    document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
+    this.$root.$off('chat-edit-message', e => this.editMessage(e));
+    this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   methods: {
+    handleExpand(expanded) {
+      setTimeout(() => {
+        this.expanded = expanded;
+        this.drawerWidth = this.$refs?.ChatDiscussionDrawer?.$el?.clientWidth;
+      }, 300)
+    },
+    insertEmojiIntoComposer(emoji, range = null) {
+      const composer = this.$refs.messageComposerArea;
+      composer.focus();
+      const selection = window.getSelection();
+      let insertRange = range;
+      if (!insertRange) {
+        if (!selection || selection.rangeCount === 0) {
+          composer.innerHTML += emoji;
+          this.$matrixUtils.placeCaretAtEnd(composer);
+          return;
+        }
+        insertRange = selection.getRangeAt(0).cloneRange();
+      }
+      selection.removeAllRanges();
+
+      const emojiNode = document.createTextNode(emoji);
+      insertRange.deleteContents();
+      insertRange.insertNode(emojiNode);
+
+      insertRange.setStartAfter(emojiNode);
+      insertRange.setEndAfter(emojiNode);
+      selection.addRange(insertRange);
+
+      // Notify Vue it's updated
+      const event = new Event('input', { bubbles: true });
+      composer.dispatchEvent(event);
+    },
+    replyToMessage(targetMessage) {
+      this.messageToEdit = null;
+      this.$refs.messageComposerArea.innerHTML = '';
+      this.targetReplyMessage = {
+        ...targetMessage,
+        replyTo: this.$matrixService.buildReplyToObject(this.messages, targetMessage.event_id)
+      };
+      this.$nextTick(() => {
+        this.$refs?.messageComposerArea?.focus();
+      })
+    },
+    cancelReply() {
+      this.targetReplyMessage = null;
+      this.$refs?.messageComposerArea?.focus();
+    },
+    cancelEditMessage() {
+      this.messageToEdit = null;
+      this.$refs.messageComposerArea.innerHTML = '';
+      this.$refs?.messageComposerArea?.focus();
+    },
+    async reactToMessage(emoji, targetMessage) {
+      const existingReaction = targetMessage?.reactions?.find?.(reaction => reaction.key === emoji
+        && reaction.userIds.includes(matrixUserId));
+      if (existingReaction) {
+        await this.removeReaction(emoji, targetMessage)
+      } else {
+        await this.$matrixService.reactToMessage(emoji, this.room.id, targetMessage.event_id);
+      }
+    },
+    async removeReaction(emoji, targetMessage) {
+      const reactionEventId = await this.$matrixService.findReactionEventId(
+          emoji,
+          targetMessage.event_id,
+          matrixUserId,
+          this.room.id);
+      if (reactionEventId) {
+        await this.$matrixService.redactEvent(this.room.id, reactionEventId);
+      }
+    },
     onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
     },
     resetComposer() {
+      if (!this.$refs.messageComposerArea) {
+        return;
+      }
       this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
       this.$refs.messageComposerArea.innerHTML = '';
       this.messageContent = null;
       this.insertedNewLine = false;
+      this.targetReplyMessage = null;
     },
     openDiscussion(e) {
       this.loading = true;
@@ -219,7 +366,7 @@ export default {
         }, 0);
       });
     },
-    close(){
+    close() {
       this.messages = null;
       this.hasMoreMessages = true;
       this.resetComposer();
@@ -268,22 +415,21 @@ export default {
       }
     },
     messageDeleted(event) {
-      if (!this.messages) {
+      if (!this.messages || this.room?.id !== event.detail.roomId) {
         return;
       }
-      if (this.room?.id !== event.detail.roomId) {
-        return;
-      }
+
       const redactedEventId = event?.detail?.eventId;
       const redaction = event.detail?.redaction;
       const index = this.messages.findIndex(msg => msg.event_id === redactedEventId);
       if (index === -1) {
         return;
       }
+
       const original = this.messages[index];
-      this.$set(this.messages, index, {
+      const redacted = {
         ...original,
-        redacted_because: redaction || {redacts: redactedEventId, reason: 'Redacted'},
+        redacted_because: redaction || { redacts: redactedEventId, reason: 'Redacted' },
         content: {
           ...original.content,
           body: undefined,
@@ -291,8 +437,14 @@ export default {
           format: undefined,
           msgtype: undefined
         }
-      });
+      };
 
+      if (original.edited) {
+        redacted.edited = false;
+        redacted.updatedAt = undefined;
+      }
+
+      this.$set(this.messages, index, redacted);
     },
     scrollToEnd() {
       if(this.messages) {
@@ -339,12 +491,12 @@ export default {
         });
       }, 1000);
     },
-    resizeComposerArea(e) {
+    resizeComposerArea() {
       if (this.room?.spaceId) {
         this.initSuggester();
       }
 
-      const composerElement = e.target;
+      const composerElement = this.$refs.messageComposerArea;
       const minHeight = this.composerDefaultHeight;
       const maxHeight = 300;
 
@@ -377,28 +529,52 @@ export default {
     sendMessage() {
       let messageText = this.$refs.messageComposerArea.innerText;
       messageText = messageText.trim();
-      if(!messageText) {
+      if (!messageText) {
         return;
       }
       let message = {'body': messageText,
                      'msgtype': 'm.text'};
-      this.mentionsArray = [];
+      let mentionsArray = [];
       this.$refs.messageComposerArea.querySelectorAll('span[data-user-id]').forEach(selectedSpan => {
           const userId = '@' + selectedSpan.getAttribute('data-user-id') + ':' + matrixServerName;
-          this.mentionsArray.indexOf(userId) === -1 && this.mentionsArray.push(userId);
+          mentionsArray.indexOf(userId) === -1 && mentionsArray.push(userId);
           });
-      if(this.mentionsArray && this.mentionsArray.length) {
+      if(mentionsArray && mentionsArray.length) {
         const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;\/#.()]*<\/span>/gu;
         const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(regexForMentions, '<a href=\"https://matrix.to/#/@$1:' + matrixServerName + '\">$2</a>');
         message.format="org.matrix.custom.html";
         message.formatted_body=messageHTML;
-        message['m.mentions'] = {'user_ids': this.mentionsArray}
+        message['m.mentions'] = {'user_ids': mentionsArray}
       }
-      this.$matrixService.sendMessage(message, this.room.id, this.mentionsArray);
+      if (this.targetReplyMessage) {
+        message['m.relates_to'] = {
+          'm.in_reply_to': {
+            event_id: this.targetReplyMessage?.event_id
+          }
+        };
+      }
+      if (!this.messageToEdit) {
+        this.$matrixService.sendMessage(message, this.room.id);
+        this.$root.$emit('message-sent-statistics', message, this.room);
+      } else {
+        message['m.new_content'] = {
+          'msgtype': 'm.text',
+          'body': message.body,
+          'm.mentions': message['m.mentions'] || {}
+        };
+        if (message.formatted_body) {
+          message['m.new_content'].formatted_body = message.formatted_body;
+          message['m.new_content'].format = message.format;
+        }
+        message['m.relates_to'] = {
+          'rel_type': 'm.replace',
+          'event_id': this.messageToEdit.event_id
+        }
+        this.$matrixService.sendMessage(message, this.room.id);
+      }
       this.resetComposer();
-      this.$root.$emit('message-sent-statistics', message, this.room);
-      this.mentionsArray = [];
       this.mentioningInProgress = false;
+      this.messageToEdit = null;
     },
     checkIfMentioning() {
       this.mentioningInProgress = this.$refs.messageComposerArea.lastElementChild?.className === 'atwho-query' && !this.$refs.messageComposerArea.lastChild.wholeText;
@@ -533,6 +709,36 @@ export default {
       //init suggester
       $messageSuggestor.suggester(suggesterData);
     },
+    editMessage(message) {
+      const composerArea = this.$refs.messageComposerArea;
+      this.targetReplyMessage = null;
+      this.messageToEdit = message;
+      composerArea.innerHTML = message.content.formatted_body || message.content.body ;
+      composerArea.focus();
+      // Move the cursor to the end of the message
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.setStart(composerArea, composerArea.childNodes.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
+    openDeleteMessageDialog(e) {
+      this.messageToDelete = e;
+      this.$refs.deleteConfirmDialog.open();
+    },
+    deleteMessage() {
+      if(this.messageToDelete?.event_id) {
+        this.$matrixService.redactEvent(this.room.id, this.messageToDelete.event_id).then(deletionEvent => {
+          this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.success'), 'success');
+        })
+        .catch(err => {
+          this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
+        });
+      } else {
+        this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
+      }
+    }
   },
 };
 </script>

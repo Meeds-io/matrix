@@ -10,13 +10,20 @@ import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vu
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
 import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
+import MessageEditBanner from "./components/message/MessageEditBanner.vue";
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
 import MessageUser from './components/message/MessageUser.vue';
+import MessageActionList from './components/message/action/MessageActionList.vue'
+import MessageReactionItem from './components/message/MessageReactionItem.vue';
+import MessageSenderName from './components/message/MessageSenderName.vue';
+import RoomLastMessage from './components/room/RoomLastMessage.vue';
+import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
+import * as matrixUtils from './js/matrixUtils'
 import './icons-extensions.js'
 
 const components = {
@@ -32,8 +39,14 @@ const components = {
   'meeds-chat-discussion-drawer': MeedsChatDiscussionDrawer,
   'audio-message': AudioMessage,
   'message-reply-quote': MessageReplyQuote,
+  'message-edit-banner': MessageEditBanner,
   'message-upload-file-input': MessageUploadFileInput,
   'message-user': MessageUser,
+  'message-action-list': MessageActionList,
+  'message-reaction-item': MessageReactionItem,
+  'message-sender-name': MessageSenderName,
+  'room-last-message': RoomLastMessage,
+  'meeds-chat-space-settings': SpaceSettingsAdministration,
 };
 
 for (const key in components) {
@@ -48,6 +61,9 @@ window.Object.defineProperty(Vue.prototype, '$chatConstants', {
 });
 window.Object.defineProperty(Vue.prototype, '$timeUtils', {
   value: timeUtils,
+});
+window.Object.defineProperty(Vue.prototype, '$matrixUtils', {
+  value: matrixUtils,
 });
 
 Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'files-icons-extension');

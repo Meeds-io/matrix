@@ -70,7 +70,7 @@
             fa-solid fa-image
           </v-icon>
         </v-list-item-icon>
-        <v-list-item-title>Image</v-list-item-title>
+        <v-list-item-title>{{ $t('matrix.chat.image.label') }}</v-list-item-title>
       </v-list-item>
     </v-list>
   </v-menu>

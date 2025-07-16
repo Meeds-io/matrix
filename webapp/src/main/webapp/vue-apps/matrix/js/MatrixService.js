@@ -3,6 +3,9 @@ import * as timeUtils from './timeUtils.js';
 
 const replyToCache = new Map();
 const userCache = new Map();
+const reactionEvents = new Map();
+let isPolling = false;
+
 
 // variables that will be get from the server
 const MATRIX_SERVER_URL='http://localhost:8008';
@@ -19,7 +22,7 @@ export function checkAuthenticationTypes() {
   return fetch('/_matrix/client/r0/login', {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -47,7 +50,7 @@ export function authenticate() {
         'token': JWT
       })
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -66,7 +69,8 @@ export function loadChatRooms(currentMemberId) {
                         "unread_thread_notifications":true,
                         "limit":50,
                         "types": [
-                          "m.room.message"
+                          "m.room.message",
+                          "m.reaction"
                         ]
                       },
                       "state":{
@@ -75,7 +79,7 @@ export function loadChatRooms(currentMemberId) {
                     }
                   };
   return sync(filter).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -98,12 +102,11 @@ export function processRooms(rooms) {
     },
   body: JSON.stringify(rooms)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Could not process rooms : Response code indicates a server error', resp);
     }
     return resp.json();
   }).then(processedRooms => {
-    processRoomUsers(processedRooms.rooms);
     return processedRooms
   });
 }
@@ -115,7 +118,7 @@ export function loadRoom(roomId) {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     }
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -148,7 +151,7 @@ export function createMatrixDMRoom(matrixIdUserTwo, serverName) {
       },
       body: JSON.stringify(payLoad),
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -160,7 +163,7 @@ export function getDMRoomsAccountData(userName) {
   return fetch(`/matrix/rest/matrix/dmRooms?user=${userName}`, {
       method: 'GET',
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -177,7 +180,7 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
       },
       body: JSON.stringify(matrixUserDMRooms)
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Response code indicates a server error', resp);
       } else {
         return true;
@@ -185,39 +188,45 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
     });
 }
 
-export function sync(filter, since, timeout) {
-  const formData = new FormData();
+export function sync(filter, since, timeoutMs = 30000) {
+  const params = new URLSearchParams();
 
-  if(filter) {
-    if(!isNaN(parseFloat(filter))) {
-      formData.append('filter', Number(filter));
-    } else {
-      formData.append('filter', JSON.stringify(filter));
-    }
+  if (filter) {
+    params.append('filter', typeof filter === 'string' ? filter : JSON.stringify(filter));
   } else {
-    formData.append('filter', "0");
+    params.append('filter', '0');
   }
-  if(since) {
-    formData.append('since', since);
+
+  if (since) {
+    params.append('since', since);
   }
-  if(timeout) {
-    formData.append('timeout', timeout);
+  if (timeoutMs) {
+    params.append('timeout', timeoutMs);
   }
-  const dataParams = new URLSearchParams(formData).toString();
-  return fetch(`/_matrix/client/v3/sync?${dataParams}`, {
+
+  const controller = new AbortController();
+
+  // fail after timeoutMs + buffer
+  const browserTimeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs + 5000);
+
+  return fetch(`/_matrix/client/v3/sync?${params.toString()}`, {
     method: 'GET',
+    signal: controller.signal,
     headers: {
-      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
     }
-  });
+  }).finally(() => clearTimeout(browserTimeout));
 }
 
-export function processEvents(response) {
+
+export async function processEvents(response) {
   const updatedRooms = response?.rooms?.join;
   if(updatedRooms) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
-      roomEvents.forEach(e => {
+      for (const e of roomEvents) {
         if (e.type === 'm.room.message') {
           const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
           const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(e.content.msgtype);
@@ -250,14 +259,32 @@ export function processEvents(response) {
               sender: e.sender
             }
           }));
+          handleRedactReaction(redactedEventId, roomId);
         }
-        if(e.type === 'm.reaction') {
-          document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', { detail: {
-                                                                                      roomId: roomId,
-                                                                                      message: e,
-                                                                                  }}));
-        } // Joined a new room
-        else if(e.type === 'm.room.member') {
+        if (e.type === 'm.reaction') {
+          const relatedEventId = e.content?.['m.relates_to']?.event_id;
+          const emojiKey = e.content?.['m.relates_to']?.key;
+          const sender = e.sender;
+
+          if (relatedEventId && emojiKey && sender) {
+            reactionEvents.set(e.event_id, {
+              targetEventId: relatedEventId,
+              emoji: emojiKey,
+              userId: sender
+            });
+            const targetEvent = await getEvent(roomId, relatedEventId);
+            const targetMessageBody = getFormattedMessageBody(targetEvent);
+            document.dispatchEvent(new CustomEvent('matrix-message-reaction-added', {
+              detail: {
+                roomId: roomId,
+                message: e,
+                user_id: sender,
+                emojiKey: emojiKey,
+                targetMessageBody: targetMessageBody
+              }
+            }));
+          }
+        } else if(e.type === 'm.room.member') {
           if(e.content.membership === 'join') {
             const member = {};
             member.id = e.sender;
@@ -277,7 +304,7 @@ export function processEvents(response) {
             }
           }
         }
-      });
+      }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
       ephemeralEvents.forEach(e => {
         //Users are typing in the room
@@ -311,119 +338,92 @@ export function processEvents(response) {
 }
 
 export async function toRoomObject(rooms, currentMemberId) {
-  let myRooms = {};
-  myRooms.rooms = [];
-  myRooms.totalUnreadMessages = 0;
-  for (const property in rooms) {
-    let roomItem = {};
-    let members = [];
-    const roomEvents = [...rooms[property].timeline.events, ...rooms[property].state.events];
-    roomEvents.forEach(e => {
-      if(e.type === 'm.room.create'){
-        roomItem.created = e.origin_server_ts;
-      }
-      if(e.type === 'm.room.topic'){
-        roomItem.topic = e.content.topic;
-      }
-      if(e.type === 'm.room.name'){
-        roomItem.name = e.content.name;
-      }
-      if(e.type === 'm.room.avatar'){
-        if(!roomItem.avatarLastUpdated || roomItem.avatarLastUpdated < e.origin_server_ts) {
-          const avatarUrl = e.content.url ? e.content.url.substring(6) : chatConstants.DEFAULT_ROOM_AVATAR; // removes the 'mcx://' from the beginning of the URL sent by Matrix
-          roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
-          roomItem.avatarLastUpdated = e.origin_server_ts;
-        }
-      }
-      if(e.type === 'm.room.member'){
-        if(e.content.membership === 'join') {
-          const oldMemberIndex = members.findIndex(element => element.id === e.sender);
-          if(oldMemberIndex < 0 || (members && members.length > oldMemberIndex && members[oldMemberIndex].lastUpdated && members[oldMemberIndex].lastUpdated <= e.origin_server_ts)) {
-            let member = oldMemberIndex > -1 ? members[oldMemberIndex] : {};
-            member.id = e.sender;
-            member.name = e.content.displayname;
-            member.avatarUrl = e.content.avatar_url;
-            member.lastUpdated = e.origin_server_ts;
-            if(oldMemberIndex >= 0) {
-              members[oldMemberIndex] = member;
-            } else {
-              members.push(member);
+  let myRooms = {rooms: [], totalUnreadMessages: 0};
+  const roomMap = new Map();
+
+  for (const roomId in rooms) {
+    const roomData = rooms[roomId];
+    const events = [...roomData.timeline.events, ...roomData.state.events];
+
+    let roomItem = {
+      id: roomId,
+      enabledUser: true,
+      external: false,
+      favorite: false,
+      unreadMessages: roomData.unread_notifications.notification_count,
+      members: [],
+    };
+
+    let membersMap = {};
+    for (const e of events) {
+      switch (e.type) {
+        case 'm.room.create':
+          roomItem.created = e.origin_server_ts;
+          break;
+        case 'm.room.topic':
+          roomItem.topic = e.content.topic;
+          break;
+        case 'm.room.name':
+          roomItem.name = e.content.name;
+          break;
+        case 'm.room.avatar':
+          if (!roomItem.avatarLastUpdated || roomItem.avatarLastUpdated < e.origin_server_ts) {
+            const url = e.content.url ? e.content.url.substring(6) : DEFAULT_ROOM_AVATAR;
+            roomItem.avatarUrl = `/_matrix/media/v3/thumbnail/${url}?width=32&height=32&method=crop&allow_redirect=true`;
+            roomItem.avatarLastUpdated = e.origin_server_ts;
+          }
+          break;
+        case 'm.room.member':
+          if (e.content.membership === 'join') {
+            const member = membersMap[e.sender] ?? {};
+            if (!member.lastUpdated || member.lastUpdated <= e.origin_server_ts) {
+              membersMap[e.sender] = {
+                id: e.sender,
+                name: e.content.displayname,
+                avatarUrl: e.content.avatar_url,
+                lastUpdated: e.origin_server_ts
+              };
             }
           }
-        }
-      }
-      if (e.type === 'm.room.message') {
-        const isRedacted = !!e.unsigned.redacted_because;
-        const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
-        const content = isReplacement ? e.content['m.new_content'] : e.content;
-        const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
-        const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content.msgtype);
-
-        if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
-          roomItem.updated = e.origin_server_ts;
-          if (isRedacted) {
-            roomItem.lastMessage = {
-              content: exoi18n.i18n.t('matrix.chat.message.deleted'),
-              sender: e.sender,
-              eventId,
-              redacted: true
-            };
-          } else if (isSupportedMsgType) {
-            roomItem.lastMessage = {
-              content: content.format === 'org.matrix.custom.html'
-                  ? formatMentionsInRoomList(content.formatted_body)
-                  : content.body,
-              sender: e.sender,
-              eventId,
-              ...(isReplacement && {edited: true})
-            };
+          break;
+        case 'm.room.message':
+        case 'm.reaction': {
+          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
+            roomItem.updated = e.origin_server_ts;
           }
+          break;
         }
       }
-    });
-    roomItem.members = members;
+    }
 
-    roomItem.id = property;
-    roomItem.enabledUser = true;
-    roomItem.external = false;
-    roomItem.favorite = false;
-    roomItem.unreadMessages = rooms[property].unread_notifications.notification_count;
-    if(!roomItem.name && roomItem.members.length == 2 ) {
-      roomItem.name = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.name;
-      let avatarUrl = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.avatarUrl;
-      roomItem.dmMemberId = roomItem.members.filter(member => member.id !== matrixUserId)?.shift()?.id;
-      roomItem.presence = await getUserPresence(roomItem.dmMemberId);
-      if(avatarUrl) {
-        avatarUrl = avatarUrl.substring(6); // removes the 'mcx://' from the beginning of the URL sent by Matrix
-        roomItem.avatarUrl = '/_matrix/media/v3/thumbnail/' + avatarUrl +'?width=32&height=32&method=crop&allow_redirect=true';
-      } else {
-        roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
-      }
+    roomItem.members = Object.values(membersMap);
+
+    // Fallback: if no name & 2-member DM
+    if (!roomItem.name && roomItem.members.length === 2) {
+      const other = roomItem.members.find(m => m.id !== currentMemberId);
+      roomItem.name = other?.name;
+      roomItem.dmMemberId = other?.id;
+      roomItem.presence = await getUserPresence(other?.id);
+      roomItem.avatarUrl = other?.avatarUrl
+          ? `/_matrix/media/v3/thumbnail/${other.avatarUrl.substring(6)}?width=32&height=32&method=crop&allow_redirect=true`
+          : DEFAULT_ROOM_AVATAR;
       roomItem.directChat = true;
     }
-    if(roomItem.members == 1) {
+
+    if (roomItem.members.length === 1) {
       roomItem.name = 'Empty Room';
     }
-    if(!roomItem.avatarUrl) {
-      roomItem.avatarUrl = DEFAULT_ROOM_AVATAR;
-    }
-    if(!roomItem.updated) {
-      roomItem.updated = roomItem.created || new Date().getTime();
-    }
+
+    roomItem.avatarUrl = roomItem.avatarUrl || DEFAULT_ROOM_AVATAR;
+    roomItem.updated = roomItem.updated || roomItem.created || Date.now();
     myRooms.totalUnreadMessages += roomItem.unreadMessages;
-    myRooms.rooms.push(roomItem);
-  }
-  myRooms.rooms.sort((roomOne, roomTwo) => {
-    if(roomOne.updated && roomTwo.updated) {
-      return roomTwo.updated - roomOne.updated;
-    } else if(roomOne.updated) {
-      return -1;
-    } else if (roomTwo.updated) {
-      return 1;
-    } else {
-      return roomOne.name.localeCompare(roomTwo.name, undefined, {numeric: true, sensitivity: 'base'}); // Natural sorting using room names
+
+    const existing = roomMap.get(roomId);
+    if (!existing || existing.updated < roomItem.updated) {
+      roomMap.set(roomId, roomItem);
     }
-  });
+  }
+  myRooms.rooms = Array.from(roomMap.values());
   return myRooms;
 }
 
@@ -431,7 +431,7 @@ export function getSpaceRoom(spaceId) {
   return fetch(`/matrix/rest/matrix/spaceRoom?spaceId=${spaceId}`, {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Get room by space : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -443,8 +443,8 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName, first
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',
   }).then(resp => {
-    if (!resp || !resp.ok) {
-      if(resp.status === 404) {
+    if (!resp?.ok) {
+      if (resp.status === 404) {
         return createMatrixDMRoom(secondUserMatrixId || secondParticipant, serverName).then(data => {
           const payload = {
                             "roomId": data.room_id,
@@ -460,7 +460,7 @@ export function getDMRoom(firstParticipant, secondParticipant, serverName, first
             },
             body: JSON.stringify(payload)
             }).then(createdRoom => {
-              if (!createdRoom || !createdRoom.ok) {
+              if (!createdRoom?.ok) {
                 throw new Error('Response code indicates a server error', resp);
               } else {
                 return getDMRoomsAccountData(firstParticipant).then(accountData =>
@@ -502,7 +502,7 @@ export function getRoomById(roomId) {
      method: 'GET',
      credentials: 'include',
    }).then(resp => {
-     if (!resp || !resp.ok) {
+     if (!resp?.ok) {
        throw new Error('Get Room by Room Id : Response code indicates a server error or space not found', resp);
      } else {
        return resp.json();
@@ -510,26 +510,54 @@ export function getRoomById(roomId) {
    });
 }
 
-export async function longPollingSync(matrixFilterId) {
-  const since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
-  let response = await sync(matrixFilterId || '0', since, MATRIX_SYNC_TIMEOUT);
-
-  if (response.status == 502) {
-    // Status 502 is a connection timeout error, let's retry
-    await longPollingSync();
-  } else if (response.status != 200) {
-    console.error(response.statusText);
-    // Reconnect in five second
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    await longPollingSync();
-  } else {
-    // Get and show the message
-    let message = await response.json();
-    processEvents(message);
-    localStorage.setItem(MATRIX_SYNC_SINCE, message.next_batch);
-    // call again to get the next batch of data
-    await longPollingSync();
+export async function startMatrixSyncLoop(matrixFilterId) {
+  if (isPolling) {
+    return;
   }
+  isPolling = true;
+  let since = localStorage.getItem(MATRIX_SYNC_SINCE) || '';
+  let errorDelay = 5000;
+  const maxDelay = 300000;
+
+  while (isPolling) {
+    try {
+      const response = await sync(matrixFilterId || '0', since, MATRIX_SYNC_TIMEOUT);
+      if (response.status === 502) {
+        continue;
+      }
+      if (response.status === 401) {
+        console.warn('Unauthorized! Token may be expired.');
+        // Optionally stop polling or try to refresh token
+        break;
+      }
+
+      if (response.status !== 200) {
+        console.error('Matrix sync error:', response.status, response.statusText);
+        console.warn(`Retrying in ${Math.round(errorDelay / 1000)}s...`);
+        await delay(errorDelay);
+        errorDelay = Math.min(errorDelay * 2, maxDelay);
+        continue;
+      }
+
+      const data = await response.json();
+      await processEvents(data);
+
+      if (data.next_batch) {
+        since = data.next_batch;
+        localStorage.setItem(MATRIX_SYNC_SINCE, since);
+      }
+
+      errorDelay = 5000;
+
+    } catch (err) {
+      console.error('Matrix sync failed:', err);
+      console.warn(`Retrying in ${Math.round(errorDelay / 1000)}s...`);
+      await delay(errorDelay);
+      errorDelay = Math.min(errorDelay * 2, maxDelay);
+    }
+  }
+
+  isPolling = false;
 }
 
 export function saveFilter() {
@@ -542,7 +570,7 @@ export function saveFilter() {
     },
     body: JSON.stringify(payload)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Save Filter : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -573,7 +601,7 @@ export function savePushGateway(kind, pushKey) {
     },
     body: JSON.stringify(payload)
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Save Push gateway : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -588,7 +616,7 @@ export function getPushers() {
      'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Get Push gateway : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -625,7 +653,7 @@ export function getByRoomId(roomId) {
       method: 'GET',
       credentials: 'include',
     }).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Get Space by Room Id : Response code indicates a server error or space not found', resp);
       } else {
         return resp.json();
@@ -640,7 +668,7 @@ export function getUserPresence(userIdOnMatrix) {
         'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
       }
     },).then(resp => {
-      if (!resp || !resp.ok) {
+      if (!resp?.ok) {
         throw new Error('Get User Presence on Matrix : Response code indicates a server error', resp);
       } else {
         return resp.json();
@@ -699,7 +727,7 @@ export async function loadRoomMessages(roomId, from, to) {
       'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
   }).then(resp => {
-    if (!resp || !resp.ok) {
+    if (!resp?.ok) {
       throw new Error('Load room messages : Response code indicates a server error', resp);
     } else {
       return resp.json();
@@ -883,9 +911,21 @@ export function processMessages(messageItems) {
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
         const targetEventId = relatesTo.event_id;
         const originalMessage = messagesMap.get(targetEventId);
-        if (originalMessage) {
+        if (originalMessage && !isRedacted(originalMessage)) {
           originalMessage.content.body = newContent.body;
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
+          if(newContent.format && newContent.format === 'org.matrix.custom.html') {
+            originalMessage.content.format = newContent.format;
+            originalMessage.content.formatted_body = newContent.formatted_body;
+          } else {
+            delete originalMessage.content.format;
+            delete originalMessage.content.formatted_body;
+          }
+          if(newContent['m.mentions'] && newContent['m.mentions'].user_ids?.length > 0) {
+            originalMessage.content['m.mentions'] = newContent['m.mentions'];
+          } else {
+            delete originalMessage.content['m.mentions'];
+          }
           originalMessage.edited = true;
           originalMessage.updatedAt = item.origin_server_ts;
 
@@ -919,7 +959,7 @@ export function processMessages(messageItems) {
       if (isAnnotation) {
         const messageReactedTo = messagesMap.get(relatesTo.event_id);
         if (messageReactedTo) {
-          processMessageReaction(messageReactedTo, item); // mutate in-place
+          processMessageReaction(messageReactedTo, item);
         } else {
           leftReactions.push(item);
         }
@@ -940,7 +980,9 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   }
 
   const key = reactionItem.content['m.relates_to'].key;
-  const userId = reactionItem.user_id;
+  const userId = reactionItem.user_id || reactionItem.sender;
+  const targetEventId = reactionItem.content?.['m.relates_to']?.event_id;
+  const reactionEventId = reactionItem.event_id;
 
   let entry = messageReactedTo.reactionsMap.get(key);
   if (!entry) {
@@ -951,7 +993,13 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   if (!entry.userIds.includes(userId)) {
     entry.userIds.push(userId);
   }
-
+  if (reactionEventId) {
+    reactionEvents.set(reactionEventId, {
+      targetEventId: targetEventId,
+      emoji: key,
+      userId: userId
+    });
+  }
   messageReactedTo.reactions = Array.from(messageReactedTo.reactionsMap.values());
   return messageReactedTo;
 }
@@ -1051,20 +1099,6 @@ export async function getMaxUploadSize() {
   }
 }
 
-export async function processRoomUsers(rooms) {
-  for (const room of rooms) {
-    if (room.spaceId) {
-      for (const member of room.members || []) {
-        const user = await getUserIdentity(member.userId);
-        userCache.set(member.matrixId, user)
-      }
-    } else {
-      const user = await getUserIdentity(room.userId);
-      userCache.set(room.matrixId, user);
-    }
-  }
-}
-
 export function getParticipantInfo(userId) {
   return fetch(`/matrix/rest/matrix/participant/${userId}`, {
     method: 'GET',
@@ -1075,6 +1109,240 @@ export function getParticipantInfo(userId) {
     }
     return resp.json();
   });
+}
+
+export async function reactToMessage(emoji, roomId, eventId) {
+  const txnId = `m${Date.now()}`; // unique txn id
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.reaction/${txnId}`;
+
+  const body = {
+    "m.relates_to": {
+      "rel_type": "m.annotation",
+      "event_id": eventId,
+      "key": emoji
+    }
+  };
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to send reaction: ${error}`);
+  }
+
+  return await response.json();
+}
+
+export async function redactEvent(roomId, eventId) {
+  const txnId = `r${Date.now()}`;
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/redact/${eventId}/${txnId}`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to redact reaction: ${error}`);
+  }
+}
+
+export async function findReactionEventId(emoji, targetEventId, userId, roomId) {
+  const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${targetEventId}?rel_type=m.annotation&limit=100`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+    }
+  });
+
+  if (!response.ok) {
+    return null
+  }
+  const data = await response.json();
+  const match = data.chunk.find(e =>
+      e.sender === userId &&
+      e.content?.['m.relates_to']?.key === emoji
+  );
+
+  return match?.event_id || null;
+}
+
+export async function getEvent(roomId, eventId) {
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/event/${encodeURIComponent(eventId)}`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+    }
+  });
+
+  if (!response.ok) throw new Error(`Failed to fetch event: ${response.statusText}`);
+  return await response.json();
+}
+
+export async function isEventRedacted(roomId, eventId) {
+  try {
+    const event = await getEvent(roomId, eventId);
+    return !!event.unsigned?.redacted_because;
+  } catch (e) {
+    console.warn(`Could not fetch event ${eventId}:`, e.message);
+    return true;
+  }
+}
+
+export async function getRoomLastMessage(roomId) {
+  const filter = {
+    types: ['m.room.message', 'm.reaction', 'm.room.redaction']
+  };
+
+  const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
+  let limit = 3;
+  const maxLimit = 50;
+  let from = null;
+  const maxIterations = 5;
+  let iterations = 0;
+
+  while (limit <= maxLimit && iterations < maxIterations) {
+    const params = new URLSearchParams({
+      dir: 'b',
+      limit: limit.toString(),
+      filter: JSON.stringify(filter)
+    });
+
+    if (from) {
+      params.set('from', from);
+    }
+
+    const response = await fetch(`${baseUrl}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch messages:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const events = data.chunk || [];
+    const filteredEvents = [];
+
+    if (events.length === 0 && !data.next_batch) {
+      break;
+    }
+
+    for (const event of events) {
+      if (event.unsigned?.redacted_because) {
+        continue;
+      }
+
+      if (event.type === 'm.reaction') {
+        const relatedEventId = event.content?.['m.relates_to']?.event_id;
+        if (!relatedEventId) {
+          continue;
+        }
+
+        const redacted = await isEventRedacted(roomId, relatedEventId);
+        if (redacted) {
+          continue;
+        }
+      }
+      if (event.type === 'm.room.redaction') {
+        const redactedEventId = event.redacts;
+        if (!redactedEventId) {
+          continue;
+        }
+        const redactedEvent = await getEvent(roomId, redactedEventId);
+        if (!redactedEvent) {
+          continue;
+        }
+        if (redactedEvent.type === 'm.reaction') {
+          continue;
+        }
+      }
+      filteredEvents.push(event);
+    }
+
+    const sorted = filteredEvents.sort((a, b) => b.origin_server_ts - a.origin_server_ts);
+    if (sorted[0]) return sorted[0];
+
+    from = data.next_batch;
+    limit = Math.min(limit * 2, maxLimit);
+    iterations++;
+  }
+
+  return null;
+}
+
+export async function buildRoomLastMessage(e, type, roomItem, roomData) {
+  switch (type) {
+    case 'm.room.message': {
+      const isRedacted = !!e.unsigned?.redacted_because;
+      const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace' && e.content?.['m.new_content'];
+      const content = isReplacement ? e.content['m.new_content'] : e.content;
+      const eventId = isReplacement ? e.content['m.relates_to'].event_id : e.event_id;
+      const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(content?.msgtype);
+
+      if (isRedacted) {
+        return {
+          content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+          sender: e.sender,
+          eventId,
+          redacted: true
+        };
+      } else if (isSupportedMsgType) {
+        return {
+          content: content.format === 'org.matrix.custom.html'
+              ? formatMentionsInRoomList(content.formatted_body)
+              : content.body,
+          sender: e.sender,
+          eventId,
+          edited: isReplacement ? true : undefined
+        };
+      }
+      return null;
+    }
+    case 'm.reaction': {
+      const reactionKey = e.content?.['m.relates_to']?.key;
+      const reactedEventId = e.content?.['m.relates_to']?.event_id;
+      let target = roomData?.timeline?.events?.find(ev => ev.event_id === reactedEventId);
+      if (!target && reactedEventId) {
+        target = await getEvent(roomItem.id, reactedEventId);
+      }
+      const targetMessageBody = getFormattedMessageBody(target);
+      if (reactionKey && targetMessageBody) {
+        return {
+          content: targetMessageBody,
+          sender: e.sender,
+          eventId: reactedEventId,
+          reactionKey,
+          reaction: true
+        };
+      }
+      return null;
+    }
+    case 'm.room.redaction': {
+      return {
+        content: exoi18n.i18n.t('matrix.chat.message.deleted'),
+        sender: e.sender,
+        eventId: e.event_id,
+        redacted: true
+      };
+    }
+    default:
+      return null;
+  }
 }
 
 export async function getUserIdentity(userId) {
@@ -1096,4 +1364,57 @@ function extractUserIdFromRoomMembers(room, matrixId) {
     return room.members.find(member => member.matrixId === matrixId)?.userId
   }
   return room.userId
+}
+
+function handleRedactReaction(redactedEventId, roomId) {
+  if (reactionEvents.has(redactedEventId)) {
+    const reaction = reactionEvents.get(redactedEventId);
+
+    document.dispatchEvent(new CustomEvent('matrix-message-reaction-removed', {
+      detail: {
+        roomId: roomId,
+        reactionEventId: redactedEventId,
+        targetEventId: reaction.targetEventId,
+        emoji: reaction.emoji,
+        userId: reaction.userId
+      }
+    }));
+  }
+}
+
+function getFormattedMessageBody(targetMessage) {
+  if(!targetMessage) {
+    return '';
+  }
+  return targetMessage.content.format === 'org.matrix.custom.html'
+      ? formatMentionsInRoomList(targetMessage.content.formatted_body)
+      : targetMessage.content.body;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRedacted(event) {
+  return !!event.unsigned?.redacted_because || !!event.redacted_because;
+}
+
+export function enableOrDisableChat(spaceId, enable) {
+  if(!spaceId) {
+    console.warn('the space Id parameter should not be null');
+    return;
+  }
+  let statusChange = enable && 'enable' || 'disable';
+  return fetch(`/matrix/rest/matrix/${statusChange}/${spaceId}`, {
+    method: 'PUT',
+    credentials: 'include',
+  }).then(resp => {
+    if (!resp?.ok) {
+      if(resp.status === 504) {
+        throw new Error('Timeout : operation is still in progress');
+      } else {
+        throw new Error(`Error while ${enable ? 'enabling' : 'disabling'} the chat on this space : response status = ${resp.status}`);
+      }
+    }
+  });
 }

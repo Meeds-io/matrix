@@ -19,6 +19,7 @@
 package io.meeds.chat.dao;
 
 import io.meeds.chat.entity.RoomEntity;
+import io.meeds.chat.entity.RoomStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -45,6 +46,8 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
   public RoomEntity findByRoomIdStartsWith(String roomId);
 
   public List<RoomEntity> findBySpaceIdIsNotNull();
+
+  public List<RoomEntity> findBySpaceIdIsNotNullAndStatusIs(RoomStatus status);
 
   public List<RoomEntity> findBySpaceIdIn(List<String> spaceIds);
 }

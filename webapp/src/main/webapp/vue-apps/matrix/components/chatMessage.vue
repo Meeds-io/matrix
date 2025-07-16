@@ -19,8 +19,17 @@
 <template>
   <div
     class="chat-message-content"
-    :class="{'mb-3':!nextMessage, 'mb-1': nextMessage}">
-    <div
+    :class="{
+        'mb-3':!nextMessage,
+        'mb-1': nextMessage,
+        'no-select': isMobile
+      }"
+    @mouseleave="!isMobile && closeMenu()"
+    @mouseenter="!isMobile && openMenu()"
+    @contextmenu="preventIfIsMobile"
+    @dragstart="preventIfIsMobile"
+    @selectstart="preventIfIsMobile">
+  <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
       :class="{ 'mt-5' : previousMessage, 'mt-2' : !previousMessage,  }">
@@ -39,29 +48,59 @@
           :room="room"
           :sender-id="message.sender" />
         <div
-          class="message-container"
-          :class="{'ms-4 position-relative': !isMyMessage && !room.directChat, 'float-right ml-11': isMyMessage, 'float-left': !isMyMessage}">
-          <meeds-chat-message-content
-            :message="message"
-            :display-sender="displaySender"
-            :css-class="messageContentClass"
-            :display-timestamp="displayTimestamp"
-            :next-message="nextMessage"
-            :is-self-message="isSelfMessage"
-            :timestamp="formattedTimestamp"
-            :room="room" />
+          :id="`message${message.origin_server_ts}`"
+          class="message-container full-width position-relative"
+          :class="{
+            'ms-4': !isMyMessage && !room.directChat,
+            'float-right': isMyMessage,
+            'float-left': !isMyMessage}">
+          <v-menu
+            :disabled="isRedacted"
+            v-model="parentMenu"
+            :offset-x="isMyMessage"
+            :nudge-right="isMyMessage && -276 || 20"
+            :close-on-content-click="false"
+            :open-on-click="!isMobile"
+            :attach="`#message${message.origin_server_ts}`"
+            :nudge-top="-10"
+            content-class="no-min-width border-radius"
+            offset-y
+            right
+            top>
+            <template #activator="{ on, attrs }">
+              <div
+                v-bind="attrs"
+                v-on="on">
+                <meeds-chat-message-content
+                  :message="message"
+                  :display-sender="displaySender"
+                  :css-class="messageContentClass"
+                  :display-timestamp="displayTimestamp"
+                  :next-message="nextMessage"
+                  :is-self-message="isSelfMessage"
+                  :timestamp="formattedTimestamp"
+                  :room="room"
+                  :is-redacted="isRedacted" />
+              </div>
+            </template>
+            <message-action-list
+              ref="actionList"
+              :message="message"
+              :is-my-message="isMyMessage"
+              @reply="$emit('reply', message)"
+              @reaction="$emit('reaction', $event, message)" />
+          </v-menu>
           <div
             class="message-reactions d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
-            <div
+            <message-reaction-item
+              v-if="!isRedacted"
               v-for="reaction in message.reactions"
-              :class="{
-                'current-user-reaction': isCurrentUserReaction(reaction),
-                'other-user-reaction': !isCurrentUserReaction(reaction),
-                'ml-2': isMyMessage, ' me-2': !isMyMessage,
-              }"
-              class="message-reaction-item px-2 mb-2"
-              v-sanitized-html="`${reaction.key} ${reaction.userIds.length > 1 ? reaction.userIds.length > 9 ? '9+' : reaction.userIds.length : ''}`" />
+              :key="reaction.key"
+              :reaction="reaction"
+              :room="room"
+              :is-my-message="isMyMessage"
+              @reaction="$emit('reaction', $event, message)" />
           </div>
         </div>
       </div>
@@ -101,6 +140,13 @@
         },
         defaultThumbnailMaxWidth: 345,
         defaultThumbnailMaxHeight: 275,
+        menu: false,
+        parentMenu: false,
+        childMenu: null,
+        touchHoldTimeout: null,
+        touchMoved: false,
+        touchStartY: 0,
+        ignoreClickUntil: 0
       };
     },
     created() {
@@ -110,10 +156,34 @@
           this.presenceClass = `matrix-status-${status}`;
         })
       });
-      document.addEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
+      document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
+      document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.addEventListener('click', this.onClickOutside, true);
+      document.addEventListener('touchstart', this.onClickOutside, true);
+      this.$root.$on('message-child-menu-closed', this.closeChildMenu);
+      this.$root.$on('message-child-menu-opened', this.openChildMenu);
+    },
+    mounted() {
+      if (this.isMobile) {
+        this.$el?.addEventListener('touchstart', this.onTouchStart, {passive: false});
+        this.$el?.addEventListener('touchend', this.onTouchEnd, {passive: false});
+        this.$el?.addEventListener('touchcancel', this.onTouchCancel, {passive: false});
+        this.$el?.addEventListener('touchmove', this.onTouchMove, {passive: false});
+      }
     },
     beforeDestroy() {
-      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded(event));
+      if (this.isMobile) {
+        this.$el?.removeEventListener('touchstart', this.onTouchStart);
+        this.$el?.removeEventListener('touchend', this.onTouchEnd);
+        this.$el?.removeEventListener('touchcancel', this.onTouchCancel);
+        this.$el?.removeEventListener('touchmove', this.onTouchMove);
+      }
+      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
+      document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.removeEventListener('click', this.onClickOutside, true);
+      document.removeEventListener('touchstart', this.onClickOutside, true);
+      this.$root.$off('message-child-menu-opened', this.openChildMenu);
+      this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
     computed: {
       displaySender() {
@@ -127,6 +197,9 @@
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
+      },
+      isMobile() {
+        return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
       },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
@@ -180,18 +253,15 @@
           return this.$matrixService.formatDateString(this.message.origin_server_ts);
         }
       },
-      profileUrl() {
-        return `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${this.sender?.remoteId}`;
-      },
-      userNameColor() {
-        return this.sender && this.$matrixService.getUserDisplayNameFontColor(this.sender.id);
-      },
       externalTag() {
         return `( ${this.$t('matrix.chat.user.external')} )`;
       },
       isSelfMessage() {
         return localStorage.getItem('matrix_user_id') === this.message?.sender;
-      }
+      },
+      isRedacted() {
+        return !this.message.content.body && this.message.redacted_because?.redacts;
+      },
     },
     methods: {
       sameDateAs(thisMessageTime, anotherMessageTime) {
@@ -217,15 +287,93 @@
         }
       },
       reactionAdded(event) {
-        if(this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
+        if (this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
           this.message = this.$matrixService.processMessageReaction(this.message, event.detail.message);
         }
       },
-      isCurrentUserReaction(reaction) {
-        return reaction.userIds.includes(this.currentUserId());
+      reactionRemoved(event) {
+        const {roomId, targetEventId, emoji, userId} = event.detail;
+
+        if (this.room.id !== roomId || this.message.event_id !== targetEventId) {
+          return;
+        }
+        const map = this.message.reactionsMap;
+        if (!map || !map.has(emoji)) {
+          return;
+        }
+
+        const entry = map.get(emoji);
+        entry.userIds = entry.userIds.filter(id => id !== userId);
+        if (!entry?.userIds?.length) {
+          map.delete(emoji);
+        }
+
+        this.message.reactions = Array.from(map.values());
       },
-      currentUserId() {
-        return localStorage.getItem('matrix_user_id');
+      openMenu() {
+        if (!this.childMenu) {
+          this.parentMenu = true;
+        }
+      },
+      closeMenu() {
+        if (this.childMenu !== this.message.event_id) {
+          this.childMenu = null;
+          this.parentMenu = false;
+        }
+      },
+      openChildMenu() {
+        this.childMenu = this.message.event_id;
+      },
+      closeChildMenu() {
+        this.childMenu = null;
+      },
+      onTouchStart(event) {
+        if (!this.isMobile) return;
+        this.touchMoved = false;
+        this.touchStartY = event.touches[0].clientY;
+
+        this.touchHoldTimeout = setTimeout(() => {
+          if (!this.touchMoved) {
+            this.openMenu();
+            event.preventDefault();
+            this.ignoreClickUntil = Date.now() + 600;
+          }
+        }, 500);
+      },
+      onTouchMove(event) {
+        const deltaY = Math.abs(event.touches[0].clientY - this.touchStartY);
+        if (deltaY > 10) {
+          this.touchMoved = true;
+          clearTimeout(this.touchHoldTimeout);
+        }
+      },
+      onTouchEnd() {
+        clearTimeout(this.touchHoldTimeout);
+      },
+      onTouchCancel() {
+        clearTimeout(this.touchHoldTimeout);
+      },
+      onClickOutside(event) {
+        if (Date.now() < this.ignoreClickUntil) {
+          // block iOS ghost click
+          event.stopImmediatePropagation?.();
+          return;
+        }
+        const menuContent = this.$refs.actionList?.$el;
+        const messageContainer = this.$el;
+
+        if (
+            this.parentMenu &&
+            menuContent && !menuContent.contains(event.target) &&
+            messageContainer && !messageContainer.contains(event.target)
+        ) {
+          this.closeMenu();
+        }
+      },
+      preventIfIsMobile(event) {
+        if (this.isMobile) {
+          event.preventDefault();
+        }
       }
     }
   }

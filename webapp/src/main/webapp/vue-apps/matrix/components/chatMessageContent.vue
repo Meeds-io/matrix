@@ -17,19 +17,26 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div class="chat-message-content-body text-break"
-    :class="[cssClass, {'mt-0-5':!displaySender}, {'px-3 py-2':!isImage}, {'my-message-text': isSelfMessage && !isImage, 'others-message-text': !isSelfMessage && !isImage}]"
-    :style="isImage && {
-              'height': imageThumbnailMaxHeight + 'px',
-              'width': imageThumbnailMaxWidth + 'px',
-              'cursor': 'pointer',
-              'overflow': 'hidden'
-             }"
+  <v-sheet
+    :class="[
+      cssClass,
+      {'mt-0-5':!displaySender},
+      {'px-3 py-2':!isImage},
+      {
+        'my-message-text': isSelfMessage && !isImage,
+        'others-message-text': !isSelfMessage && !isImage
+      },
+      {'clickable overflow-hidden': isImage}]"
+    :height="isImage && imageThumbnailMaxHeight || undefined"
+    :width="messageContentWidth"
+    :max-width="expanded && messageMaxWidth || undefined"
+    class="chat-message-content-body text-break"
     @click="isImage && openImagePreview(message)">
     <message-reply-quote
       v-if="message?.replyTo"
       :message="message"
-      :room="room" />
+      :room="room"
+      class="mb-2" />
     <div
       v-if="isText"
       :id="`message-content-${message.event_id}`"
@@ -67,7 +74,7 @@
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
         class="position-absolute">
-        <div v-if="isGifImage" class="position-absolute transparent border-radius ml-2 mt-2">
+        <div v-if="isGifImage" class="position-absolute transparent border-radius ms-2 mt-2">
           <v-chip
             label
             small>
@@ -79,7 +86,7 @@
       v-if="isFile"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      class="message-file">
+      class="text-no-wrap max-width-fit">
       <a
         :href="fileDownloadLink"
         :alt="message.content.body"
@@ -93,7 +100,7 @@
           </v-icon>
         </div>
         <div
-          class="message-file-name text-truncate">
+          class="message-file-name align-self-center text-truncate">
           {{ message.content.body }}
         </div>
       </a>
@@ -103,10 +110,13 @@
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
       :message="message"
+      :expanded="expanded"
+      :container-max-width="messageMaxWidth"
       :next-message="nextMessage" />
     <div class="d-flex full-width justify-end">
     <v-tooltip
       v-if="message?.edited"
+      open-delay="800"
       bottom>
       <template #activator="{on, bind}">
         <div
@@ -127,7 +137,9 @@
         size="3"
         :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
         class="ms-2 me-1 align-center">fas fa-circle</v-icon>
-      <v-tooltip bottom>
+      <v-tooltip
+        open-delay="800"
+        bottom>
       <template #activator="{on, bind}">
         <div v-on="on"
            v-bind="bind"
@@ -149,11 +161,12 @@
           :format="dateFormat" />
     </v-tooltip>
     </div>
-  </div>
+  </v-sheet>
 </template>
 
 <script>
   export default {
+    inject: ['getIsExpanded', 'getParentDrawerWidth'],
     props: {
       message: {
         type: Object,
@@ -186,6 +199,10 @@
       room: {
         type: Object,
         default: null
+      },
+      isRedacted: {
+        type: Boolean,
+        default: false
       }
     },
     data() {
@@ -218,14 +235,23 @@
       },
     },
     computed: {
+      expanded() {
+        return this.getIsExpanded();
+      },
+      messageMaxWidth() {
+        return this.getParentDrawerWidth() * (2 / 3);
+      },
+      messageContentWidth() {
+        if (this.isAudio && this.expanded) {
+          return this.messageMaxWidth
+        }
+        return this.isImage ? this.imageThumbnailMaxWidth : this.isFile ? this.messageMaxWidth : undefined;
+      },
       isImage() {
         return this.message.content.msgtype === 'm.image';
       },
       isText() {
         return this.message.content.msgtype === 'm.text';
-      },
-      isRedacted() {
-        return !this.message.content.body && this.message.redacted_because?.redacts;
       },
       isAudio() {
         return this.message?.content?.msgtype === 'm.audio';

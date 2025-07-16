@@ -19,9 +19,17 @@
 
 <template>
   <v-card
-    class="white pa-2 mb-2 border-radius-16 clickable"
+    class="pa-2 border-radius-16 clickable"
     flat
     @click="goToMessageSource">
+    <v-btn
+      v-if="closeable"
+      class="position-absolute t-0 r-0 ma-1"
+      icon
+      small
+      @click="$emit('close')">
+      <v-icon size="16">fa-solid fa-times</v-icon>
+    </v-btn>
     <div class="d-flex flex-row">
       <div
         v-if="!isText"
@@ -48,7 +56,7 @@
             contain />
         </div>
       </div>
-      <div class="flex-column">
+      <div class="flex-column no-min-width max-width-fit">
         <div class="flex-row">
           <message-user
             :sender-id="targetMessage.targetUser"
@@ -56,10 +64,12 @@
             :quoted="true" />
         </div>
         <v-sheet
-          :max-width="isFile && 265 || 'auto'"
-          class="flex-row">
+          class="flex-row overflow-hidden flex-grow-1 transparent">
           <div
-            :class="{'text-truncate-3': isText, 'text-truncate': isFile}"
+            :class="{
+              'text-truncate-3': isText,
+              'text-truncate': isFile || isImage
+            }"
             class="text-color">
             {{ targetMessageBody }}
           </div>
@@ -81,6 +91,14 @@ export default {
     room: {
       type: Object,
       default: null
+    },
+    readOnly: {
+      type: Boolean,
+      default: false
+    },
+    closeable: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -95,6 +113,9 @@ export default {
     },
     isText() {
       return this.targetMessageType === 'm.text';
+    },
+    isImage() {
+      return this.targetMessageType === 'm.image';
     },
     isAudioMessage() {
       return this.targetMessageType === 'm.audio' && !this.isUploadedAudioFile;
@@ -144,6 +165,9 @@ export default {
   },
   methods: {
     goToMessageSource() {
+      if (this.readOnly) {
+        return;
+      }
       const targetId = `message-content-${this.targetMessage.targetEventId}`;
       const targetElement = document.getElementById(targetId).parentElement;
       if (targetElement) {

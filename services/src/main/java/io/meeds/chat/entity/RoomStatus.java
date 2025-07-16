@@ -16,21 +16,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.model;
 
-import lombok.Data;
+package io.meeds.chat.entity;
 
-@Data
-public class Room {
-  private long    id;
-
-  private String  roomId;
-
-  private String  spaceId;
-
-  private String  firstParticipant;
-
-  private String  secondParticipant;
-
-  private String  status;
+public enum RoomStatus {
+    ENABLED, DISABLED, ENABLE_IN_PROGRESS, DISABLED_IN_PROGRESS
 }
