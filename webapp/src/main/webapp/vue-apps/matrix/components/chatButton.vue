@@ -118,9 +118,7 @@
         this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
       }
       this.$nextTick().then(() => {
-        console.log('START registering user');
         this.$matrixService.registerUserToken();
-        console.log('END registering user');
       });
     },
     beforeDestroy() {
@@ -143,7 +141,8 @@
     computed: {
       presenceClass() {
         return `chat-button-status-${this.presence}`;
-      },
+      }
+    },
     methods: {
       enqueueMessageReceivedEvent(event) {
         this.enableAndPlayBipSound(event);

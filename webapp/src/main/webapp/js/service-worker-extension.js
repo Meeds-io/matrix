@@ -21,7 +21,7 @@ self.addEventListener('push', event => {
         const eventAndRoomId = decodeURIComponent(params[1]).split('|');
         const eventId = eventAndRoomId[0];
         const roomId = eventAndRoomId[1];
-        if(!eventId || !roomId) {
+        if(eventId && roomId) {
           event.waitUntil(new Promise(async (resolve, reject) => {
             try {
               if (action === 'open') {
