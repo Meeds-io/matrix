@@ -393,52 +393,6 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
           break;
         }
-      } else if (e.type === 'm.reaction') {
-        const reactionKey = e.content?.['m.relates_to']?.key;
-        const reactedEventId = e.content?.['m.relates_to']?.event_id;
-
-        if (reactionKey && reactedEventId) {
-          const targetMessage = rooms[property]?.timeline?.events?.find?.(ev => ev.event_id === reactedEventId);
-          const targetMessageBody = getFormattedMessageBody(targetMessage);
-          if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
-            roomItem.updated = e.origin_server_ts;
-            if (isRedacted) {
-              roomItem.lastMessage = {
-                content: exoi18n.i18n.t('matrix.chat.message.deleted'),
-                sender: e.sender,
-                eventId,
-                redacted: true
-              };
-            } else if (isSupportedMsgType) {
-              roomItem.lastMessage = {
-                content: content.format === 'org.matrix.custom.html'
-                    ? formatMentionsInRoomList(content.formatted_body)
-                    : content.body,
-                sender: e.sender,
-                eventId,
-                ...(isReplacement && {edited: true})
-              };
-            }
-          }
-          break;
-        }
-        case 'm.reaction': {
-          const reactionKey = e.content?.['m.relates_to']?.key;
-          const reactedEventId = e.content?.['m.relates_to']?.event_id;
-          const target = roomData.timeline.events.find(ev => ev.event_id === reactedEventId);
-          const targetMessageBody = getFormattedMessageBody(target);
-          if (reactionKey && targetMessageBody && (!roomItem.updated || roomItem.updated <= e.origin_server_ts)) {
-            roomItem.updated = e.origin_server_ts;
-            roomItem.lastMessage = {
-              content: targetMessageBody,
-              sender: e.sender,
-              eventId: reactedEventId,
-              reactionKey: reactionKey,
-              reaction: true
-            };
-          }
-          break;
-        }
       }
     }
 
