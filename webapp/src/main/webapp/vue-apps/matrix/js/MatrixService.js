@@ -1241,7 +1241,7 @@ export async function getRoomLastMessage(roomId) {
     if (events.length === 0 && !data.next_batch) {
       break;
     }
-    
+
     for (const event of events) {
       if (event.unsigned?.redacted_because) {
         continue;
