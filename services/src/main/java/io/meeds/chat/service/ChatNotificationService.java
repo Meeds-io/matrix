@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.concurrent.ScheduledFuture;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static io.meeds.pwa.service.PwaNotificationService.*;
@@ -65,20 +66,21 @@ public class ChatNotificationService {
   /**
    * Sends a notification Creation request to the Push service on the browser
    * based on the event contents
-   * 
+   *
    * @param eventId
    * @param userName
    * @param roomId
    * @param unreadCount
+   * @return
    */
-  public void sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
+  public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
     HashMap<String, Object> params = new HashMap<>();
     String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
     params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
     params.put("username", userName);
     params.put(EVENT_ACTION_PARAM_NAME, "open");
     params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "Chat");
-    pwaNotificationService.create(params);
+    return pwaNotificationService.create(params);
 
     //createMentionNotification(eventId, roomId, userName);
   }

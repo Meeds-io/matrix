@@ -36,6 +36,8 @@ self.addEventListener('push', event => {
 });
 
 self.addEventListener('message', event => {
+  if (event.origin !== self.location.origin)
+    return;
   if (event.data.action === 'matrix_access_token') {
     accessToken = event.data.value;
   }

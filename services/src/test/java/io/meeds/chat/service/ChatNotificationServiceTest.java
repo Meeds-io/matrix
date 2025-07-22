@@ -3,7 +3,6 @@ package io.meeds.chat.service;
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
 import org.exoplatform.services.resources.LocaleConfig;
@@ -16,11 +15,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.concurrent.ScheduledFuture;
 
+import static io.meeds.pwa.service.PwaNotificationService.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringJUnitConfig(MatrixBaseTest.class)
 class ChatNotificationServiceTest extends MatrixBaseTest {
@@ -39,6 +43,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Test
   void sendCreateNotificationAction() {
+    ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", "!roomId:matrix.meeds.tn", 5);
+    assertNotNull(action);
   }
 
   @Test
