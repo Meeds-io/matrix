@@ -8,11 +8,29 @@
     @closed="close">
     <template slot="title">
       <div class="d-flex">
-        <div
-          :style="`backgroundImage: url(${avatarUrl})`"
-          class="chat-top-drawer-avatar d-flex rounded-circle">
-          <div class="matrix-user-status icon-small-size size-2" :class="presenceClass"></div>
-        </div>
+        <v-badge
+          :color="presenceColor"
+          :value="true"
+          class="my-auto mx-0 pa-0"
+          content=""
+          offset-x="13"
+          offset-y="10"
+          width="12"
+          height="12"
+          bordered
+          bottom
+          overlap
+          dot>
+          <v-avatar
+            width="36"
+            min-width="36"
+            height="36">
+            <v-img
+              :src="avatarUrl"
+              :lazy-src="avatarUrl"
+              :alt="fullName" />
+          </v-avatar>
+        </v-badge>
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
       </div>
     </template>
@@ -46,17 +64,18 @@ export default {
     loading: {
       type: Boolean,
       default: false
+    },
+    presence: {
+      type: String,
+      default: 'available'
     }
   },
-  data: () =>({
-    presence: 'online',
-  }),
   computed: {
     avatarUrl() {
       return this.$currentUserIdentity.profile.avatar;
     },
-    presenceClass() {
-      return `matrix-status-${this.presence}`;
+    fullName() {
+      return this.$currentUserIdentity?.profile?.fullname;
     },
     sortedRooms() {
       if (!Array.isArray(this.rooms)) {
@@ -67,6 +86,9 @@ export default {
               (b.updated || 0) - (a.updated || 0) ||
               a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
       );
+    },
+    presenceColor() {
+      return this.presence && this.$root.statusMap[this.presence];
     }
   },
   watch: {
@@ -74,14 +96,8 @@ export default {
       this.checkLoading();
     }
   },
-  created() {
-    document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
-  },
   mounted() {
     this.checkLoading();
-  },
-  beforeDestroy() {
-    document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
   },
   methods: {
     checkLoading() {
@@ -99,11 +115,6 @@ export default {
     close() {
       this.$refs.ChatDiscussionDrawer.close();
       this.$refs.meedsChatDrawer.close();
-    },
-    userStatusUpdated(event) {
-      if(localStorage.getItem('matrix_user_id') === event.detail.userId) {
-        this.presence = event.detail.presence;
-      }
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);
