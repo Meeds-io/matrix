@@ -38,7 +38,7 @@
 
   <properties>
     <io.meeds.social.version>7.1.x-devx-SNAPSHOT</io.meeds.social.version>
-    <addon.meeds.pwa.version>7.1.x-exo-SNAPSHOT</addon.meeds.pwa.version>
+    <addon.meeds.pwa.version>7.1.x-devx-SNAPSHOT</addon.meeds.pwa.version>
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
   </properties>
