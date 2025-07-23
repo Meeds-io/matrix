@@ -591,7 +591,7 @@ export function savePushGateway(kind, pushKey) {
     "device_display_name": "Browser",
     "kind":kind || null,
     "lang":eXo.env.portal.language,
-    "profile_tag":"UserProfile",
+    "profile_tag": eXo.env.portal.userName,
     "pushkey": pushKey
   }
   return fetch(`/_matrix/client/v3/pushers/set`, {
@@ -629,9 +629,8 @@ export function installPusher() {
   const token = getCookieValue(JWT_COOKIE_NAME);
   let found = false;
   getPushers().then(resp => {
-    if(resp.pushers && resp.pushers.length) {
-      for(let i = 0; i < resp.pushers.length; i++) {
-        let pusher = resp.pushers[i];
+    if(resp.pushers?.length) {
+      for(const pusher of resp.pushers) {
         if(pusher.app_id && pusher.app_id === PUSH_APP_ID) {
           found = true;
           if(pusher.pushkey !== token) {
@@ -641,11 +640,11 @@ export function installPusher() {
           }
         }
       }
-      if(!found) {
-        savePushGateway('http', token);
-      }
     }
   });
+  if(!found) {
+    savePushGateway('http', token);
+  }
 }
 
 export function getByRoomId(roomId) {
