@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.service.utils;
 
+import io.meeds.chat.model.MatrixMessage;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -37,6 +38,9 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -330,7 +334,7 @@ public class MatrixHttpClient {
     String payload;
     String password = null;
     if (isNew) {
-      password = PasswordGenerator.generatePassword(10);
+      password = PasswordKeyGenerator.generatePassword(10);
       payload = """
            {
             "password": "%s",
@@ -359,7 +363,7 @@ public class MatrixHttpClient {
            ],
            "deactivated": %s
            }
-          """.formatted(PasswordGenerator.generatePassword(10),
+          """.formatted(PasswordKeyGenerator.generatePassword(10),
                         user.getProfile().getFullName(),
                         user.getProfile().getEmail(),
                         String.valueOf(false));
@@ -1083,6 +1087,60 @@ public class MatrixHttpClient {
       throw new RuntimeException("Error overriding the rate limits for the user %s ,Matrix server returned HTTP %s error %s".formatted(userIdOnMatrix,
                                                                                                                                        String.valueOf(response.statusCode()),
                                                                                                                                        response.body()));
+    }
+  }
+
+  /**
+   * Retrieves an event from Matrix by its Id
+   *
+   * @param eventId the event ID
+   * @return Map representing the message
+   */
+  public MatrixMessage getEventById(String eventId, String roomId, String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + roomId + "/event/" + eventId;
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      JsonValue jsonMessage = new JsonGeneratorImpl().createJsonObjectFromString(response.body());
+      MatrixMessage message = new MatrixMessage();
+      message.setEventId(eventId);
+      message.setRoomId(jsonMessage.getElement("room_id").getStringValue());
+      message.setType(jsonMessage.getElement("type").getStringValue());
+      message.setSender(jsonMessage.getElement("sender").getStringValue());
+      if(jsonMessage.getElement("content") != null) {
+        JsonValue content = jsonMessage.getElement("content");
+        message.setMessageContent(content.getElement("body").getStringValue());
+        message.setMessageType(content.getElement("msgtype").getStringValue());
+        if("m.text".equals(message.getMessageType()) && content.getElement("org.matrix.custom.html") != null) {
+          message.setMessageContent(jsonMessage.getElement("formatted_body").getStringValue());
+        }
+        JsonValue mentionsElement = content.getElement("m.mentions");
+        if(mentionsElement != null) {
+          JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
+          if (mentionedUsersElement != null) {
+            Iterator<JsonValue> mentionedUsersIterator = mentionedUsersElement.getElements();
+            List<String> mentionedUsers = new ArrayList<>();
+            while (mentionedUsersIterator.hasNext()) {
+              JsonValue nextMentioned = mentionedUsersIterator.next();
+              mentionedUsers.add(nextMentioned.getStringValue());
+            }
+            message.setMentionedUsers(mentionedUsers);
+          }
+        }
+      }
+      return message;
+    } else {
+      if (response.statusCode() != 404) {
+        throw new RuntimeException("Error retrieving the message of the event %s ,Matrix server returned HTTP %s error %s".formatted(eventId,
+                String.valueOf(response.statusCode()),
+                response.body()));
+      } else {
+        // if the event is missing or the user has not the right to access it (event in a private room)
+        return null;
+      }
     }
   }
 }
