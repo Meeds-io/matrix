@@ -19,6 +19,7 @@
 package io.meeds.chat.rest;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -207,7 +208,17 @@ public class MatrixRest implements ResourceContainer {
         JsonValue device = notifJsonValue.getElement("devices").getElements().next();
         pushKey = device.getElement("pushkey").getStringValue();
         if (StringUtils.isNotBlank(pushKey)) {
-          String userName = checkAndParseUserFromToken(pushKey);
+          String userName = "";
+          try {
+            userName = checkAndParseUserFromToken(pushKey);
+          } catch (ExpiredJwtException expiredException) {
+            // if the push key is expired, then it should be unregistered from Matrix server
+            return """
+                {
+                  "rejected": ["%s"]
+                }
+                """.formatted(pushKey);
+          }
           if (StringUtils.isNotBlank(userName)) {
             ChatNotificationService chatNotificationService = CommonsUtils.getService(ChatNotificationService.class);
             int unreadCount = 0;
@@ -216,8 +227,8 @@ public class MatrixRest implements ResourceContainer {
               unreadCount = element.getElement("unread").getIntValue();
             }
             String roomId = "";
-            if(notifJsonValue.getElement("room_id") != null){
-              roomId = notifJsonValue.getElement("room_id") .getStringValue();
+            if (notifJsonValue.getElement("room_id") != null) {
+              roomId = notifJsonValue.getElement("room_id").getStringValue();
             }
             String eventId = "";
             if (notifJsonValue.getElement("event_id") != null) {
@@ -553,9 +564,9 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public PwaNotificationMessage getNotification(HttpServletRequest request,
-                                                @PathVariable("roomId") String roomId,
-                                                @PathVariable("eventId") String eventId,
+  public PwaNotificationMessage getNotification(HttpServletRequest request, @PathVariable("roomId")
+  String roomId, @PathVariable("eventId")
+  String eventId,
                                                 @RequestBody(description = "Access token of the user", required = true)
                                                 @org.springframework.web.bind.annotation.RequestBody
                                                 String accessToken) {
@@ -565,7 +576,8 @@ public class MatrixRest implements ResourceContainer {
       if (eventId == null) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "event id is mandatory");
       }
-      PwaNotificationMessage pwaMessage = chatNotificationService.createNotification(eventId, roomId, currentUserName, accessToken);
+      PwaNotificationMessage pwaMessage =
+                                        chatNotificationService.createNotification(eventId, roomId, currentUserName, accessToken);
       if (pwaMessage != null) {
         return pwaMessage;
       } else {
