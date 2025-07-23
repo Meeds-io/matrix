@@ -1417,3 +1417,26 @@ export function enableOrDisableChat(spaceId, enable) {
     }
   });
 }
+
+export function dropUserData() {
+  localStorage.removeItem("matrix_user_id");
+  localStorage.removeItem("matrix_access_token");
+  localStorage.removeItem('matrix_last_login');
+}
+
+export function initUserData(data) {
+  localStorage.setItem("matrix_user_id", data.user_id);
+  localStorage.setItem("matrix_access_token", data.access_token);
+  localStorage.setItem("matrix_last_login", new Date().getTime());
+}
+
+export function registerUserToken() {
+  navigator.serviceWorker.ready.then(reg => {
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+         action: 'matrix_access_token',
+         value: localStorage.getItem("matrix_access_token")
+      });
+    }
+  });
+}
