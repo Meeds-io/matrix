@@ -232,10 +232,9 @@
     </component-plugin>
   </external-component-plugins>
 
-  <!--
   <external-component-plugins>
     <target-component>org.exoplatform.commons.api.notification.service.setting.PluginSettingService</target-component>
-    <component-plugin profiles="all">
+    <component-plugin profiles="matrix">
       <name>notification.groups</name>
       <set-method>registerGroupConfig</set-method>
       <type>org.exoplatform.commons.api.notification.plugin.GroupProviderPlugin</type>
@@ -243,7 +242,7 @@
       <init-params>
         <object-param>
           <name>group.Matrix.chat</name>
-          <description>The information of group kudos</description>
+          <description>The information of group Meeds Chat</description>
           <object type="org.exoplatform.commons.api.notification.plugin.config.GroupConfig">
             <field name="id">
               <string>matrix</string>
@@ -265,17 +264,17 @@
     <component-plugin>
       <name>notification.plugins</name>
       <set-method>addPlugin</set-method>
-      <type>io.meeds.chat.notification.MessageReceivedNotificationPlugin</type>
+      <type>io.meeds.chat.notification.MentionReceivedNotificationPlugin</type>
       <init-params>
         <object-param>
-          <name>template.MatrixMessageReceivedNotificationPlugin</name>
+          <name>template.MatrixMentionReceivedNotificationPlugin</name>
           <description>The template of MatrixMessageReceivedNotificationPlugin</description>
           <object type="org.exoplatform.commons.api.notification.plugin.config.PluginConfig">
             <field name="pluginId">
-              <string>MatrixMessageReceivedNotificationPlugin</string>
+              <string>MatrixMentionReceivedNotificationPlugin</string>
             </field>
             <field name="resourceBundleKey">
-              <string>UINotification.title.MatrixMessageReceivedNotificationPlugin</string>
+              <string>UINotification.title.MatrixMentionReceivedNotificationPlugin</string>
             </field>
             <field name="order">
               <string>4</string>
@@ -301,12 +300,26 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
-  -->
+
+  <external-component-plugins>
+    <target-component>org.exoplatform.commons.api.notification.channel.ChannelManager</target-component>
+    <component-plugin>
+      <name>mail.channel.matrix.template</name>
+      <set-method>registerTemplateProvider</set-method>
+      <type>io.meeds.chat.notification.mail.MailTemplateProvider</type>
+      <init-params>
+        <value-param>
+          <name>channel-id</name>
+          <value>MAIL_CHANNEL</value>
+        </value-param>
+      </init-params>
+    </component-plugin>
+  </external-component-plugins>
 
   <external-component-plugins>
     <target-component>org.exoplatform.services.resources.ResourceBundleService</target-component>
     <component-plugin>
-      <name>Kudos Resource Bundle</name>
+      <name>Matrix Resource Bundle</name>
       <set-method>addResourceBundle</set-method>
       <type>org.exoplatform.services.resources.impl.BaseResourceBundlePlugin</type>
       <init-params>

@@ -13,7 +13,6 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.model.AvatarAttachment;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -31,10 +30,10 @@ import static org.mockito.Mockito.*;
 class MatrixServiceTest extends MatrixBaseTest {
 
   @Autowired
-  MatrixService          matrixService;
+  MatrixService   matrixService;
 
   @Autowired
-  IdentityManager        identityManager;
+  IdentityManager identityManager;
 
   @Test
   void init() {
@@ -61,7 +60,6 @@ class MatrixServiceTest extends MatrixBaseTest {
     roomsToDelete.add(spaceRoom.getRoomId());
     assertEquals(matrixRoomId, spaceRoom.getRoomId());
   }
-
 
   @Test
   void updateUserPresence() throws JsonException, IOException, InterruptedException {
@@ -170,7 +168,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     Room directMessagingRoom = new Room();
     directMessagingRoom.setRoomId("!ThisIsARoomId:matrix.meeds.tn");
     directMessagingRoom.setFirstParticipant("demo");
-    directMessagingRoom.setSecondParticipant("raul");
+    directMessagingRoom.setSecondParticipant("ghost");
     Room createdRoom = matrixService.createDirectMessagingRoom(directMessagingRoom);
     roomsToDelete.add(createdRoom.getRoomId());
     assertNotNull(createdRoom);
@@ -221,5 +219,65 @@ class MatrixServiceTest extends MatrixBaseTest {
         }""");
     matrixService.overrideAdminRateLimit(admin);
     verify(matrixHttpClient, times(1)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+  }
+
+  @Test
+  void findUserByMatrixId() throws IOException, InterruptedException {
+    String useridOnMatrix = "@demo:matrix.meeds.tn";
+    String jsonResponse = """
+        {
+          "name": "@test:matrix.meeds.tn",
+          "admin": false,
+          "deactivated": false,
+          "displayname": "Test User",
+          "avatar_url": null,
+          "threepids": [
+            {
+              "medium": "email",
+              "address": "test@meeds.com",
+              "validated_at": 1745230543328,
+              "added_at": 1745230543328
+            }
+          ],
+        }""";
+
+    when(matrixHttpClient.getUser("@test:matrix.meeds.tn", accessToken)).thenReturn(jsonResponse);
+    String result = matrixService.findUserByMatrixId("@test:matrix.meeds.tn");// user not found in organization service, we will
+                                                                              // return his Matrix ID
+    assertNotNull(result);
+    assertEquals("@test:matrix.meeds.tn", result);
+
+    jsonResponse = """
+        {
+          "name": "@demo:matrix.meeds.tn",
+          "admin": false,
+          "deactivated": false,
+          "displayname": "Demo User",
+          "avatar_url": null,
+          "threepids": [
+            {
+              "medium": "email",
+              "address": "demo@localhost",
+              "validated_at": 1745230543328,
+              "added_at": 1745230543328
+            }
+          ],
+        }""";
+    when(matrixHttpClient.getUser(useridOnMatrix, accessToken)).thenReturn(jsonResponse);
+    result = matrixService.findUserByMatrixId("@demo:matrix.meeds.tn");
+    assertNotNull(result);
+    assertEquals("demo", result);
+  }
+
+  @Test
+  void invalidateAccessToken() throws IOException, InterruptedException {
+    String accessToken = "sys_sampleAccessToken";
+    when(matrixHttpClient.invalidateAccessToken(accessToken)).thenReturn(true);
+    boolean result = matrixService.invalidateAccessToken("sys_sampleAccessToken");
+    assertTrue(result);
+
+    when(matrixHttpClient.invalidateAccessToken(accessToken)).thenThrow(new InterruptedException());
+    result = matrixService.invalidateAccessToken("sys_sampleAccessToken");
+    assertFalse(result);
   }
 }

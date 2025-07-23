@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class MessageReceivedNotificationPluginTest {
+class MentionReceivedNotificationPluginTest {
 
   @Test
   void makeNotification() {
@@ -18,12 +18,10 @@ class MessageReceivedNotificationPluginTest {
     NotificationContext ctx = mock(NotificationContext.class);
     when(ctx.value(MATRIX_ROOM_ID)).thenReturn("IdentifierOfTheRoom");
     when(ctx.value(MATRIX_ROOM_MEMBER)).thenReturn("user");
-    when(ctx.value(MATRIX_ROOM_UNREAD_COUNT)).thenReturn(1);
 
-    MessageReceivedNotificationPlugin messageReceivedNotificationPlugin = new MessageReceivedNotificationPlugin(initParams);
-    NotificationInfo notificationInfo = messageReceivedNotificationPlugin.buildNotification(ctx);
+    MentionReceivedNotificationPlugin mentionReceivedNotificationPlugin = new MentionReceivedNotificationPlugin(initParams);
+    NotificationInfo notificationInfo = mentionReceivedNotificationPlugin.buildNotification(ctx);
     assertNotNull(notificationInfo);
     assertEquals("user", notificationInfo.getTo());
-    assertEquals("1", notificationInfo.getValueOwnerParameter("UNREAD_MESSAGES_COUNT"));
   }
 }
