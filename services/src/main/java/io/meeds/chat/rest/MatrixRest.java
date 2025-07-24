@@ -568,7 +568,7 @@ public class MatrixRest implements ResourceContainer {
   String roomId, @PathVariable("eventId")
   String eventId,
                                                 @RequestBody(description = "Access token of the user", required = true)
-                                                @org.springframework.web.bind.annotation.RequestBody
+                                                @org.springframework.web.bind.annotation.RequestBody(required = false)
                                                 String accessToken) {
     try {
       String currentUserName = request.getRemoteUser();
