@@ -130,7 +130,6 @@
     data() {
       return {
         sender: {},
-        presenceClass: 'offline',
         dateFormat: {
           year: 'numeric',
           month: 'long',
@@ -152,9 +151,6 @@
     created() {
       this.$matrixService.getUserByMatrixId(this.message.sender, this.room).then(sender => {
         this.sender = sender;
-        this.$matrixService.getUserPresence(this.message.sender).then(status => {
-          this.presenceClass = `matrix-status-${status}`;
-        })
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);

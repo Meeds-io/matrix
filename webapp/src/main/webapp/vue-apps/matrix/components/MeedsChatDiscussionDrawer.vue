@@ -13,15 +13,31 @@
     <template slot="title">
       <a :href="url">
         <div class="d-flex">
-          <div
-            :style="`backgroundImage: url(${room.avatarUrl})`"
-            :class="avatarBorderClass"
-            class="flex-shrink-0 meeds-chat-contact-avatar ma-0 size-9 d-flex">
-            <div
-             v-if="room.directChat"
-             :class="[presenceClass, avatarBorderClass]"
-             class="matrix-user-status size-2" />
-          </div>
+          <v-badge
+            :color="presenceColor"
+            :value="room.directChat"
+            class="my-auto mx-0 pa-0"
+            content=""
+            offset-x="10"
+            offset-y="10"
+            width="12"
+            height="12"
+            bordered
+            bottom
+            overlap
+            dot>
+            <v-avatar
+              :tile="!room.directChat"
+              :class="{'rounded-lg': !room.directChat}"
+              width="36"
+              min-width="36"
+              height="36">
+              <v-img
+                :src="room.avatarUrl"
+                :lazy-src="room.avatarUrl"
+                :alt="room?.name" />
+            </v-avatar>
+          </v-badge>
           <span class="mx-3 text-title text-truncate content-align">
             {{room.name}}
             <span v-if="room.external">
@@ -237,6 +253,12 @@ export default {
     };
   },
   computed: {
+    presence() {
+      return this.room?.presence
+    },
+    presenceColor() {
+      return this.presence && this.$root.statusMap[this.presence];
+    },
     canEditSpace() {
       return this.room?.spaceId && this.space?.canEdit;
     },
@@ -248,12 +270,6 @@ export default {
     },
     disableSendMessage() {
       return !this.messageContent?.trim()?.length;
-    },
-    presenceClass() {
-      return this.room.presence && `matrix-status-${this.room.presence}` || 'matrix-status-offline';
-    },
-    avatarBorderClass() {
-      return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
     },
     url() {
       if(this.room?.directChat && this.room?.userId) {

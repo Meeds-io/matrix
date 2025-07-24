@@ -80,7 +80,13 @@ export function init(serverName) {
       vuetify: Vue.prototype.vuetifyOptions,
       data: function() {
         return {
-          serverName: serverName
+          serverName: serverName,
+          statusMap: {
+            available: '#2eb58c',
+            donotdisturb: '#bc4343',
+            offline: '#707070',
+            invisible: '#707070'
+          },
         };
       },
       i18n
