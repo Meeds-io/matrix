@@ -438,7 +438,7 @@ export async function toRoomObject(rooms, currentMemberId) {
       const other = roomItem.members.find(m => m.id !== currentMemberId);
       roomItem.name = other?.name;
       roomItem.dmMemberId = other?.id;
-      roomItem.presence = await getUserPresence(other?.id);
+      roomItem.presence = 'offline';
       roomItem.avatarUrl = other?.avatarUrl
           ? `/_matrix/media/v3/thumbnail/${other.avatarUrl.substring(6)}?width=32&height=32&method=crop&allow_redirect=true`
           : DEFAULT_ROOM_AVATAR;
@@ -692,25 +692,6 @@ export function getByRoomId(roomId) {
       } else {
         return resp.json();
       }
-    });
-}
-
-export function getUserPresence(userIdOnMatrix) {
-    return fetch(`/_matrix/client/v3/presence/${userIdOnMatrix}/status`, {
-      method: 'GET',
-      headers: {
-        'Authorization' : `Bearer ${localStorage.getItem('matrix_access_token')}`,
-      }
-    },).then(resp => {
-      if (!resp?.ok) {
-        throw new Error('Get User Presence on Matrix : Response code indicates a server error', resp);
-      } else {
-        return resp.json();
-      }
-    }).then(status => {
-      return status.presence;
-    }).catch(e => {
-      return 'offline';
     });
 }
 
