@@ -4,15 +4,31 @@
       :class="{'background-grey-primary': hover}"
       class="d-flex chat-room-item py-3 px-5 clickable"
       @click="openRoom">
-      <div
-        :style="`backgroundImage: url(${room.avatarUrl})`"
-        :class="avatarBorderClass"
-        class="meeds-chat-contact-avatar no-border size-13 d-flex">
-        <div
-          v-if="room.directChat"
-          :class="presenceClass"
-          class="matrix-user-status size-3" />
-      </div>
+      <v-badge
+        :color="presenceColor"
+        :value="isPrivateRoom"
+        class="ma-0 pa-0"
+        content=""
+        offset-x="13"
+        offset-y="10"
+        width="12"
+        height="12"
+        bordered
+        bottom
+        overlap
+        dot>
+        <v-avatar
+          :tile="!isPrivateRoom"
+          :class="{'rounded-lg': !isPrivateRoom}"
+          width="52"
+          min-width="52"
+          height="52">
+          <v-img
+            :src="avatarUrl"
+            :lazy-src="room.avatarUrl"
+            :alt="room?.name" />
+        </v-avatar>
+      </v-badge>
       <div class="overflow-hidden ps-2 flex-grow-1">
         <div
           :id="`room-name-${room.id}`"
@@ -47,36 +63,49 @@
 </template>
 <script>
 
-  export default {
-    props: {
-      room: {
-        type: Object,
-        default: null,
-      }
+export default {
+  data() {
+    return {
+      externalTag: `( ${this.$t('matrix.chat.user.external')} )`
+    }
+  },
+  props: {
+    room: {
+      type: Object,
+      default: null,
+    }
+  },
+  created() {
+    if (this.room?.directChat) {
+      this.getUserStatus();
+    }
+  },
+  computed: {
+    isPrivateRoom() {
+      return this.room?.directChat;
     },
-    computed : {
-      avatarBorderClass() {
-        return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
-      },
-      presenceClass() {
-        return `matrix-status-${this.room.presence}`;
-      },
-      externalTag() {
-        return `( ${this.$t('matrix.chat.user.external')} )`;
-      }
+    avatarUrl() {
+      return this.room?.avatarUrl;
     },
-    methods: {
-      openRoom() {
-        document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, { detail: this.room }));
-      },
-      getUpdateTime(room) {
-        return this.$matrixService.formatDate(room.updated);
-      },
-      getUserPresence() {
-        return this.$matrixService.getUserPresence(this.room.dmMemberId).then(status => {
-          this.presenceClass = `matrix-status-${status.presence}`;
-        });
-      },
+    presence() {
+      return this.room?.presence
+    },
+    presenceColor() {
+      return this.presence && this.$root.statusMap[this.presence];
+    }
+  },
+  methods: {
+    getUserStatus() {
+      return this.$userStateService.getUserStatus(this.room.dmMemberId).then(data => {
+        this.room.presence = data?.status;
+      });
+    },
+    openRoom() {
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, {detail: this.room}));
+    },
+    getUpdateTime(room) {
+      return this.$matrixService.formatDate(room.updated);
     }
   }
+}
 </script>
