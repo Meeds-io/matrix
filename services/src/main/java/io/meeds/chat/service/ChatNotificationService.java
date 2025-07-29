@@ -79,7 +79,7 @@ public class ChatNotificationService {
     params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
     params.put("username", userName);
     params.put(EVENT_ACTION_PARAM_NAME, "open");
-    params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "Chat");
+    params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "CHAT_NOTIFICATION");
     return pwaNotificationService.create(params);
 
     //createMentionNotification(eventId, roomId, userName);

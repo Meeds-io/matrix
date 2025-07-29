@@ -80,7 +80,6 @@
                   this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
-                this.$matrixService.registerUserToken();
               } else {
                 this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
                 this.$root.$emit('matrix-login-failed');
@@ -97,7 +96,6 @@
           this.bindSyncPollingListeners(filterResponse.filter_id);
         });
         this.$matrixService.installPusher();
-        this.$matrixService.registerUserToken();
       }
 
       const urlParams = new URLSearchParams(window.location.search);
@@ -113,6 +111,9 @@
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
       document.addEventListener('user-status-updated', this.handleUserStatusUpdated);
+    },
+    mounted() {
+      this.$nextTick().then(() => this.$matrixService.registerUserToken());
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
