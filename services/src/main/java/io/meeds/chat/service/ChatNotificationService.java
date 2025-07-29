@@ -107,7 +107,7 @@ public class ChatNotificationService {
 
   public static final String        PUSH_NOTIFICATIONS_SETTINGS  = "pushNotificationsSettings";
 
-  /**
+    /**
    * Sends a notification Creation request to the Push service on the browser
    * based on the event contents
    *
@@ -119,6 +119,9 @@ public class ChatNotificationService {
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
     if (!isPushNotificationsEnabled(userName)) {
+      return null;
+    }
+    if (!isPushEnabledForUser(userName)) {
       return null;
     }
     // Create Push notification
@@ -294,8 +297,12 @@ public class ChatNotificationService {
     } catch (Exception e) {
       link = String.format("/portal/%s", portalConfigService.getMetaPortal());
     }
-
-    return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+      return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+  }
+  
+  private boolean isPushEnabledForUser(String userName) {
+    UserStateModel userStatus = getUserStateService().getUserState(userName);
+    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE);
   }
 
   /**

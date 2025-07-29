@@ -128,6 +128,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
     action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
     assertNotNull(action);
+    when(userStateModel.getStatus()).thenReturn("donotdisturb");
+    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", "!roomId:matrix.meeds.tn", 5);
+    assertNull(action);
   }
 
   @Test
