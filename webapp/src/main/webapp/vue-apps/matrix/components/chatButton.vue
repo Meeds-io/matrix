@@ -80,7 +80,6 @@
                   this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
-                this.$matrixService.registerUserToken();
               } else {
                 this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
                 this.$root.$emit('matrix-login-failed');
@@ -97,7 +96,6 @@
           this.bindSyncPollingListeners(filterResponse.filter_id);
         });
         this.$matrixService.installPusher();
-        this.$matrixService.registerUserToken();
       }
 
       const urlParams = new URLSearchParams(window.location.search);
