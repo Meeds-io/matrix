@@ -102,7 +102,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
   }
 
   @BeforeEach
-  void setUp() throws Exception {
+  protected void setUp() throws Exception {
     begin();
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
@@ -132,7 +132,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
   }
 
   @AfterEach
-  void tearDown() {
+  protected void tearDown() {
     for (Space space : spacesToDelete) {
       try {
         this.spaceService.deleteSpace(space);
