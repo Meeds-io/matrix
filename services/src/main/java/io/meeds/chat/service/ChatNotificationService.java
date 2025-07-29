@@ -26,8 +26,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.api.notification.NotificationContext;
 import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.notification.impl.NotificationContextImpl;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.ResourceBundleService;
+import org.exoplatform.services.user.UserStateModel;
+import org.exoplatform.services.user.UserStateService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
@@ -47,23 +50,27 @@ import static io.meeds.pwa.service.PwaNotificationService.*;
 public class ChatNotificationService {
 
   @Autowired
-  private MatrixService          matrixService;
+  private MatrixService           matrixService;
 
   @Autowired
-  private IdentityManager        identityManager;
+  private IdentityManager         identityManager;
 
   @Autowired
-  private SpaceService           spaceService;
+  private SpaceService            spaceService;
 
   @Autowired
-  ResourceBundleService          resourceBundleService;
+  ResourceBundleService           resourceBundleService;
 
   @Autowired
-  private PwaNotificationService pwaNotificationService;
+  private PwaNotificationService  pwaNotificationService;
+  
+  private static UserStateService userStateService;
 
-  public static String           IN_KEY = "matrix.words.in";
+  public static String            IN_KEY                = "matrix.words.in";
 
-  /**
+  private static final String     USER_STATUS_AVAILABLE = "available";
+
+    /**
    * Sends a notification Creation request to the Push service on the browser
    * based on the event contents
    *
@@ -74,6 +81,9 @@ public class ChatNotificationService {
    * @return
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
+    if (!isPushEnabledForUser(userName)) {
+      return null;
+    }
     HashMap<String, Object> params = new HashMap<>();
     String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
     params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
@@ -177,6 +187,17 @@ public class ChatNotificationService {
          .with(ctx.makeCommand(PluginKey.key(MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN)))
          .execute(ctx);
     }
+  }
+  
+  private boolean isPushEnabledForUser(String userName) {
+    UserStateModel userStatus = getUserStateService().getUserState(userName);
+    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE);
+  }
 
+  private static UserStateService getUserStateService() {
+    if (userStateService == null) {
+      userStateService = CommonsUtils.getService(UserStateService.class);
+    }
+    return userStateService;
   }
 }
