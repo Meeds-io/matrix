@@ -567,7 +567,7 @@ public class MatrixRest implements ResourceContainer {
   public PwaNotificationMessage getNotification(HttpServletRequest request, @PathVariable("roomId")
   String roomId, @PathVariable("eventId")
   String eventId,
-                                                @RequestBody(description = "Access token of the user", required = true)
+                                                @RequestBody(description = "Access token of the user", required = false)
                                                 @org.springframework.web.bind.annotation.RequestBody(required = false)
                                                 String accessToken) {
     try {
