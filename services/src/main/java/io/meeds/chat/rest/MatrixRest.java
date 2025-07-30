@@ -39,6 +39,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.CommonsUtils;
@@ -681,11 +683,14 @@ public class MatrixRest implements ResourceContainer {
     if (matrixRoom != null) {
       if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
         Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
+        UserSettingService userSettingService = CommonsUtils.getService(UserSettingService.class);
+        UserSetting userSetting = userSettingService.get(currentUserName);
         if (space != null) {
           room.setName(space.getDisplayName());
           room.setAvatarUrl(space.getAvatarUrl());
           room.setSpaceId(matrixRoom.getSpaceId());
           room.setPrettyName(space.getPrettyName());
+          room.setMuted(userSetting != null && userSetting.isSpaceMuted(Long.parseLong(space.getId())));
           room.setDirectChat(false);
           ArrayList<Member> members = new ArrayList<>();
           Arrays.stream(space.getMembers()).forEach(member -> members.add(buildRoomMember(member)));
