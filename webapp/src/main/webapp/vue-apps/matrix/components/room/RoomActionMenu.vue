@@ -1,0 +1,111 @@
+<!--
+ This file is part of the Meeds project (https://meeds.io/).
+
+ Copyright (C) 2020 - 2025 Meeds Association contact@meeds.io
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 3 of the License, or (at your option) any later version.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program; if not, write to the Free Software Foundation,
+ Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+-->
+
+<template>
+  <v-menu
+    v-model="menu"
+    :open-on-click="!isMobile"
+    :attach="`#room${room.spaceId || room.dmMemberId}`"
+    :nudge-top="-26"
+    :nudge-right="25"
+    content-class="no-min-width border-radius overflow-hidden"
+    close-on-content-click
+    offset-x
+    left
+    bottom>
+    <template #activator="{ on, attrs }">
+      <v-btn
+        v-bind="attrs"
+        class="pa-0"
+        width="24"
+        min-width="24"
+        height="24"
+        icon
+        v-on="on"
+        @click.stop.prevent>
+        <v-icon
+          size="16"
+          class="icon-default-color">
+          fa-ellipsis-v
+        </v-icon>
+      </v-btn>
+    </template>
+    <v-list class="pa-0">
+      <v-list-item
+        class="ps-2 pe-3 height-auto"
+        @click.stop="muteRoom">
+        <v-sheet
+          class="d-flex"
+          width="28"
+          height="36">
+          <v-icon
+            class="icon-default-color mx-auto"
+            size="16">
+            fas fa-bell
+          </v-icon>
+        </v-sheet>
+        <span v-if="!isMuted">
+          {{ $t('matrix.room.mute.label') }}
+        </span>
+        <span v-else>
+          {{ $t('matrix.room.unmute.label') }}
+        </span>
+      </v-list-item>
+    </v-list>
+  </v-menu>
+</template>
+
+<script>
+
+export default {
+  data() {
+    return {
+      menu: false,
+    }
+  },
+  props: {
+    room: {
+      type: Object,
+      default: null
+    }
+  },
+  computed: {
+    isMuted() {
+      return this.room?.muted;
+    },
+    spaceId() {
+      return this.room?.spaceId;
+    }
+  },
+  methods: {
+    muteRoom() {
+      this.$spaceService.muteSpace(this.spaceId, this.isMuted).then(() => {
+        this.$root.$emit('alert-message',
+          this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
+          'success');
+        this.menu = false;
+        this.$root.$emit('room-muted-updated', {
+          roomId: this.room.id,
+          muted: !this.isMuted
+        });
+      });
+    }
+  }
+};
+</script>

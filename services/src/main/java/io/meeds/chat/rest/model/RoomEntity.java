@@ -66,6 +66,9 @@ public class RoomEntity implements Serializable {
 
   private String       status;
 
+  private boolean      isMuted;
+
   private List<Member> members;
+
 
 }

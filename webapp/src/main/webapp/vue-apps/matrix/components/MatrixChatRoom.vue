@@ -1,6 +1,7 @@
 <template>
   <v-hover v-slot="{ hover }">
     <div
+      :id="`room${room.spaceId || room.dmMemberId}`"
       :class="{'background-grey-primary': hover}"
       class="d-flex chat-room-item py-3 px-5 clickable"
       @click="openRoom">
@@ -29,7 +30,8 @@
             :alt="room?.name" />
         </v-avatar>
       </v-badge>
-      <div class="overflow-hidden ps-2 flex-grow-1">
+      <div
+        class="overflow-hidden ps-2 flex-grow-1">
         <div
           :id="`room-name-${room.id}`"
           class="chat-room-name text-truncate text-title text-subtitle-1">
@@ -44,18 +46,34 @@
         <div class="last-message-timestamp text-subtitle">
           {{ getUpdateTime(room) }}
         </div>
-        <div class="pull-right text-font-small-size d-flex">
-          <v-icon
-            v-if="room.isMuted"
-            size="16">
-            fas fa-bell-slash
-          </v-icon>
-          <div
-            v-if="room.unreadMessages"
-            class="unread-messages align-center border-radius-circle error-color-background
-            white--text text-font-small-size align-content-center">
+        <div class="pull-right d-flex">
+          <v-avatar
+            v-if="!hover && hasUnreadMessages && !room.muted"
+            size="24"
+            class="align-center align-content-center error-color-background white--text text-font-small-size">
             {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
-          </div>
+          </v-avatar>
+          <room-action-menu
+            v-else-if="hover && !isPrivateRoom"
+            :room="room" />
+          <v-badge
+            v-if="!hover && room.muted"
+            color="#bc4343"
+            :value="hasUnreadMessages"
+            class="ma-0 pa-0"
+            content=""
+            offset-x="8"
+            offset-y="8"
+            width="12"
+            height="12"
+            bordered
+            top
+            overlap
+            dot>
+            <v-icon size="16">
+              fas fa-bell-slash
+            </v-icon>
+          </v-badge>
         </div>
       </div>
     </div>
@@ -66,6 +84,7 @@
 export default {
   data() {
     return {
+      menu: false,
       externalTag: `( ${this.$t('matrix.chat.user.external')} )`
     }
   },
@@ -81,6 +100,9 @@ export default {
     }
   },
   computed: {
+    isMobile() {
+      return this.$root.isMobile;
+    },
     isPrivateRoom() {
       return this.room?.directChat;
     },
@@ -92,6 +114,9 @@ export default {
     },
     presenceColor() {
       return this.presence && this.$root.statusMap[this.presence];
+    },
+    hasUnreadMessages() {
+      return this.room.unreadMessages > 0;
     }
   },
   methods: {

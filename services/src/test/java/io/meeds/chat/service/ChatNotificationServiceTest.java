@@ -5,6 +5,8 @@ import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
+import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.Orientation;
@@ -50,6 +52,12 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Mock
   private UserStateModel             userStateModel;
 
+  @Mock
+  private UserSetting                userSetting;
+
+  @Mock
+  private UserSettingService         userSettingService;
+
   private MockedStatic<CommonsUtils> commonsUtils;
 
 
@@ -59,35 +67,45 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     super.setUp();
     commonsUtils = mockStatic(CommonsUtils.class, CALLS_REAL_METHODS);
     commonsUtils.when(() -> CommonsUtils.getService(UserStateService.class)).thenReturn(userStateService);
-
+    commonsUtils.when(() -> CommonsUtils.getService(UserSettingService.class)).thenReturn(userSettingService);
     when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
+    when(userSettingService.get(anyString())).thenReturn(userSetting);
   }
 
   @AfterEach
   @Override
   public void tearDown() {
+    super.tearDown();
     if (commonsUtils != null) {
       commonsUtils.close();
     }
-    super.tearDown();
   }
 
   @Test
-  void sendCreateNotificationAction() {
+  void sendCreateNotificationAction() throws Exception {
+    Space space = getSpaceInstance(2);
+    String roomId = matrixService.createRoom(space);
+    roomsToDelete.add(roomId);
     when(userStateModel.getStatus()).thenReturn("available");
-    ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix",
-                                                                                     "demo",
-                                                                                     "!roomId:matrix.meeds.tn",
-                                                                                     5);
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
     assertNotNull(action);
+
     when(userStateModel.getStatus()).thenReturn("donotdisturb");
-    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", "!roomId:matrix.meeds.tn", 5);
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
+    assertNull(action);
+
+    when(userStateModel.getStatus()).thenReturn("available");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(true);
+    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
     assertNull(action);
   }
 
   @Test
   void createNotification() throws Exception {
     when(userStateModel.getStatus()).thenReturn("available");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     String eventId = "eventIDOnMatrix";
     Space space = getSpaceInstance(1);
     String roomId = matrixService.createRoom(space);
