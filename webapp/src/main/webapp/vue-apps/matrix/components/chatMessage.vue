@@ -195,7 +195,7 @@
         return localStorage.getItem('matrix_user_id') === this.message.sender;
       },
       isMobile() {
-        return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
+        return this.$root.isMobile;
       },
       messageContentClass() {
         const selfMessage = localStorage.getItem('matrix_user_id') === this.message.sender;
