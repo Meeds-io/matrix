@@ -64,10 +64,10 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   WebNotificationService             webNotificationService;
 
   @Mock
-  private UserStateService userStateService;
+  private UserStateService           userStateService;
 
   @Mock
-  private UserStateModel userStateModel;
+  private UserStateModel             userStateModel;
 
   @Mock
   private UserSetting                userSetting;
@@ -128,8 +128,15 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
     action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
     assertNotNull(action);
+
     when(userStateModel.getStatus()).thenReturn("donotdisturb");
-    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", "!roomId:matrix.meeds.tn", 5);
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
+    assertNull(action);
+
+    when(userStateModel.getStatus()).thenReturn("available");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(true);
+    action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
     assertNull(action);
   }
 

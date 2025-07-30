@@ -121,7 +121,7 @@ public class ChatNotificationService {
     if (!isPushNotificationsEnabled(userName)) {
       return null;
     }
-    if (!isPushEnabledForUser(userName)) {
+    if (!isPushEnabledForUser(userName, roomId)) {
       return null;
     }
     // Create Push notification
@@ -300,9 +300,15 @@ public class ChatNotificationService {
       return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
   }
   
-  private boolean isPushEnabledForUser(String userName) {
+  private boolean isPushEnabledForUser(String userName, String roomId) {
+    Room room = matrixService.getById(roomId);
+    boolean roomMuted = false;
+    if (room != null && StringUtils.isNotBlank(room.getSpaceId())) {
+      UserSetting userSetting = getUserSettingService().get(userName);
+      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
+    }
     UserStateModel userStatus = getUserStateService().getUserState(userName);
-    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE);
+    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
   }
 
   /**
