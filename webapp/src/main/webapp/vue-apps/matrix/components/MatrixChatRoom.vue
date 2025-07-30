@@ -1,72 +1,96 @@
 <template>
-  <v-hover v-slot="{ hover }">
+  <div
+    :id="`room${room.spaceId || room.dmMemberId}`"
+    :class="{'background-grey-primary': isActive}"
+    class="d-flex chat-room-item position-relative py-3 px-5 clickable"
+    @click="openRoom"
+    @mouseenter="hover = true"
+    @mouseleave="hover = false">
+    <v-badge
+      :color="presenceColor"
+      :value="isPrivateRoom"
+      class="ma-0 pa-0"
+      content=""
+      offset-x="13"
+      offset-y="10"
+      width="12"
+      height="12"
+      bordered
+      bottom
+      overlap
+      dot>
+      <v-avatar
+        :tile="!isPrivateRoom"
+        :class="{'rounded-lg': !isPrivateRoom}"
+        width="52"
+        min-width="52"
+        height="52">
+        <v-img
+          :src="avatarUrl"
+          :lazy-src="room.avatarUrl"
+          :alt="room?.name" />
+      </v-avatar>
+    </v-badge>
     <div
-      :class="{'background-grey-primary': hover}"
-      class="d-flex chat-room-item py-3 px-5 clickable"
-      @click="openRoom">
-      <v-badge
-        :color="presenceColor"
-        :value="isPrivateRoom"
-        class="ma-0 pa-0"
-        content=""
-        offset-x="13"
-        offset-y="10"
-        width="12"
-        height="12"
-        bordered
-        bottom
-        overlap
-        dot>
-        <v-avatar
-          :tile="!isPrivateRoom"
-          :class="{'rounded-lg': !isPrivateRoom}"
-          width="52"
-          min-width="52"
-          height="52">
-          <v-img
-            :src="avatarUrl"
-            :lazy-src="room.avatarUrl"
-            :alt="room?.name" />
-        </v-avatar>
-      </v-badge>
-      <div class="overflow-hidden ps-2 flex-grow-1">
-        <div
-          :id="`room-name-${room.id}`"
-          class="chat-room-name text-truncate text-title text-subtitle-1">
-          {{ room.name }}
-          <span v-if="room.external">
-            {{ externalTag }}
-          </span>
-        </div>
-        <room-last-message :room="room" />
+      class="overflow-hidden ps-2 flex-grow-1">
+      <div
+        :id="`room-name-${room.id}`"
+        class="chat-room-name text-truncate text-title text-subtitle-1">
+        {{ room.name }}
+        <span v-if="room.external">
+          {{ externalTag }}
+        </span>
       </div>
-      <div class="ps-3">
-        <div class="last-message-timestamp text-subtitle">
-          {{ getUpdateTime(room) }}
-        </div>
-        <div class="pull-right text-font-small-size d-flex">
-          <v-icon
-            v-if="room.isMuted"
-            size="16">
+      <room-last-message :room="room" />
+    </div>
+    <div class="ps-3">
+      <div class="last-message-timestamp text-subtitle">
+        {{ getUpdateTime(room) }}
+      </div>
+      <div class="pull-right d-flex">
+        <v-avatar
+          v-if="showMessageBadge"
+          size="24"
+          class="align-center align-content-center error-color-background white--text text-font-small-size">
+          {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
+        </v-avatar>
+        <room-action-menu
+          v-else-if="isActive && !isPrivateRoom"
+          ref="menu"
+          :room="room"
+          @open="menuOpen = true"
+          @close="menuOpen = false" />
+        <v-badge
+          v-if="!isActive && room.muted"
+          color="#bc4343"
+          :value="hasUnreadMessages"
+          class="ma-0 pa-0"
+          content=""
+          offset-x="8"
+          offset-y="8"
+          width="12"
+          height="12"
+          bordered
+          top
+          overlap
+          dot>
+          <v-icon size="16">
             fas fa-bell-slash
           </v-icon>
-          <div
-            v-if="room.unreadMessages"
-            class="unread-messages align-center border-radius-circle error-color-background
-            white--text text-font-small-size align-content-center">
-            {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
-          </div>
-        </div>
+        </v-badge>
       </div>
     </div>
-  </v-hover>
+  </div>
 </template>
 <script>
 
 export default {
   data() {
     return {
-      externalTag: `( ${this.$t('matrix.chat.user.external')} )`
+      menu: false,
+      externalTag: `( ${this.$t('matrix.chat.user.external')} )`,
+      menuOpen: false,
+      hover: false
     }
   },
   props: {
@@ -81,6 +105,15 @@ export default {
     }
   },
   computed: {
+    isActive() {
+      return this.hover || this.menuOpen;
+    },
+    showMessageBadge() {
+      return this.hasUnreadMessages && (this.isPrivateRoom || (!this.isActive && !this.room.muted));
+    },
+    isMobile() {
+      return this.$root.isMobile;
+    },
     isPrivateRoom() {
       return this.room?.directChat;
     },
@@ -92,6 +125,9 @@ export default {
     },
     presenceColor() {
       return this.presence && this.$root.statusMap[this.presence];
+    },
+    hasUnreadMessages() {
+      return this.room.unreadMessages > 0;
     }
   },
   methods: {

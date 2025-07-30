@@ -3,9 +3,8 @@
     v-if="rooms?.length"
     class="d-flex flex-column">
     <matrix-chat-room
-      v-for="(room, i) in rooms"
+      v-for="room in rooms"
       :key="room.id"
-      :id="'room-'+i"
       :room="room" />
   </div>
   <div v-else-if="!loading" class="d-flex full-height align-center justify-center full-width">

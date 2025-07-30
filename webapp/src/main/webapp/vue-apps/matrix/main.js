@@ -18,6 +18,7 @@ import MessageReactionItem from './components/message/MessageReactionItem.vue';
 import MessageSenderName from './components/message/MessageSenderName.vue';
 import RoomLastMessage from './components/room/RoomLastMessage.vue';
 import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
+import RoomActionMenu from './components/room/RoomActionMenu.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -47,6 +48,7 @@ const components = {
   'message-sender-name': MessageSenderName,
   'room-last-message': RoomLastMessage,
   'meeds-chat-space-settings': SpaceSettingsAdministration,
+  'room-action-menu': RoomActionMenu
 };
 
 for (const key in components) {
@@ -71,6 +73,7 @@ Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'f
 const appId = 'matrixChatButton';
 const lang = window?.eXo?.env?.portal?.language || 'fr';
 const i18NUrl = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`;
+const channel = new BroadcastChannel(appId);
 
 export function init(serverName) {
   exoi18n.loadLanguageAsync(lang, i18NUrl).then(i18n => {
@@ -78,9 +81,10 @@ export function init(serverName) {
     Vue.createApp({
       template: `<matrix-chat-button id="matrixChatButton" serverName="${serverName}"/>`,
       vuetify: Vue.prototype.vuetifyOptions,
-      data: function() {
+      data() {
         return {
           serverName: serverName,
+          channel: channel,
           statusMap: {
             available: '#2eb58c',
             donotdisturb: '#bc4343',
@@ -88,6 +92,11 @@ export function init(serverName) {
             invisible: '#707070'
           },
         };
+      },
+      computed: {
+        isMobile() {
+          return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
+        },
       },
       i18n
     },
