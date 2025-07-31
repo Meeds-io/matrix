@@ -27,4 +27,6 @@ export const chatConstants = {
   ENTER_CODE_KEY: 13,
 
   MESSAGES_LOAD_LIMIT : 200,
+
+  DB_SETTINGS: {dbName: 'CHAT', dbStore: 'SETTINGS', version: 2},
 }
