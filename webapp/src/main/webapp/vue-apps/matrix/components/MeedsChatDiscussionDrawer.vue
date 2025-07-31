@@ -67,7 +67,8 @@
         </div>
       </div>
       <v-menu
-        v-if="canEditSpace"
+        v-if="spaceId"
+        v-model="menu"
         content-class="border-radius overflow-hidden"
         :nudge-left="-30"
         open-on-click
@@ -89,6 +90,7 @@
         </template>
         <v-list class="pa-0">
           <v-list-item
+            v-if="canEditSpace"
             class="ps-2 pe-3 height-auto"
             @click="editSpace">
             <v-sheet
@@ -102,6 +104,26 @@
               </v-icon>
             </v-sheet>
             {{ $t('matrix.room.space.editProperties') }}
+          </v-list-item>
+          <v-list-item
+            class="ps-2 pe-3 height-auto"
+            @click.stop="muteRoom">
+            <v-sheet
+              class="d-flex"
+              width="28"
+              height="36">
+              <v-icon
+                class="icon-default-color mx-auto"
+                size="16">
+                {{ isMuted ? 'fas fa-bell' : 'fas fa-bell-slash' }}
+              </v-icon>
+            </v-sheet>
+            <span v-if="!isMuted">
+              {{ $t('matrix.room.mute.label') }}
+            </span>
+            <span v-else>
+              {{ $t('matrix.room.unmute.label') }}
+            </span>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -244,6 +266,7 @@ export default {
       expanded: false,
       drawerWidth: 420,
       space: null,
+      menu: false
     };
   },
   provide() {
@@ -253,6 +276,12 @@ export default {
     };
   },
   computed: {
+    isMuted() {
+      return this.room?.muted;
+    },
+    spaceId() {
+      return this.room?.spaceId;
+    },
     presence() {
       return this.room?.presence
     },
@@ -260,7 +289,7 @@ export default {
       return this.presence && this.$root.statusMap[this.presence];
     },
     canEditSpace() {
-      return this.room?.spaceId && this.space?.canEdit;
+      return this.space?.canEdit;
     },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
@@ -310,6 +339,18 @@ export default {
     this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
   },
   methods: {
+    muteRoom() {
+      this.$spaceService.muteSpace(this.spaceId, this.isMuted).then(() => {
+        this.$root.$emit(
+          'alert-message',
+          this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
+          'success');
+        setTimeout(() => {
+          this.menu = false;
+          this.room.muted = !this.isMuted;
+        }, 100)
+      });
+    },
     handleExpand(expanded) {
       setTimeout(() => {
         this.expanded = expanded;
