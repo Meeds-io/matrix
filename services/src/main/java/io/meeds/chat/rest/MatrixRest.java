@@ -648,14 +648,19 @@ public class MatrixRest implements ResourceContainer {
       RoomEntity room = roomList.getRooms().get(index);
       room = updateRoomEntity(room, currentUserName);
       // check missing rooms
-      if (room != null) {
-        if (!room.isDirectChat()) {
-          spaceIds.remove(room.getSpaceId());
-        }
-        if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
-          processedRooms.add(room);
-        }
+      if (room == null) {
+        continue;
       }
+      if (room.isMuted()) {
+        roomList.setTotalUnreadMessages(Math.max(0, roomList.getTotalUnreadMessages() - room.getUnreadMessages()));
+      }
+      if (!room.isDirectChat()) {
+        spaceIds.remove(room.getSpaceId());
+      }
+      if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
+        processedRooms.add(room);
+      }
+
     }
     if (!spaceIds.isEmpty()) {
       for (String spaceId : spaceIds) {

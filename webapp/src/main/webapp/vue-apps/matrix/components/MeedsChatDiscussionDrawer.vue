@@ -557,7 +557,9 @@ export default {
           document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
             behavior: 'instant'
           });
-          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id);
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            this.room.unreadMessages = 0;
+          });
         }
       }
     },
