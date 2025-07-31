@@ -107,11 +107,13 @@ export default {
         this.$root.$emit('alert-message',
           this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
           'success');
-        this.menu = false;
-        this.$root.$emit('room-muted-updated', {
-          roomId: this.room.id,
-          muted: !this.isMuted
-        });
+        setTimeout(() => {
+          this.menu = false
+          this.$root.$emit('room-muted-updated', {
+            roomId: this.room.id,
+            muted: !this.isMuted
+          });
+        }, 100)
       });
     }
   }
