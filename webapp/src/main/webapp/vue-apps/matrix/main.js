@@ -73,6 +73,7 @@ Vue.prototype.$filesIconsExtension = extensionRegistry.loadExtensions('chat', 'f
 const appId = 'matrixChatButton';
 const lang = window?.eXo?.env?.portal?.language || 'fr';
 const i18NUrl = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`;
+const channel = new BroadcastChannel(appId);
 
 export function init(serverName) {
   exoi18n.loadLanguageAsync(lang, i18NUrl).then(i18n => {
@@ -83,6 +84,7 @@ export function init(serverName) {
       data() {
         return {
           serverName: serverName,
+          channel: channel,
           statusMap: {
             available: '#2eb58c',
             donotdisturb: '#bc4343',
