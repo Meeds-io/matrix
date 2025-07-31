@@ -1,5 +1,7 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
+import * as dbStorage from '../../../js/dbStorage.js'
+
 
 const replyToCache = new Map();
 const userCache = new Map();
@@ -1411,13 +1413,10 @@ export function initUserData(data) {
   localStorage.setItem("matrix_last_login", new Date().getTime());
 }
 
-export function registerUserToken() {
-  navigator.serviceWorker.ready.then(reg => {
-    if (navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-         action: 'matrix_access_token',
-         value: localStorage.getItem("matrix_access_token")
-      });
-    }
-  });
+export async function registerUserToken() {
+  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.dbName);
+  if (!dbExists) {
+    await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
+  }
+  await dbStorage.setValue(chatConstants.DB_SETTINGS, 'access_token', localStorage.getItem("matrix_access_token"));
 }

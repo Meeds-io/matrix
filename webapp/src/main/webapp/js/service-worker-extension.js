@@ -14,6 +14,9 @@ self.addEventListener('push', event => {
         event.waitUntil(new Promise(async (resolve, reject) => {
           try {
             if (action === 'open') {
+              if (!accessToken) {
+                accessToken = await retrieveAccessToken();
+              }
               let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}`, {
                 method: 'PUT',
                 credentials: 'include',
@@ -44,11 +47,28 @@ self.addEventListener('push', event => {
   }
 });
 
-self.addEventListener('message', event => {
-  if (event.origin !== self.location.origin)
-    return;
-  if (event.data.action === 'matrix_access_token') {
-    accessToken = event.data.value;
-  }
-});
-
+async function retrieveAccessToken() {
+  const dbName ='CHAT';
+  const dbStore = 'SETTINGS';
+  const dbVersion = 2;
+  // Open indexDb
+  const request = indexedDB.open(dbName, dbVersion);
+  const database = await new Promise((resolve, reject) => {
+    request.onerror = reject;
+    request.onsuccess = e => resolve(e.target.result);
+    request.onupgradeneeded = e => {
+      try {
+        e.target.result.createObjectStore(dbStore);
+      } catch (e) {
+        console.debug('Error upgrading database version', e);
+        reject(e);
+      }
+    };
+  });
+  return new Promise(resolve => {
+    const transaction = database.transaction([dbStore], 'readonly');
+    const request = transaction.objectStore(dbStore).get('access_token');
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => resolve(null);
+  });
+}
