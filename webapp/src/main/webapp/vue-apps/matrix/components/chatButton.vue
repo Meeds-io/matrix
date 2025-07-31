@@ -61,6 +61,7 @@
     created() {
       this.getUserStatus();
       this.scheduleSeenEventsCleanup();
+      this.setupBroadcastChannelListener();
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
@@ -132,6 +133,12 @@
       document.removeEventListener('space-muted', this.handleSpaceMute)
     },
     watch: {
+      totalUnreadMessages() {
+        this.$root.channel.postMessage({
+          type: 'total-unread-messages-updated',
+          payload: {totalUnreadMessages: this.totalUnreadMessages}
+        });
+      },
       open() {
         if (this.open) {
           this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
@@ -235,7 +242,7 @@
         updatedRooms.unshift(updatedRoom);
         this.rooms = updatedRooms;
 
-        if (isNewMessageFromOtherUser) {
+        if (isNewMessageFromOtherUser && !updatedRoom.muted) {
           this.totalUnreadMessages++;
         }
       },
@@ -278,7 +285,9 @@
             if (updatedRoom.unreadMessages === 1) {
               updatedRoom.unreadMessages--;
               this.totalUnreadMessages--;
-              this.$matrixService.markRoomAsFullyRead(roomId, eventId);
+              this.$matrixService.markRoomAsFullyRead(roomId, eventId).then(() => {
+                updatedRoom.unreadMessages = 0;
+              });
             }
           }
 
@@ -370,21 +379,35 @@
       },
       handleRoomMuteUpdate(room) {
         const updatedRoom = this.getLocalRoomById(room?.roomId);
-        if (updatedRoom) {
-          updatedRoom.muted = room.muted;
+        const wasMuted = updatedRoom.muted;
+        updatedRoom.muted = room.muted;
+
+        if (wasMuted !== room.muted) {
+          const delta = updatedRoom.unreadMessages || 0;
+          this.totalUnreadMessages += room.muted ? -delta : delta;
         }
       },
       handleSpaceMute({detail: {spaceId}}) {
         const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
         if (updatedRoom) {
           updatedRoom.muted = true;
+          this.totalUnreadMessages+=updatedRoom.unreadMessages;
         }
       },
       handleSpaceUnmute({detail: {spaceId}}) {
         const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
         if (updatedRoom) {
           updatedRoom.muted = false;
+          this.totalUnreadMessages-=updatedRoom.unreadMessages;
         }
+      },
+      setupBroadcastChannelListener() {
+        this.$root.channel.addEventListener('message', event => {
+          const {type, payload} = event.data;
+          if (type === 'total-unread-messages-updated') {
+            this.totalUnreadMessages = payload.totalUnreadMessages;
+          }
+        });
       }
     }
   };
