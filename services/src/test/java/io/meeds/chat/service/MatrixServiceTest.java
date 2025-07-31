@@ -20,42 +20,27 @@ package io.meeds.chat.service;
 
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
-import io.meeds.chat.model.MatrixRoomPermissions;
-import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.LastMessage;
-import io.meeds.chat.rest.model.Message;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
-import io.meeds.chat.service.utils.MatrixHttpClient;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
-import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
-import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
-import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
-import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.model.AvatarAttachment;
 import org.exoplatform.social.core.space.model.Space;
-import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -63,31 +48,11 @@ import static org.mockito.Mockito.*;
 @SpringJUnitConfig(MatrixBaseTest.class)
 class MatrixServiceTest extends MatrixBaseTest {
 
-  @MockBean
-  MatrixHttpClient       matrixHttpClient;
-
   @Autowired
   MatrixService          matrixService;
 
   @Autowired
-  SpaceService           spaceService;
-
-  @Autowired
   IdentityManager        identityManager;
-
-  @Autowired
-  CachedIdentityStorage  identityStorage;
-
-  @MockBean
-  ProfileSearchConnector profileSearchConnector;
-
-  private List<Space>    spacesToDelete = new ArrayList<>();
-
-  private List<String>   roomsToDelete  = new ArrayList<>();
-
-  private String         matrixRoomId   = "!thisIsACreatedRoom:matrix.meeds.tn";
-
-  private String         accessToken    = "ThisIsAnAccessToken";
 
   @Test
   void init() {
@@ -106,55 +71,6 @@ class MatrixServiceTest extends MatrixBaseTest {
     verify(matrixHttpClient, times(1)).updateUserDisplayName(userId, "Chat Bot", accessToken);
   }
 
-  @BeforeEach
-  void setUp() throws Exception {
-    begin();
-    PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
-    when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
-    when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
-    ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
-    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn(accessToken);
-
-    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
-    when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(true);
-    MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
-    matrixUserPermission.setUserName("demo");
-    matrixUserPermission.setUserRole(MANAGER_ROLE);
-    MatrixUserPermission raulUserPermission = new MatrixUserPermission();
-    raulUserPermission.setUserName("raul");
-    raulUserPermission.setUserRole(SIMPLE_USER_ROLE);
-    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
-    matrixRoomPermissions.setUsers(new ArrayList(List.of(new MatrixUserPermission[] { matrixUserPermission,
-        raulUserPermission })));
-    when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
-    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenReturn("@demo:matrix.meeds.tn");
-    when(matrixHttpClient.saveUserAccount(any(),
-                                          anyString(),
-                                          anyBoolean(),
-                                          anyString(),
-                                          anyBoolean(),
-                                          anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
-  }
-
-  @AfterEach
-  void tearDown() {
-    for (Space space : spacesToDelete) {
-      try {
-        this.spaceService.deleteSpace(space);
-      } catch (Exception e) {
-        // Nothing to do
-      }
-    }
-    for (String roomId : roomsToDelete) {
-      try {
-        this.matrixService.deleteRoom(roomId);
-      } catch (Exception e) {
-        // Nothing to do
-      }
-    }
-    end();
-  }
-
   @Test
   void createRoom() throws Exception {
     Space space = getSpaceInstance(1);
@@ -164,31 +80,6 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals(matrixRoomId, spaceRoom.getRoomId());
   }
 
-  private Space getSpaceInstance(int number) {
-    Space space = new Space();
-    space.setDisplayName("my space " + number);
-    space.setPrettyName(space.getDisplayName());
-    space.setRegistration(Space.OPEN);
-    space.setDescription("add new space " + number);
-    space.setVisibility(Space.PUBLIC);
-    space.setRegistration(Space.VALIDATION);
-    Identity spaceIdentity = new Identity();
-    spaceIdentity.setRemoteId(space.getPrettyName());
-    spaceIdentity.setProviderId(SpaceIdentityProvider.NAME);
-    identityStorage.saveIdentity(spaceIdentity);
-    Space createdSpace = this.spaceService.createSpace(space, "root");
-    String[] managers = new String[] { "demo", "tom" };
-    String[] members = new String[] { "demo", "raul", "ghost", "dragon" };
-    String[] invitedUsers = new String[] { "register1", "mary" };
-    String[] pendingUsers = new String[] { "jame", "paul", "hacker" };
-    Arrays.stream(pendingUsers).forEach(u -> spaceService.addPendingUser(createdSpace, u));
-    Arrays.stream(invitedUsers).forEach(u -> spaceService.addInvitedUser(createdSpace, u));
-    Arrays.stream(members).forEach(u -> spaceService.addMember(createdSpace, u));
-    Arrays.stream(managers).forEach(u -> spaceService.addMember(createdSpace, u));
-    Arrays.stream(managers).forEach(u -> spaceService.setManager(createdSpace, u, true));
-    spacesToDelete.add(createdSpace);
-    return createdSpace;
-  }
 
   @Test
   void updateUserPresence() throws JsonException, IOException, InterruptedException {
@@ -334,18 +225,18 @@ class MatrixServiceTest extends MatrixBaseTest {
   void overrideAdminRateLimit() throws IOException, InterruptedException {
     String admin = "admin";
     when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("""
-                                                                                                          {
-                                                                                                            "messages_per_second": 0,
-                                                                                                            "burst_count": 0
-                                                                                                          }""");
+        {
+          "messages_per_second": 0,
+          "burst_count": 0
+        }""");
     matrixService.overrideAdminRateLimit(admin);
     verify(matrixHttpClient, times(0)).overrideRateLimitForUser(admin, 0, 0, accessToken);
 
     when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("""
-                                                                                                          {
-                                                                                                            "messages_per_second": 10,
-                                                                                                            "burst_count": 20
-                                                                                                          }""");
+        {
+          "messages_per_second": 10,
+          "burst_count": 20
+        }""");
     matrixService.overrideAdminRateLimit(admin);
     verify(matrixHttpClient, times(1)).overrideRateLimitForUser(admin, 0, 0, accessToken);
   }

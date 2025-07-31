@@ -1,5 +1,7 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
+import * as dbStorage from '../../../js/dbStorage.js'
+
 
 const replyToCache = new Map();
 const userCache = new Map();
@@ -591,7 +593,7 @@ export function savePushGateway(kind, pushKey) {
     "device_display_name": "Browser",
     "kind":kind || null,
     "lang":eXo.env.portal.language,
-    "profile_tag":"UserProfile",
+    "profile_tag": eXo.env.portal.userName,
     "pushkey": pushKey
   }
   return fetch(`/_matrix/client/v3/pushers/set`, {
@@ -629,9 +631,8 @@ export function installPusher() {
   const token = getCookieValue(JWT_COOKIE_NAME);
   let found = false;
   getPushers().then(resp => {
-    if(resp.pushers && resp.pushers.length) {
-      for(let i = 0; i < resp.pushers.length; i++) {
-        let pusher = resp.pushers[i];
+    if(resp.pushers?.length) {
+      for(const pusher of resp.pushers) {
         if(pusher.app_id && pusher.app_id === PUSH_APP_ID) {
           found = true;
           if(pusher.pushkey !== token) {
@@ -641,11 +642,11 @@ export function installPusher() {
           }
         }
       }
-      if(!found) {
-        savePushGateway('http', token);
-      }
     }
   });
+  if(!found) {
+    savePushGateway('http', token);
+  }
 }
 
 export function getByRoomId(roomId) {
@@ -1417,4 +1418,24 @@ export function enableOrDisableChat(spaceId, enable) {
       }
     }
   });
+}
+
+export function dropUserData() {
+  localStorage.removeItem("matrix_user_id");
+  localStorage.removeItem("matrix_access_token");
+  localStorage.removeItem('matrix_last_login');
+}
+
+export function initUserData(data) {
+  localStorage.setItem("matrix_user_id", data.user_id);
+  localStorage.setItem("matrix_access_token", data.access_token);
+  localStorage.setItem("matrix_last_login", new Date().getTime());
+}
+
+export async function registerUserToken() {
+  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.dbName);
+  if (!dbExists) {
+    await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
+  }
+  await dbStorage.setValue(chatConstants.DB_SETTINGS, 'access_token', localStorage.getItem("matrix_access_token"));
 }

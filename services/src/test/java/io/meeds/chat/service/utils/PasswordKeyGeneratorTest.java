@@ -22,15 +22,15 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class PasswordGeneratorTest {
+class PasswordKeyGeneratorTest {
 
     @Test
     void generatePassword() {
-        String generatedPassword = PasswordGenerator.generatePassword(10);
+        String generatedPassword = PasswordKeyGenerator.generatePassword(10);
         assertNotNull(generatedPassword);
         assertEquals(10, generatedPassword.length());
 
-        generatedPassword = PasswordGenerator.generatePassword(7);
+        generatedPassword = PasswordKeyGenerator.generatePassword(7);
         assertNotNull(generatedPassword);
         assertEquals(8, generatedPassword.length());
 

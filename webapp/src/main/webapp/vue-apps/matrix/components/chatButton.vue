@@ -66,9 +66,7 @@
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
-        localStorage.removeItem("matrix_user_id");
-        localStorage.removeItem("matrix_access_token");
-        localStorage.removeItem('matrix_last_login');
+        this.$matrixService.dropUserData();
       }
 
       const matrixInfos = localStorage.getItem('matrix_user_id');
@@ -77,9 +75,7 @@
           if(enabled) {
             this.$matrixService.authenticate().then(resp => {
               if(resp.user_id) {
-                localStorage.setItem("matrix_user_id", resp.user_id);
-                localStorage.setItem("matrix_access_token", resp.access_token);
-                localStorage.setItem("matrix_last_login", new Date().getTime());
+                this.$matrixService.initUserData(resp);
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
                   this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
@@ -118,8 +114,12 @@
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
     },
+    mounted() {
+      this.$nextTick().then(() => this.$matrixService.registerUserToken());
+    },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
       document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
