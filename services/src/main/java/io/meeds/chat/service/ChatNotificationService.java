@@ -196,7 +196,7 @@ public class ChatNotificationService {
   private boolean isPushEnabledForUser(String userName, String roomId) {
     Room room = matrixService.getById(roomId);
     boolean roomMuted = false;
-    if (room != null) {
+    if (room != null && StringUtils.isNotBlank(room.getSpaceId())) {
       UserSetting userSetting = getUserSettingService().get(userName);
       roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
     }
