@@ -55,7 +55,7 @@
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </v-avatar>
         <room-action-menu
-          v-else-if="isActive && !isPrivateRoom"
+          v-else-if="isActive"
           ref="menu"
           :room="room"
           @open="menuOpen = true"
@@ -109,7 +109,7 @@ export default {
       return this.hover || this.menuOpen;
     },
     showMessageBadge() {
-      return this.hasUnreadMessages && (this.isPrivateRoom || (!this.isActive && !this.room.muted));
+      return this.hasUnreadMessages && !this.isActive && !this.room.muted;
     },
     isMobile() {
       return this.$root.isMobile;

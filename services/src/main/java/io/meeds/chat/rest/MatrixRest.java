@@ -97,6 +97,9 @@ public class MatrixRest implements ResourceContainer {
   @Autowired
   private ResourceBundleService        resourceBundleService;
 
+  @Autowired
+  private ChatNotificationService      chatNotificationService;
+  
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
@@ -222,7 +225,6 @@ public class MatrixRest implements ResourceContainer {
                 """.formatted(pushKey);
           }
           if (StringUtils.isNotBlank(userName)) {
-            ChatNotificationService chatNotificationService = CommonsUtils.getService(ChatNotificationService.class);
             int unreadCount = 0;
             JsonValue element = notifJsonValue.getElement("counts");
             if (element != null && element.getElement("unread") != null) {
@@ -591,6 +593,31 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  @PostMapping("/muteRoom")
+  @Secured("users")
+  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
+      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> muteRoom(HttpServletRequest request,
+                                         @Parameter(description = "ID of the room to mute")
+                                         @RequestParam(name = "roomId")
+                                         String roomId) {
+
+    String userName = request.getRemoteUser();
+    if (StringUtils.isBlank(roomId)) {
+      return ResponseEntity.badRequest().body("roomId parameter is required");
+    }
+    try {
+      chatNotificationService.mutePrivateRoom(userName, roomId);
+      return ResponseEntity.ok("Room muted successfully");
+    } catch (Exception e) {
+      LOG.error("Error muting room {} for user {}", roomId, userName, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
+    }
+  }
+  
+  
   private String checkAndParseUserFromToken(String token) {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
     Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
@@ -715,6 +742,7 @@ public class MatrixRest implements ResourceContainer {
           room.setUserId(identity.getRemoteId());
           room.setIdentityId(identity.getId());
           room.setDmMemberId(identity.getRemoteId());
+          room.setMuted(chatNotificationService.isPrivateRoomMutedForUser(currentUserName, room.getId()));
           room.setExternal(identity.isExternal());
           room.setEnabledUser(identity.isEnable());
           room.setDeletedUser(identity.isDeleted());

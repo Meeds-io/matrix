@@ -18,17 +18,26 @@
  */
 package io.meeds.chat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
+import io.meeds.social.util.JsonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.api.notification.NotificationContext;
 import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.api.notification.model.UserSetting;
 import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.notification.impl.NotificationContextImpl;
 import org.exoplatform.commons.utils.CommonsUtils;
+import org.exoplatform.services.log.ExoLogger;
+import org.exoplatform.services.log.Log;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.user.UserStateModel;
@@ -42,7 +51,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -50,7 +59,8 @@ import static io.meeds.pwa.service.PwaNotificationService.*;
 
 @Service
 public class ChatNotificationService {
-
+  private static final Log          LOG                          = ExoLogger.getLogger(ChatNotificationService.class);
+  
   @Autowired
   private MatrixService             matrixService;
 
@@ -66,13 +76,20 @@ public class ChatNotificationService {
   @Autowired
   private PwaNotificationService    pwaNotificationService;
 
+  @Autowired
+  private SettingService            settingService;
+
   private static UserStateService   userStateService;
 
   private static UserSettingService userSettingService;
 
-  public static String              IN_KEY                = "matrix.words.in";
+  public static String              IN_KEY                       = "matrix.words.in";
 
-  private static final String       USER_STATUS_AVAILABLE = "available";
+  private static final String       USER_STATUS_AVAILABLE        = "available";
+
+  public static final Scope        USER_CHAT_NOTIFICATION_SCOPE = Scope.APPLICATION.id("ChatNotificationSettings");
+
+  public static final String       MUTED_ROOMS                  = "mutedRooms";
 
     /**
    * Sends a notification Creation request to the Push service on the browser
@@ -192,13 +209,46 @@ public class ChatNotificationService {
          .execute(ctx);
     }
   }
-  
+
+  public boolean isPrivateRoomMutedForUser(String userName, String roomId) {
+    return getMutedRooms(userName).contains(roomId);
+  }
+
+  public void mutePrivateRoom(String userName, String roomId) {
+    Set<String> mutedRoomIds = new HashSet<>(getMutedRooms(userName));
+    if (mutedRoomIds.add(roomId)) {
+      settingService.set(Context.USER.id(userName),
+                         USER_CHAT_NOTIFICATION_SCOPE,
+                         MUTED_ROOMS,
+                         SettingValue.create(JsonUtils.toJsonString(mutedRoomIds)));
+    }
+  }
+
+  private Set<String> getMutedRooms(String userName) {
+    try {
+      SettingValue<?> settingValue = settingService.get(Context.USER.id(userName), USER_CHAT_NOTIFICATION_SCOPE, MUTED_ROOMS);
+      if (settingValue == null || settingValue.getValue() == null) {
+        return Collections.emptySet();
+      }
+      return JsonUtils.OBJECT_MAPPER.readValue(settingValue.getValue().toString(), new TypeReference<>() {
+      });
+    } catch (Exception e) {
+      LOG.error("Error reading muted rooms setting value for user {}", userName, e);
+      return Collections.emptySet();
+    }
+  }
+
   private boolean isPushEnabledForUser(String userName, String roomId) {
     Room room = matrixService.getById(roomId);
-    boolean roomMuted = false;
-    if (room != null && StringUtils.isNotBlank(room.getSpaceId())) {
+    if (room == null) {
+      return false;
+    }
+    boolean roomMuted;
+    if (StringUtils.isNotBlank(room.getSpaceId())) {
       UserSetting userSetting = getUserSettingService().get(userName);
       roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
+    } else {
+      roomMuted = isPrivateRoomMutedForUser(userName, roomId);
     }
     UserStateModel userStatus = getUserStateService().getUserState(userName);
     return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
