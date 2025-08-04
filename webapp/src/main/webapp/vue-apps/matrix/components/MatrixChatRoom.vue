@@ -1,12 +1,15 @@
 <template>
   <div
     :id="`room${room.spaceId || room.dmMemberId}`"
-    :class="{'background-grey-primary': isActive}"
+    :class="{
+      'background-grey-primary': isActive,
+      'no-select': isMobile}"
     class="d-flex chat-room-item position-relative py-3 px-5 clickable"
+    v-touch-hold="openMenu"
     @click="openRoom"
     @mouseenter="hover = true"
-    @mouseleave="hover = false">
-    <v-badge
+    @mouseleave="hover = false;">
+  <v-badge
       :color="presenceColor"
       :value="isPrivateRoom"
       class="ma-0 pa-0"
@@ -55,7 +58,7 @@
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </v-avatar>
         <room-action-menu
-          v-else-if="isActive"
+          v-else-if="isActive && !isMobile"
           ref="menu"
           :room="room"
           @open="menuOpen = true"
@@ -90,7 +93,8 @@ export default {
       menu: false,
       externalTag: `( ${this.$t('matrix.chat.user.external')} )`,
       menuOpen: false,
-      hover: false
+      hover: false,
+      pressTimer: null
     }
   },
   props: {
@@ -141,6 +145,9 @@ export default {
     },
     getUpdateTime(room) {
       return this.$matrixService.formatDate(room.updated);
+    },
+    openMenu() {
+      this.$root.$emit('open-room-action-menu', this.room);
     }
   }
 }
