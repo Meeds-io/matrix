@@ -5,8 +5,13 @@ import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
+import io.meeds.social.util.JsonUtils;
 import org.exoplatform.commons.api.notification.model.UserSetting;
 import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.Orientation;
@@ -23,9 +28,11 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,6 +65,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Mock
   private UserSettingService         userSettingService;
 
+  @Mock
+  private SettingService             settingService;
+
   private MockedStatic<CommonsUtils> commonsUtils;
 
 
@@ -70,6 +80,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     commonsUtils.when(() -> CommonsUtils.getService(UserSettingService.class)).thenReturn(userSettingService);
     when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
     when(userSettingService.get(anyString())).thenReturn(userSetting);
+    ReflectionTestUtils.setField(chatNotificationService, "settingService", settingService);
   }
 
   @AfterEach
@@ -150,5 +161,64 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     assertNotNull(pwaNotificationMessage.getIcon());
     assertEquals(tomIdentity.getProfile().getFullName(), pwaNotificationMessage.getTitle());
     assertEquals("This is a private chat message", pwaNotificationMessage.getBody());
+  }
+
+  @Test
+  void testIsRoomMutedForUser() {
+    String userName = "demo";
+    String mutedRoomId = "!mutedRoom:matrix.meeds.tn";
+    String otherRoomId = "!otherRoom:matrix.meeds.tn";
+    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    String key = ChatNotificationService.MUTED_ROOMS;
+
+    // Case: room is muted
+    SettingValue settingValue = SettingValue.create(JsonUtils.toJsonString(Set.of(mutedRoomId)));
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(settingValue);
+
+    assertTrue(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+
+    // Case: room is NOT muted
+    SettingValue otherSettingValue = SettingValue.create(JsonUtils.toJsonString(Set.of(otherRoomId)));
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(otherSettingValue);
+    assertFalse(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+
+    // Case: no setting found (null)
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(null);
+    assertFalse(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+  }
+
+  @Test
+  void testMutePrivateRoom() {
+    String userName = "demo";
+    String newRoomId = "!newRoom:matrix.meeds.tn";
+    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    String key = ChatNotificationService.MUTED_ROOMS;
+
+    // Initially no muted rooms (empty list)
+    SettingValue settingValue = SettingValue.create("[]");
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(settingValue);
+
+    chatNotificationService.mutePrivateRoom(userName, newRoomId);
+
+    // Verify set() is called with muted rooms containing newRoomId
+    verify(settingService).set(eq(Context.USER.id(userName)), eq(scope), eq(key), argThat(setting -> {
+      try {
+        Set<String> rooms = JsonUtils.OBJECT_MAPPER.readValue(setting.getValue().toString(),
+                                                              new com.fasterxml.jackson.core.type.TypeReference<>() {
+                                                              });
+        return rooms.contains(newRoomId);
+      } catch (Exception e) {
+        return false;
+      }
+    }));
+
+    // If room is already muted, set() should NOT be called again
+    Set<String> alreadyMuted = Set.of(newRoomId);
+    SettingValue existingSettingValue = SettingValue.create(JsonUtils.toJsonString(alreadyMuted));
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(existingSettingValue);
+
+    chatNotificationService.mutePrivateRoom(userName, newRoomId);
+    // This second call should not trigger set
+    verify(settingService, times(1)).set(any(), any(), any(), any());
   }
 }
