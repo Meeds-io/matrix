@@ -67,7 +67,6 @@
         </div>
       </div>
       <v-menu
-        v-if="spaceId"
         v-model="menu"
         content-class="border-radius overflow-hidden"
         :nudge-left="-30"
@@ -340,13 +339,13 @@ export default {
   },
   methods: {
     muteRoom() {
-      this.$spaceService.muteSpace(this.spaceId, this.isMuted).then(() => {
+      this.$matrixService.muteRoom(this.room.id, this.spaceId, this.isMuted).then(() => {
         this.$root.$emit(
           'alert-message',
           this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
           'success');
+        this.menu = false;
         setTimeout(() => {
-          this.menu = false;
           this.room.muted = !this.isMuted;
         }, 100)
       });
