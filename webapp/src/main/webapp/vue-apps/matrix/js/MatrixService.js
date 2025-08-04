@@ -1463,3 +1463,19 @@ export async function registerUserToken() {
     settings
   );
 }
+
+export async function muteRoom(roomId, spaceId, isMuted) {
+  if (spaceId) {
+    return Vue.prototype.$spaceService.muteSpace(spaceId, isMuted);
+  }
+  try {
+    const response = await fetch(`/matrix/rest/matrix/muteRoom?roomId=${encodeURIComponent(roomId)}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    return await response.text();
+  } catch (error) {
+    console.error('Error muting private room:', error);
+    throw error;
+  }
+}

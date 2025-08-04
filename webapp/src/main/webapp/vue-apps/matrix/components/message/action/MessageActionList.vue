@@ -163,12 +163,15 @@ export default {
       });
     },
     handleEditMessage() {
-      this.$root.$emit('close-message-child-menu');
       this.$root.$emit('chat-edit-message', this.message);
+      this.close();
     },
     handleDeleteMessage() {
-      this.$root.$emit('close-message-child-menu');
       this.$root.$emit('chat-delete-message', this.message);
+      this.close();
+    },
+    close() {
+      this.$emit('close');
     }
   },
 };
