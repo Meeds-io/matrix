@@ -56,8 +56,7 @@ import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -500,5 +499,20 @@ class MatrixRestTest {
 
     response = mockMvc.perform(put(REST_PATH + "/disable/1").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+  }
+
+  @Test
+  void muteRoom() throws Exception {
+    String roomId = "!testRoomToMute:matrix.meeds.tn";
+    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
+                                                                          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                                                                          .param("roomId", roomId));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("Room muted successfully"));
+
+    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
   }
 }

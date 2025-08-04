@@ -1,12 +1,18 @@
 package io.meeds.chat.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
+import io.meeds.social.util.JsonUtils;
 import org.exoplatform.commons.api.notification.model.UserSetting;
 import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.Orientation;
@@ -23,9 +29,12 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,6 +67,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Mock
   private UserSettingService         userSettingService;
 
+  @Mock
+  private SettingService             settingService;
+
   private MockedStatic<CommonsUtils> commonsUtils;
 
 
@@ -70,6 +82,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     commonsUtils.when(() -> CommonsUtils.getService(UserSettingService.class)).thenReturn(userSettingService);
     when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
     when(userSettingService.get(anyString())).thenReturn(userSetting);
+    ReflectionTestUtils.setField(chatNotificationService, "settingService", settingService);
   }
 
   @AfterEach
@@ -84,8 +97,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Test
   void sendCreateNotificationAction() throws Exception {
     Space space = getSpaceInstance(2);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    //roomsToDelete.add(roomId);
     when(userStateModel.getStatus()).thenReturn("available");
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
@@ -108,8 +121,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     String eventId = "eventIDOnMatrix";
     Space space = getSpaceInstance(1);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    //roomsToDelete.add(roomId);
     String userName = "demo";
     Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
     String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
@@ -135,6 +148,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     oneToOneRoom.setFirstParticipant("demo");
     oneToOneRoom.setSecondParticipant("tom");
     oneToOneRoom = matrixService.createDirectMessagingRoom(oneToOneRoom);
+    roomsToDelete.add(oneToOneRoom.getRoomId());
     Identity tomIdentity = identityManager.getOrCreateUserIdentity("tom");
     matrixMessage = new MatrixMessage(eventId,
                                       oneToOneRoom.getRoomId(),
@@ -150,5 +164,59 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     assertNotNull(pwaNotificationMessage.getIcon());
     assertEquals(tomIdentity.getProfile().getFullName(), pwaNotificationMessage.getTitle());
     assertEquals("This is a private chat message", pwaNotificationMessage.getBody());
+  }
+
+  @Test
+  void testIsRoomMutedForUser() {
+    String userName = "demo";
+    String mutedRoomId = "!mutedRoom:matrix.meeds.tn";
+    String otherRoomId = "!otherRoom:matrix.meeds.tn";
+    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    String key = ChatNotificationService.MUTED_ROOMS;
+
+    // Case: room is muted
+    SettingValue settingValue = SettingValue.create(JsonUtils.toJsonString(Set.of(mutedRoomId)));
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(settingValue);
+
+    assertTrue(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+
+    // Case: room is NOT muted
+    SettingValue otherSettingValue = SettingValue.create(JsonUtils.toJsonString(Set.of(otherRoomId)));
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(otherSettingValue);
+    assertFalse(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+
+    // Case: no setting found (null)
+    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(null);
+    assertFalse(chatNotificationService.isPrivateRoomMutedForUser(userName, mutedRoomId));
+  }
+
+  @Test
+  void testToggleMutePrivateRoom() {
+    String userName = "demo";
+    String roomId = "!newRoom:matrix.meeds.tn";
+    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    String key = ChatNotificationService.MUTED_ROOMS;
+
+    final Set<String>[] currentMutedRooms = new Set[] { new HashSet<>() };
+    when(settingService.get(eq(Context.USER.id(userName)),
+                            eq(scope),
+                            eq(key))).thenAnswer(invocation -> SettingValue.create(JsonUtils.toJsonString(currentMutedRooms[0])));
+
+    doAnswer(invocation -> {
+      String json = invocation.getArgument(3, SettingValue.class).getValue().toString();
+      currentMutedRooms[0] = JsonUtils.OBJECT_MAPPER.readValue(json, new TypeReference<>() {
+      });
+      return null;
+    }).when(settingService).set(any(), any(), any(), any());
+
+    // 1. Mute
+    chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+    assertTrue(currentMutedRooms[0].contains(roomId));
+
+    // 2. Unmute
+    chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+    assertFalse(currentMutedRooms[0].contains(roomId));
+
+    verify(settingService, times(2)).set(eq(Context.USER.id(userName)), eq(scope), eq(key), any());
   }
 }

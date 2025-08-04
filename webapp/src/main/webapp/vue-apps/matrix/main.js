@@ -19,6 +19,8 @@ import MessageSenderName from './components/message/MessageSenderName.vue';
 import RoomLastMessage from './components/room/RoomLastMessage.vue';
 import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
 import RoomActionMenu from './components/room/RoomActionMenu.vue';
+import RoomActionMenuDrawer from './components/room/RoomActionMenuDrawer.vue';
+import RoomActionListItems from './components/room/RoomActionListItems.vue';
 
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
@@ -26,6 +28,7 @@ import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
 import * as matrixUtils from './js/matrixUtils'
 import './icons-extensions.js'
+import TouchHold from './js/directives/touchHold.js';
 
 const components = {
   'matrix-component': MatrixComponent,
@@ -48,12 +51,16 @@ const components = {
   'message-sender-name': MessageSenderName,
   'room-last-message': RoomLastMessage,
   'meeds-chat-space-settings': SpaceSettingsAdministration,
-  'room-action-menu': RoomActionMenu
+  'room-action-menu': RoomActionMenu,
+  'room-action-menu-drawer': RoomActionMenuDrawer,
+  'room-action-list-items': RoomActionListItems
 };
 
 for (const key in components) {
   Vue.component(key, components[key]);
 }
+
+Vue.directive('touch-hold', TouchHold)
 
 window.Object.defineProperty(Vue.prototype, '$matrixService', {
   value: matrixService,

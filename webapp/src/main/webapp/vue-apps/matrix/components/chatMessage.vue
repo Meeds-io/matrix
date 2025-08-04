@@ -24,11 +24,9 @@
         'mb-1': nextMessage,
         'no-select': isMobile
       }"
+    v-touch-hold="openMenu"
     @mouseleave="!isMobile && closeMenu()"
-    @mouseenter="!isMobile && openMenu()"
-    @contextmenu="preventIfIsMobile"
-    @dragstart="preventIfIsMobile"
-    @selectstart="preventIfIsMobile">
+    @mouseenter="!isMobile && openMenu()">
   <div
       v-if="!sameDateAs(message.origin_server_ts, previousMessage.origin_server_ts)"
       class="mb-5 text-font-small-size font-weight-bold text-center"
@@ -87,8 +85,9 @@
               ref="actionList"
               :message="message"
               :is-my-message="isMyMessage"
-              @reply="$emit('reply', message)"
-              @reaction="$emit('reaction', $event, message)" />
+              @close="closeMenuOnMobile"
+              @reply="replyToMessage"
+              @reaction="reactToMessage" />
           </v-menu>
           <div
             class="message-reactions d-flex flex-wrap"
@@ -108,6 +107,7 @@
   </div>
 </template>
 <script>
+
   export default {
     props: {
       message: {
@@ -159,21 +159,7 @@
       this.$root.$on('message-child-menu-closed', this.closeChildMenu);
       this.$root.$on('message-child-menu-opened', this.openChildMenu);
     },
-    mounted() {
-      if (this.isMobile) {
-        this.$el?.addEventListener('touchstart', this.onTouchStart, {passive: false});
-        this.$el?.addEventListener('touchend', this.onTouchEnd, {passive: false});
-        this.$el?.addEventListener('touchcancel', this.onTouchCancel, {passive: false});
-        this.$el?.addEventListener('touchmove', this.onTouchMove, {passive: false});
-      }
-    },
     beforeDestroy() {
-      if (this.isMobile) {
-        this.$el?.removeEventListener('touchstart', this.onTouchStart);
-        this.$el?.removeEventListener('touchend', this.onTouchEnd);
-        this.$el?.removeEventListener('touchcancel', this.onTouchCancel);
-        this.$el?.removeEventListener('touchmove', this.onTouchMove);
-      }
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
       document.removeEventListener('click', this.onClickOutside, true);
@@ -260,6 +246,19 @@
       },
     },
     methods: {
+      reactToMessage(emoji) {
+        this.$emit('reaction', emoji, this.message);
+        this.closeMenuOnMobile();
+      },
+      replyToMessage() {
+        this.$emit('reply', this.message);
+        this.closeMenuOnMobile();
+      },
+      closeMenuOnMobile() {
+        if (this.isMobile) {
+          this.parentMenu = false
+        }
+      },
       sameDateAs(thisMessageTime, anotherMessageTime) {
         if(anotherMessageTime) {
           const anotherMessageDate = new Date(anotherMessageTime);
@@ -323,38 +322,7 @@
       closeChildMenu() {
         this.childMenu = null;
       },
-      onTouchStart(event) {
-        if (!this.isMobile) return;
-        this.touchMoved = false;
-        this.touchStartY = event.touches[0].clientY;
-
-        this.touchHoldTimeout = setTimeout(() => {
-          if (!this.touchMoved) {
-            this.openMenu();
-            event.preventDefault();
-            this.ignoreClickUntil = Date.now() + 600;
-          }
-        }, 500);
-      },
-      onTouchMove(event) {
-        const deltaY = Math.abs(event.touches[0].clientY - this.touchStartY);
-        if (deltaY > 10) {
-          this.touchMoved = true;
-          clearTimeout(this.touchHoldTimeout);
-        }
-      },
-      onTouchEnd() {
-        clearTimeout(this.touchHoldTimeout);
-      },
-      onTouchCancel() {
-        clearTimeout(this.touchHoldTimeout);
-      },
       onClickOutside(event) {
-        if (Date.now() < this.ignoreClickUntil) {
-          // block iOS ghost click
-          event.stopImmediatePropagation?.();
-          return;
-        }
         const menuContent = this.$refs.actionList?.$el;
         const messageContainer = this.$el;
 
@@ -364,11 +332,6 @@
             messageContainer && !messageContainer.contains(event.target)
         ) {
           this.closeMenu();
-        }
-      },
-      preventIfIsMobile(event) {
-        if (this.isMobile) {
-          event.preventDefault();
         }
       }
     }
