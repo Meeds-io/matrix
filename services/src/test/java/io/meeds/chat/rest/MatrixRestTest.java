@@ -504,7 +504,7 @@ class MatrixRestTest {
   @Test
   void muteRoom() throws Exception {
     String roomId = "!testRoomToMute:matrix.meeds.tn";
-    doNothing().when(chatNotificationService).mutePrivateRoom(SIMPLE_USER, roomId);
+    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
 
     ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
                                                                           .contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -513,6 +513,6 @@ class MatrixRestTest {
     response.andExpect(status().isOk());
     response.andExpect(content().string("Room muted successfully"));
 
-    verify(chatNotificationService, times(1)).mutePrivateRoom(SIMPLE_USER, roomId);
+    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
   }
 }

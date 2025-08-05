@@ -214,9 +214,14 @@ public class ChatNotificationService {
     return getMutedRooms(userName).contains(roomId);
   }
 
-  public void mutePrivateRoom(String userName, String roomId) {
+  public void toggleMutePrivateRoom(String userName, String roomId) {
     Set<String> mutedRoomIds = new HashSet<>(getMutedRooms(userName));
-    if (mutedRoomIds.add(roomId)) {
+    boolean changed;
+    changed = mutedRoomIds.remove(roomId);
+    if (!changed) {
+      changed = mutedRoomIds.add(roomId);
+    }
+    if (changed) {
       settingService.set(Context.USER.id(userName),
                          USER_CHAT_NOTIFICATION_SCOPE,
                          MUTED_ROOMS,

@@ -18,37 +18,22 @@
 -->
 
 <template>
-  <v-menu
-    ref="menu"
-    v-model="menu"
-    :attach="`#room${room.spaceId || room.dmMemberId}`"
-    :nudge-top="-1"
-    content-class="no-min-width border-radius overflow-hidden"
-    close-on-content-click
-    offset-y
-    left
-    bottom>
-    <template #activator="{ on, attrs }">
-      <v-btn
-        v-bind="attrs"
-        class="pa-0"
-        width="24"
-        min-width="24"
-        height="24"
-        icon
-        v-on="on"
-        @click.stop.prevent>
-        <v-icon
-          size="16"
-          class="icon-default-color">
-          fa-ellipsis-v
-        </v-icon>
-      </v-btn>
-    </template>
-    <room-action-list-items
-      :room="room"
-      @close="menu = false"/>
-  </v-menu>
+  <div>
+    <v-overlay
+      z-index="2000"
+      :value="drawer"
+      @click.native="close" />
+    <exo-drawer
+      ref="actionDrawer"
+      v-model="drawer"
+      bottom>
+      <template #content>
+        <room-action-list-items
+          :room="room"
+          @close="close" />
+      </template>
+    </exo-drawer>
+  </div>
 </template>
 
 <script>
@@ -56,22 +41,25 @@
 export default {
   data() {
     return {
-      menu: false,
-    }
+      room: null,
+      drawer: false
+    };
   },
-  props: {
-    room: {
-      type: Object,
-      default: null
-    }
+  created() {
+    this.$root.$on('open-room-action-menu', this.open);
+    this.$root.$on('close-room-action-menu', this.close);
   },
-  watch: {
-    menu() {
-      if (this.menu) {
-        this.$emit('open')
-      } else {
-        this.$emit('close')
-      }
+  beforeDestroy() {
+    this.$root.$off('open-room-action-menu', this.open);
+    this.$root.$off('close-room-action-menu', this.close);
+  },
+  methods: {
+    open(room) {
+      this.room = room;
+      this.$refs?.actionDrawer.open();
+    },
+    close() {
+      this.$refs?.actionDrawer?.close();
     }
   }
 };
