@@ -609,7 +609,7 @@ public class MatrixRest implements ResourceContainer {
       return ResponseEntity.badRequest().body("roomId parameter is required");
     }
     try {
-      chatNotificationService.mutePrivateRoom(userName, roomId);
+      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
       return ResponseEntity.ok("Room muted successfully");
     } catch (Exception e) {
       LOG.error("Error muting room {} for user {}", roomId, userName, e);

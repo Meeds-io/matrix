@@ -1,5 +1,6 @@
 package io.meeds.chat.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
@@ -31,6 +32,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
@@ -188,37 +190,32 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   }
 
   @Test
-  void testMutePrivateRoom() {
+  void testToggleMutePrivateRoom() {
     String userName = "demo";
-    String newRoomId = "!newRoom:matrix.meeds.tn";
+    String roomId = "!newRoom:matrix.meeds.tn";
     Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
     String key = ChatNotificationService.MUTED_ROOMS;
 
-    // Initially no muted rooms (empty list)
-    SettingValue settingValue = SettingValue.create("[]");
-    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(settingValue);
+    final Set<String>[] currentMutedRooms = new Set[] { new HashSet<>() };
+    when(settingService.get(eq(Context.USER.id(userName)),
+                            eq(scope),
+                            eq(key))).thenAnswer(invocation -> SettingValue.create(JsonUtils.toJsonString(currentMutedRooms[0])));
 
-    chatNotificationService.mutePrivateRoom(userName, newRoomId);
+    doAnswer(invocation -> {
+      String json = invocation.getArgument(3, SettingValue.class).getValue().toString();
+      currentMutedRooms[0] = JsonUtils.OBJECT_MAPPER.readValue(json, new TypeReference<>() {
+      });
+      return null;
+    }).when(settingService).set(any(), any(), any(), any());
 
-    // Verify set() is called with muted rooms containing newRoomId
-    verify(settingService).set(eq(Context.USER.id(userName)), eq(scope), eq(key), argThat(setting -> {
-      try {
-        Set<String> rooms = JsonUtils.OBJECT_MAPPER.readValue(setting.getValue().toString(),
-                                                              new com.fasterxml.jackson.core.type.TypeReference<>() {
-                                                              });
-        return rooms.contains(newRoomId);
-      } catch (Exception e) {
-        return false;
-      }
-    }));
+    // 1. Mute
+    chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+    assertTrue(currentMutedRooms[0].contains(roomId));
 
-    // If room is already muted, set() should NOT be called again
-    Set<String> alreadyMuted = Set.of(newRoomId);
-    SettingValue existingSettingValue = SettingValue.create(JsonUtils.toJsonString(alreadyMuted));
-    when(settingService.get(Context.USER.id(userName), scope, key)).thenReturn(existingSettingValue);
+    // 2. Unmute
+    chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+    assertFalse(currentMutedRooms[0].contains(roomId));
 
-    chatNotificationService.mutePrivateRoom(userName, newRoomId);
-    // This second call should not trigger set
-    verify(settingService, times(1)).set(any(), any(), any(), any());
+    verify(settingService, times(2)).set(eq(Context.USER.id(userName)), eq(scope), eq(key), any());
   }
 }
