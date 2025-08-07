@@ -57,7 +57,6 @@ class MatrixServiceTest extends MatrixBaseTest {
     Space space = getSpaceInstance(1);
     Room spaceRoom = matrixService.getRoomBySpace(space);
     assertNotNull(spaceRoom);
-    roomsToDelete.add(spaceRoom.getRoomId());
     assertEquals(matrixRoomId, spaceRoom.getRoomId());
   }
 
@@ -110,7 +109,6 @@ class MatrixServiceTest extends MatrixBaseTest {
   void getRoomBySpace() throws Exception {
     Space space = getSpaceInstance(1);
     Room room = matrixService.getRoomBySpace(space);
-    roomsToDelete.add(room.getRoomId());
     assertNotNull(room);
     assertEquals(matrixRoomId, room.getRoomId());
   }
@@ -139,8 +137,6 @@ class MatrixServiceTest extends MatrixBaseTest {
   @Test
   void updateRoomAvatar() throws Exception {
     Space space = getSpaceInstance(1);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
     InputStream inputStream = getClass().getClassLoader().getResourceAsStream("meeds.png");
 
     AvatarAttachment attachment = new AvatarAttachment(null, "meeds.png", "image/png", inputStream, System.currentTimeMillis());
@@ -170,7 +166,6 @@ class MatrixServiceTest extends MatrixBaseTest {
     directMessagingRoom.setFirstParticipant("demo");
     directMessagingRoom.setSecondParticipant("ghost");
     Room createdRoom = matrixService.createDirectMessagingRoom(directMessagingRoom);
-    roomsToDelete.add(createdRoom.getRoomId());
     assertNotNull(createdRoom);
     assertNotEquals(0, createdRoom.getId());
     assertEquals(directMessagingRoom.getRoomId(), createdRoom.getRoomId());
@@ -179,8 +174,7 @@ class MatrixServiceTest extends MatrixBaseTest {
   @Test
   void getById() throws Exception {
     Space space = getSpaceInstance(1);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
     assertNotNull(roomId);
     Room room = matrixService.getById(roomId);
     assertNotNull(room);
@@ -192,7 +186,6 @@ class MatrixServiceTest extends MatrixBaseTest {
   @Test
   void enableSpaceChat() throws Exception {
     Space space = getSpaceInstance(1);
-    roomsToDelete.add(matrixRoomId);
     Room room = matrixService.getById(matrixRoomId);
     assertEquals(room.getStatus(), RoomStatus.ENABLED.name());
     matrixService.enableSpaceChat(space, false);
