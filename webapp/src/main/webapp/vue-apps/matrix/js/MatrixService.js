@@ -2,10 +2,10 @@ import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
 import * as dbStorage from '../../../js/dbStorage.js'
 
-
 const replyToCache = new Map();
 const userCache = new Map();
 const reactionEvents = new Map();
+const lastMessagesByRoom = new Map();
 let isPolling = false;
 const messageTimestampsMap = new Map();
 
@@ -254,6 +254,7 @@ export async function processEvents(response, isInitialSync) {
                 message: message
               }
             }));
+            lastMessagesByRoom.set(roomId, message);
             messageTimestampsMap.set(message.event_id, message.origin_server_ts);
           }
         } else if (e.type === 'm.room.redaction') {
@@ -321,20 +322,11 @@ export async function processEvents(response, isInitialSync) {
             //document.dispatchEvent(new CustomEvent('matrix-room-user-typing-received', { detail: {roomId: roomId, usersTyping: e.content.user_ids}}));
           }
         }
-        //User sent a read receipt of a room
-        if(e.type === 'm.receipt') {
+        if (e.type === 'm.receipt') {
           await handleReadReceiptEvent(e, roomId);
         }
       }
     }
-  }
-  if(response?.presence?.events) {
-    response.presence.events.forEach(event => {
-      if(localStorage.getItem('matrix_user_id') === event.sender) {
-        localStorage.setItem('matrix_user_presence', event.content.presence);
-      }
-      document.dispatchEvent(new CustomEvent('matrix-user-status-updated', { detail: {userId: event.sender, presence: event.content.presence}}));
-    });
   }
 }
 
@@ -357,14 +349,22 @@ async function handleReadReceiptEvent(event, roomId) {
       const readData = receipt[userId];
 
       // Only update if eventId is newer
-      const prevEventId = lastReads?.[userId]?.eventId;
+      const prevEventId = lastReads[userId];
       const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
       const newTimestamp = messageTimestampsMap.get(eventId);
 
-      if (!prevEventId || !prevTimestamp || (newTimestamp && newTimestamp > prevTimestamp)) {
-        lastReads[userId] = {
-          eventId: eventId,
-          ts: newTimestamp,
+      if (!prevEventId || (newTimestamp && newTimestamp > prevTimestamp)) {
+        lastReads[userId] = eventId;
+      }
+
+      document.dispatchEvent(new CustomEvent('matrix-message-read', {
+        detail: { roomId, eventId, userId, readData }
+      }));
+
+      if (userId === matrixUserId && readData.thread_id) {
+        const isLast = await isLastMessageInRoom(eventId, roomId);
+        if (isLast) {
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: { roomId } }));
         }
       }
     }
@@ -374,6 +374,25 @@ async function handleReadReceiptEvent(event, roomId) {
   await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
 }
 
+export async function loadReadReceiptsForMessage(lastReads, eventId) {
+  return Object.entries(lastReads)
+      .filter(([userId, lastReadEventId]) => userId !== matrixUserId && lastReadEventId === eventId)
+      .map(([userId]) => userId);
+}
+
+export async function loadLastReadReceipts(roomId) {
+  const dbSettings = chatConstants.DB_SETTINGS;
+  const receiptsStore = dbSettings.DB_STORES.READ_RECEIPTS;
+  const storeKey = `lastRead::${roomId}`;
+  return await dbStorage.getValue(dbSettings, receiptsStore, storeKey) || {};
+}
+
+async function isLastMessageInRoom(eventId, roomId) {
+  if (!lastMessagesByRoom) {
+    return false;
+  }
+  return lastMessagesByRoom.get(roomId)?.event_id === eventId;
+}
 
 export async function toRoomObject(rooms, currentMemberId) {
   let myRooms = {rooms: [], totalUnreadMessages: 0};
@@ -393,6 +412,7 @@ export async function toRoomObject(rooms, currentMemberId) {
     };
 
     let membersMap = {};
+    let latestMessage = null;
     for (const e of events) {
       switch (e.type) {
         case 'm.room.create':
@@ -425,6 +445,10 @@ export async function toRoomObject(rooms, currentMemberId) {
           }
           break;
         case 'm.room.message':
+          if (!latestMessage || latestMessage.origin_server_ts < e.origin_server_ts) {
+            latestMessage = e;
+          }
+          break;
         case 'm.reaction': {
           if (!roomItem.updated || roomItem.updated <= e.origin_server_ts) {
             roomItem.updated = e.origin_server_ts;
@@ -459,6 +483,10 @@ export async function toRoomObject(rooms, currentMemberId) {
     const existing = roomMap.get(roomId);
     if (!existing || existing.updated < roomItem.updated) {
       roomMap.set(roomId, roomItem);
+    }
+
+    if (latestMessage) {
+      lastMessagesByRoom?.set?.(roomId, latestMessage);
     }
   }
   myRooms.rooms = Array.from(roomMap.values());
@@ -916,10 +944,12 @@ export function formatMentionsInRoomList(message) {
                       .replace(/\n/g, '<br />') || '';
 }
 
-export function processMessages(messageItems) {
+export async function processMessages(roomId, messageItems) {
   const messagesMap = new Map();
   const replyDependencyMap = new Map();
   const leftReactions = [];
+
+  const lastReadEventIds = await getLastReadEventIds(roomId);
 
   messageItems.forEach(item => {
     if (item.type === 'm.room.message') {
@@ -934,14 +964,14 @@ export function processMessages(messageItems) {
         if (originalMessage && !isRedacted(originalMessage)) {
           originalMessage.content.body = newContent.body;
           originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
-          if(newContent.format && newContent.format === 'org.matrix.custom.html') {
+          if (newContent.format && newContent.format === 'org.matrix.custom.html') {
             originalMessage.content.format = newContent.format;
             originalMessage.content.formatted_body = newContent.formatted_body;
           } else {
             delete originalMessage.content.format;
             delete originalMessage.content.formatted_body;
           }
-          if(newContent['m.mentions'] && newContent['m.mentions'].user_ids?.length > 0) {
+          if (newContent['m.mentions'] && newContent['m.mentions'].user_ids?.length > 0) {
             originalMessage.content['m.mentions'] = newContent['m.mentions'];
           } else {
             delete originalMessage.content['m.mentions'];
@@ -970,6 +1000,7 @@ export function processMessages(messageItems) {
           replyDependencyMap.get(inReplyTo).push(item.event_id);
         }
 
+        item.hasLastReaders = lastReadEventIds.has(item.event_id);
         messagesMap.set(item.event_id, item);
       }
     } else if (item.type === 'm.reaction') {
@@ -993,6 +1024,13 @@ export function processMessages(messageItems) {
   };
 }
 
+export async function getLastReadEventIds(roomId) {
+  const lastReads = await loadLastReadReceipts(roomId);
+  const filteredReads = Object.entries(lastReads)
+      .filter(([key]) => key !== matrixUserId)
+      .map(([, value]) => value);
+  return new Set(filteredReads);
+}
 
 export function processMessageReaction(messageReactedTo, reactionItem) {
   if (!messageReactedTo.reactionsMap) {
@@ -1366,7 +1404,7 @@ export async function getUserIdentity(userId) {
   if (userCache.has(userId)) {
     return userCache.get(userId);
   }
-  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId, 'settings');
+  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId, 'settings,connectionsInCommonCount');
   if (user) {
     userCache.set(userId, user);
   }

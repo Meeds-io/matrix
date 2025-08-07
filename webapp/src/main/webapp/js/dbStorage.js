@@ -21,12 +21,13 @@ function retrieveDatabase(dbSettings) {
   const request = window.indexedDB.open(dbSettings.DB_NAME, dbSettings.DB_VERSION);
   return new Promise((resolve, reject) => {
     request.onerror = reject;
+
     request.onsuccess = e => resolve(e.target.result);
+
     request.onupgradeneeded = e => {
       try {
         const db = e.target.result;
         const stores = dbSettings.DB_STORES;
-        console.log('Creating databases');
 
         for (const storeName of Object.values(stores)) {
           if (!db.objectStoreNames.contains(storeName)) {
@@ -111,5 +112,21 @@ export async function setValue(dbSettings, store, paramName, paramValue) {
       resolve();
     };
     transaction.objectStore(store).put(paramValue, paramName);
+  });
+}
+
+export async function getAllKeys(dbSettings, storeName) {
+  const database = await getDatabase(dbSettings);
+  if (!database) {
+    return [];
+  }
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([storeName], 'readonly');
+    const objectStore = transaction.objectStore(storeName);
+    const request = objectStore.getAllKeys();
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
