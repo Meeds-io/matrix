@@ -90,10 +90,10 @@
               @reaction="reactToMessage" />
           </v-menu>
           <div
-            class="message-reactions d-flex flex-wrap"
+            class="position-sticky mt-n1 d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
             <message-reaction-item
-              v-if="!isRedacted"
+              v-if="!isRedacted && hasReactions"
               v-for="reaction in message.reactions"
               :key="reaction.key"
               :reaction="reaction"
@@ -101,6 +101,19 @@
               :is-my-message="isMyMessage"
               @reaction="$emit('reaction', $event, message)" />
           </div>
+          <v-sheet
+            v-if="hasLastReaders"
+            height="24">
+            <message-read-receipt-list
+              :room="room"
+              :read-receipts="readReceipts"
+              :class="{
+                'justify-end': isMyMessage,
+                'ms-3': !isMyMessage && readReceipts.length > 1,
+                'mt-2': !hasReactions
+               }"
+              class="d-flex" />
+          </v-sheet>
         </div>
       </div>
     </div>
@@ -145,15 +158,19 @@
         touchHoldTimeout: null,
         touchMoved: false,
         touchStartY: 0,
-        ignoreClickUntil: 0
+        ignoreClickUntil: 0,
+        readReceipts: [],
+        loadingReceipts: false
       };
     },
     created() {
+      this.loadMessageReadReceipts();
       this.$matrixService.getUserByMatrixId(this.message.sender, this.room).then(sender => {
         this.sender = sender;
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.addEventListener('matrix-message-read', this.handleMessageRead)
       document.addEventListener('click', this.onClickOutside, true);
       document.addEventListener('touchstart', this.onClickOutside, true);
       this.$root.$on('message-child-menu-closed', this.closeChildMenu);
@@ -168,6 +185,9 @@
       this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
     computed: {
+      hasLastReaders() {
+        return this.message?.hasLastReaders;
+      },
       displaySender() {
         return !this.isMyMessage && ((this.previousHasReactions && !this.room.directChat) ||
             ((this.previousMessage.sender !== this.message.sender ||
@@ -176,6 +196,9 @@
       },
       previousHasReactions() {
         return this.previousMessage?.reactions?.length > 0;
+      },
+      hasReactions() {
+        return this.message?.reactions?.length > 0;
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
@@ -244,6 +267,9 @@
       isRedacted() {
         return !this.message.content.body && this.message.redacted_because?.redacts;
       },
+      roomLastReadReceipts() {
+        return this.room?.lastReadReceipts;
+      }
     },
     methods: {
       reactToMessage(emoji) {
@@ -332,6 +358,24 @@
             messageContainer && !messageContainer.contains(event.target)
         ) {
           this.closeMenu();
+        }
+      },
+      loadMessageReadReceipts() {
+        if (!this.hasLastReaders) {
+          return;
+        }
+        this.loadingReceipts = true;
+        this.$matrixService.loadReadReceiptsForMessage(this.roomLastReadReceipts, this.message.event_id).then(users => {
+          this.readReceipts = users;
+        }).finally(() => this.loadingReceipts = false);
+      },
+      handleMessageRead({detail: {eventId, userId}}) {
+        if (this.message.event_id !== eventId && this.readReceipts.includes(userId)) {
+          this.readReceipts = this.readReceipts.filter(u => u !== userId);
+        } else if (this.message.event_id === eventId) {
+          if (!this.readReceipts.includes(userId)) {
+            this.readReceipts.push(userId);
+          }
         }
       }
     }
