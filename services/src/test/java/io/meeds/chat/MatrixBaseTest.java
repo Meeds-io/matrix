@@ -126,7 +126,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
     ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
-    when(matrixHttpClient.getAdminAccessToken(anyString())).thenReturn(accessToken);
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
 
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
     when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(true);
