@@ -100,11 +100,6 @@
         this.$matrixService.installPusher();
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('roomId')){
-        this.openRoom(urlParams.get('roomId'));
-      }
-
       this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
@@ -118,7 +113,13 @@
       document.addEventListener('space-muted', this.handleSpaceMute)
     },
     mounted() {
-      this.$nextTick().then(() => this.$matrixService.registerUserToken());
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('roomId') && urlParams.get('roomId')) {
+        this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
+      }
+      this.$nextTick().then(() => {
+        this.$matrixService.registerUserToken();
+      });
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
@@ -321,7 +322,7 @@
         }
         const exists = this.rooms?.some(r => r.id === room.id);
         if (!exists) {
-          this.rooms.push(room);
+          this.rooms?.push(room);
         }
       },
       openRoom(room) {
