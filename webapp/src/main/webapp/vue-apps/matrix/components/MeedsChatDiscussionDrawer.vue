@@ -265,7 +265,8 @@ export default {
       expanded: false,
       drawerWidth: 420,
       space: null,
-      menu: false
+      menu: false,
+      roomLastReadReceipts: []
     };
   },
   provide() {
@@ -436,9 +437,11 @@ export default {
       this.insertedNewLine = false;
       this.targetReplyMessage = null;
     },
-    openDiscussion(e) {
+    async openDiscussion(e) {
       this.loading = true;
       this.room = e;
+      this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(this.room?.id);
+      this.room.lastReadReceipts = this.roomLastReadReceipts;
       this.getSpaceById(this.room?.spaceId);
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
@@ -455,7 +458,7 @@ export default {
           this.from = resp.start;
           this.to = resp.end;
 
-          const processedMessages = this.$matrixService.processMessages(resp.chunk.reverse());
+          const processedMessages = await this.$matrixService.processMessages(this.room?.id, resp.chunk.reverse());
           this.messages = processedMessages.messages;
           this.leftReactions = processedMessages.leftReactions;
 
@@ -549,15 +552,17 @@ export default {
       this.$set(this.messages, index, redacted);
     },
     scrollToEnd() {
-      if(this.messages) {
+      if (this.messages) {
         const lastMessageIndex = this.messages.length - 1;
         const lastMessageElement = document.getElementById(`chat-message-${lastMessageIndex}`);
-        if(lastMessageElement) {
+        if (lastMessageElement) {
           document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
             behavior: 'instant'
           });
           this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-            this.room.unreadMessages = 0;
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: { roomId: this.room.id }
+            }));
           });
         }
       }
@@ -576,13 +581,13 @@ export default {
       this.loadingNewMessages = true;
       const lastMessageId = this.messages[0].event_id;
       setTimeout(() => {
-        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(resp => {
+        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(async resp => {
           // check if there is no more messages
-          if(!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+          if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
             this.hasMoreMessages = false;
           }
           const messagesToProcess = [...resp.chunk.reverse(), ...this.leftReactions];
-          const processedMessages = this.$matrixService.processMessages(messagesToProcess);
+          const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
           this.messages = [...processedMessages.messages, ...this.messages];
           this.leftReactions = processedMessages.leftReactions;
           this.from = resp.start;
