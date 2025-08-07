@@ -42,6 +42,7 @@
       @closed="open = false"/>
     <meeds-chat-quick-create-discussion-drawer/>
     <room-action-menu-drawer />
+    <message-read-receipt-list-drawer />
   </v-app>
 </template>
 <script>

@@ -16,6 +16,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
 export const chatConstants = {
   DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg',
 
@@ -30,5 +31,14 @@ export const chatConstants = {
 
   MESSAGES_LOAD_LIMIT : 200,
 
-  DB_SETTINGS: {dbName: 'CHAT', dbStore: 'SETTINGS', version: 2},
+  // IndexedDB configuration
+  DB_SETTINGS: {
+    DB_NAME: 'CHAT',
+    DB_VERSION: 3,
+    DB_STORES: {
+      SETTINGS: 'SETTINGS',
+      READ_RECEIPTS: 'READ_RECEIPTS',
+    }
+  }
+
 }
