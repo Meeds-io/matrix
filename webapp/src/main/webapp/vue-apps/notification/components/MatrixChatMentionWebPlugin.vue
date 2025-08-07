@@ -4,7 +4,7 @@
     :avatar-url="avatarUrl"
     :message="message"
     :url="url"
-    user-avatar />
+    space-avatar />
 </template>
 <script>
 export default {
@@ -16,19 +16,18 @@ export default {
   },
   computed: {
     url() {
-      //we keep both possibility so that old notifications, generated before the current modification are still ok
-      return this.notification?.parameters?.chatUrl || `/portal/dw/?chatRoomId=${this.notification?.parameters?.roomId}`;
+      return `${location.pathname}?roomId=${this.notification?.parameters?.ROOM_ID}`;
     },
     avatarUrl() {
-      //we keep both possibility so that old notifications, generated before the current modification are still ok
-      return this.notification?.parameters?.avatar || `/portal/rest/v1/social/users/${this.notification?.parameters?.sender}/avatar`;
+      return this.notification?.parameters?.MATRIX_ROOM_AVATAR;
     },
     message() {
-      const creator = this.notification?.parameters?.senderFullName;
-      const room = this.notification?.parameters?.roomName;
+      const creator = this.notification?.parameters?.MATRIX_SENDER_FULL_NAME;
+      const room = this.notification?.parameters?.MATRIX_ROOM_NAME;
 
       return this.$t('matrix.message.mention.pwa.notification', {
-        0: `<a class="space-name font-weight-bold">${room}</a>`
+        0: creator,
+        1: `<a class="space-name font-weight-bold">${room}</a>`
       });
     }
   }
