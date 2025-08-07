@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 export const chatConstants = {
   DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg',
 
@@ -28,5 +29,14 @@ export const chatConstants = {
 
   MESSAGES_LOAD_LIMIT : 200,
 
-  DB_SETTINGS: {dbName: 'CHAT', dbStore: 'SETTINGS', version: 2},
+  // IndexedDB configuration
+  DB_SETTINGS: {
+    DB_NAME: 'CHAT',
+    DB_VERSION: 3,
+    DB_STORES: {
+      SETTINGS: 'SETTINGS',
+      READ_RECEIPTS: 'READ_RECEIPTS',
+    }
+  }
+
 }
