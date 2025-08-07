@@ -42,6 +42,7 @@
       @closed="open = false"/>
     <meeds-chat-quick-create-discussion-drawer/>
     <room-action-menu-drawer />
+    <message-read-receipt-list-drawer />
   </v-app>
 </template>
 <script>
@@ -299,7 +300,7 @@
       updateUnreadMessages(event) {
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if(updatedRoom) {
+        if (updatedRoom) {
           this.totalUnreadMessages -= updatedRoom.unreadMessages;
           updatedRoom.unreadMessages = 0;
         }
