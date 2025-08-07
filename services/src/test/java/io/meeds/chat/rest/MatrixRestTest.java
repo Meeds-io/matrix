@@ -40,6 +40,7 @@ import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
+import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.service.LinkProvider;
 import org.exoplatform.social.core.space.model.Space;
@@ -69,8 +70,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.util.*;
 
-import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
-import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
+import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
@@ -518,5 +518,74 @@ class MatrixRestTest {
 
     response = mockMvc.perform(put(REST_PATH + "/disable/1").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+  }
+
+  @Test
+  void muteRoom() throws Exception {
+    String roomId = "!testRoomToMute:matrix.meeds.tn";
+    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
+                                                                          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                                                                          .param("roomId", roomId));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("Room muted successfully"));
+
+    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+  }
+
+  @Test
+  void testNotify() throws Exception {
+    PropertyManager.setProperty(MATRIX_JWT_SECRET, "InsufficientToken");
+    String jsonNotification = """
+        {
+          "notification": {
+            "content": {
+              "body": "I'm floating in a most peculiar way.",
+              "msgtype": "m.text"
+            },
+            "counts": {
+              "missed_calls": 1,
+              "unread": 2
+            },
+            "devices": [
+              {
+                "app_id": "org.matrix.matrixConsole.ios",
+                "data": {},
+                "pushkey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0._yNyipMgOp5G2giBZPrne1jcCHeyEiKda_kQOW_bvZM",
+                "pushkey_ts": 12345678,
+                "tweaks": {
+                  "sound": "bing"
+                }
+              }
+            ],
+            "event_id": "$3957tyerfgewrf384",
+            "prio": "high",
+            "room_alias": "#exampleroom:matrix.org",
+            "room_id": "!slw48wfj34rtnrf:example.com",
+            "room_name": "Mission Control",
+            "sender": "@exampleuser:matrix.org",
+            "sender_display_name": "Major Tom",
+            "type": "m.room.message"
+          }
+        }
+        """;
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/notify").with(simpleUser())
+                                                                        .content(jsonNotification)
+                                                                        .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isInternalServerError());
+
+    PropertyManager.setProperty(MATRIX_JWT_SECRET, "ThisIsASampleJWTTokenFoeTestingPurposes");
+    when(identityManager.identityExisted(OrganizationIdentityProvider.NAME, "user")).thenReturn(true);
+    response = mockMvc.perform(post(REST_PATH + "/notify").with(simpleUser())
+            .content(jsonNotification)
+            .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("""
+          {
+            "rejected": []
+          }
+          """));
   }
 }

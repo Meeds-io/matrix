@@ -96,12 +96,7 @@
         this.$matrixService.installPusher();
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('roomId')){
-        this.openRoom(urlParams.get('roomId'));
-      }
-
-      this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
@@ -111,7 +106,13 @@
       document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
     },
     mounted() {
-      this.$nextTick().then(() => this.$matrixService.registerUserToken());
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('roomId') && urlParams.get('roomId')) {
+        this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
+      }
+      this.$nextTick().then(() => {
+        this.$matrixService.registerUserToken();
+      });
     },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
@@ -288,7 +289,18 @@
           this.loading = false;
         });
       },
-      openRoom(roomId) {
+      addRoomIfNotExists(room) {
+        if (!room?.id) {
+          return;
+        }
+        const exists = this.rooms?.some(r => r.id === room.id);
+        if (!exists) {
+          this.rooms?.push(room);
+        }
+      },
+      openRoom(event) {
+        const room = event?.detail || event;
+        this.addRoomIfNotExists(room);
         this.openDrawer();
         setTimeout(() => {
           this.$root.$emit("open-chat-discussion", roomId);

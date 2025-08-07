@@ -180,13 +180,8 @@ public class MatrixRest implements ResourceContainer {
   }
 
   /**
-   * { "notification" : { "counts" : { "unread" : 2 }, "devices" : [ { "app_id" :
-   * "exo.matrix.app", "data" : { "format" : "event_id_only" }, "pushkey" :
-   * "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGkiLCJleHAiOjE3NTI2NjgzNzR9.BTu4YqMWwP8mMMz5aQUNEhEyxcZE5H_OE0f0wIpsVAU",
-   * "pushkey_ts" : 1752063602 } ], "event_id" :
-   * "$Bu29tJ_EtZg5TmJOmttBE1bt6Sh3ZEudQPFSbL1-YBo", "prio" : "high", "room_id" :
-   * "!MmhKalurjILZiQYLpA:matrix.exo.tn" } }
-   * 
+   * This API is used by Matrix server to notify the Meeds server that a user has a new notification
+   * This API is used as a Push Gateway for Matrix server
    * @param notification
    * @return
    */
@@ -234,6 +229,7 @@ public class MatrixRest implements ResourceContainer {
             if (notifJsonValue.getElement("event_id") != null) {
               eventId = notifJsonValue.getElement("event_id").getStringValue();
             }
+            chatNotificationService.createMentionNotification(eventId, roomId, userName, pushKey);
             chatNotificationService.sendCreateNotificationAction(eventId, userName, roomId, unreadCount);
           }
         }
