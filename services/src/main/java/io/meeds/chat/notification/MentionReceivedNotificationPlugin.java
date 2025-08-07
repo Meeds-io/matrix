@@ -24,16 +24,15 @@ import org.exoplatform.commons.api.notification.plugin.BaseNotificationPlugin;
 import org.exoplatform.container.xml.InitParams;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
-import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ROOM_UNREAD_COUNT;
 
-public class MessageReceivedNotificationPlugin extends BaseNotificationPlugin {
-  public MessageReceivedNotificationPlugin(InitParams initParams) {
+public class MentionReceivedNotificationPlugin extends BaseNotificationPlugin {
+  public MentionReceivedNotificationPlugin(InitParams initParams) {
     super(initParams);
   }
 
   @Override
   public String getId() {
-    return MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN;
+    return MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
   }
 
   @Override
@@ -43,13 +42,25 @@ public class MessageReceivedNotificationPlugin extends BaseNotificationPlugin {
 
   @Override
   protected NotificationInfo makeNotification(NotificationContext notificationContext) {
+    String sender = notificationContext.value(MATRIX_MESSAGE_SENDER);
     String roomId = notificationContext.value(MATRIX_ROOM_ID);
+    String roomName = notificationContext.value(MATRIX_ROOM_NAME);
+    String roomType = notificationContext.value(MATRIX_ROOM_TYPE);
     String userName = notificationContext.value(MATRIX_ROOM_MEMBER);
-    Integer unreadMessagesCount = notificationContext.value(MATRIX_ROOM_UNREAD_COUNT);
+    String senderFullName = notificationContext.value(MATRIX_MESSAGE_SENDER_FULLNAME);
+    String avatarUrl = notificationContext.value(MATRIX_ROOM_AVATAR);
+    String messageUrl = notificationContext.value(MATRIX_MESSAGE_URL);
+    String messageContent = notificationContext.value(MATRIX_MESSAGE_CONTENT);
     return NotificationInfo.instance()
+                           .setFrom(sender)
                            .to(userName)
                            .with("ROOM_ID", roomId)
-                           .with("UNREAD_MESSAGES_COUNT", String.valueOf(unreadMessagesCount))
+                           .with("MATRIX_ROOM_NAME", roomName)
+                           .with("MATRIX_ROOM_TYPE", roomType)
+                           .with("MATRIX_SENDER_FULL_NAME", senderFullName)
+                           .with("MATRIX_ROOM_AVATAR", avatarUrl)
+                           .with("MATRIX_MESSAGE_URL", messageUrl)
+                           .with("MATRIX_MESSAGE_CONTENT", messageContent)
                            .key(getId())
                            .end();
   }
