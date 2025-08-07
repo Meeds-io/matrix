@@ -65,7 +65,7 @@ export default {
         this.$root.$emit('alert-message',
           this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
           'success');
-        this.$emit('close')
+        this.$emit('close');
         setTimeout(() => {
           this.$root.$emit('room-muted-updated', {
             roomId: this.room.id,
