@@ -315,12 +315,16 @@ export async function processEvents(response, isInitialSync) {
       }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
       for (const e of ephemeralEvents) {
-        //Users are typing in the room
-        if(e.type === 'm.typing') {
-          if(e.content.user_ids?.length) {
-            console.log(`Users ${e.content.user_ids} are typing on room ${roomId}`);
-            //document.dispatchEvent(new CustomEvent('matrix-room-user-typing-received', { detail: {roomId: roomId, usersTyping: e.content.user_ids}}));
-          }
+        if (e.type === 'm.typing') {
+          const typingUsers = (e.content.user_ids || [])
+              .filter(userId => userId !== matrixUserId);
+          document.dispatchEvent(new CustomEvent('matrix-room-typing-received',
+            {
+              detail: {
+                roomId: roomId,
+                users: typingUsers
+              }
+            }));
         }
         if (e.type === 'm.receipt') {
           await handleReadReceiptEvent(e, roomId);
@@ -1509,5 +1513,27 @@ export async function muteRoom(roomId, spaceId, isMuted) {
   } catch (error) {
     console.error('Error muting private room:', error);
     throw error;
+  }
+}
+
+export async function sendTyping(roomId, isTyping, timeoutMs = 30000) {
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(matrixUserId)}`;
+  const body = isTyping ? {typing: true, timeout: timeoutMs} : {typing: false};
+
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to send typing notification', await response.text());
+    }
+  } catch (err) {
+    console.error('Error sending typing notification', err);
   }
 }
