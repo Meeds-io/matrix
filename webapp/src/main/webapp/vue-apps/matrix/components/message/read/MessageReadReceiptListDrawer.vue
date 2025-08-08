@@ -31,7 +31,7 @@
     </template>
     <template slot="content">
       <div class="pa-5">
-        <message-read-receipt
+        <message-receipt
           v-for="receipt in readReceipts"
           :key="receipt"
           :receipt="receipt"
