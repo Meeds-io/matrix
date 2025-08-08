@@ -21,9 +21,10 @@ import SpaceSettingsAdministration from './components/space-settings/SpaceSettin
 import RoomActionMenu from './components/room/RoomActionMenu.vue';
 import RoomActionMenuDrawer from './components/room/RoomActionMenuDrawer.vue';
 import RoomActionListItems from './components/room/RoomActionListItems.vue';
-import MessageReadReceiptList from './components/message/read/MessageReadReceiptList.vue';
-import MessageReadReceipt from './components/message/read/MessageReadReceipt.vue';
+import MessageReceiptList from './components/message/receipt/MessageReceiptList.vue';
+import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
 import MessageReadReceiptListDrawer from './components/message/read/MessageReadReceiptListDrawer.vue';
+import MessageTypingIndicator from './components/message/write/MessageTypingIndicator.vue';
 
 import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
@@ -57,9 +58,10 @@ const components = {
   'room-action-menu': RoomActionMenu,
   'room-action-menu-drawer': RoomActionMenuDrawer,
   'room-action-list-items': RoomActionListItems,
-  'message-read-receipt-list': MessageReadReceiptList,
-  'message-read-receipt': MessageReadReceipt,
-  'message-read-receipt-list-drawer': MessageReadReceiptListDrawer
+  'message-receipt-list': MessageReceiptList,
+  'message-receipt': MessageReceipt,
+  'message-read-receipt-list-drawer': MessageReadReceiptListDrawer,
+  'message-typing-indicator': MessageTypingIndicator
 };
 
 for (const key in components) {
