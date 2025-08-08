@@ -90,8 +90,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     @Test
     void sendCreateNotificationAction() throws Exception {
         Space space = getSpaceInstance(2);
-        String roomId = matrixService.createRoom(space);
-        roomsToDelete.add(roomId);
+        String roomId = matrixService.getRoomBySpace(space).getRoomId();
 
         when(userStateModel.getStatus()).thenReturn("available");
         when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
@@ -129,8 +128,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
         when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
         String eventId = "eventIDOnMatrix";
         Space space = getSpaceInstance(1);
-        String roomId = matrixService.createRoom(space);
-        roomsToDelete.add(roomId);
+        String roomId = matrixService.getRoomBySpace(space).getRoomId();
         String userName = "demo";
         Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
         String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
@@ -249,8 +247,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
         Space space = getSpaceInstance(1);
         spacesToDelete.add(space);
-        String roomId = matrixService.createRoom(space);
-        roomsToDelete.add(roomId);
+        String roomId = matrixService.getRoomBySpace(space).getRoomId();
         matrixMessage.setRoomId(roomId);
 
         result = chatNotificationService.createMentionNotification(eventId, roomId, "demo", null);
@@ -261,7 +258,6 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
         room.setFirstParticipant("demo");
         room.setSecondParticipant("raul");
         room = matrixService.createDirectMessagingRoom(room);
-        roomsToDelete.add(roomId);
         matrixMessage.setRoomId(room.getRoomId());
 
         result = chatNotificationService.createMentionNotification(eventId, room.getRoomId(), "demo", null);
