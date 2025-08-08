@@ -50,7 +50,7 @@ self.addEventListener('push', event => {
 async function retrieveAccessToken() {
   const dbName ='CHAT';
   const dbStore = 'SETTINGS';
-  const dbVersion = 2;
+  const dbVersion = 3;
   // Open indexDb
   const request = indexedDB.open(dbName, dbVersion);
   const database = await new Promise((resolve, reject) => {

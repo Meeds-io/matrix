@@ -34,7 +34,7 @@
   </build>
 
   <properties>
-    <exo.test.coverage.ratio>0.55</exo.test.coverage.ratio>
+    <exo.test.coverage.ratio>0.63</exo.test.coverage.ratio>
   </properties>
 
   <dependencies>
