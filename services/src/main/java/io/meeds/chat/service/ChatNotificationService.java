@@ -148,6 +148,7 @@ public class ChatNotificationService {
         }
 
         pwaNotificationMessage.setBody(message.getMessageContent());
+        pwaNotificationMessage.setUrl(getMessageLink(message));
         pwaNotificationService.setDefaultNotificationMessageProperties(pwaNotificationMessage,
                                                                        message.getEventId(),
                                                                        localeConfig);

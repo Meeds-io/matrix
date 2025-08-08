@@ -77,8 +77,6 @@ public class MatrixBaseTest extends AbstractSpringTest {
 
   public List<Space>             spacesToDelete = new ArrayList<>();
 
-  public List<String>            roomsToDelete  = new ArrayList<>();
-
   public String                  matrixRoomId   = "!thisIsACreatedRoom:matrix.meeds.tn";
 
   public String                  accessToken    = "ThisIsAnAccessToken";
@@ -107,6 +105,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "ThisIsAJWTSecretOfMatrixForTestingPurposes");
     PropertyManager.setProperty(MATRIX_SERVER_URL, "https://matrix.exo.tn");
     PropertyManager.setProperty(MATRIX_SERVER_NAME, "matrix.exo.tn");
+    PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "root");
   }
 
   public PortalContainer getContainer() {
@@ -147,6 +146,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
                                           anyString(),
                                           anyBoolean(),
                                           anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
   }
 
   @AfterEach
@@ -154,13 +154,6 @@ public class MatrixBaseTest extends AbstractSpringTest {
     for (Space space : spacesToDelete) {
       try {
         this.spaceService.deleteSpace(space);
-      } catch (Exception e) {
-        // Nothing to do
-      }
-    }
-    for (String roomId : roomsToDelete) {
-      try {
-        this.matrixService.deleteRoom(roomId);
       } catch (Exception e) {
         // Nothing to do
       }
