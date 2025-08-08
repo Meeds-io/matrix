@@ -159,6 +159,12 @@
             :room="room"
             @reply="replyToMessage"
             @reaction="reactToMessage" />
+          <message-typing-indicator
+            v-if="isTyping"
+            :room="room"
+            :typing-users="typingUsers"
+            class="ms-4 mt-2"
+            @scroll="scrollToEnd"/>
         </div>
       </div>
     </template>
@@ -266,7 +272,9 @@ export default {
       drawerWidth: 420,
       space: null,
       menu: false,
-      roomLastReadReceipts: []
+      roomLastReadReceipts: [],
+      typingUsers: [],
+      typingTimeout: null
     };
   },
   provide() {
@@ -322,11 +330,15 @@ export default {
     externalTag() {
       return `( ${this.$t('matrix.chat.user.external')} )`;
     },
+    isTyping() {
+      return this.typingUsers.length > 0;
+    }
   },
   created() {
     document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
+    document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
     this.$root.$on('open-chat-discussion', this.openDiscussion);
     this.$root.$on('room-discussion-opened', this.initRoomActionComponents);
     this.$root.$on('chat-edit-message', this.editMessage);
@@ -340,6 +352,7 @@ export default {
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
+    document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
     this.$root.$off('open-chat-discussion', this.openDiscussion);
     this.$root.$off('room-discussion-opened', this.initRoomActionComponents);
     this.$root.$off('chat-edit-message', this.editMessage);
@@ -430,9 +443,16 @@ export default {
         await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
-    onComposerInput(event) {
+    async onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
+      await this.$matrixService.sendTyping(this.room.id, true);
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+      this.typingTimeout = setTimeout(() => {
+        this.$matrixService.sendTyping(this.room.id, false);
+      }, 5000);
     },
     scrollToBottomMessages() {
       if (!this.hasUnseenMessages) {
@@ -940,6 +960,12 @@ export default {
         return;
       }
       this.room.name = this.space.displayName;
+    },
+    handleTypingReceived(event) {
+      const {roomId, users} = event.detail;
+      if (roomId === this.room.id) {
+        this.typingUsers = users;
+      }
     }
   },
 };
