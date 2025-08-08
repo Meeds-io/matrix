@@ -104,7 +104,7 @@
           <v-sheet
             v-if="hasLastReaders"
             height="24">
-            <message-read-receipt-list
+            <message-receipt-list
               :room="room"
               :read-receipts="readReceipts"
               :class="{
