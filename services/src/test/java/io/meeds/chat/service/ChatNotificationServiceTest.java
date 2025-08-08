@@ -135,6 +135,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
     String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
 
+<<<<<<< HEAD
     MatrixMessage matrixMessage = new MatrixMessage(eventId,
                                                     roomId,
                                                     "m.room.message",
@@ -153,6 +154,18 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     assertNotNull(pwaNotificationMessage);
     assertEquals("Demo exo in my space 1", pwaNotificationMessage.getTitle());
     assertEquals("This is a chat message", pwaNotificationMessage.getBody());
+=======
+    @Test
+    void createNotification() throws Exception {
+        when(userStateModel.getStatus()).thenReturn("available");
+        when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+        String eventId = "eventIDOnMatrix";
+        Space space = getSpaceInstance(1);
+        String roomId = matrixService.getRoomBySpace(space).getRoomId();
+        String userName = "demo";
+        Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
+        String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
+>>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     Room oneToOneRoom = new Room();
     oneToOneRoom.setRoomId("!oneToOneRoom:matrix.meeds.tn");
@@ -253,8 +266,15 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     roomsToDelete.add(roomId);
     matrixMessage.setRoomId(roomId);
 
+<<<<<<< HEAD
     result = chatNotificationService.createMentionNotification(eventId, roomId, "demo", null);
     assertTrue(result);
+=======
+        Space space = getSpaceInstance(1);
+        spacesToDelete.add(space);
+        String roomId = matrixService.getRoomBySpace(space).getRoomId();
+        matrixMessage.setRoomId(roomId);
+>>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     Room room = new Room();
     room.setRoomId("!privateRoomId");
@@ -264,8 +284,17 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     roomsToDelete.add(roomId);
     matrixMessage.setRoomId(room.getRoomId());
 
+<<<<<<< HEAD
     result = chatNotificationService.createMentionNotification(eventId, room.getRoomId(), "demo", null);
     assertFalse(result);
+=======
+        Room room = new Room();
+        room.setRoomId("!privateRoomId");
+        room.setFirstParticipant("demo");
+        room.setSecondParticipant("raul");
+        room = matrixService.createDirectMessagingRoom(room);
+        matrixMessage.setRoomId(room.getRoomId());
+>>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     when(matrixHttpClient.getAccessToken(anyString())).thenReturn("sys_thisIsAFakeAccessToken2025");
     when(matrixHttpClient.getEventById(eventId, room.getRoomId(), "sys_thisIsAFakeAccessToken2025")).thenReturn(matrixMessage);
