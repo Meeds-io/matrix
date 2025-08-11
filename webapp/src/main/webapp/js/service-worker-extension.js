@@ -33,6 +33,7 @@ self.addEventListener('push', event => {
                 const title = chatNotification.title;
                 chatNotification.icon = self.location.origin + chatNotification.icon;
                 chatNotification.type = CHAT_NOTIFICATION_TYPE;
+                delete chatNotification.actions;
                 chatNotification = prepareNotificationToSend(eventId, chatNotification);
                 await self.registration.showNotification(title, chatNotification);
                 await refreshBadge();
