@@ -7,15 +7,20 @@ import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
 import io.meeds.social.util.JsonUtils;
+import org.exoplatform.commons.api.notification.model.NotificationInfo;
 import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.model.WebNotificationFilter;
+import org.exoplatform.commons.api.notification.service.WebNotificationService;
 import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.api.settings.SettingValue;
 import org.exoplatform.commons.api.settings.data.Context;
 import org.exoplatform.commons.api.settings.data.Scope;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.Orientation;
+import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 import org.exoplatform.services.user.UserStateModel;
 import org.exoplatform.services.user.UserStateService;
@@ -34,6 +39,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -49,6 +55,12 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Autowired
   ChatNotificationService            chatNotificationService;
 
+  @Autowired
+  PwaNotificationService             pwaNotificationService;
+
+  @Autowired
+  WebNotificationService             webNotificationService;
+
   @Mock
   private UserStateService           userStateService;
 
@@ -63,6 +75,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Mock
   private SettingService             settingService;
+
+  @Mock
+  private ResourceBundleService      resourceBundleService;
 
   private MockedStatic<CommonsUtils> commonsUtils;
 
@@ -105,8 +120,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     "Message content",
                                                     "m.text",
                                                     "@sender:matrix.meeds.tn",
-                                                    Collections.singletonList("@demo:matrix.meeds.tn"),
-                                                    123456789);
+                                                    Collections.singletonList("@demo:matrix.meeds.tn"));
     when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
 
     action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
@@ -129,43 +143,10 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     String eventId = "eventIDOnMatrix";
     Space space = getSpaceInstance(1);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
     String userName = "demo";
     Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
     String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
-
-<<<<<<< HEAD
-    MatrixMessage matrixMessage = new MatrixMessage(eventId,
-                                                    roomId,
-                                                    "m.room.message",
-                                                    "This is a chat message",
-                                                    "m.text",
-                                                    userIdOnMatrix,
-                                                    new ArrayList<>());
-    when(matrixHttpClient.getEventById(eventId, matrixRoomId, accessToken)).thenReturn(matrixMessage);
-    LocaleConfig localeConfig = new LocaleConfigImpl();
-    localeConfig.setLocale(Locale.ENGLISH);
-    localeConfig.setOrientation(Orientation.LT);
-    PwaNotificationMessage pwaNotificationMessage = chatNotificationService.createNotification(eventId,
-                                                                                               matrixRoomId,
-                                                                                               userName,
-                                                                                               accessToken);
-    assertNotNull(pwaNotificationMessage);
-    assertEquals("Demo exo in my space 1", pwaNotificationMessage.getTitle());
-    assertEquals("This is a chat message", pwaNotificationMessage.getBody());
-=======
-    @Test
-    void createNotification() throws Exception {
-        when(userStateModel.getStatus()).thenReturn("available");
-        when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
-        String eventId = "eventIDOnMatrix";
-        Space space = getSpaceInstance(1);
-        String roomId = matrixService.getRoomBySpace(space).getRoomId();
-        String userName = "demo";
-        Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
-        String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
->>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     Room oneToOneRoom = new Room();
     oneToOneRoom.setRoomId("!oneToOneRoom:matrix.meeds.tn");
@@ -262,39 +243,21 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
     Space space = getSpaceInstance(1);
     spacesToDelete.add(space);
-    String roomId = matrixService.createRoom(space);
-    roomsToDelete.add(roomId);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
     matrixMessage.setRoomId(roomId);
 
-<<<<<<< HEAD
     result = chatNotificationService.createMentionNotification(eventId, roomId, "demo", null);
     assertTrue(result);
-=======
-        Space space = getSpaceInstance(1);
-        spacesToDelete.add(space);
-        String roomId = matrixService.getRoomBySpace(space).getRoomId();
-        matrixMessage.setRoomId(roomId);
->>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     Room room = new Room();
     room.setRoomId("!privateRoomId");
     room.setFirstParticipant("demo");
     room.setSecondParticipant("raul");
     room = matrixService.createDirectMessagingRoom(room);
-    roomsToDelete.add(roomId);
     matrixMessage.setRoomId(room.getRoomId());
 
-<<<<<<< HEAD
     result = chatNotificationService.createMentionNotification(eventId, room.getRoomId(), "demo", null);
     assertFalse(result);
-=======
-        Room room = new Room();
-        room.setRoomId("!privateRoomId");
-        room.setFirstParticipant("demo");
-        room.setSecondParticipant("raul");
-        room = matrixService.createDirectMessagingRoom(room);
-        matrixMessage.setRoomId(room.getRoomId());
->>>>>>> fe99841 (fix: add direct URL to open discusssion from Push notification - MEED-9527 - Meeds-io/MIPs#189 (#296))
 
     when(matrixHttpClient.getAccessToken(anyString())).thenReturn("sys_thisIsAFakeAccessToken2025");
     when(matrixHttpClient.getEventById(eventId, room.getRoomId(), "sys_thisIsAFakeAccessToken2025")).thenReturn(matrixMessage);
@@ -315,5 +278,30 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     when(matrixHttpClient.getUser(anyString(), anyString())).thenReturn(userAsJson);
     result = chatNotificationService.createMentionNotification(eventId, room.getRoomId(), "demo", "ASamplePushKey");
     assertTrue(result);
+  }
+
+  @Test
+  void sendPushNotification() throws ObjectNotFoundException, IllegalAccessException {
+    NotificationInfo notificationInfo = NotificationInfo.instance()
+                                                        .setFrom("raul")
+                                                        .to("demo")
+                                                        .with("ROOM_ID", "§roomIdenitfier:matrix.meeds.tn")
+                                                        .with("MATRIX_ROOM_NAME", "Sample room")
+                                                        .with("MATRIX_ROOM_TYPE", "SPACE")
+                                                        .with("MATRIX_SENDER_FULL_NAME", "Raul Hamdi")
+                                                        .with("MATRIX_ROOM_AVATAR", "/path/to/room")
+                                                        .with("MATRIX_MESSAGE_URL", "/link/to/room/message")
+                                                        .with("MATRIX_MESSAGE_CONTENT", "This is a message for testing !")
+                                                        .key(MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN)
+                                                        .end();
+    webNotificationService.save(notificationInfo);
+    WebNotificationFilter filter = new WebNotificationFilter("demo");
+    List<NotificationInfo> notifications = webNotificationService.getNotificationInfos(filter, 0, 10);
+    for (NotificationInfo notif : notifications) {
+      PwaNotificationMessage pwaNotificationMessage = pwaNotificationService.getNotification(1L, "demo");
+      assertNotNull(pwaNotificationMessage);
+      assertEquals("Raul Hamdi mentioned you in Sample room", pwaNotificationMessage.getTitle());
+      assertEquals("This is a message for testing !", pwaNotificationMessage.getBody());
+    }
   }
 }
