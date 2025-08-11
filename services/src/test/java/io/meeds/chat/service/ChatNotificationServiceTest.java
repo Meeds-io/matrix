@@ -5,8 +5,21 @@ import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.meeds.pwa.service.PwaNotificationService;
+import io.meeds.social.util.JsonUtils;
+import org.exoplatform.commons.api.notification.model.NotificationInfo;
+import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.model.WebNotificationFilter;
+import org.exoplatform.commons.api.notification.service.WebNotificationService;
+import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.Orientation;
+import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.resources.impl.LocaleConfigImpl;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -18,7 +31,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
-import static io.meeds.pwa.service.PwaNotificationService.*;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -34,6 +47,12 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Autowired
   ChatNotificationService            chatNotificationService;
 
+  @Autowired
+  PwaNotificationService             pwaNotificationService;
+
+  @Autowired
+  WebNotificationService             webNotificationService;
+
   @Mock
   private UserStateService           userStateService;
 
@@ -48,6 +67,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Mock
   private SettingService             settingService;
+
+  @Mock
+  private ResourceBundleService      resourceBundleService;
 
   private MockedStatic<CommonsUtils> commonsUtils;
 
@@ -267,5 +289,30 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     when(matrixHttpClient.getUser(anyString(), anyString())).thenReturn(userAsJson);
     result = chatNotificationService.createMentionNotification(eventId, room.getRoomId(), "demo", "ASamplePushKey");
     assertTrue(result);
+  }
+
+  @Test
+  void sendPushNotification() throws ObjectNotFoundException, IllegalAccessException {
+    NotificationInfo notificationInfo = NotificationInfo.instance()
+                                                        .setFrom("raul")
+                                                        .to("demo")
+                                                        .with("ROOM_ID", "§roomIdenitfier:matrix.meeds.tn")
+                                                        .with("MATRIX_ROOM_NAME", "Sample room")
+                                                        .with("MATRIX_ROOM_TYPE", "SPACE")
+                                                        .with("MATRIX_SENDER_FULL_NAME", "Raul Hamdi")
+                                                        .with("MATRIX_ROOM_AVATAR", "/path/to/room")
+                                                        .with("MATRIX_MESSAGE_URL", "/link/to/room/message")
+                                                        .with("MATRIX_MESSAGE_CONTENT", "This is a message for testing !")
+                                                        .key(MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN)
+                                                        .end();
+    webNotificationService.save(notificationInfo);
+    WebNotificationFilter filter = new WebNotificationFilter("demo");
+    List<NotificationInfo> notifications = webNotificationService.getNotificationInfos(filter, 0, 10);
+    for (NotificationInfo notif : notifications) {
+      PwaNotificationMessage pwaNotificationMessage = pwaNotificationService.getNotification(1L, "demo");
+      assertNotNull(pwaNotificationMessage);
+      assertEquals("Raul Hamdi mentioned you in Sample room", pwaNotificationMessage.getTitle());
+      assertEquals("This is a message for testing !", pwaNotificationMessage.getBody());
+    }
   }
 }
