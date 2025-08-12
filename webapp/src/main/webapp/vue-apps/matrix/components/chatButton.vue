@@ -42,6 +42,13 @@
       @closed="open = false"/>
     <meeds-chat-quick-create-discussion-drawer/>
     <room-action-menu-drawer />
+    <audio
+      ref="messageAudio"
+      class="hidden">
+      <source src="/matrix/audio/notif.wav">
+      <source src="/matrix/audio/notif.mp3">
+      <source src="/chat/audio/notif.ogg">
+    </audio>
   </v-app>
 </template>
 <script>
@@ -181,6 +188,7 @@
         }
       },
       enqueueMessageReceivedEvent(event) {
+        this.enableAndPlayBipSound(event);
         this.messageEventQueue.push(event);
         this.processNextMessageEvent();
       },
@@ -199,6 +207,31 @@
         } finally {
           this.processingMessageQueue = false;
           await this.processNextMessageEvent();
+        }
+      },
+      enableAndPlayBipSound() {
+        const keyToCheck = 'matrix_allow_bip';
+        if (event.detail?.message?.sender !== matrixUserId) {
+          if (localStorage.getItem(keyToCheck) === null) {
+            document.dispatchEvent(new CustomEvent('alert-message', {detail: {
+              alertType: 'info',
+              alertMessage: this.$t('matrix.message.allow.bip.ask'),
+              alertTimeout: 5000000,
+              alertLinkCallback: () =>
+              {
+                localStorage.setItem(keyToCheck, 'true');
+                document.dispatchEvent(new CustomEvent('close-alert-message'));
+              },
+              alertLinkTooltip: this.$t('matrix.message.allow.bip.confirm'),
+              alertLinkText: this.$t('matrix.message.allow.bip.link.text'),
+              alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
+            }}));
+          } else if (localStorage.getItem(keyToCheck) === 'true') {
+            const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
+            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
+              this.$refs.messageAudio.play();
+            }
+          }
         }
       },
       openDrawer() {
