@@ -4,7 +4,17 @@
     :avatar-url="avatarUrl"
     :message="message"
     :url="url"
-    space-avatar />
+    space-avatar >
+    <template #actions>
+      <div
+        v-if="messageContent"
+        :title="messageContent"
+        class="text-truncate">
+        <v-icon size="14" class="me-1">fa-comments</v-icon>
+        {{ messageContent }}
+      </div>
+    </template>
+  </user-notification-template>
 </template>
 <script>
 export default {
@@ -35,6 +45,9 @@ export default {
           0: `<a class="space-name font-weight-bold">${room}</a>`
         });
       }
+    },
+    messageContent() {
+      return this.notification?.parameters?.MATRIX_MESSAGE_CONTENT || null;
     }
   }
 };
