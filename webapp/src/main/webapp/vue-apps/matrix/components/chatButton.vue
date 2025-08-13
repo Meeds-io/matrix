@@ -229,7 +229,9 @@
           } else if (localStorage.getItem(keyToCheck) === 'true') {
             const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
             if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
-              this.$refs.messageAudio.play();
+              this.$refs.messageAudio.play().catch(err => {
+                this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
+              });
             }
           }
         }
