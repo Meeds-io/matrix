@@ -4,7 +4,7 @@
     :avatar-url="avatarUrl"
     :message="message"
     :url="url"
-    space-avatar >
+    :space-avatar="isSpace" >
     <template #actions>
       <div
         v-if="messageContent"
@@ -30,6 +30,9 @@ export default {
     },
     avatarUrl() {
       return this.notification?.parameters?.MATRIX_ROOM_AVATAR;
+    },
+    isSpace() {
+      return this.notification?.parameters?.MATRIX_ROOM_TYPE === 'SPACE';
     },
     message() {
       const creator = this.notification?.parameters?.MATRIX_SENDER_FULL_NAME;
