@@ -29,6 +29,7 @@ import org.exoplatform.commons.api.notification.service.template.TemplateContext
 import org.exoplatform.commons.notification.template.TemplateUtils;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.TimeConvertUtils;
+import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.notification.LinkProviderUtils;
@@ -41,10 +42,13 @@ import java.util.Locale;
 
 public class MatrixTemplateBuilder extends AbstractTemplateBuilder {
 
-  private final TemplateProvider templateProvider;
+  private final TemplateProvider      templateProvider;
 
-  public MatrixTemplateBuilder(MailTemplateProvider mailTemplateProvider) {
+  private final ResourceBundleService resourceBundleService;
+
+  public MatrixTemplateBuilder(MailTemplateProvider mailTemplateProvider, ResourceBundleService resourceBundleService) {
     this.templateProvider = mailTemplateProvider;
+    this.resourceBundleService = resourceBundleService;
   }
 
   @Override
@@ -52,6 +56,8 @@ public class MatrixTemplateBuilder extends AbstractTemplateBuilder {
     NotificationInfo notification = notificationContext.getNotificationInfo();
     String language = getLanguage(notification);
     String pluginId = notification.getKey().getId();
+    String roomType = notification.getValueOwnerParameter("MATRIX_ROOM_TYPE");
+    String roomName = notification.getValueOwnerParameter("MATRIX_ROOM_NAME");
     TemplateContext templateContext =
                                     TemplateContext.newChannelInstance(this.templateProvider.getChannelKey(), pluginId, language);
     SocialNotificationUtils.addFooterAndFirstName(notification.getTo(), templateContext);
@@ -67,19 +73,33 @@ public class MatrixTemplateBuilder extends AbstractTemplateBuilder {
     Identity senderIdentity = Utils.getIdentityManager()
                                    .getOrCreateIdentity(OrganizationIdentityProvider.NAME, notification.getFrom());
     templateContext.put("USER", senderIdentity.getProfile().getFullName());
-    templateContext.put("ROOM", notification.getValueOwnerParameter("MATRIX_ROOM_NAME"));
-    templateContext.put("ROOM_TYPE", notification.getValueOwnerParameter("MATRIX_ROOM_TYPE"));
+    templateContext.put("ROOM", roomName);
+    templateContext.put("ROOM_TYPE", roomType);
     templateContext.put("MESSAGE_LINK", notification.getValueOwnerParameter("MATRIX_MESSAGE_URL"));
     templateContext.put("PROFILE_URL", LinkProviderUtils.getRedirectUrl("user", senderIdentity.getRemoteId()));
     if (StringUtils.isNotBlank(notification.getValueOwnerParameter("MATRIX_ROOM_AVATAR"))) {
       templateContext.put("AVATAR", CommonsUtils.getCurrentDomain() + notification.getValueOwnerParameter("MATRIX_ROOM_AVATAR"));
     }
+    String subject = "SUBJECT";
+    if (StringUtils.isNotBlank(roomType) && roomType.equals("ONE_TO_ONE")) {
+      templateContext.put(subject,
+                          this.resourceBundleService.getSharedString("Notification.subject.onetoone.MatrixMentionReceivedNotificationPlugin",
+                                                                     Locale.of(language))
+                                                    .replace("$USER", senderIdentity.getProfile().getFullName()));
+    } else {
+      templateContext.put(subject,
+                          this.resourceBundleService.getSharedString("Notification.subject.space.MatrixMentionReceivedNotificationPlugin",
+                                                                     Locale.of(language))
+                                                    .replace("$USER", senderIdentity.getProfile().getFullName())
+                                                    .replace("$ROOM", roomName));
+    }
     String message = notification.getValueOwnerParameter("MATRIX_MESSAGE_CONTENT");
-
     templateContext.put("MESSAGE_CONTENT", message);
 
     MessageInfo messageInfo = new MessageInfo();
-    messageInfo.subject(TemplateUtils.processSubject(templateContext));
+    // process subject then add the result String to the template context
+    TemplateUtils.processSubject(templateContext);
+    messageInfo.subject((String) templateContext.get(subject));
     messageInfo.body(TemplateUtils.processGroovy(templateContext));
     notificationContext.setException(templateContext.getException());
     return messageInfo.end();
