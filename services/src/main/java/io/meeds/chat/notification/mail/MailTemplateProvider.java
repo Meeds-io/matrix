@@ -24,6 +24,7 @@ import org.exoplatform.commons.api.notification.annotation.TemplateConfigs;
 import org.exoplatform.commons.api.notification.channel.template.TemplateProvider;
 import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.container.xml.InitParams;
+import org.exoplatform.services.resources.ResourceBundleService;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
 
@@ -31,8 +32,9 @@ import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVE
     @TemplateConfig(pluginId = MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN, template = "war:/conf/matrix/templates/notification/mail/MentionReceivedMailPlugin.gtmpl") })
 public class MailTemplateProvider extends TemplateProvider {
 
-  public MailTemplateProvider(InitParams initParams) {
+  public MailTemplateProvider(InitParams initParams, ResourceBundleService resourceBundleService) {
     super(initParams);
-    this.templateBuilders.put(PluginKey.key(MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN), new MatrixTemplateBuilder(this));
+    this.templateBuilders.put(PluginKey.key(MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN),
+                              new MatrixTemplateBuilder(this, resourceBundleService));
   }
 }
