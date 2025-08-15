@@ -30,5 +30,14 @@ export const chatConstants = {
 
   MESSAGES_LOAD_LIMIT : 200,
 
-  DB_SETTINGS: {dbName: 'CHAT', dbStore: 'SETTINGS', version: 2},
+  // IndexedDB configuration
+  DB_SETTINGS: {
+    DB_NAME: 'CHAT',
+    DB_VERSION: 4,
+    DB_STORES: {
+      SETTINGS: 'SETTINGS',
+      READ_RECEIPTS: 'READ_RECEIPTS',
+    }
+  }
+
 }
