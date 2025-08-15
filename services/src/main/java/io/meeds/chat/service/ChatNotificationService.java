@@ -181,8 +181,12 @@ public class ChatNotificationService {
    * @param userName the user who received the notification
    * @return notification object
    */
-  public PwaNotificationMessage createNotification(String eventId, String roomId, String userName, String token) {
+  public PwaNotificationMessage createNotification(String eventId, String roomId, String userName, long lastMessageTimeStamp, String token) {
     MatrixMessage message = matrixService.getRoomEvent(eventId, roomId, token);
+    // Do not create a notification is the message is before the last message
+    if (lastMessageTimeStamp >= message.getTimeStamp()) {
+      return null;
+    }
     return createNotification(message, userName);
   }
 

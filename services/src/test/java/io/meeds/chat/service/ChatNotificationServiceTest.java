@@ -120,7 +120,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     "Message content",
                                                     "m.text",
                                                     "@sender:matrix.meeds.tn",
-                                                    Collections.singletonList("@demo:matrix.meeds.tn"));
+                                                    Collections.singletonList("@demo:matrix.meeds.tn"),
+                                                    123456789);
     when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
 
     action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
@@ -154,7 +155,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     "This is a chat message",
                                                     "m.text",
                                                     userIdOnMatrix,
-                                                    new ArrayList<>());
+                                                    new ArrayList<>(),
+                                                    123456789);
     when(matrixHttpClient.getEventById(eventId, matrixRoomId, accessToken)).thenReturn(matrixMessage);
     LocaleConfig localeConfig = new LocaleConfigImpl();
     localeConfig.setLocale(Locale.ENGLISH);
@@ -162,6 +164,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     PwaNotificationMessage pwaNotificationMessage = chatNotificationService.createNotification(eventId,
                                                                                                matrixRoomId,
                                                                                                userName,
+                                                                                               0,
                                                                                                accessToken);
     assertNotNull(pwaNotificationMessage);
     assertEquals("Demo exo in my space 1", pwaNotificationMessage.getTitle());
@@ -179,10 +182,15 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                       "This is a private chat message",
                                       "m.text",
                                       userIdOnMatrix,
-                                      new ArrayList<>());
+                                      new ArrayList<>(),
+                                      123456789);
     when(matrixHttpClient.getEventById(eventId, oneToOneRoom.getRoomId(), accessToken)).thenReturn(matrixMessage);
 
-    pwaNotificationMessage = chatNotificationService.createNotification(eventId, oneToOneRoom.getRoomId(), userName, accessToken);
+    pwaNotificationMessage = chatNotificationService.createNotification(eventId,
+                                                                        oneToOneRoom.getRoomId(),
+                                                                        userName,
+                                                                        0,
+                                                                        accessToken);
     assertNotNull(pwaNotificationMessage);
     assertNotNull(pwaNotificationMessage.getIcon());
     assertEquals(tomIdentity.getProfile().getFullName(), pwaNotificationMessage.getTitle());
@@ -254,7 +262,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     "This is a chat message",
                                                     "m.text",
                                                     userIdOnMatrix,
-                                                    Collections.singletonList("@demo:matrix.meeds.tn"));
+                                                    Collections.singletonList("@demo:matrix.meeds.tn"),
+                                                    123456789);
     when(matrixHttpClient.getEventById(eventId, matrixRoomId, accessToken)).thenReturn(matrixMessage);
 
     boolean result = chatNotificationService.createMentionNotification(eventId, "fakeRoomId", "demo", null);

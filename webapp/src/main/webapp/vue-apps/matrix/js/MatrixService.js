@@ -353,12 +353,15 @@ async function handleReadReceiptEvent(event, roomId) {
       const readData = receipt[userId];
 
       // Only update if eventId is newer
-      const prevEventId = lastReads[userId];
+      const prevEventId = lastReads[userId].eventId;
       const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
       const newTimestamp = messageTimestampsMap.get(eventId);
 
       if (!prevEventId || (newTimestamp && newTimestamp > prevTimestamp)) {
-        lastReads[userId] = eventId;
+        lastReads[userId] = {
+          eventId: eventId,
+          ts: newTimestamp,
+        }
       }
 
       document.dispatchEvent(new CustomEvent('matrix-message-read', {
@@ -380,7 +383,7 @@ async function handleReadReceiptEvent(event, roomId) {
 
 export async function loadReadReceiptsForMessage(lastReads, eventId) {
   return Object.entries(lastReads)
-      .filter(([userId, lastReadEventId]) => userId !== matrixUserId && lastReadEventId === eventId)
+      .filter(([userId, lastReadEvent]) => userId !== matrixUserId && lastReadEvent.eventId === eventId)
       .map(([userId]) => userId);
 }
 
@@ -1032,7 +1035,7 @@ export async function getLastReadEventIds(roomId) {
   const lastReads = await loadLastReadReceipts(roomId);
   const filteredReads = Object.entries(lastReads)
       .filter(([key]) => key !== matrixUserId)
-      .map(([, value]) => value);
+      .map(([, value]) => value.eventId);
   return new Set(filteredReads);
 }
 
@@ -1492,11 +1495,15 @@ export async function registerUserToken() {
   if (!dbExists) {
     await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
   }
+  const settings = {
+    'access_token': localStorage.getItem("matrix_access_token"),
+    'user_id': localStorage.getItem("matrix_user_id")
+  };
   await dbStorage.setValue(
     chatConstants.DB_SETTINGS,
     chatConstants.DB_SETTINGS.DB_STORES.SETTINGS,
-   'access_token',
-    localStorage.getItem("matrix_access_token")
+   'settings',
+    settings
   );
 }
 
