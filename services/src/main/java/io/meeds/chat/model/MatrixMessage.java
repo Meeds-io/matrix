@@ -18,6 +18,7 @@
  */
 
 package io.meeds.chat.model;
+
 /*
  * This file is part of the Meeds project (https://meeds.io/).
  *
@@ -59,4 +60,6 @@ public class MatrixMessage {
   private String       sender;
 
   private List<String> mentionedUsers;
+
+  private long         timeStamp;
 }
