@@ -99,7 +99,7 @@ public class MatrixRest implements ResourceContainer {
 
   @Autowired
   private ChatNotificationService      chatNotificationService;
-  
+
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
@@ -185,8 +185,9 @@ public class MatrixRest implements ResourceContainer {
   }
 
   /**
-   * This API is used by Matrix server to notify the Meeds server that a user has a new notification
-   * This API is used as a Push Gateway for Matrix server
+   * This API is used by Matrix server to notify the Meeds server that a user has
+   * a new notification This API is used as a Push Gateway for Matrix server
+   * 
    * @param notification
    * @return
    */
@@ -558,7 +559,7 @@ public class MatrixRest implements ResourceContainer {
     return ResponseEntity.ok().build();
   }
 
-  @PutMapping("notification/{roomId}/{eventId}")
+  @PutMapping("notification/{roomId}/{eventId}/{ts}")
   @Secured("users")
   @Operation(summary = "Get the details of a notification based on the event details", method = "GET", description = "Get the details of a notification based on the event details")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
@@ -566,26 +567,30 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public PwaNotificationMessage getNotification(HttpServletRequest request, @PathVariable("roomId")
   String roomId, @PathVariable("eventId")
-  String eventId,
+  String eventId, @PathVariable("ts")
+  String timeStamp,
                                                 @RequestBody(description = "Access token of the user", required = false)
                                                 @org.springframework.web.bind.annotation.RequestBody(required = false)
                                                 String accessToken) {
+    String currentUserName = request.getRemoteUser();
+    if (eventId == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "event id is mandatory");
+    }
+    long ts = 0L;
     try {
-      String currentUserName = request.getRemoteUser();
-      ChatNotificationService chatNotificationService = CommonsUtils.getService(ChatNotificationService.class);
-      if (eventId == null) {
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "event id is mandatory");
-      }
-      PwaNotificationMessage pwaMessage =
-                                        chatNotificationService.createNotification(eventId, roomId, currentUserName, accessToken);
-      if (pwaMessage != null) {
-        return pwaMessage;
-      } else {
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found or it is not a chat message");
-      }
-    } catch (Exception e) {
-      LOG.error("Could not get details of the event: {}", eventId, e);
-      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+      ts = Long.parseLong(timeStamp);
+    } catch (NumberFormatException nfe) {
+      // Do nothing, we consider Timestamp as 0 //NOSONAR
+    }
+    PwaNotificationMessage pwaMessage = chatNotificationService.createNotification(eventId,
+                                                                                   roomId,
+                                                                                   currentUserName,
+                                                                                   ts,
+                                                                                   accessToken);
+    if (pwaMessage != null) {
+      return pwaMessage;
+    } else {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found or it is not a chat message");
     }
   }
 
@@ -612,8 +617,7 @@ public class MatrixRest implements ResourceContainer {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
     }
   }
-  
-  
+
   private String checkAndParseUserFromToken(String token) {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
     Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
