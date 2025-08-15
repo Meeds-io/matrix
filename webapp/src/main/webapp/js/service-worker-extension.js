@@ -1,5 +1,15 @@
 let accessToken = null;
+let userId = null;
 const CHAT_NOTIFICATION_TYPE = 'CHAT_NOTIFICATION';
+const DB_SETTINGS = {
+  DB_NAME: 'CHAT',
+  DB_VERSION: 4,
+  DB_STORES: {
+    SETTINGS: 'SETTINGS',
+    READ_RECEIPTS: 'READ_RECEIPTS',
+  }
+};
+
 self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
@@ -15,9 +25,13 @@ self.addEventListener('push', event => {
           try {
             if (action === 'open') {
               if (!accessToken) {
-                accessToken = await retrieveAccessToken();
+                const userSettings = await retrieveUserSettings();
+                accessToken = userSettings.access_token;
+                userId = userSettings.user_id;
               }
-              let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}`, {
+              const lastReadMessageObject = await retrieveLastReadObject(roomId);
+              const lastReadMessageTimestamp = lastReadMessageObject && lastReadMessageObject[userId] && lastReadMessageObject[userId].ts || 0;
+              let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}/${lastReadMessageTimestamp}`, {
                 method: 'PUT',
                 credentials: 'include',
                 body: accessToken
@@ -48,12 +62,17 @@ self.addEventListener('push', event => {
   }
 });
 
-async function retrieveAccessToken() {
-  const dbName ='CHAT';
-  const dbStore = 'SETTINGS';
-  const dbVersion = 2;
-  // Open indexDb
-  const request = indexedDB.open(dbName, dbVersion);
+async function retrieveUserSettings() {
+  return retrieveFromDb(DB_SETTINGS.DB_STORES.SETTINGS, 'settings');
+}
+
+async function retrieveLastReadObject(roomId) {
+  const itemKey = `lastRead::${roomId}`;
+  return retrieveFromDb(DB_SETTINGS.DB_STORES.READ_RECEIPTS, itemKey);
+}
+
+async function retrieveFromDb(dbStore, itemKey) {
+  const request = indexedDB.open(DB_SETTINGS.DB_NAME, DB_SETTINGS.DB_VERSION);
   const database = await new Promise((resolve, reject) => {
     request.onerror = reject;
     request.onsuccess = e => resolve(e.target.result);
@@ -68,7 +87,7 @@ async function retrieveAccessToken() {
   });
   return new Promise(resolve => {
     const transaction = database.transaction([dbStore], 'readonly');
-    const request = transaction.objectStore(dbStore).get('access_token');
+    const request = transaction.objectStore(dbStore).get(itemKey);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => resolve(null);
   });
