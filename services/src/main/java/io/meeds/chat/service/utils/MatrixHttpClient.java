@@ -1149,6 +1149,7 @@ public class MatrixHttpClient {
       message.setRoomId(jsonMessage.getElement("room_id").getStringValue());
       message.setType(jsonMessage.getElement("type").getStringValue());
       message.setSender(jsonMessage.getElement("sender").getStringValue());
+      message.setTimeStamp(Long.parseLong(jsonMessage.getElement("origin_server_ts").getStringValue()));
       if (jsonMessage.getElement("content") != null) {
         JsonValue content = jsonMessage.getElement("content");
         message.setMessageContent(content.getElement("body").getStringValue());
