@@ -97,8 +97,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Test
   void sendCreateNotificationAction() throws Exception {
     Space space = getSpaceInstance(2);
-    String roomId = matrixService.getRoomBySpace(space).getRoomId();
-    //roomsToDelete.add(roomId);
+    String roomId = matrixService.createRoom(space);
+    roomsToDelete.add(roomId);
     when(userStateModel.getStatus()).thenReturn("available");
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction("eventIDOnMatrix", "demo", roomId, 5);
@@ -121,8 +121,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     String eventId = "eventIDOnMatrix";
     Space space = getSpaceInstance(1);
-    String roomId = matrixService.getRoomBySpace(space).getRoomId();
-    //roomsToDelete.add(roomId);
+    String roomId = matrixService.createRoom(space);
+    roomsToDelete.add(roomId);
     String userName = "demo";
     Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
     String userIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
