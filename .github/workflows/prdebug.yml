@@ -1,0 +1,33 @@
+name: PR Debug
+on:
+  push:
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-debug:
+    name: PR Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        token: ${{ github.token }}
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: 21
+        distribution: zulu
+    # Setup Maven
+    - name: Set up Maven 3.9.11
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.9.11
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3.22
