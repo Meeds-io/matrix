@@ -34,10 +34,11 @@ export const chatConstants = {
   // IndexedDB configuration
   DB_SETTINGS: {
     DB_NAME: 'CHAT',
-    DB_VERSION: 4,
+    DB_VERSION: 5,
     DB_STORES: {
       SETTINGS: 'SETTINGS',
       READ_RECEIPTS: 'READ_RECEIPTS',
+      UNSEEN_MESSAGES: 'UNSEEN_MESSAGES'
     }
   }
 

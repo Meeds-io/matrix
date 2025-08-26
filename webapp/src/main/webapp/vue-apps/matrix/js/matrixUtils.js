@@ -33,3 +33,26 @@ export function placeCaretAtEnd(el) {
     textRange.select();
   }
 }
+
+export function getMessageViewportInfo(eventId) {
+    const container = document.getElementById("chatMessagesContainer");
+    const messageEl = document.getElementById(`message-content-${eventId}`);
+
+    if (!container || !messageEl) {
+        return {
+          visibleTop: false,
+          above: false,
+          below: false
+        };
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const messageRect = messageEl.getBoundingClientRect();
+
+    const visibleTop = messageRect.top >= containerRect.top
+      && messageRect.top <= containerRect.bottom;
+    const above = messageRect.bottom < containerRect.top;
+    const below = messageRect.top > containerRect.bottom;
+
+    return {visibleTop, above, below};
+}

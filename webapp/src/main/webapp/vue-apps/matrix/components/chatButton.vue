@@ -129,7 +129,7 @@
       });
     },
     beforeDestroy() {
-      this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
       this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
       this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
       document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
@@ -160,6 +160,9 @@
       }
     },
     methods: {
+      handleTotalUnreadUpdate(total) {
+        this.totalUnreadMessages = total;
+      },
       getUserStatus() {
         return this.$userStateService.getUserStatus(this.userName).then(data => {
           this.presence = data?.status;
@@ -182,6 +185,7 @@
       enqueueMessageReceivedEvent(event) {
         this.enableAndPlayBipSound(event);
         this.messageEventQueue.push(event);
+        this.handleUnseenMessages(event);
         this.processNextMessageEvent();
       },
       async processNextMessageEvent() {
@@ -201,9 +205,27 @@
           await this.processNextMessageEvent();
         }
       },
-      enableAndPlayBipSound() {
+      async handleUnseenMessages({ detail: { roomId, message } }) {
+        if (message.sender === matrixUserId) {
+          return;
+        }
+        const lastReadMessage = await this.$matrixService.loadLastReadReceipts(roomId);
+        const lastReadMessageTimestamp = lastReadMessage?.[matrixUserId]?.ts || 0;
+
+        if (message.origin_server_ts > lastReadMessageTimestamp) {
+          let unseenData = await this.$matrixService.getUnseenMessages(roomId, matrixUserId);
+          if (!unseenData) {
+            unseenData = {};
+          }
+          if (!unseenData.firstUnseenEventId) {
+            unseenData.firstUnseenEventId = message.event_id;
+          }
+          await this.$matrixService.saveUnseenMessages(roomId, matrixUserId, unseenData);
+        }
+      },
+      enableAndPlayBipSound({detail: {roomId, message}}) {
         const keyToCheck = 'matrix_allow_bip';
-        if (event.detail?.message?.sender !== matrixUserId) {
+        if (message.sender !== matrixUserId) {
           if (localStorage.getItem(keyToCheck) === null) {
             document.dispatchEvent(new CustomEvent('alert-message', {detail: {
               alertType: 'info',
@@ -219,7 +241,7 @@
               alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
             }}));
           } else if (localStorage.getItem(keyToCheck) === 'true') {
-            const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
+            const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
             if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
               this.$refs.messageAudio.play().catch(err => {
                 this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
@@ -442,7 +464,9 @@
         this.$root.channel.addEventListener('message', event => {
           const {type, payload} = event.data;
           if (type === 'total-unread-messages-updated') {
-            this.totalUnreadMessages = payload.totalUnreadMessages;
+            if (this.totalUnreadMessages !== payload.totalUnreadMessages) {
+              this.totalUnreadMessages = payload.totalUnreadMessages;
+            }
           }
         });
       }
