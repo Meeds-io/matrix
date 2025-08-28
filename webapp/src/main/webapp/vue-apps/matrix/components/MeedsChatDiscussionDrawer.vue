@@ -884,7 +884,7 @@ export default {
       }
     },
     editSpace() {
-      document.dispatchEvent(new CustomEvent('editSpace', {detail: this.space}));
+      window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));
     },
     async getSpaceById(spaceId) {
       if (this.space?.id === this.room?.spaceId || !spaceId) {
