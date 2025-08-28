@@ -41,7 +41,6 @@
       :presence="presence"
       @closed="open = false"/>
     <meeds-chat-quick-create-discussion-drawer/>
-    <space-form-drawer />
     <room-action-menu-drawer />
     <message-read-receipt-list-drawer />
     <audio
