@@ -777,6 +777,26 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
+    },
+    editSpace() {
+      window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));
+    },
+    async getSpaceById(spaceId) {
+      if (this.space?.id === this.room?.spaceId || !spaceId) {
+        return;
+      }
+      try {
+        this.space = await this.$spaceService.getSpaceById(spaceId, null, true);
+      } catch (error) {
+        console.error('Failed to fetch space:', error);
+      }
+    },
+    handleSpaceSettingsUpdate(event) {
+      this.space = event.detail;
+      if (this.space.id !== this.room?.spaceId) {
+        return;
+      }
+      this.room.name = this.space.displayName;
     }
   },
 };
