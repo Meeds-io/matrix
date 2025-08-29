@@ -139,13 +139,19 @@ public class MatrixBaseTest extends AbstractSpringTest {
     matrixRoomPermissions.setUsers(new ArrayList(List.of(new MatrixUserPermission[] { matrixUserPermission,
         raulUserPermission })));
     when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
-    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenReturn("@demo:matrix.meeds.tn");
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenAnswer(invocation -> {
+      String matrixUserId = invocation.getArgument(1);
+      return "@" + matrixUserId + ":matrix.meeds.tn";
+    });
     when(matrixHttpClient.saveUserAccount(any(),
                                           anyString(),
                                           anyBoolean(),
                                           anyString(),
                                           anyBoolean(),
-                                          anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
+                                          anyBoolean())).thenAnswer(invocation -> {
+                                            String matrixUserId = invocation.getArgument(1);
+                                            return "@" + matrixUserId + ":matrix.meeds.tn";
+                                          });
     when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
   }
 
