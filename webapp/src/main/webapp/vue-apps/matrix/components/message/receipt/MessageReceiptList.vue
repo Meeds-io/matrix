@@ -27,18 +27,18 @@
       :allow-animation="true"
       extra-class="transition-2s"
       class="position-relative" />
-    <v-hover v-slot="{ hover }">
-      <v-avatar
-        v-if="showMore"
-        size="24"
-        :class="{'mt-n1 z-index-two': hover}"
-        class="white--text ms-n4 border-white grey-lighten1-background"
-        @click="openListReceiptsDrawer">
-        <span class="text-font-small-size clickable">
-          +{{ filteredReadReceipts.length - receiptsToDisplay }}
-        </span>
-      </v-avatar>
-    </v-hover>
+    <v-avatar
+      v-if="showMore"
+      size="24"
+      :class="{'mt-n1 z-index-two': hover}"
+      class="white--text ms-n4 border-white grey-lighten1-background"
+      @mouseenter="hover = true"
+      @mouseleave="hover = false"
+      @click="openListReceiptsDrawer">
+      <span class="text-font-small-size clickable">
+        +{{ filteredReadReceipts.length - receiptsToDisplay }}
+      </span>
+    </v-avatar>
   </div>
 </template>
 
@@ -47,7 +47,8 @@
 export default {
   data() {
     return {
-      receiptsToDisplay: 3
+      receiptsToDisplay: 3,
+      hover: false
     }
   },
   props: {
