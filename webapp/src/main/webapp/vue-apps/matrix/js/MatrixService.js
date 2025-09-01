@@ -1,6 +1,7 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
 import * as dbStorage from '../../../js/dbStorage.js'
+import * as matrixUtils from './matrixUtils.js'
 
 const replyToCache = new Map();
 const userCache = new Map();
@@ -353,12 +354,15 @@ async function handleReadReceiptEvent(event, roomId) {
       const readData = receipt[userId];
 
       // Only update if eventId is newer
-      const prevEventId = lastReads[userId];
+      const prevEventId = lastReads?.[userId]?.eventId;
       const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
       const newTimestamp = messageTimestampsMap.get(eventId);
 
       if (!prevEventId || (newTimestamp && newTimestamp > prevTimestamp)) {
-        lastReads[userId] = eventId;
+        lastReads[userId] = {
+          eventId: eventId,
+          ts: newTimestamp,
+        }
       }
 
       document.dispatchEvent(new CustomEvent('matrix-message-read', {
@@ -379,8 +383,11 @@ async function handleReadReceiptEvent(event, roomId) {
 }
 
 export async function loadReadReceiptsForMessage(lastReads, eventId) {
+    if (!lastReads) {
+        return []
+    }
   return Object.entries(lastReads)
-      .filter(([userId, lastReadEventId]) => userId !== matrixUserId && lastReadEventId === eventId)
+      .filter(([userId, lastReadEvent]) => userId !== matrixUserId && lastReadEvent.eventId === eventId)
       .map(([userId]) => userId);
 }
 
@@ -1032,7 +1039,7 @@ export async function getLastReadEventIds(roomId) {
   const lastReads = await loadLastReadReceipts(roomId);
   const filteredReads = Object.entries(lastReads)
       .filter(([key]) => key !== matrixUserId)
-      .map(([, value]) => value);
+      .map(([, value]) => value.eventId);
   return new Set(filteredReads);
 }
 
@@ -1540,4 +1547,66 @@ export async function sendTyping(roomId, isTyping, timeoutMs = 30000) {
   } catch (err) {
     console.error('Error sending typing notification', err);
   }
+}
+
+export async function saveUnseenMessages(roomId, userId, unseenData) {
+  const key = `unseen::${roomId}::${userId}`;
+  const result = await dbStorage.setValue(
+     chatConstants.DB_SETTINGS,
+     chatConstants.DB_SETTINGS.DB_STORES.UNSEEN_MESSAGES,
+     key,
+     unseenData
+    );
+  document.dispatchEvent(
+      new CustomEvent("unseen-data-updated", {
+        detail: {roomId, userId, unseenData}
+      })
+  );
+  return result;
+}
+
+export async function getUnseenMessages(roomId, userId) {
+  const key = `unseen::${roomId}::${userId}`;
+  return dbStorage.getValue(
+    chatConstants.DB_SETTINGS,
+    chatConstants.DB_SETTINGS.DB_STORES.UNSEEN_MESSAGES,
+    key
+    );
+}
+
+export async function clearUnseenMessages(roomId, userId) {
+  const key = `unseen::${roomId}::${userId}`;
+  return dbStorage.setValue(
+    chatConstants.DB_SETTINGS,
+    chatConstants.DB_SETTINGS.DB_STORES.UNSEEN_MESSAGES,
+    key,
+    {
+       firstUnseenEventId: null,
+    }
+    );
+}
+
+export async function getUnseenMessagesData(roomId, userId) {
+  const unseenData = await getUnseenMessages(roomId, userId);
+  if (!unseenData?.firstUnseenEventId) {
+      return {};
+  }
+  return {
+    firstUnseenEventId: unseenData.firstUnseenEventId,
+    viewPortInfo: matrixUtils.getMessageViewportInfo(unseenData.firstUnseenEventId)
+  }
+}
+
+export async function resetUnseenOnFirstMessageSeen(roomId, userId) {
+  const unseenData = await getUnseenMessages(roomId, userId);
+  if (!unseenData) {
+    return false;
+  }
+  const viewPortInfo = matrixUtils.getMessageViewportInfo(unseenData.firstUnseenEventId);
+  const firstMessageSeen = viewPortInfo.visibleTop;
+  if (firstMessageSeen) {
+    await clearUnseenMessages(roomId, userId)
+    return true;
+  }
+  return false;
 }

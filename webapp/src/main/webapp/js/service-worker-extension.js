@@ -3,7 +3,7 @@ let userId = null;
 const CHAT_NOTIFICATION_TYPE = 'CHAT_NOTIFICATION';
 const DB_SETTINGS = {
   DB_NAME: 'CHAT',
-  DB_VERSION: 4,
+  DB_VERSION: 5,
   DB_STORES: {
     SETTINGS: 'SETTINGS',
     READ_RECEIPTS: 'READ_RECEIPTS',
@@ -14,7 +14,7 @@ self.addEventListener('push', event => {
   if (self?.Notification?.permission === 'granted') {
     const data = event?.data?.text?.() || {};
     const params = data.split(':');
-    if(params.length == 3) {
+    if (params.length === 3) {
       const notificationType = params[0];
       if(notificationType === CHAT_NOTIFICATION_TYPE) {
         const action = params[2];
