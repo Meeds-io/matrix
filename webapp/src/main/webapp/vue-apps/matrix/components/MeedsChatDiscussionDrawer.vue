@@ -128,11 +128,14 @@
       </v-menu>
     </template>
     <template slot="content">
-      <div id="chatMessagesContainer"
-        class="specific-scrollbar"
+      <div
+        id="chatMessagesContainer"
+        ref="chatMessagesContainer"
+        class="specific-scrollbar position-relative"
         v-touch="{
           down: () => loadMoreMessages()
-        }">
+        }"
+        @scroll="onMessagesContainerScroll">
         <div
           v-if="loadingNewMessages"
           class="application-background-color application-border application-border-radius flex d-flex flex-column">
@@ -149,23 +152,43 @@
           @wheel="loadMoreMessages"
           @scroll="loadMoreMessages">
           <meeds-chat-message
+            v-for="(message, i) in messages"
             :id="`chat-message-${i}`"
             :ref="`chat-message-${i}`"
             :key="message.event_id"
-            v-for="(message, i) in messages"
             :message="message"
             :previous-message="messages?.[i - 1]"
             :next-message="messages?.[i + 1]"
             :room="room"
+            :unseen-messages-data="unSeenMessagesData"
+            :is-input-focused="isInputFocused"
             @reply="replyToMessage"
-            @reaction="reactToMessage" />
+            @reaction="reactToMessage"
+            @reset-unseen="resetUnseenData" />
           <message-typing-indicator
             v-if="isTyping"
             :room="room"
             :typing-users="typingUsers"
             class="ms-4 mt-2"
-            @scroll="scrollToEnd"/>
+            @scroll="scrollToEnd" />
         </div>
+        <sticky-arrow-button
+          v-if="!loading && hasUnseenMessages"
+          :show-badge="hasUnseenMessages"
+          :closeable-tooltip="$t('matrix.messages.mark.as.read')"
+          :button-tooltip="$t('matrix.messages.check.new')"
+          scroll-target="unseenSeparator"
+          class="mt-16 pt-2 me-5"
+          top-position
+          closeable
+          up-arrow
+          @closed="clearUnseenData" />
+        <sticky-arrow-button
+          v-if="!loading && !isAtBottomMessages"
+          :show-badge="hasUnseenNewReceivedMessage"
+          :button-tooltip="$t('matrix.messages.jump.to.last')"
+          class="mb-16 pb-2 me-5"
+          @click="scrollToBottomMessages" />
       </div>
     </template>
     <template slot="footer">
@@ -205,10 +228,11 @@
               contenteditable="true"
               class="meeds-chat-composer specific-scrollbar text-break no-border input-placeholder border-box-sizing ps-3 pe-1 py-2"
               @keypress.enter.prevent
+              @blur="isInputFocused = false"
               @keydown.enter="checkIfMentioning"
               @keydown.enter.prevent="sendMessageWithEnter"
               @keyup="resizeComposerArea"
-              @focus="resizeComposerArea"
+              @focus="onInputFocus"
               @input="onComposerInput">
             </div>
             <div class="mb-0_5 me-1 d-flex flex-column justify-end">
@@ -274,7 +298,20 @@ export default {
       menu: false,
       roomLastReadReceipts: [],
       typingUsers: [],
-      typingTimeout: null
+      typingTimeout: null,
+      unSeenMessagesData: {
+        firstUnseenEventId: null,
+        inViewport: {
+          visibleTop: false,
+          above: false,
+          below: false
+        }
+      },
+      messagesContainerId: 'chatMessagesContainer',
+      messagesContainerElement: null,
+      isInputFocused: false,
+      hasUnseenNewReceivedMessage: false,
+      messageContainerScrollTop: 0
     };
   },
   provide() {
@@ -284,6 +321,24 @@ export default {
     };
   },
   computed: {
+    isAtBottomMessages() {
+      const element = this.getMessagesContainerElement();
+      if (!element) {
+        return true;
+      }
+      return element.scrollHeight - this.messageContainerScrollTop - element.clientHeight <= 60;
+    },
+    unseenViewPortInfo() {
+      return this.unSeenMessagesData?.viewPortInfo;
+    },
+    hasUnseenMessages() {
+      const info = this.unseenViewPortInfo;
+      if (!info) {
+        return false;
+      }
+
+      return info.visibleTop === false && (info.above === true || info.below === false);
+    },
     isMuted() {
       return this.room?.muted;
     },
@@ -297,7 +352,7 @@ export default {
       return this.presence && this.$root.statusMap[this.presence];
     },
     canEditSpace() {
-      return this.space?.canEdit;
+      return this.spaceId && this.space?.canEdit;
     },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
@@ -332,20 +387,29 @@ export default {
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
+    document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData)
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
     this.$root.$on('chat-edit-message', e => this.editMessage(e));
     this.$root.$on('chat-delete-message', e => this.openDeleteMessageDialog(e));
+    this.$root.channel.addEventListener('message', event => {
+      const {type} = event.data;
+      if (type === 'reset-unseen-data') {
+        this.resetData();
+      }
+    });
   },
   watch:{
     room() {
-      this.roomActionComponents = [];// reset the room actions to initialize them again when another room is opened
+      // reset the room actions to initialize them again when another room is opened
+      this.roomActionComponents = [];
     }
   },
   beforeDestroy() {
     document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
+    document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData)
     this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
     this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
     this.$root.$off('chat-edit-message', e => this.editMessage(e));
@@ -445,7 +509,44 @@ export default {
       }
       this.typingTimeout = setTimeout(() => {
         this.$matrixService.sendTyping(this.room.id, false);
-      }, 5000);
+      }, 3000);
+    },
+    async handleUpdateUnseenData(event) {
+      const {roomId} = event.detail;
+      if (this.room?.id !== roomId) {
+        return;
+      }
+      setTimeout(async () => {
+        await this.loadUnseenMessagesData();
+      }, 1000)
+    },
+    async loadUnseenMessagesData() {
+      this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
+      this.$forceUpdate();
+    },
+    scrollToBottomMessages() {
+      if (!this.hasUnseenMessages) {
+        this.clearUnseenData();
+      }
+      this.scrollToEnd();
+    },
+    onInputFocus(event) {
+      if (this.isAtBottomMessages) {
+        const lastMessageIndex = this.messages.length - 1;
+        this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+            detail: {roomId: this.room.id}
+          }));
+        });
+      }
+      this.isInputFocused = true;
+      this.resizeComposerArea(event)
+    },
+    getMessagesContainerElement() {
+      if (!this.messagesContainerElement) {
+        this.messagesContainerElement = document.getElementById(this.messagesContainerId);
+      }
+      return this.messagesContainerElement;
     },
     resetComposer() {
       if (!this.$refs.messageComposerArea) {
@@ -460,36 +561,46 @@ export default {
     async openDiscussion(e) {
       this.loading = true;
       this.room = e;
+
+      this.resetData();
       this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(this.room?.id);
       this.room.lastReadReceipts = this.roomLastReadReceipts;
+
       this.getSpaceById(this.room?.spaceId);
+
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
       }
-      this.$nextTick(() => {
-        // Slight delay allows browser to paint before heavy JS
-        setTimeout(async () => {
-          const resp = await this.$matrixService.loadRoomMessages(this.room.id);
 
-          if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
-            this.hasMoreMessages = false;
-          }
+      await this.$nextTick();
 
-          this.from = resp.start;
-          this.to = resp.end;
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-          const processedMessages = await this.$matrixService.processMessages(this.room?.id, resp.chunk.reverse());
-          this.messages = processedMessages.messages;
-          this.leftReactions = processedMessages.leftReactions;
+      // Load messages
+      const resp = await this.$matrixService.loadRoomMessages(this.room.id);
+      if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+        this.hasMoreMessages = false;
+      }
+      this.from = resp.start;
+      this.to = resp.end;
 
-          this.$nextTick().then(() => {
-            this.scrollToEnd();
-            this.loading = false;
-            this.$root.$emit('room-discussion-opened');
-            this.$refs?.messageComposerArea?.focus();
-          });
-        }, 0);
-      });
+      // Process messages
+      const processedMessages = await this.$matrixService.processMessages(this.room?.id, resp.chunk.reverse());
+      this.messages = processedMessages.messages;
+      this.leftReactions = processedMessages.leftReactions;
+
+      await this.$nextTick();
+
+      // slight delay before unseen messages
+      setTimeout(async () => {
+        await this.loadUnseenMessagesData();
+      }, 500);
+
+      // Scroll + finalize
+      this.scrollToEnd();
+      this.loading = false;
+      this.$root.$emit("room-discussion-opened");
+      this.$refs?.messageComposerArea?.focus();
     },
     close() {
       this.messages = null;
@@ -535,8 +646,12 @@ export default {
           receivedMessage.replyTo = this.$matrixService.buildReplyToObject(this.messages, inReplyTo);
         }
         setTimeout(() => {
-          this.scrollToEnd();
-        }, 50);
+          if (this.isAtBottomMessages) {
+            this.scrollToEnd();
+          } else {
+            this.hasUnseenNewReceivedMessage = true;
+          }
+        }, 100);
       }
     },
     messageDeleted(event) {
@@ -570,22 +685,43 @@ export default {
       }
 
       this.$set(this.messages, index, redacted);
+      this.updateUnseenOnMessageDelete(redactedEventId, index);
+    },
+    updateUnseenOnMessageDelete(redactedEventId, index) {
+      const unseenData = this.unSeenMessagesData;
+      if (!unseenData) {
+        return;
+      }
+
+      if (redactedEventId === unseenData.firstUnseenEventId) {
+        const nextMessage = this.messages[index + 1];
+
+        let updatedUnseen = {};
+        if (nextMessage) {
+          updatedUnseen.firstUnseenEventId = nextMessage.event_id;
+        } else {
+          updatedUnseen = null;
+        }
+
+        this.unSeenMessagesData = updatedUnseen;
+        this.$matrixService.saveUnseenMessages(this.room.id, matrixUserId, updatedUnseen);
+      }
     },
     scrollToEnd() {
-      if (this.messages) {
-        const lastMessageIndex = this.messages.length - 1;
-        const lastMessageElement = document.getElementById(`chat-message-${lastMessageIndex}`);
-        if (lastMessageElement) {
-          document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
-            behavior: 'instant'
-          });
-          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
-              detail: { roomId: this.room.id }
-            }));
-          });
-        }
+      const container = this.getMessagesContainerElement();
+      if (!this.messages || !container) {
+        return;
       }
+      const lastMessageIndex = this.messages.length - 1;
+      const lastMessageEl = document.getElementById(`chat-message-${lastMessageIndex}`);
+      if (lastMessageEl) {
+        lastMessageEl.scrollIntoView({behavior: 'auto'});
+      }
+      requestAnimationFrame(() => {
+        // Force scroll to bottom in case last message is too tall
+        container.scrollTop = container.scrollHeight;
+        this.hasUnseenNewReceivedMessage = false;
+      })
     },
     loadMoreMessages() {
       const messagesDOMEl = document.getElementById('chatMessagesContainer');
@@ -704,6 +840,7 @@ export default {
       this.resetComposer();
       this.mentioningInProgress = false;
       this.messageToEdit = null;
+      this.scrollToEnd();
     },
     checkIfMentioning() {
       this.mentioningInProgress = this.$refs.messageComposerArea.lastElementChild?.className === 'atwho-query' && !this.$refs.messageComposerArea.lastChild.wholeText;
@@ -912,7 +1049,7 @@ export default {
       window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));
     },
     async getSpaceById(spaceId) {
-      if (this.space?.id === this.room?.spaceId || !spaceId) {
+      if (this.space?.id === spaceId || !spaceId) {
         return;
       }
       try {
@@ -933,6 +1070,35 @@ export default {
       if (roomId === this.room.id) {
         this.typingUsers = users;
       }
+    },
+    resetData() {
+      if (!this.unSeenMessagesData?.viewPortInfo) {
+        return;
+      }
+      this.unSeenMessagesData.firstUnseenEventId = null;
+      this.unSeenMessagesData.viewPortInfo.visibleTop = true;
+      this.unSeenMessagesData.viewPortInfo.above = false;
+      this.unSeenMessagesData.viewPortInfo.below = false;
+    },
+    clearUnseenData() {
+      this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
+        this.resetData();
+        this.$root.channel.postMessage({type: 'reset-unseen-data'});
+      })
+    },
+    onMessagesContainerScroll() {
+      this.messageContainerScrollTop = this.getMessagesContainerElement().scrollTop;
+      if (this.isAtBottomMessages) {
+        this.hasUnseenNewReceivedMessage = false;
+      }
+    },
+    resetUnseenData() {
+      this.$matrixService.resetUnseenOnFirstMessageSeen(this.room?.id, matrixUserId).then(reset => {
+        if (reset) {
+          this.resetData();
+          this.$root.channel.postMessage({type: 'reset-unseen-data'});
+        }
+      });
     }
   },
 };

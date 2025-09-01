@@ -35,6 +35,11 @@
         {{ formattedDate }}
       </v-chip>
     </div>
+    <v-divider
+      v-if="showUnSeenMessageSeparator && showUnseen"
+      v-intersect="onIntersect"
+      id="unseenSeparator"
+      class="mx-4 my-4 primary-border-color primary" />
     <div
       :id="message.event_id"
       class="px-4"
@@ -137,6 +142,14 @@
       room: {
         type: Object,
         default: {},
+      },
+      unseenMessagesData: {
+        type: Object,
+        default: null
+      },
+      isInputFocused: {
+        type: Boolean,
+        default: false
       }
     },
     data() {
@@ -159,7 +172,9 @@
         touchStartY: 0,
         ignoreClickUntil: 0,
         readReceipts: [],
-        loadingReceipts: false
+        loadingReceipts: false,
+        showUnseen: true,
+        hideTimeout: null
       };
     },
     created() {
@@ -183,7 +198,27 @@
       this.$root.$off('message-child-menu-opened', this.openChildMenu);
       this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
+    watch: {
+      isInputFocused() {
+        if (this.isInputFocused && this.isUnseenInViewPort && this.showUnSeenMessageSeparator) {
+          this.startHideUnseenSeparatorTimer();
+        }
+      }
+    },
     computed: {
+      firstUnseenEventId() {
+        const eventId = this?.unseenMessagesData?.firstUnseenEventId;
+        return eventId != null ? String(eventId) : null;
+        },
+      showUnSeenMessageSeparator() {
+        return this.unseenViewPortInfo?.below === false && this.message?.event_id === this.firstUnseenEventId;
+      },
+      unseenViewPortInfo() {
+        return this.unseenMessagesData?.viewPortInfo;
+      },
+      isUnseenInViewPort() {
+        return this.unseenViewPortInfo?.visibleTop === true;
+      },
       hasLastReaders() {
         return this.message?.hasLastReaders;
       },
@@ -377,6 +412,30 @@
           }
         }
         this.$set(this.message, 'hasLastReaders', this.readReceipts.length > 0);
+      },
+      onIntersect(entries) {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          if (this.isUnseenInViewPort && !this.isInputFocused) {
+            return;
+          }
+          this.startHideUnseenSeparatorTimer();
+        } else {
+          this.clearHideUnseenSeparatorTimer();
+        }
+      },
+      startHideUnseenSeparatorTimer() {
+        this.clearHideUnseenSeparatorTimer();
+        this.hideTimeout = setTimeout(() => {
+          this.showUnseen = false;
+          this.$emit('reset-unseen');
+        }, 2000);
+      },
+      clearHideUnseenSeparatorTimer() {
+        if (this.hideTimeout) {
+          clearTimeout(this.hideTimeout);
+          this.hideTimeout = null;
+        }
       }
     }
   }
