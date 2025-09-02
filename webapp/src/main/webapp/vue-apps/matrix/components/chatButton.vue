@@ -107,14 +107,14 @@
         this.$matrixService.installPusher();
       }
 
-      this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
-      document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
-      document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
+      document.addEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
+      document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
-      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
-      document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
+      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+      document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
       document.addEventListener('user-status-updated', this.handleUserStatusUpdated);
       document.addEventListener('space-unmuted', this.handleSpaceUnmute)
       document.addEventListener('space-muted', this.handleSpaceMute)
@@ -132,11 +132,11 @@
       this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
       this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
       this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
-      document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
+      document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-      document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
-      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
-      document.removeEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
+      document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
+      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+      document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
       document.removeEventListener('user-status-updated', this.handleUserStatusUpdated);
       document.removeEventListener('space-unmuted', this.handleSpaceUnmute)
       document.removeEventListener('space-muted', this.handleSpaceMute)
@@ -255,6 +255,9 @@
         this.$refs.meedsChatDrawer?.open();
       },
       async handleMessageReceivedEvent(event) {
+        if (this.loading || !this.rooms) {
+          return;
+        }
         const {roomId, message} = event.detail || {};
         if (!roomId || !message || !message.event_id) {
           return;
@@ -382,7 +385,8 @@
           this.rooms?.push(room);
         }
       },
-      openRoom(room) {
+      openRoom(event) {
+        const room = event.detail;
         this.addRoomIfNotExists(room);
         this.openDrawer();
         setTimeout(() => {
@@ -462,6 +466,9 @@
       },
       setupBroadcastChannelListener() {
         this.$root.channel.addEventListener('message', event => {
+          if (!this.rooms) {
+            return;
+          }
           const {type, payload} = event.data;
           if (type === 'total-unread-messages-updated') {
             if (this.totalUnreadMessages !== payload.totalUnreadMessages) {
