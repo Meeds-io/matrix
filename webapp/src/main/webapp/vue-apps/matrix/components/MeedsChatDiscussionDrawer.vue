@@ -384,14 +384,14 @@ export default {
   },
   created() {
     document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
-    document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData)
-    this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
-    this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
-    this.$root.$on('chat-edit-message', e => this.editMessage(e));
-    this.$root.$on('chat-delete-message', e => this.openDeleteMessageDialog(e));
+    this.$root.$on('open-chat-discussion', this.openDiscussion);
+    this.$root.$on('room-discussion-opened',  this.initRoomActionComponents);
+    this.$root.$on('chat-edit-message', this.editMessage);
+    this.$root.$on('chat-delete-message', this.openDeleteMessageDialog);
     this.$root.channel.addEventListener('message', event => {
       const {type} = event.data;
       if (type === 'reset-unseen-data') {
@@ -406,14 +406,14 @@ export default {
     }
   },
   beforeDestroy() {
-    document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.removeEventListener('matrix-message-received',  this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData)
-    this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
-    this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
-    this.$root.$off('chat-edit-message', e => this.editMessage(e));
-    this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
+    this.$root.$off('open-chat-discussion', this.openDiscussion);
+    this.$root.$off('room-discussion-opened',  this.initRoomActionComponents);
+    this.$root.$off('chat-edit-message',  this.editMessage);
+    this.$root.$off('chat-delete-message', this.openDeleteMessageDialog);
   },
   methods: {
     muteRoom() {
@@ -531,14 +531,16 @@ export default {
       this.scrollToEnd();
     },
     onInputFocus(event) {
-      if (this.isAtBottomMessages) {
-        const lastMessageIndex = this.messages.length - 1;
-        this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
-            detail: {roomId: this.room.id}
-          }));
-        });
-      }
+      setTimeout(() => {
+        if (this.isAtBottomMessages) {
+          const lastMessageIndex = this.messages.length - 1;
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: {roomId: this.room.id}
+            }));
+          });
+        }
+      }, 200)
       this.isInputFocused = true;
       this.resizeComposerArea(event)
     },

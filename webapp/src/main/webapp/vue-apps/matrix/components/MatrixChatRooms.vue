@@ -27,10 +27,10 @@
       }
     },
     created() {
-      document.addEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+      document.addEventListener('matrix-joined-room', this.addJoinedRoom);
     },
     beforeDestroy() {
-      document.removeEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+      document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
     },
     methods: {
       addJoinedRoom(event) {
