@@ -335,6 +335,11 @@
         </value-param>
       </init-params>
     </component-plugin>
+    <component-plugin>
+      <name>chat.push.channel</name>
+      <set-method>register</set-method>
+      <type>io.meeds.chat.notification.channel.ChatPushChannel</type>
+    </component-plugin>
   </external-component-plugins>
 
   <external-component-plugins>

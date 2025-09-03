@@ -21,6 +21,7 @@ package io.meeds.chat.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.notification.channel.ChatPushChannel;
 import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.portal.permlink.service.PermanentLinkService;
 import io.meeds.pwa.model.PwaNotificationMessage;
@@ -113,7 +114,8 @@ public class ChatNotificationService {
    * @return thread to perform notification action
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
-    if (!isPushEnabledForUser(userName, roomId)) {
+    if (!isPushEnabledForUser(userName, roomId)
+        && !getUserSettingService().get(userName).isChannelGloballyActive(ChatPushChannel.ID)) {
       return null;
     }
     // Create Push notification
@@ -181,7 +183,11 @@ public class ChatNotificationService {
    * @param userName the user who received the notification
    * @return notification object
    */
-  public PwaNotificationMessage createNotification(String eventId, String roomId, String userName, long lastMessageTimeStamp, String token) {
+  public PwaNotificationMessage createNotification(String eventId,
+                                                   String roomId,
+                                                   String userName,
+                                                   long lastMessageTimeStamp,
+                                                   String token) {
     MatrixMessage message = matrixService.getRoomEvent(eventId, roomId, token);
     // Do not create a notification is the message is before the last message
     if (lastMessageTimeStamp >= message.getTimeStamp()) {
