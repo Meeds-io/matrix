@@ -1192,7 +1192,7 @@ export async function getRoomLastMessage(roomId) {
   };
 
   const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
-  let limit = 1;
+  let limit = 3;
   const maxLimit = 50;
   let from = null;
   const maxIterations = 5;
