@@ -224,13 +224,16 @@ export function sync(filter, since, timeoutMs = 30000) {
 }
 
 
-export async function processEvents(response) {
+export async function processEvents(response, isInitialSync) {
   const updatedRooms = response?.rooms?.join;
   if(updatedRooms) {
     for (const roomId in response.rooms.join) {
       const roomEvents = response.rooms.join[roomId].timeline?.events;
       for (const e of roomEvents) {
         if (e.type === 'm.room.message') {
+          if (isInitialSync) {
+              continue;
+          }
           const isReplacement = e.content?.['m.relates_to']?.rel_type === 'm.replace';
           const isSupportedMsgType = ['m.text', 'm.image', 'm.audio', 'm.file', 'm.video'].includes(e.content.msgtype);
 
@@ -575,7 +578,8 @@ export async function startMatrixSyncLoop(matrixFilterId) {
       }
 
       const data = await response.json();
-      await processEvents(data);
+      const isInitialSync = !since;
+      await processEvents(data, isInitialSync);
 
       if (data.next_batch) {
         since = data.next_batch;
@@ -1222,7 +1226,7 @@ export async function getRoomLastMessage(roomId) {
   };
 
   const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
-  let limit = 3;
+  let limit = 1;
   const maxLimit = 50;
   let from = null;
   const maxIterations = 5;
@@ -1252,50 +1256,44 @@ export async function getRoomLastMessage(roomId) {
 
     const data = await response.json();
     const events = data.chunk || [];
-    const filteredEvents = [];
 
     if (events.length === 0 && !data.next_batch) {
       break;
     }
+  let lastMessage = null;
 
-    for (const event of events) {
-      if (event.unsigned?.redacted_because) {
-        continue;
-      }
+  for (const event of events) {
+    if (event.unsigned?.redacted_because) continue;
 
-      if (event.type === 'm.reaction') {
-        const relatedEventId = event.content?.['m.relates_to']?.event_id;
-        if (!relatedEventId) {
-          continue;
-        }
+    if (event.type === 'm.reaction') {
+      const relatedEventId = event.content?.['m.relates_to']?.event_id;
+      if (!relatedEventId) continue;
 
-        const redacted = await isEventRedacted(roomId, relatedEventId);
-        if (redacted) {
-          continue;
-        }
-      }
-      if (event.type === 'm.room.redaction') {
-        const redactedEventId = event.redacts;
-        if (!redactedEventId) {
-          continue;
-        }
-        const redactedEvent = await getEvent(roomId, redactedEventId);
-        if (!redactedEvent) {
-          continue;
-        }
-        if (redactedEvent.type === 'm.reaction') {
-          continue;
-        }
-      }
-      filteredEvents.push(event);
+      const redacted = await isEventRedacted(roomId, relatedEventId);
+      if (redacted) continue;
     }
 
-    const sorted = filteredEvents.sort((a, b) => b.origin_server_ts - a.origin_server_ts);
-    if (sorted[0]) return sorted[0];
+    if (event.type === 'm.room.redaction') {
+      const redactedEventId = event.redacts;
+      if (!redactedEventId) continue;
 
-    from = data.next_batch;
-    limit = Math.min(limit * 2, maxLimit);
-    iterations++;
+      const redactedEvent = await getEvent(roomId, redactedEventId);
+      if (!redactedEvent) continue;
+      if (redactedEvent.type === 'm.reaction') continue;
+    }
+
+    if (!lastMessage || event.origin_server_ts > lastMessage.origin_server_ts) {
+      lastMessage = event;
+    }
+  }
+
+  if (lastMessage) {
+    return lastMessage;
+  }
+
+  from = data.next_batch;
+  limit = Math.min(limit * 2, maxLimit);
+  iterations++;
   }
 
   return null;
