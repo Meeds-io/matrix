@@ -160,7 +160,7 @@
       this.$root.$on('message-child-menu-opened', this.openChildMenu);
     },
     beforeDestroy() {
-      document.removeEventListener('matrix-message-reaction-added', event => this.reactionAdded);
+      document.removeEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
       document.removeEventListener('click', this.onClickOutside, true);
       document.removeEventListener('touchstart', this.onClickOutside, true);
