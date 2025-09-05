@@ -422,9 +422,55 @@ export default {
         await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
-    onComposerInput(event) {
+    async onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
+      await this.$matrixService.sendTyping(this.room.id, true);
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+      this.typingTimeout = setTimeout(() => {
+        this.$matrixService.sendTyping(this.room.id, false);
+      }, 3000);
+    },
+    async handleUpdateUnseenData(event) {
+      const {roomId} = event.detail;
+      if (this.room?.id !== roomId) {
+        return;
+      }
+      setTimeout(async () => {
+        await this.loadUnseenMessagesData();
+      }, 1000)
+    },
+    async loadUnseenMessagesData() {
+      this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
+      this.$forceUpdate();
+    },
+    scrollToBottomMessages() {
+      if (!this.hasUnseenMessages) {
+        this.clearUnseenData();
+      }
+      this.scrollToEnd();
+    },
+    onInputFocus(event) {
+      setTimeout(() => {
+        if (this.isAtBottomMessages) {
+          const lastMessageIndex = this.messages.length - 1;
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: {roomId: this.room.id}
+            }));
+          });
+        }
+      }, 200)
+      this.isInputFocused = true;
+      this.resizeComposerArea(event)
+    },
+    getMessagesContainerElement() {
+      if (!this.messagesContainerElement) {
+        this.messagesContainerElement = document.getElementById(this.messagesContainerId);
+      }
+      return this.messagesContainerElement;
     },
     resetComposer() {
       if (!this.$refs.messageComposerArea) {
