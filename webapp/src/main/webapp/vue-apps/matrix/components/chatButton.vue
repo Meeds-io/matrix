@@ -133,12 +133,6 @@
       document.removeEventListener('space-muted', this.handleSpaceMute)
     },
     watch: {
-      totalUnreadMessages() {
-        this.$root.channel.postMessage({
-          type: 'total-unread-messages-updated',
-          payload: {totalUnreadMessages: this.totalUnreadMessages}
-        });
-      },
       open() {
         if (this.open) {
           this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
@@ -153,6 +147,18 @@
     methods: {
       handleTotalUnreadUpdate(total) {
         this.totalUnreadMessages = total;
+      },
+      updateTotalUnread(value, isDecrement = false, broadcast = false) {
+        this.totalUnreadMessages = Math.max(0, this.totalUnreadMessages + (isDecrement ? -value : value));
+        if (broadcast) {
+          this.postBroadcastUpdateTotalUnread();
+        }
+      },
+      postBroadcastUpdateTotalUnread() {
+        this.$root.channel.postMessage({
+          type: 'total-unread-messages-updated',
+          payload: {totalUnreadMessages: this.totalUnreadMessages}
+        });
       },
       getUserStatus() {
         return this.$userStateService.getUserStatus(this.userName).then(data => {
@@ -249,7 +255,7 @@
         this.rooms = updatedRooms;
 
         if (isNewMessageFromOtherUser && !updatedRoom.muted) {
-          this.totalUnreadMessages++;
+          this.updateTotalUnread(1);
         }
       },
       scheduleSeenEventsCleanup() {
@@ -290,7 +296,7 @@
 
             if (updatedRoom.unreadMessages === 1) {
               updatedRoom.unreadMessages--;
-              this.totalUnreadMessages--;
+              this.updateTotalUnread(1, true);
               this.$matrixService.markRoomAsFullyRead(roomId, eventId).then(() => {
                 updatedRoom.unreadMessages = 0;
               });
@@ -305,8 +311,8 @@
       updateUnreadMessages(event) {
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if(updatedRoom) {
-          this.totalUnreadMessages -= updatedRoom.unreadMessages;
+        if (updatedRoom) {
+          this.updateTotalUnread(updatedRoom.unreadMessages, true);
           updatedRoom.unreadMessages = 0;
         }
       },
@@ -391,21 +397,21 @@
 
         if (wasMuted !== room.muted) {
           const delta = updatedRoom.unreadMessages || 0;
-          this.totalUnreadMessages += room.muted ? -delta : delta;
+          this.updateTotalUnread(delta, room.muted, true);
         }
       },
       handleSpaceMute({detail: {spaceId}}) {
         const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
         if (updatedRoom) {
           updatedRoom.muted = true;
-          this.totalUnreadMessages+=updatedRoom.unreadMessages;
+          this.updateTotalUnread(updatedRoom.unreadMessages, false, true);
         }
       },
       handleSpaceUnmute({detail: {spaceId}}) {
         const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
         if (updatedRoom) {
           updatedRoom.muted = false;
-          this.totalUnreadMessages-=updatedRoom.unreadMessages;
+          this.updateTotalUnread(updatedRoom.unreadMessages, true, true);
         }
       },
       setupBroadcastChannelListener() {
