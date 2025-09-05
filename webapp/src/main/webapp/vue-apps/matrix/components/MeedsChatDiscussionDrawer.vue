@@ -531,14 +531,16 @@ export default {
       this.scrollToEnd();
     },
     onInputFocus(event) {
-      if (this.isAtBottomMessages) {
-        const lastMessageIndex = this.messages.length - 1;
-        this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
-            detail: {roomId: this.room.id}
-          }));
-        });
-      }
+      setTimeout(() => {
+        if (this.isAtBottomMessages) {
+          const lastMessageIndex = this.messages.length - 1;
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: {roomId: this.room.id}
+            }));
+          });
+        }
+      }, 200)
       this.isInputFocused = true;
       this.resizeComposerArea(event)
     },
