@@ -537,39 +537,40 @@ class MatrixRestTest {
   @Test
   void testNotify() throws Exception {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "InsufficientToken");
-    String jsonNotification = """
-        {
-          "notification": {
-            "content": {
-              "body": "I'm floating in a most peculiar way.",
-              "msgtype": "m.text"
-            },
-            "counts": {
-              "missed_calls": 1,
-              "unread": 2
-            },
-            "devices": [
-              {
-                "app_id": "org.matrix.matrixConsole.ios",
-                "data": {},
-                "pushkey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0._yNyipMgOp5G2giBZPrne1jcCHeyEiKda_kQOW_bvZM",
-                "pushkey_ts": 12345678,
-                "tweaks": {
-                  "sound": "bing"
-                }
-              }
-            ],
-            "event_id": "$3957tyerfgewrf384",
-            "prio": "high",
-            "room_alias": "#exampleroom:matrix.org",
-            "room_id": "!slw48wfj34rtnrf:example.com",
-            "room_name": "Mission Control",
-            "sender": "@exampleuser:matrix.org",
-            "sender_display_name": "Major Tom",
-            "type": "m.room.message"
-          }
-        }
-        """;
+    String jsonNotification =
+                            """
+                                {
+                                  "notification": {
+                                    "content": {
+                                      "body": "I'm floating in a most peculiar way.",
+                                      "msgtype": "m.text"
+                                    },
+                                    "counts": {
+                                      "missed_calls": 1,
+                                      "unread": 2
+                                    },
+                                    "devices": [
+                                      {
+                                        "app_id": "org.matrix.matrixConsole.ios",
+                                        "data": {},
+                                        "pushkey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0._yNyipMgOp5G2giBZPrne1jcCHeyEiKda_kQOW_bvZM",
+                                        "pushkey_ts": 12345678,
+                                        "tweaks": {
+                                          "sound": "bing"
+                                        }
+                                      }
+                                    ],
+                                    "event_id": "$3957tyerfgewrf384",
+                                    "prio": "high",
+                                    "room_alias": "#exampleroom:matrix.org",
+                                    "room_id": "!slw48wfj34rtnrf:example.com",
+                                    "room_name": "Mission Control",
+                                    "sender": "@exampleuser:matrix.org",
+                                    "sender_display_name": "Major Tom",
+                                    "type": "m.room.message"
+                                  }
+                                }
+                                """;
     ResultActions response = mockMvc.perform(post(REST_PATH + "/notify").with(simpleUser())
                                                                         .content(jsonNotification)
                                                                         .contentType(MediaType.APPLICATION_JSON));
@@ -578,13 +579,70 @@ class MatrixRestTest {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "ThisIsASampleJWTTokenFoeTestingPurposes");
     when(identityManager.identityExisted(OrganizationIdentityProvider.NAME, "user")).thenReturn(true);
     response = mockMvc.perform(post(REST_PATH + "/notify").with(simpleUser())
-            .content(jsonNotification)
-            .contentType(MediaType.APPLICATION_JSON));
+                                                          .content(jsonNotification)
+                                                          .contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
     response.andExpect(content().string("""
-          {
-            "rejected": []
-          }
-          """));
+        {
+          "rejected": []
+        }
+        """));
+  }
+
+  @Test
+  void isPushNotificationsEnabled() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH
+        + "/isPushNotificationsEnabled/demo").with(simpleUser()).contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isForbidden());
+
+    response = mockMvc.perform(get(REST_PATH
+        + "/isPushNotificationsEnabled/user").with(simpleUser()).contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("false"));
+
+    when(chatNotificationService.isPushNotificationsEnabled("user")).thenReturn(true);
+
+    response = mockMvc.perform(get(REST_PATH
+        + "/isPushNotificationsEnabled/user").with(simpleUser()).contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("true"));
+  }
+
+  @Test
+  void updatePushNotificationsSettings() throws Exception {
+    String content = """
+        {
+          "active": true
+        }
+        """;
+    ResultActions response = mockMvc.perform(post(REST_PATH
+        + "/enablePushNotificationsSettings").with(simpleUser()).content(content).contentType(MediaType.APPLICATION_JSON));
+
+    response.andExpect(status().isForbidden());
+
+    content = """
+        { "userName": test,
+          "active": true
+        }
+        """;
+    response = mockMvc.perform(post(REST_PATH + "/enablePushNotificationsSettings").with(simpleUser())
+                                                                                   .content(content)
+                                                                                   .contentType(MediaType.APPLICATION_JSON));
+
+    response.andExpect(status().isForbidden());
+
+    content = """
+        { "userName": user,
+          "active": true
+        }
+        """;
+    response = mockMvc.perform(post(REST_PATH + "/enablePushNotificationsSettings").with(simpleUser())
+                                                                                   .content(content)
+                                                                                   .contentType(MediaType.APPLICATION_JSON));
+
+    response.andExpect(status().isOk());
   }
 }

@@ -21,7 +21,6 @@ package io.meeds.chat.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.notification.channel.ChatPushChannel;
 import io.meeds.portal.permlink.model.PermanentLinkObject;
 import io.meeds.portal.permlink.service.PermanentLinkService;
 import io.meeds.pwa.model.PwaNotificationMessage;
@@ -103,6 +102,8 @@ public class ChatNotificationService {
 
   public static final String        MUTED_ROOMS                  = "mutedRooms";
 
+  public static final String        PUSH_NOTIFICATIONS_SETTINGS  = "pushNotificationsSettings";
+
   /**
    * Sends a notification Creation request to the Push service on the browser
    * based on the event contents
@@ -114,8 +115,7 @@ public class ChatNotificationService {
    * @return thread to perform notification action
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
-    if (!isPushEnabledForUser(userName, roomId)
-        && !getUserSettingService().get(userName).isChannelGloballyActive(ChatPushChannel.ID)) {
+    if (!canSendPushNotificationToUser(userName, roomId)) {
       return null;
     }
     // Create Push notification
@@ -328,7 +328,36 @@ public class ChatNotificationService {
     return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
   }
 
-  private boolean isPushEnabledForUser(String userName, String roomId) {
+  /**
+   * Check the status of the Push notifications on Chat for a specified user
+   * 
+   * @param userName the specified username
+   * @return true if the Push notifications settings is enabled
+   */
+  public boolean isPushNotificationsEnabled(String userName) {
+    SettingValue<String> settingValue = (SettingValue<String>) settingService.get(Context.USER.id(userName),
+                                                                                  USER_CHAT_NOTIFICATION_SCOPE,
+                                                                                  PUSH_NOTIFICATIONS_SETTINGS);
+    return settingValue == null || Boolean.parseBoolean(settingValue.getValue());
+  }
+
+  /**
+   * Set the status of the Push notifications on Chat for a specified user
+   * 
+   * @param userName the specified user
+   * @param pushNotificationStatus the status true or false
+   */
+  public void updatePushNotificationSettings(String userName, boolean pushNotificationStatus) {
+    settingService.set(Context.USER.id(userName),
+                       USER_CHAT_NOTIFICATION_SCOPE,
+                       PUSH_NOTIFICATIONS_SETTINGS,
+                       new SettingValue<>(String.valueOf(pushNotificationStatus)));
+  }
+
+  private boolean canSendPushNotificationToUser(String userName, String roomId) {
+    if (!this.isPushNotificationsEnabled(userName)) {
+      return false;
+    }
     Room room = matrixService.getById(roomId);
     if (room == null) {
       return false;
