@@ -1437,5 +1437,14 @@ export async function registerUserToken() {
   if (!dbExists) {
     await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
   }
-  await dbStorage.setValue(chatConstants.DB_SETTINGS, 'access_token', localStorage.getItem("matrix_access_token"));
+  const settings = {
+    'access_token': localStorage.getItem("matrix_access_token"),
+    'user_id': localStorage.getItem("matrix_user_id")
+  };
+  await dbStorage.setValue(
+    chatConstants.DB_SETTINGS,
+    chatConstants.DB_SETTINGS.DB_STORES.SETTINGS,
+    'settings',
+    settings
+  );
 }

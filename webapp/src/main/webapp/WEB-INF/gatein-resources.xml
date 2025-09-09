@@ -116,4 +116,27 @@
     </depends>
   </module>
 
+  <module>
+    <name>MatrixUserSettingsNotificationsExtension</name>
+    <load-group>UserSettingNotificationsGRP</load-group>
+    <script>
+      <path>/js/userSettingsNotificationsExtension.bundle.js</path>
+    </script>
+    <depends>
+      <module>vue</module>
+    </depends>
+    <depends>
+      <module>vuetify</module>
+    </depends>
+    <depends>
+      <module>eXoVueI18n</module>
+    </depends>
+    <depends>
+      <module>extensionRegistry</module>
+    </depends>
+    <depends>
+      <module>commonVueComponents</module>
+    </depends>
+  </module>
+
 </gatein-resources>

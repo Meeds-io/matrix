@@ -17,10 +17,15 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-import MentionWebPlugin from './components/MatrixChatMentionWebPlugin.vue';
+import PushNotificationsSettings from './components/PushNotificationsSettings.vue';
+import * as NotificationsSettingsService from './js/NotificationsSettingsService.js';
+
+window.Object.defineProperty(Vue.prototype, '$notificationsSettingsService', {
+  value: NotificationsSettingsService,
+});
 
 const components = {
-  'matrix-notification-chat-mention': MentionWebPlugin,
+  'matrix-push-notifications-settings': PushNotificationsSettings,
 };
 
 for (const key in components) {

@@ -17,12 +17,17 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-import MentionWebPlugin from './components/MatrixChatMentionWebPlugin.vue';
+import './initComponents.js';
+import './extensions.js';
 
-const components = {
-  'matrix-notification-chat-mention': MentionWebPlugin,
-};
+const lang = eXo.env.portal.language;
+const url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`;
 
-for (const key in components) {
-  Vue.component(key, components[key]);
+export function init() {
+  return exoi18n.loadLanguageAsync(lang, url)
+    .then(() => {
+      new Vue({
+        i18n: exoi18n.i18n,
+      });
+    });
 }
