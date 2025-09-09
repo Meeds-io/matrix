@@ -39,6 +39,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
+import static io.meeds.chat.service.ChatNotificationService.PUSH_NOTIFICATIONS_SETTINGS;
+import static io.meeds.chat.service.ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -202,7 +204,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     String userName = "demo";
     String mutedRoomId = "!mutedRoom:matrix.meeds.tn";
     String otherRoomId = "!otherRoom:matrix.meeds.tn";
-    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    Scope scope = USER_CHAT_NOTIFICATION_SCOPE;
     String key = ChatNotificationService.MUTED_ROOMS;
 
     // Case: room is muted
@@ -225,7 +227,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   void testToggleMutePrivateRoom() {
     String userName = "demo";
     String roomId = "!newRoom:matrix.meeds.tn";
-    Scope scope = ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
+    Scope scope = USER_CHAT_NOTIFICATION_SCOPE;
     String key = ChatNotificationService.MUTED_ROOMS;
 
     final Set<String>[] currentMutedRooms = new Set[] { new HashSet<>() };
@@ -331,5 +333,21 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
       assertEquals("Raul Hamdi mentioned you in Sample room", pwaNotificationMessage.getTitle());
       assertEquals("This is a message for testing !", pwaNotificationMessage.getBody());
     }
+  }
+
+  @Test
+  void isPushNotificationsEnabled() {
+    when(settingService.get(Context.USER.id("demo"), USER_CHAT_NOTIFICATION_SCOPE, PUSH_NOTIFICATIONS_SETTINGS)).thenReturn(null);
+    boolean result = chatNotificationService.isPushNotificationsEnabled("demo");
+    assertTrue(result);
+  }
+
+  @Test
+  void updatePushNotificationSettings() {
+    chatNotificationService.updatePushNotificationSettings("demo", true);
+    verify(settingService, times(1)).set(eq(Context.USER.id("demo")),
+                                         eq(USER_CHAT_NOTIFICATION_SCOPE),
+                                         eq(PUSH_NOTIFICATIONS_SETTINGS),
+                                         any());
   }
 }
