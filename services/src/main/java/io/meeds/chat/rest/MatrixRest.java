@@ -620,7 +620,7 @@ public class MatrixRest implements ResourceContainer {
 
   @GetMapping("/isPushNotificationsEnabled/{userName}")
   @Secured("users")
-  @Operation(summary = "Get the status of push notifications enabled/disabled", method = "PUT", description = "Get the status of push notifications enabled/disabled")
+  @Operation(summary = "Get the status of push notifications enabled/disabled", method = "GET", description = "Get the status of push notifications enabled/disabled")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "username is not provided"),
       @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
