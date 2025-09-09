@@ -639,7 +639,7 @@ public class MatrixRest implements ResourceContainer {
 
   @PostMapping("/enablePushNotificationsSettings")
   @Secured("users")
-  @Operation(summary = "Change the status of push notifications enabled/disabled", method = "PUT", description = "Change the status of push notifications enabled/disabled")
+  @Operation(summary = "Change the status of push notifications enabled/disabled", method = "POST", description = "Change the status of push notifications enabled/disabled")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
