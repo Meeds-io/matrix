@@ -120,7 +120,7 @@
       this.$nextTick().then(() => this.$matrixService.registerUserToken());
     },
     beforeDestroy() {
-      this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
       this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
       this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
       document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);

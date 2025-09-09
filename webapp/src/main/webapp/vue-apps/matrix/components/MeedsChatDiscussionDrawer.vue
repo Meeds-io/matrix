@@ -557,7 +557,9 @@ export default {
             behavior: 'instant'
           });
           this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-            this.room.unreadMessages = 0;
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: { roomId: this.room.id }
+            }));
           });
         }
       }
