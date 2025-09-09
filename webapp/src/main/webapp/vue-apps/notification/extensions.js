@@ -31,8 +31,3 @@ extensionRegistry.registerExtension('WebNotification', 'notification-content-ext
   rank: 10,
   vueComponent: Vue.options.components['matrix-notification-chat-mention'],
 });
-extensionRegistry.registerExtension('WebNotification', 'notification-content-extension', {
-  type: 'MatrixMessageReceivedNotificationPlugin',
-  rank: 10,
-  vueComponent: Vue.options.components['matrix-notification-chat-message'],
-});
