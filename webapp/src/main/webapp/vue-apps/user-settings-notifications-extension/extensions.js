@@ -17,12 +17,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-import MentionWebPlugin from './components/MatrixChatMentionWebPlugin.vue';
-
-const components = {
-  'matrix-notification-chat-mention': MentionWebPlugin,
-};
-
-for (const key in components) {
-  Vue.component(key, components[key]);
-}
+extensionRegistry.registerComponent('UserSettingsNotifications', 'user-settings-notifications-extension', {
+  id: 'PushNotificationsSettingsExtension',
+  rank: 10,
+  vueComponent: Vue.options.components['matrix-push-notifications-settings'],
+});
