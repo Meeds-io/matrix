@@ -4,10 +4,14 @@
     id="meedsChatDrawer"
     :loading="loading"
     class="meeds-chat-drawer"
+    :filter-placeholder="$t('matrix.rooms.filter.placeholder')"
+    use-filter
     right
+    @filter-updated="handleFilterUpdate"
     @closed="close">
     <template slot="title">
-      <div class="d-flex">
+      <div
+        class="d-flex">
         <v-badge
           :color="presenceColor"
           :value="true"
@@ -34,13 +38,18 @@
         <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
       </div>
     </template>
-    <template slot="titleIcons">
-      <v-icon
-        v-exo-tooltip.bottom="$t('matrix.chat.quick.create.discussion')"
-        class="my-auto"
+    <template
+      slot="titleIcons">
+      <v-btn
+        :title="$t('matrix.chat.quick.create.discussion')"
+        icon
         @click="openQuickCreateChatDiscussionDrawer">
-        mdi-plus
-      </v-icon>
+        <v-icon
+          class="icon-default-color"
+          size="20">
+          fa-plus
+        </v-icon>
+      </v-btn>
     </template>
     <template slot="content">
       <div
@@ -56,6 +65,12 @@
 </template>
 <script>
 export default {
+  data() {
+    return {
+      searchTimer: null,
+      searchTerm: null
+    }
+  },
   props: {
     rooms: {
       type: Array,
@@ -77,11 +92,24 @@ export default {
     fullName() {
       return this.$currentUserIdentity?.profile?.fullname;
     },
+    filteredRooms() {
+      if (!this.searchTerm) {
+        return this.rooms;
+      }
+      const normalize = str =>
+          str?.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase() || '';
+
+      const normalizedSearch = normalize(this.searchTerm);
+
+      return this.rooms.filter(room =>
+          normalize(room.name).includes(normalizedSearch)
+      );
+    },
     sortedRooms() {
-      if (!Array.isArray(this.rooms)) {
+      if (!Array.isArray(this.filteredRooms)) {
         return [];
       }
-      return [...this.rooms].sort(
+      return [...this.filteredRooms].sort(
           (a, b) =>
               (b.updated || 0) - (a.updated || 0) ||
               a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
@@ -100,6 +128,16 @@ export default {
     this.checkLoading();
   },
   methods: {
+    handleFilterUpdate(text) {
+      this.loading = true;
+      if (this.searchTimer) {
+        clearTimeout(this.searchTimer);
+      }
+      this.searchTimer = setTimeout(() => {
+        this.searchTerm = text;
+        this.loading = false;
+      }, 300);
+    },
     checkLoading() {
       if (this.loading) {
         this.$refs.meedsChatDrawer.startLoading();

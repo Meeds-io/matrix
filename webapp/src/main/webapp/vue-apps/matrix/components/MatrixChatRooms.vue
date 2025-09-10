@@ -8,8 +8,12 @@
       :room="room" />
   </div>
   <div v-else-if="!loading" class="d-flex full-height align-center justify-center full-width">
-    <div class="noRoomsContent">
-      <v-icon class="mx-auto disabled--text mb-3" size="100">fas fa-comments</v-icon>
+    <div>
+      <v-icon
+        class="mx-auto mb-5"
+        size="60">
+        far fa-comments
+      </v-icon>
       <p class="text-subtitle">{{ $t('matrix.chat.no.rooms') }}</p>
     </div>
   </div>
