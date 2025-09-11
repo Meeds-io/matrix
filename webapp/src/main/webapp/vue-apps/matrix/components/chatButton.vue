@@ -103,7 +103,7 @@
         this.$matrixService.installPusher();
       }
 
-      this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
+      this.$root.$on('chat-event-total-unread-updated', e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
@@ -118,7 +118,9 @@
         this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
       }
       this.$nextTick().then(() => {
+        console.log('START registering user');
         this.$matrixService.registerUserToken();
+        console.log('END registering user');
       });
     },
     beforeDestroy() {
@@ -338,7 +340,7 @@
         this.addRoomIfNotExists(room);
         this.openDrawer();
         setTimeout(() => {
-          this.$root.$emit("open-chat-discussion", roomId);
+          this.$root.$emit("open-chat-discussion", room);
         }, 100);
       },
       sendMessageStatistics(message, room) {

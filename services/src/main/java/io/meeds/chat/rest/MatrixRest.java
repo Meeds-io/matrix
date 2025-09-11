@@ -233,8 +233,10 @@ public class MatrixRest implements ResourceContainer {
             if (notifJsonValue.getElement("event_id") != null) {
               eventId = notifJsonValue.getElement("event_id").getStringValue();
             }
-            chatNotificationService.createMentionNotification(eventId, roomId, userName, pushKey);
-            chatNotificationService.sendCreateNotificationAction(eventId, userName, roomId, unreadCount);
+            if(StringUtils.isNotBlank(eventId) && StringUtils.isNotBlank(roomId)) {
+              chatNotificationService.createMentionNotification(eventId, roomId, userName, pushKey);
+              chatNotificationService.sendCreateNotificationAction(eventId, userName, roomId, unreadCount);
+            }
           }
         }
       }
@@ -590,30 +592,6 @@ public class MatrixRest implements ResourceContainer {
       return pwaMessage;
     } else {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found or it is not a chat message");
-    }
-  }
-
-  @PostMapping("/muteRoom")
-  @Secured("users")
-  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
-  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
-      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
-      @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<String> muteRoom(HttpServletRequest request,
-                                         @Parameter(description = "ID of the room to mute")
-                                         @RequestParam(name = "roomId")
-                                         String roomId) {
-
-    String userName = request.getRemoteUser();
-    if (StringUtils.isBlank(roomId)) {
-      return ResponseEntity.badRequest().body("roomId parameter is required");
-    }
-    try {
-      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
-      return ResponseEntity.ok("Room muted successfully");
-    } catch (Exception e) {
-      LOG.error("Error muting room {} for user {}", roomId, userName, e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
     }
   }
 

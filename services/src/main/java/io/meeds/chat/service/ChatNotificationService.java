@@ -30,6 +30,12 @@ import io.meeds.social.util.JsonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.api.notification.NotificationContext;
 import org.exoplatform.commons.api.notification.model.PluginKey;
+import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.notification.impl.NotificationContextImpl;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.portal.config.UserPortalConfigService;
@@ -37,6 +43,8 @@ import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.resources.LocaleConfig;
 import org.exoplatform.services.resources.ResourceBundleService;
+import org.exoplatform.services.user.UserStateModel;
+import org.exoplatform.services.user.UserStateService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
@@ -48,7 +56,10 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -79,7 +90,10 @@ public class ChatNotificationService {
   @Autowired
   private UserPortalConfigService   portalConfigService;
 
-  private static UserStateService   userStateService;
+  @Autowired
+  private SettingService            settingService;
+
+  private static UserStateService userStateService;
 
   private static UserSettingService userSettingService;
 
@@ -104,7 +118,7 @@ public class ChatNotificationService {
    * @return thread to perform notification action
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
-    if (!canSendPushNotificationToUser(userName, roomId)) {
+    if (!isPushNotificationsEnabled(userName)) {
       return null;
     }
     // Create Push notification
@@ -264,39 +278,6 @@ public class ChatNotificationService {
     return false;
   }
 
-  public boolean isPrivateRoomMutedForUser(String userName, String roomId) {
-    return getMutedRooms(userName).contains(roomId);
-  }
-
-  public void toggleMutePrivateRoom(String userName, String roomId) {
-    Set<String> mutedRoomIds = new HashSet<>(getMutedRooms(userName));
-    boolean changed;
-    changed = mutedRoomIds.remove(roomId);
-    if (!changed) {
-      changed = mutedRoomIds.add(roomId);
-    }
-    if (changed) {
-      settingService.set(Context.USER.id(userName),
-                         USER_CHAT_NOTIFICATION_SCOPE,
-                         MUTED_ROOMS,
-                         SettingValue.create(JsonUtils.toJsonString(mutedRoomIds)));
-    }
-  }
-
-  private Set<String> getMutedRooms(String userName) {
-    try {
-      SettingValue<?> settingValue = settingService.get(Context.USER.id(userName), USER_CHAT_NOTIFICATION_SCOPE, MUTED_ROOMS);
-      if (settingValue == null || settingValue.getValue() == null) {
-        return Collections.emptySet();
-      }
-      return JsonUtils.OBJECT_MAPPER.readValue(settingValue.getValue().toString(), new TypeReference<>() {
-      });
-    } catch (Exception e) {
-      LOG.error("Error reading muted rooms setting value for user {}", userName, e);
-      return Collections.emptySet();
-    }
-  }
-
   private String getMessageLink(MatrixMessage message) {
     String urlFormat = "%s?roomId=%s&message=%s";
     Room room = matrixService.getById(message.getRoomId());
@@ -341,25 +322,6 @@ public class ChatNotificationService {
                        USER_CHAT_NOTIFICATION_SCOPE,
                        PUSH_NOTIFICATIONS_SETTINGS,
                        new SettingValue<>(String.valueOf(pushNotificationStatus)));
-  }
-
-  private boolean canSendPushNotificationToUser(String userName, String roomId) {
-    if (!this.isPushNotificationsEnabled(userName)) {
-      return false;
-    }
-    Room room = matrixService.getById(roomId);
-    if (room == null) {
-      return false;
-    }
-    boolean roomMuted;
-    if (StringUtils.isNotBlank(room.getSpaceId())) {
-      UserSetting userSetting = getUserSettingService().get(userName);
-      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
-    } else {
-      roomMuted = isPrivateRoomMutedForUser(userName, roomId);
-    }
-    UserStateModel userStatus = getUserStateService().getUserState(userName);
-    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
   }
 
   private static UserStateService getUserStateService() {

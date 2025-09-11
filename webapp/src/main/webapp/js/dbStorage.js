@@ -18,15 +18,23 @@
 */
 
 function retrieveDatabase(dbSettings) {
-  const request = window.indexedDB.open(dbSettings.dbName, dbSettings.version);
+  const request = window.indexedDB.open(dbSettings.DB_NAME, dbSettings.DB_VERSION);
   return new Promise((resolve, reject) => {
     request.onerror = reject;
     request.onsuccess = e => resolve(e.target.result);
     request.onupgradeneeded = e => {
       try {
-        e.target.result.createObjectStore(dbSettings.dbStore);
+        const db = e.target.result;
+        const stores = dbSettings.DB_STORES;
+        console.log('Creating databases');
+
+        for (const storeName of Object.values(stores)) {
+          if (!db.objectStoreNames.contains(storeName)) {
+            db.createObjectStore(storeName);
+          }
+        }
       } catch (e) {
-        console.debug('Error upgrading database version', e);
+        console.debug('Error during DB upgrade:', e);
         reject(e);
       }
     };
@@ -35,7 +43,7 @@ function retrieveDatabase(dbSettings) {
 
 
 async function getDatabase(dbSettings) {
-  if (await isDatabaseExists(dbSettings.dbName)) {
+  if (await isDatabaseExists(dbSettings.DB_NAME)) {
     return retrieveDatabase(dbSettings);
   } else {
     return null;
@@ -43,11 +51,11 @@ async function getDatabase(dbSettings) {
 }
 
 export async function deleteDatabase(dbSettings) {
-  if (await isDatabaseExists(dbSettings.dbName)) {
+  if (await isDatabaseExists(dbSettings.DB_NAME)) {
     const db = await retrieveDatabase(dbSettings);
     if (db) {
       return new Promise((resolve, reject) => {
-        const request = window.indexedDB.deleteDatabase(dbSettings.dbName);
+        const request = window.indexedDB.deleteDatabase(dbSettings.DB_NAME);
         request.onerror = e => {
           console.error(e);
           reject(e);
@@ -78,30 +86,30 @@ export async function isDatabaseExists(dbName) {
   return !!dbs?.find?.(db => db.name === dbName);
 }
 
-export async function getValue(dbSettings, paramName) {
+export async function getValue(dbSettings, store, paramName) {
   const database = await getDatabase(dbSettings);
   if (!database) {
     return null;
   }
   return new Promise(resolve => {
-    const transaction = database.transaction([dbSettings.dbStore], 'readonly');
-    const request = transaction.objectStore(dbSettings.dbStore).get(paramName);
+    const transaction = database.transaction([store], 'readonly');
+    const request = transaction.objectStore(store).get(paramName);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => resolve(null);
   });
 }
 
-export async function setValue(dbSettings, paramName, paramValue) {
+export async function setValue(dbSettings, store, paramName, paramValue) {
   const database = await getDatabase(dbSettings);
   if (!database) {
     return null;
   }
   return new Promise(resolve => {
-    const transaction = database.transaction([dbSettings.dbStore], 'readwrite');
+    const transaction = database.transaction([store], 'readwrite');
     transaction.oncomplete = () => {
       transaction.db.close();
       resolve();
     };
-    transaction.objectStore(dbSettings.dbStore).put(paramValue, paramName);
+    transaction.objectStore(store).put(paramValue, paramName);
   });
 }

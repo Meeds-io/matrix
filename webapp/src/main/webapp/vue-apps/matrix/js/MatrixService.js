@@ -7,6 +7,7 @@ const replyToCache = new Map();
 const userCache = new Map();
 const reactionEvents = new Map();
 let isPolling = false;
+const messageTimestampsMap = new Map();
 
 
 // variables that will be get from the server
@@ -250,6 +251,7 @@ export async function processEvents(response) {
                 message: message
               }
             }));
+            messageTimestampsMap.set(message.event_id, message.origin_server_ts);
           }
         } else if (e.type === 'm.room.redaction') {
           const redactedEventId = e.redacts;
@@ -308,7 +310,7 @@ export async function processEvents(response) {
         }
       }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
-      ephemeralEvents.forEach(e => {
+      for (const e of ephemeralEvents) {
         //Users are typing in the room
         if(e.type === 'm.typing') {
           if(e.content.user_ids?.length) {
@@ -318,15 +320,9 @@ export async function processEvents(response) {
         }
         //User sent a read receipt of a room
         if(e.type === 'm.receipt') {
-          if(e.content) {
-            for (const eventId in e.content) {
-              if(e.content[eventId]["m.read"][matrixUserId]?.thread_id) {
-                document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: {roomId: roomId}}));
-              }
-            }
-          }
+          await handleReadReceiptEvent(e, roomId);
         }
-      });
+      }
     }
   }
   if(response?.presence?.events) {
@@ -338,6 +334,43 @@ export async function processEvents(response) {
     });
   }
 }
+
+async function handleReadReceiptEvent(event, roomId) {
+  const matrixUserId = localStorage.getItem('matrix_user_id');
+  const dbSettings = chatConstants.DB_SETTINGS;
+  const receiptsStore = dbSettings.DB_STORES.READ_RECEIPTS;
+  if (!event.content) return;
+
+  // Load current map of last reads per room
+  const storeKey = `lastRead::${roomId}`;
+  let lastReads = await dbStorage.getValue(dbSettings, receiptsStore, storeKey);
+  if (!lastReads) lastReads = {};
+
+  for (const eventId in event.content) {
+    const receipt = event.content[eventId]['m.read'];
+    if (!receipt) continue;
+
+    for (const userId in receipt) {
+      const readData = receipt[userId];
+
+      // Only update if eventId is newer
+      const prevEventId = lastReads?.[userId]?.eventId;
+      const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
+      const newTimestamp = messageTimestampsMap.get(eventId);
+
+      if (!prevEventId || !prevTimestamp || (newTimestamp && newTimestamp > prevTimestamp)) {
+        lastReads[userId] = {
+          eventId: eventId,
+          ts: newTimestamp,
+        }
+      }
+    }
+  }
+
+  // Save updated map in one write
+  await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
+}
+
 
 export async function toRoomObject(rooms, currentMemberId) {
   let myRooms = {rooms: [], totalUnreadMessages: 0};
@@ -907,6 +940,7 @@ export function processMessages(messageItems) {
     if (item.type === 'm.room.message') {
       const relatesTo = item.content['m.relates_to'];
       const newContent = item.content['m.new_content'];
+      messageTimestampsMap.set(item.event_id, item.origin_server_ts);
 
       // Handle edits
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
@@ -1433,7 +1467,7 @@ export function initUserData(data) {
 }
 
 export async function registerUserToken() {
-  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.dbName);
+  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.DB_NAME);
   if (!dbExists) {
     await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
   }

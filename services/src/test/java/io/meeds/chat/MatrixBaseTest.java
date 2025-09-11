@@ -119,7 +119,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
   }
 
   @BeforeEach
-  void setUp() throws Exception {
+  protected void setUp() throws Exception {
     begin();
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
@@ -139,18 +139,24 @@ public class MatrixBaseTest extends AbstractSpringTest {
     matrixRoomPermissions.setUsers(new ArrayList(List.of(new MatrixUserPermission[] { matrixUserPermission,
         raulUserPermission })));
     when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
-    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenReturn("@demo:matrix.meeds.tn");
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenAnswer(invocation -> {
+      String matrixUserId = invocation.getArgument(1);
+      return "@" + matrixUserId + ":matrix.meeds.tn";
+    });
     when(matrixHttpClient.saveUserAccount(any(),
                                           anyString(),
                                           anyBoolean(),
                                           anyString(),
                                           anyBoolean(),
-                                          anyBoolean())).thenReturn("@demo:matrix.meeds.tn");
+                                          anyBoolean())).thenAnswer(invocation -> {
+                                            String matrixUserId = invocation.getArgument(1);
+                                            return "@" + matrixUserId + ":matrix.meeds.tn";
+                                          });
     when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
   }
 
   @AfterEach
-  void tearDown() {
+  protected void tearDown() {
     for (Space space : spacesToDelete) {
       try {
         this.spaceService.deleteSpace(space);
