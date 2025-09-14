@@ -28,7 +28,7 @@
     compact>
     <template slot="subTitle">
       <span
-        v-if="!sameUser"
+        v-if="!sameUser && inCommonConnections"
         class="caption text-bold">
         {{ inCommonConnections }} {{ $t('matrix.user.connections.in.commons') }}
       </span>
@@ -39,6 +39,11 @@
 <script>
 
 export default {
+  data() {
+    return {
+      user: null
+    };
+  },
   props: {
     receipt: {
       type: String,
