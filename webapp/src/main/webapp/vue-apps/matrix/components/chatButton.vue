@@ -150,6 +150,9 @@
     computed: {
       presenceColor() {
         return this.presence && this.$root.statusMap[this.presence];
+      },
+      isUserStatusAvailable() {
+        return this.presence === 'available';
       }
     },
     methods: {
@@ -209,9 +212,9 @@
           await this.processNextMessageEvent();
         }
       },
-      enableAndPlayBipSound() {
+      enableAndPlayBipSound({detail: {roomId, message}}) {
         const keyToCheck = 'matrix_allow_bip';
-        if (event.detail?.message?.sender !== matrixUserId) {
+        if (message?.sender !== matrixUserId) {
           if (localStorage.getItem(keyToCheck) === null) {
             document.dispatchEvent(new CustomEvent('alert-message', {detail: {
               alertType: 'info',
@@ -227,8 +230,8 @@
               alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
             }}));
           } else if (localStorage.getItem(keyToCheck) === 'true') {
-            const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
-            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
+            const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
+            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
               this.$refs.messageAudio.play().catch(err => {
                 this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
               });
