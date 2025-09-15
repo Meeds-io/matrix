@@ -517,8 +517,12 @@ export default {
         return;
       }
       setTimeout(async () => {
-        await this.loadUnseenMessagesData();
-      }, 1000)
+        if (this.isInputFocused) {
+          this.clearUnseenData();
+        } else {
+          await this.loadUnseenMessagesData();
+        }
+      }, 500)
     },
     async loadUnseenMessagesData() {
       this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
@@ -532,17 +536,20 @@ export default {
     },
     onInputFocus(event) {
       setTimeout(() => {
-        if (this.isAtBottomMessages) {
-          const lastMessageIndex = this.messages.length - 1;
-          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
-            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
-              detail: {roomId: this.room.id}
-            }));
-          });
-        }
+        this.markRoomAsRead();
       }, 200)
       this.isInputFocused = true;
       this.resizeComposerArea(event)
+    },
+    markRoomAsRead() {
+      if (this.isAtBottomMessages && this.messages?.length) {
+        const lastMessageIndex = this.messages.length - 1;
+        this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+            detail: {roomId: this.room.id}
+          }));
+        });
+      }
     },
     getMessagesContainerElement() {
       if (!this.messagesContainerElement) {
@@ -723,6 +730,9 @@ export default {
         // Force scroll to bottom in case last message is too tall
         container.scrollTop = container.scrollHeight;
         this.hasUnseenNewReceivedMessage = false;
+        if (this.isInputFocused) {
+          this.markRoomAsRead();
+        }
       })
     },
     loadMoreMessages() {
@@ -1069,9 +1079,11 @@ export default {
     },
     handleTypingReceived(event) {
       const {roomId, users} = event.detail;
-      if (roomId === this.room.id) {
-        this.typingUsers = users;
+      if (roomId !== this.room.id) {
+        this.typingUsers = [];
+        return;
       }
+      this.typingUsers = users;
     },
     resetData() {
       if (!this.unSeenMessagesData?.viewPortInfo) {
