@@ -151,6 +151,9 @@
     computed: {
       presenceColor() {
         return this.presence && this.$root.statusMap[this.presence];
+      },
+      isUserStatusAvailable() {
+        return this.presence === 'available';
       }
     },
     methods: {
@@ -248,7 +251,7 @@
             }}));
           } else if (localStorage.getItem(keyToCheck) === 'true') {
             const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
-            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
+            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
               this.$refs.messageAudio.play().catch(err => {
                 this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
               });
