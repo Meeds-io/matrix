@@ -1086,6 +1086,7 @@ export default {
       this.typingUsers = users;
     },
     resetData() {
+      this.typingUsers = [];
       if (!this.unSeenMessagesData?.viewPortInfo) {
         return;
       }
