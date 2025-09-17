@@ -297,7 +297,7 @@ export default {
       space: null,
       menu: false,
       roomLastReadReceipts: [],
-      typingUsers: [],
+      typingCache: {},
       typingTimeout: null,
       unSeenMessagesData: {
         firstUnseenEventId: null,
@@ -321,6 +321,9 @@ export default {
     };
   },
   computed: {
+    typingUsers() {
+      return this.typingCache?.[this.room?.id]?.typingUsers || [];
+    },
     isAtBottomMessages() {
       const element = this.getMessagesContainerElement();
       if (!element) {
@@ -1079,11 +1082,8 @@ export default {
     },
     handleTypingReceived(event) {
       const {roomId, users} = event.detail;
-      if (roomId !== this.room.id) {
-        this.typingUsers = [];
-        return;
-      }
-      this.typingUsers = users;
+      const now = Date.now();
+      this.$set(this.typingCache, roomId, {typingUsers: users, lastUpdated: now});
     },
     resetData() {
       if (!this.unSeenMessagesData?.viewPortInfo) {
