@@ -275,6 +275,13 @@ export default {
     };
   },
   computed: {
+    isAtBottomMessages() {
+      const element = this.getMessagesContainerElement();
+        if (!element) {
+          return true;
+        }
+      return element.scrollHeight - this.messageContainerScrollTop - element.clientHeight <= 60;
+    },
     isMuted() {
       return this.room?.muted;
     },
@@ -422,29 +429,9 @@ export default {
         await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
-    async onComposerInput(event) {
+    onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
-      await this.$matrixService.sendTyping(this.room.id, true);
-      if (this.typingTimeout) {
-        clearTimeout(this.typingTimeout);
-      }
-      this.typingTimeout = setTimeout(() => {
-        this.$matrixService.sendTyping(this.room.id, false);
-      }, 3000);
-    },
-    async handleUpdateUnseenData(event) {
-      const {roomId} = event.detail;
-      if (this.room?.id !== roomId) {
-        return;
-      }
-      setTimeout(async () => {
-        await this.loadUnseenMessagesData();
-      }, 1000)
-    },
-    async loadUnseenMessagesData() {
-      this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
-      this.$forceUpdate();
     },
     scrollToBottomMessages() {
       if (!this.hasUnseenMessages) {

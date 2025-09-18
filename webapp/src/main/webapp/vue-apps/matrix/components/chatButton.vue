@@ -63,9 +63,13 @@
       messageEventQueue: [],
       processingMessageQueue: false,
       seenEventIds: new Map(),
-      userName: eXo?.env?.portal.userName
+      userName: eXo?.env?.portal.userName,
+      presenceInterval: null,
+      isPresencePollingOwner: false,
+      presencePollingKey: 'presence_polling_owner'
     }),
     created() {
+      this.tryBecomePresencePollingOwner();
       this.getUserStatus();
       this.scheduleSeenEventsCleanup();
       this.setupBroadcastChannelListener();
@@ -114,9 +118,11 @@
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
       document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
-      document.addEventListener('user-status-updated', this.handleUserStatusUpdated);
+      document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
       document.addEventListener('space-unmuted', this.handleSpaceUnmute)
       document.addEventListener('space-muted', this.handleSpaceMute)
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
+      window.addEventListener('storage', this.handleLocaleStorageUpdate);
     },
     mounted() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -136,9 +142,12 @@
       document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
       document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
-      document.removeEventListener('user-status-updated', this.handleUserStatusUpdated);
+      document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
       document.removeEventListener('space-unmuted', this.handleSpaceUnmute)
       document.removeEventListener('space-muted', this.handleSpaceMute)
+      window.removeEventListener('beforeunload', this.handleBeforeUnload);
+      window.removeEventListener('storage', this.handleLocaleStorageUpdate);
+      this.releasePresencePollingOwner();
     },
     watch: {
       open() {
@@ -176,19 +185,76 @@
           this.presence = data?.status;
         });
       },
-      handleUserStatusUpdated({detail: {userId, status}}) {
-        if (userId === this.userName) {
+      tryBecomePresencePollingOwner() {
+        const now = Date.now();
+        const ownerRaw = localStorage.getItem(this.presencePollingKey);
+        const owner = ownerRaw ? JSON.parse(ownerRaw) : null;
+
+        if (!owner || now - owner.timestamp > 35000) {
+          const myOwner = {id: this._uid, timestamp: now};
+          localStorage.setItem(this.presencePollingKey, JSON.stringify(myOwner));
+          this.becomePresencePollingOwner();
+        }
+      },
+      becomePresencePollingOwner() {
+        if (this.isPresencePollingOwner) {
+          return;
+        }
+        this.isPresencePollingOwner = true;
+
+        if (this.presencePollingInterval) {
+          clearInterval(this.presencePollingInterval);
+        }
+
+        this.refreshUserStatus();
+        this.presencePollingInterval = setInterval(() => {
+          if (document.hidden || !navigator.onLine) {
+            return;
+          }
+          this.refreshUserStatus();
+        }, 30000 + Math.floor(Math.random() * 5000));
+      },
+      async refreshUserStatus() {
+        this.getUserStatus();
+        if (this.rooms?.length) {
+          this.rooms = await Promise.all(
+            this.rooms.map(async room => {
+              if (room.directChat && room.dmMemberId) {
+                const userData = await this.$userStateService.getUserStatus(room.dmMemberId);
+                this.$root.channel.postMessage({
+                  type: 'user-status-updated',
+                  payload: {userId: room.dmMemberId, status: userData?.status}
+                });
+                return {...room, presence: userData?.status};
+              }
+              return room;
+            })
+          );
+        }
+      },
+      handleCurrentUserStatusUpdated({detail: {userId, status}}) {
+        if (this.userName === userId) {
+          this.presence = status;
+          this.$root.channel.postMessage({
+            type: 'user-status-updated',
+            payload: {userId: userId, status: this.presence}
+          });
+        }
+      },
+      handleUserStatusUpdated({userId, status}) {
+        if (userId === this.userName && this.presence !== status) {
           this.presence = status;
           return;
         }
-        const updatedRooms = this.rooms?.map(room =>
-            room.directChat && room.dmMemberId === userId
-              ? {...room, presence: status}
-              : room);
-
+        const updatedRooms = this.rooms?.map(room => room.directChat && room.dmMemberId === userId
+        && room.presence !== status ?
+          {...room, presence: status} : room);
         if (updatedRooms) {
           this.rooms = updatedRooms;
         }
+      },
+      handleBeforeUnload() {
+        this.releasePresencePollingOwner();
       },
       enqueueMessageReceivedEvent(event) {
         this.enableAndPlayBipSound(event);
@@ -416,8 +482,12 @@
       },
       bindSyncPollingListeners(matrixFilterId) {
         document.addEventListener('visibilitychange', () => {
+          if (document.hidden && this.isPresencePollingOwner) {
+            this.releasePresencePollingOwner();
+          }
           if (!document.hidden) {
             this.$matrixService.startMatrixSyncLoop(matrixFilterId).catch(console.error);
+            this.tryBecomePresencePollingOwner();
           }
         });
       },
@@ -462,8 +532,24 @@
           if (type === 'total-unread-messages-updated' && this.totalUnreadMessages !== payload.totalUnreadMessages) {
             this.totalUnreadMessages = payload.totalUnreadMessages;
           }
+          if (type === 'user-status-updated') {
+            this.handleUserStatusUpdated(payload);
+          }
         });
-      }
+      },
+      handleLocaleStorageUpdate(e) {
+        if (e.key === this.presencePollingKey && !e.newValue) {
+          this.tryBecomePresencePollingOwner();
+        }
+      },
+      releasePresencePollingOwner() {
+        if (this.isPresencePollingOwner) {
+          this.isPresencePollingOwner = false;
+          clearInterval(this.presencePollingInterval);
+          this.presencePollingInterval = null;
+          localStorage.removeItem(this.presencePollingKey);
+        }
+      },
     }
   };
 </script>
