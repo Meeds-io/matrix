@@ -19,13 +19,16 @@
 package io.meeds.chat.rest;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.*;
+import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.pwa.model.PwaNotificationMessage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -36,11 +39,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
-import org.exoplatform.commons.api.notification.NotificationContext;
-import org.exoplatform.commons.api.notification.model.PluginKey;
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
-import org.exoplatform.commons.notification.impl.NotificationContextImpl;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.PortalContainer;
@@ -51,6 +52,7 @@ import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.rest.resource.ResourceContainer;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
@@ -92,6 +94,9 @@ public class MatrixRest implements ResourceContainer {
 
   @Autowired
   private ResourceBundleService        resourceBundleService;
+
+  @Autowired
+  private ChatNotificationService      chatNotificationService;
 
   @GetMapping
   @Secured("users")
@@ -177,6 +182,13 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  /**
+   * This API is used by Matrix server to notify the Meeds server that a user has
+   * a new notification This API is used as a Push Gateway for Matrix server
+   * 
+   * @param notification
+   * @return
+   */
   @PostMapping("notify")
   @Operation(summary = "Receives push notification from Matrix", method = "POST", description = "Receives push notification from Matrix")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
@@ -185,22 +197,47 @@ public class MatrixRest implements ResourceContainer {
   public String notify(@RequestBody(description = "Notification received from Matrix", required = true)
   @org.springframework.web.bind.annotation.RequestBody
   String notification) {
+
     JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
     try {
       JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(notification);
       JsonValue notifJsonValue = jsonValue.getElement("notification");
-      int unreadCount = notifJsonValue.getElement("counts").getElement("unread").getIntValue();
-      String roomId = notifJsonValue.getElement("room_id").getStringValue();
-      String eventId = notifJsonValue.getElement("event_id").getStringValue();
       String pushKey = "";
       if (notifJsonValue.getElement("devices").getElements().hasNext()) {
         JsonValue device = notifJsonValue.getElement("devices").getElements().next();
         pushKey = device.getElement("pushkey").getStringValue();
-      }
-      if (StringUtils.isNotBlank(pushKey)) {
-        String userName = parseUserFromToken(pushKey);
-        if (StringUtils.isNotBlank(userName)) {
-          sendPushNotification(userName, roomId, unreadCount);
+        if (StringUtils.isNotBlank(pushKey)) {
+          String userName = "";
+          try {
+            userName = checkAndParseUserFromToken(pushKey);
+          } catch (ExpiredJwtException expiredException) {
+            // if the push key is expired, then it should be unregistered from Matrix server
+            return """
+                {
+                  "rejected": ["%s"]
+                }
+                """.formatted(pushKey);
+          }
+          if (StringUtils.isNotBlank(userName)) {
+            ChatNotificationService chatNotificationService = CommonsUtils.getService(ChatNotificationService.class);
+            int unreadCount = 0;
+            JsonValue element = notifJsonValue.getElement("counts");
+            if (element != null && element.getElement("unread") != null) {
+              unreadCount = element.getElement("unread").getIntValue();
+            }
+            String roomId = "";
+            if (notifJsonValue.getElement("room_id") != null) {
+              roomId = notifJsonValue.getElement("room_id").getStringValue();
+            }
+            String eventId = "";
+            if (notifJsonValue.getElement("event_id") != null) {
+              eventId = notifJsonValue.getElement("event_id").getStringValue();
+            }
+            if(StringUtils.isNotBlank(eventId) && StringUtils.isNotBlank(roomId)) {
+              chatNotificationService.createMentionNotification(eventId, roomId, userName, pushKey);
+              chatNotificationService.sendCreateNotificationAction(eventId, userName, roomId, unreadCount);
+            }
+          }
         }
       }
       return """
@@ -410,7 +447,7 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<String> syncUsersAndSpaces(HttpServletRequest request, WebRequest webRequest) {
+  public ResponseEntity<String> syncUsersAndSpaces() {
     try {
       matrixSynchronizationService.synchronizeUsers();
       matrixSynchronizationService.synchronizeSpaces();
@@ -470,7 +507,7 @@ public class MatrixRest implements ResourceContainer {
         } catch (ObjectNotFoundException e) {
           LOG.error("Could not enable the room {} of the space {}", roomToEnable.getRoomId(), space.getDisplayName(), e);
           throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                  "Could not enable the chat for the space with id " + spaceId);
+                                            "Could not enable the chat for the space with id " + spaceId);
         } finally {
           RequestLifeCycle.end();
         }
@@ -498,7 +535,7 @@ public class MatrixRest implements ResourceContainer {
     Space space = spaceService.getSpaceById(spaceId);
     if (!spaceService.canManageSpace(space, currentUserName)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-              "Current user does not have the needed privileges to enable the chat of the space");
+                                        "Current user does not have the needed privileges to enable the chat of the space");
     }
     Room roomToEnable = matrixService.getRoomBySpace(space, true);
     class EnableChatRunnable implements Runnable {
@@ -511,7 +548,7 @@ public class MatrixRest implements ResourceContainer {
         } catch (ObjectNotFoundException e) {
           LOG.error("Could not enable the room {} of the space {}", roomToEnable.getRoomId(), space.getDisplayName(), e);
           throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                  "Could not enable the chat for the space with id " + spaceId);
+                                            "Could not enable the chat for the space with id " + spaceId);
         } finally {
           RequestLifeCycle.end();
         }
@@ -523,18 +560,97 @@ public class MatrixRest implements ResourceContainer {
     return ResponseEntity.ok().build();
   }
 
-  private void sendPushNotification(String participant, String roomId, int unreadCount) {
-    NotificationContext ctx = NotificationContextImpl.cloneInstance();
-    ctx.append(MATRIX_ROOM_ID, roomId);
-    ctx.append(MATRIX_ROOM_MEMBER, participant);
-    ctx.append(MATRIX_ROOM_UNREAD_COUNT, unreadCount);
-    ctx.getNotificationExecutor().with(ctx.makeCommand(PluginKey.key(MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN))).execute(ctx);
+  @PutMapping("notification/{roomId}/{eventId}/{ts}")
+  @Secured("users")
+  @Operation(summary = "Get the details of a notification based on the event details", method = "GET", description = "Get the details of a notification based on the event details")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public PwaNotificationMessage getNotification(HttpServletRequest request, @PathVariable("roomId")
+  String roomId, @PathVariable("eventId")
+  String eventId, @PathVariable("ts")
+  String timeStamp,
+                                                @RequestBody(description = "Access token of the user", required = false)
+                                                @org.springframework.web.bind.annotation.RequestBody(required = false)
+                                                String accessToken) {
+    String currentUserName = request.getRemoteUser();
+    if (eventId == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "event id is mandatory");
+    }
+    long ts = 0L;
+    try {
+      ts = Long.parseLong(timeStamp);
+    } catch (NumberFormatException nfe) {
+      // Do nothing, we consider Timestamp as 0 //NOSONAR
+    }
+    PwaNotificationMessage pwaMessage = chatNotificationService.createNotification(eventId,
+                                                                                   roomId,
+                                                                                   currentUserName,
+                                                                                   ts,
+                                                                                   accessToken);
+    if (pwaMessage != null) {
+      return pwaMessage;
+    } else {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found or it is not a chat message");
+    }
   }
 
-  private String parseUserFromToken(String token) {
+  @GetMapping("/isPushNotificationsEnabled/{userName}")
+  @Secured("users")
+  @Operation(summary = "Get the status of push notifications enabled/disabled", method = "GET", description = "Get the status of push notifications enabled/disabled")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "400", description = "username is not provided"),
+      @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> isPushNotificationsEnabled(HttpServletRequest request, @PathVariable("userName")
+  String userName) {
+    if (StringUtils.isBlank(userName)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The username parameter is required");
+    }
+    if (!request.getRemoteUser().equals(userName)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Can not check the settings of another user");
+    }
+
+    return ResponseEntity.ok().body(String.valueOf(chatNotificationService.isPushNotificationsEnabled(userName)));
+  }
+
+  @PostMapping("/enablePushNotificationsSettings")
+  @Secured("users")
+  @Operation(summary = "Change the status of push notifications enabled/disabled", method = "POST", description = "Change the status of push notifications enabled/disabled")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> updatePushNotificationsSettings(HttpServletRequest request,
+                                                           @RequestBody(description = "Notification received from Matrix", required = true)
+                                                           @org.springframework.web.bind.annotation.RequestBody
+                                                           String pushNotificationSetting) {
+    try {
+      JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
+      JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(pushNotificationSetting);
+      JsonValue userNameJsonValue = jsonValue.getElement("userName");
+      if (userNameJsonValue == null
+          || userNameJsonValue.getStringValue() != null && !request.getRemoteUser().equals(userNameJsonValue.getStringValue())) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                             .body("Check the status of Push notifications of another user is forbidden");
+      }
+      String userName = userNameJsonValue.getStringValue();
+      boolean pushNotificationStatus = jsonValue.getElement("active") != null && jsonValue.getElement("active").getBooleanValue();
+      chatNotificationService.updatePushNotificationSettings(userName, pushNotificationStatus);
+      return ResponseEntity.ok().body("{}");
+    } catch (Exception e) {
+      LOG.error("Could not update the status of Push notifications of {}", e);
+      return ResponseEntity.internalServerError().build();
+    }
+  }
+
+  private String checkAndParseUserFromToken(String token) {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
     Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
-    return String.valueOf(jws.getBody().getSubject());
+    String username = String.valueOf(jws.getBody().getSubject());
+    if (identityManager.identityExisted(OrganizationIdentityProvider.NAME, username)) {
+      return username;
+    }
+    return null;
   }
 
   private RoomEntity buildRoomEntityFromRoom(Room room, String currentUserName) {
@@ -580,12 +696,12 @@ public class MatrixRest implements ResourceContainer {
     List<String> spaceIds = spaceService.getMemberSpacesIds(currentUserName, 0, -1);
 
     List<RoomEntity> processedRooms = new ArrayList<>();
-    for (int index = 0; index < roomList.getRooms().size(); index ++) {
+    for (int index = 0; index < roomList.getRooms().size(); index++) {
       RoomEntity room = roomList.getRooms().get(index);
       room = updateRoomEntity(room, currentUserName);
       // check missing rooms
       if (room != null) {
-        if(!room.isDirectChat()) {
+        if (!room.isDirectChat()) {
           spaceIds.remove(room.getSpaceId());
         }
         if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
@@ -598,7 +714,7 @@ public class MatrixRest implements ResourceContainer {
         Room missingRoom = matrixService.getRoomBySpaceId(spaceId);
         if (missingRoom != null) {
           RoomEntity missingRoomEntity = buildRoomEntityFromRoom(missingRoom, currentUserName);
-          if(missingRoomEntity != null) {
+          if (missingRoomEntity != null) {
             processedRooms.addFirst(missingRoomEntity);
           }
         }
@@ -630,7 +746,7 @@ public class MatrixRest implements ResourceContainer {
           room.setMembers(members);
         }
       } else if (StringUtils.isNotBlank(matrixRoom.getFirstParticipant())
-              && StringUtils.isNotBlank(matrixRoom.getSecondParticipant())) {
+          && StringUtils.isNotBlank(matrixRoom.getSecondParticipant())) {
         Identity identity = null;
         if (matrixRoom.getFirstParticipant().equals(currentUserName)) {
           identity = identityManager.getOrCreateUserIdentity(matrixRoom.getSecondParticipant());

@@ -4,7 +4,17 @@
     :avatar-url="avatarUrl"
     :message="message"
     :url="url"
-    user-avatar />
+    :space-avatar="isSpace" >
+    <template #actions>
+      <div
+        v-if="messageContent"
+        :title="messageContent"
+        class="text-truncate">
+        <v-icon size="14" class="me-1">fa-comments</v-icon>
+        {{ messageContent }}
+      </div>
+    </template>
+  </user-notification-template>
 </template>
 <script>
 export default {
@@ -16,20 +26,31 @@ export default {
   },
   computed: {
     url() {
-      //we keep both possibility so that old notifications, generated before the current modification are still ok
-      return this.notification?.parameters?.chatUrl || `/portal/dw/?chatRoomId=${this.notification?.parameters?.roomId}`;
+      return `${location.pathname}?roomId=${this.notification?.parameters?.ROOM_ID}`;
     },
     avatarUrl() {
-      //we keep both possibility so that old notifications, generated before the current modification are still ok
-      return this.notification?.parameters?.avatar || `/portal/rest/v1/social/users/${this.notification?.parameters?.sender}/avatar`;
+      return this.notification?.parameters?.MATRIX_ROOM_AVATAR;
+    },
+    isSpace() {
+      return this.notification?.parameters?.MATRIX_ROOM_TYPE === 'SPACE';
     },
     message() {
-      const creator = this.notification?.parameters?.senderFullName;
-      const room = this.notification?.parameters?.roomName;
+      const creator = this.notification?.parameters?.MATRIX_SENDER_FULL_NAME;
+      const room = this.notification?.parameters?.MATRIX_ROOM_NAME;
 
-      return this.$t('matrix.message.mention.pwa.notification', {
-        0: `<a class="space-name font-weight-bold">${room}</a>`
-      });
+      if (this.notification?.parameters?.MATRIX_ROOM_TYPE === 'SPACE') {
+        return this.$t('matrix.message.mention.space.notification', {
+          0: `<a class="space-name font-weight-bold">${creator}</a>`,
+          1: `<a class="space-name font-weight-bold">${room}</a>`
+        });
+      } else {
+        return this.$t('matrix.message.mention.onetoone.notification', {
+          0: `<a class="space-name font-weight-bold">${room}</a>`
+        });
+      }
+    },
+    messageContent() {
+      return this.notification?.parameters?.MATRIX_MESSAGE_CONTENT || null;
     }
   }
 };

@@ -18,11 +18,9 @@
  */
 
 import MentionWebPlugin from './components/MatrixChatMentionWebPlugin.vue';
-import MessageWebPlugin from './components/MatrixChatMessageWebPlugin.vue';
 
 const components = {
   'matrix-notification-chat-mention': MentionWebPlugin,
-  'matrix-notification-chat-message': MessageWebPlugin,
 };
 
 for (const key in components) {

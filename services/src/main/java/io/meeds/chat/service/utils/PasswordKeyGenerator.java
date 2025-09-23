@@ -21,11 +21,14 @@ package io.meeds.chat.service.utils;
 import java.security.SecureRandom;
 import java.util.Random;
 
-public class PasswordGenerator {
+public class PasswordKeyGenerator {
 
-  public static String generatePassword (int length) {
+  private PasswordKeyGenerator() {
+  }
 
-    //minimum length of generated password is 8
+  public static String generatePassword(int length) {
+
+    // minimum length of generated password is 8
     if (length < 8) {
       length = 8;
     }

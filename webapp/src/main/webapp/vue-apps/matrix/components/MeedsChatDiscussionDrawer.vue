@@ -50,6 +50,45 @@
           </div>
         </div>
       </div>
+      <v-menu
+        v-if="canEditSpace"
+        content-class="border-radius overflow-hidden"
+        :nudge-left="-30"
+        open-on-click
+        left
+        close-on-content-click
+        offset-x
+        offset-y>
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-on="on"
+            v-bind="attrs"
+            icon>
+            <v-icon
+              size="20"
+              class="icon-default-color">
+              fa-ellipsis-v
+            </v-icon>
+          </v-btn>
+        </template>
+        <v-list class="pa-0">
+          <v-list-item
+            class="ps-2 pe-3 height-auto"
+            @click="editSpace">
+            <v-sheet
+              class="d-flex"
+              width="28"
+              height="36">
+              <v-icon
+                class="icon-default-color mx-auto"
+                size="16">
+                fas fa-cog
+              </v-icon>
+            </v-sheet>
+            {{ $t('matrix.room.space.editProperties') }}
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </template>
     <template slot="content">
       <div id="chatMessagesContainer"
@@ -187,7 +226,8 @@ export default {
       messageToEdit: null,
       messageToDelete: null,
       expanded: false,
-      drawerWidth: 420
+      drawerWidth: 420,
+      space: null,
     };
   },
   provide() {
@@ -197,6 +237,9 @@ export default {
     };
   },
   computed: {
+    canEditSpace() {
+      return this.room?.spaceId && this.space?.canEdit;
+    },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
     },
@@ -229,6 +272,7 @@ export default {
     },
   },
   created() {
+    document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.addEventListener('matrix-message-received', event => this.messageReceived(event));
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
@@ -339,6 +383,7 @@ export default {
     openDiscussion(e) {
       this.loading = true;
       this.room = e;
+      this.getSpaceById(this.room?.spaceId);
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
       }
@@ -362,6 +407,7 @@ export default {
             this.scrollToEnd();
             this.loading = false;
             this.$root.$emit('room-discussion-opened');
+            this.$refs?.messageComposerArea?.focus();
           });
         }, 0);
       });
@@ -492,7 +538,7 @@ export default {
       }, 1000);
     },
     resizeComposerArea() {
-      if (this.room?.spaceId) {
+      if (this.room) {
         this.initSuggester();
       }
 
@@ -625,21 +671,31 @@ export default {
     },
     initSuggester() {
       const $messageSuggestor = $('#messageComposerArea');
-      let peopleSearchCached = {};
+      const component = this;
+      const peopleSearchCached = {};
       let lastNoResultQuery = false;
       let space = null;
-      const getSpace = async function(spaceId) {
-        if (!spaceId) {
-          return Promise.resolve();
+
+      const getSpace = async (spaceId) => {
+        if (!spaceId || space) {
+          return space;
         }
-        return space && Promise.resolve(space)
-          || fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/social/spaces/${spaceId}`, {credentials: 'include'}).then(resp => resp?.ok && resp.json());
+        const url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/social/spaces/${spaceId}`;
+        const resp = await fetch(url, { credentials: 'include' });
+        return resp.ok ? (space = await resp.json()) : null;
       };
-      const retrievePeople = async function(url, query) {
-        return !query?.length && Promise.resolve([]) || fetch(url, {credentials: 'include'})
-          .then(resp => resp?.ok && resp.json())
+
+      const retrievePeople = async (url) => {
+        const resp = await fetch(url, { credentials: 'include' });
+        return resp.ok ? resp.json() : [];
       };
-      const component = this;
+
+      const cacheAndCallback = (key, query, results, callback) => {
+        peopleSearchCached[key] = results;
+        lastNoResultQuery = results.length ? false : query;
+        callback(results);
+      };
+
       const suggesterData = {
         type: 'mix',
         suffix: '\u00A0',
@@ -659,54 +715,84 @@ export default {
         },
         sourceProviders: ['chat:users'],
         providers: {
-          'chat:users': function(query, callback) {
-            if (lastNoResultQuery && query.length > lastNoResultQuery.length) {
-              if (query.substr(0, lastNoResultQuery.length) === lastNoResultQuery) {
-                callback.call(this, []);
-                return;
+          'chat:users': function (query, callback) {
+            (async () => {
+              const cleanQuery = query?.trim().toLowerCase();
+              if (!cleanQuery) {
+                return callback([]);
               }
-            }
-            const spaceId = component.room.spaceId;
-            const key = `${query}#${spaceId}`;
-            if (peopleSearchCached[key]) {
-              callback.call(this, peopleSearchCached[key]);
-            } else {
-              peopleSearchCached[key] = [];
-              getSpace(spaceId)
-                .then(data => {
-                  space = data;
+
+              if (
+                  lastNoResultQuery &&
+                  cleanQuery.startsWith(lastNoResultQuery.toLowerCase()) &&
+                  cleanQuery.length > lastNoResultQuery.length
+              ) {
+                return callback([]);
+              }
+
+              const room = component.room;
+              const spaceId = room?.spaceId;
+              const cacheKey = `${cleanQuery}#${spaceId || room.id}`;
+
+              if (peopleSearchCached[cacheKey]) {
+                return callback(peopleSearchCached[cacheKey]);
+              }
+
+              peopleSearchCached[cacheKey] = [];
+
+              try {
+                if (spaceId) {
+                  const spaceData = await getSpace(spaceId);
                   const userName = eXo.env.portal.userName;
-                  let url = eXo.env.portal.context + '/' + eXo.env.portal.rest + '/social/people/suggest.json?nameToSearch=' + query + '&typeOfRelation=member_of_space' + '&currentUser=' + userName;
-                  if (space) {
-                    url += '&spaceURL=' + space.prettyName;
+
+                  let url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/social/people/suggest.json`;
+                  url += `?nameToSearch=${encodeURIComponent(cleanQuery)}&typeOfRelation=member_of_space&currentUser=${encodeURIComponent(userName)}`;
+                  if (spaceData?.prettyName) {
+                    url += `&spaceURL=${encodeURIComponent(spaceData.prettyName)}`;
                   }
-                  return retrievePeople(url, query)
-                    .then(users => {
-                      if (users?.options?.length) {
-                        users.options.forEach(user => {
-                          peopleSearchCached[key].push({
-                            uid: user.value,
-                            name: user.text,
-                            avatar: user.avatarUrl,
-                          });
-                        });
-                      }
-                      return peopleSearchCached[key];
-                    });
-                })
-                .finally(() => {
-                  if (peopleSearchCached[key].length == 0) {
-                    lastNoResultQuery = query;
-                  } else {
-                    lastNoResultQuery = false;
-                  }
-                  callback.call(this, peopleSearchCached[key]);
-                })
-            }
+
+                  const users = await retrievePeople(url);
+                  const results = users?.options?.map(user => ({
+                    uid: user.value,
+                    name: user.text,
+                    avatar: user.avatarUrl,
+                  })) || [];
+
+                  return cacheAndCallback(cacheKey, cleanQuery, results, callback);
+
+                } else {
+                  // fallback when no spaceId (direct chat)
+                  const participant = room.members?.find(member => member.id !== matrixUserId);
+                  const memberId = participant?.id || room.dmMemberId;
+                  const user = await component.$matrixService.getUserByMatrixId(memberId, room);
+
+                  const filters = user?.profile?.properties ?? [];
+                  const settings = filters
+                    .filter(property => !!property.value)
+                    .map(property => ({[property.propertyName]: property.value}));
+
+                  const data = await component.$userService.getUsersByAdvancedFilter(
+                      settings, 0, 10, '', 'all', cleanQuery, false, null, 'true'
+                  );
+
+                  const matchedUser = data?.users?.find(u => u.username === user?.profile?.username);
+
+                  const results = matchedUser ? [{
+                    uid: matchedUser.username,
+                    name: matchedUser.fullname,
+                    avatar: matchedUser.avatar,
+                  }] : [];
+
+                  return cacheAndCallback(cacheKey, cleanQuery, results, callback);
+                }
+              } catch (err) {
+                console.error('Suggester error:', err);
+                return callback([]);
+              }
+            })();
           }
         }
       };
-      //init suggester
       $messageSuggestor.suggester(suggesterData);
     },
     editMessage(message) {
@@ -738,6 +824,26 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
+    },
+    editSpace() {
+      window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));
+    },
+    async getSpaceById(spaceId) {
+      if (this.space?.id === this.room?.spaceId || !spaceId) {
+        return;
+      }
+      try {
+        this.space = await this.$spaceService.getSpaceById(spaceId, null, true);
+      } catch (error) {
+        console.error('Failed to fetch space:', error);
+      }
+    },
+    handleSpaceSettingsUpdate(event) {
+      this.space = event.detail;
+      if (this.space.id !== this.room?.spaceId) {
+        return;
+      }
+      this.room.name = this.space.displayName;
     }
   },
 };

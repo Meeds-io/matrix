@@ -55,10 +55,11 @@ public class MatrixAuthJWTFilter implements Filter {
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     HttpServletResponse httpResponse = (HttpServletResponse) response;
     MatrixService matrixService = ExoContainerContext.getCurrentContainer().getComponentInstanceOfType(MatrixService.class);
-    if(matrixService.isServiceAvailable()) {
+    if (matrixService.isServiceAvailable()) {
       Cookie[] cookies = httpRequest.getCookies();
       if (cookies != null) {
-        if (httpRequest.getRemoteUser() != null && Arrays.stream(cookies).noneMatch(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))) {
+        if (httpRequest.getRemoteUser() != null
+            && Arrays.stream(cookies).noneMatch(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))) {
           String sessionToken = matrixService.getJWTSessionToken(httpRequest.getRemoteUser());
           Cookie cookie = new Cookie(MATRIX_JWT_COOKIE, sessionToken);
           cookie.setPath("/");
@@ -67,7 +68,10 @@ public class MatrixAuthJWTFilter implements Filter {
           cookie.setSecure(request.isSecure());
           httpResponse.addCookie(cookie);
         } else if (StringUtils.isBlank(httpRequest.getRemoteUser())) {
-          Cookie oldCookie = Arrays.stream(cookies).filter(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName())).findFirst().orElse(null);
+          Cookie oldCookie = Arrays.stream(cookies)
+                                   .filter(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))
+                                   .findFirst()
+                                   .orElse(null);
           if (oldCookie != null) {
             oldCookie.setValue("");
             oldCookie.setMaxAge(0);
@@ -83,4 +87,3 @@ public class MatrixAuthJWTFilter implements Filter {
   }
 
 }
-

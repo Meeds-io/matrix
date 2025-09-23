@@ -1,10 +1,13 @@
 import {chatConstants} from './Constants.js';
 import * as timeUtils from './timeUtils.js';
+import * as dbStorage from '../../../js/dbStorage.js'
+
 
 const replyToCache = new Map();
 const userCache = new Map();
 const reactionEvents = new Map();
 let isPolling = false;
+const messageTimestampsMap = new Map();
 
 
 // variables that will be get from the server
@@ -248,6 +251,7 @@ export async function processEvents(response) {
                 message: message
               }
             }));
+            messageTimestampsMap.set(message.event_id, message.origin_server_ts);
           }
         } else if (e.type === 'm.room.redaction') {
           const redactedEventId = e.redacts;
@@ -306,7 +310,7 @@ export async function processEvents(response) {
         }
       }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
-      ephemeralEvents.forEach(e => {
+      for (const e of ephemeralEvents) {
         //Users are typing in the room
         if(e.type === 'm.typing') {
           if(e.content.user_ids?.length) {
@@ -316,15 +320,9 @@ export async function processEvents(response) {
         }
         //User sent a read receipt of a room
         if(e.type === 'm.receipt') {
-          if(e.content) {
-            for (const eventId in e.content) {
-              if(e.content[eventId]["m.read"][matrixUserId]?.thread_id) {
-                document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: {roomId: roomId}}));
-              }
-            }
-          }
+          await handleReadReceiptEvent(e, roomId);
         }
-      });
+      }
     }
   }
   if(response?.presence?.events) {
@@ -336,6 +334,43 @@ export async function processEvents(response) {
     });
   }
 }
+
+async function handleReadReceiptEvent(event, roomId) {
+  const matrixUserId = localStorage.getItem('matrix_user_id');
+  const dbSettings = chatConstants.DB_SETTINGS;
+  const receiptsStore = dbSettings.DB_STORES.READ_RECEIPTS;
+  if (!event.content) return;
+
+  // Load current map of last reads per room
+  const storeKey = `lastRead::${roomId}`;
+  let lastReads = await dbStorage.getValue(dbSettings, receiptsStore, storeKey);
+  if (!lastReads) lastReads = {};
+
+  for (const eventId in event.content) {
+    const receipt = event.content[eventId]['m.read'];
+    if (!receipt) continue;
+
+    for (const userId in receipt) {
+      const readData = receipt[userId];
+
+      // Only update if eventId is newer
+      const prevEventId = lastReads?.[userId]?.eventId;
+      const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
+      const newTimestamp = messageTimestampsMap.get(eventId);
+
+      if (!prevEventId || !prevTimestamp || (newTimestamp && newTimestamp > prevTimestamp)) {
+        lastReads[userId] = {
+          eventId: eventId,
+          ts: newTimestamp,
+        }
+      }
+    }
+  }
+
+  // Save updated map in one write
+  await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
+}
+
 
 export async function toRoomObject(rooms, currentMemberId) {
   let myRooms = {rooms: [], totalUnreadMessages: 0};
@@ -591,7 +626,7 @@ export function savePushGateway(kind, pushKey) {
     "device_display_name": "Browser",
     "kind":kind || null,
     "lang":eXo.env.portal.language,
-    "profile_tag":"UserProfile",
+    "profile_tag": eXo.env.portal.userName,
     "pushkey": pushKey
   }
   return fetch(`/_matrix/client/v3/pushers/set`, {
@@ -629,9 +664,8 @@ export function installPusher() {
   const token = getCookieValue(JWT_COOKIE_NAME);
   let found = false;
   getPushers().then(resp => {
-    if(resp.pushers && resp.pushers.length) {
-      for(let i = 0; i < resp.pushers.length; i++) {
-        let pusher = resp.pushers[i];
+    if(resp.pushers?.length) {
+      for(const pusher of resp.pushers) {
         if(pusher.app_id && pusher.app_id === PUSH_APP_ID) {
           found = true;
           if(pusher.pushkey !== token) {
@@ -641,11 +675,11 @@ export function installPusher() {
           }
         }
       }
-      if(!found) {
-        savePushGateway('http', token);
-      }
     }
   });
+  if(!found) {
+    savePushGateway('http', token);
+  }
 }
 
 export function getByRoomId(roomId) {
@@ -906,6 +940,7 @@ export function processMessages(messageItems) {
     if (item.type === 'm.room.message') {
       const relatesTo = item.content['m.relates_to'];
       const newContent = item.content['m.new_content'];
+      messageTimestampsMap.set(item.event_id, item.origin_server_ts);
 
       // Handle edits
       if (relatesTo?.rel_type === 'm.replace' && newContent) {
@@ -1352,7 +1387,7 @@ export async function getUserIdentity(userId) {
   if (userCache.has(userId)) {
     return userCache.get(userId);
   }
-  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId);
+  const user = await Vue.prototype?.$identityService?.getIdentityByProviderIdAndRemoteId?.('organization', userId, 'settings');
   if (user) {
     userCache.set(userId, user);
   }
@@ -1417,4 +1452,33 @@ export function enableOrDisableChat(spaceId, enable) {
       }
     }
   });
+}
+
+export function dropUserData() {
+  localStorage.removeItem("matrix_user_id");
+  localStorage.removeItem("matrix_access_token");
+  localStorage.removeItem('matrix_last_login');
+}
+
+export function initUserData(data) {
+  localStorage.setItem("matrix_user_id", data.user_id);
+  localStorage.setItem("matrix_access_token", data.access_token);
+  localStorage.setItem("matrix_last_login", new Date().getTime());
+}
+
+export async function registerUserToken() {
+  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.DB_NAME);
+  if (!dbExists) {
+    await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
+  }
+  const settings = {
+    'access_token': localStorage.getItem("matrix_access_token"),
+    'user_id': localStorage.getItem("matrix_user_id")
+  };
+  await dbStorage.setValue(
+    chatConstants.DB_SETTINGS,
+    chatConstants.DB_SETTINGS.DB_STORES.SETTINGS,
+    'settings',
+    settings
+  );
 }

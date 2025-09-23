@@ -20,37 +20,26 @@ package io.meeds.chat.notification;
 
 import org.exoplatform.commons.api.notification.NotificationContext;
 import org.exoplatform.commons.api.notification.model.NotificationInfo;
-import org.exoplatform.commons.api.notification.plugin.BaseNotificationPlugin;
 import org.exoplatform.container.xml.InitParams;
+import org.junit.jupiter.api.Test;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
-import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ROOM_UNREAD_COUNT;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class MessageReceivedNotificationPlugin extends BaseNotificationPlugin {
-  public MessageReceivedNotificationPlugin(InitParams initParams) {
-    super(initParams);
-  }
+class MentionReceivedNotificationPluginTest {
 
-  @Override
-  public String getId() {
-    return MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN;
-  }
+  @Test
+  void makeNotification() {
+    InitParams initParams = new InitParams();
+    NotificationContext ctx = mock(NotificationContext.class);
+    when(ctx.value(MATRIX_ROOM_ID)).thenReturn("IdentifierOfTheRoom");
+    when(ctx.value(MATRIX_ROOM_MEMBER)).thenReturn("user");
 
-  @Override
-  public boolean isValid(NotificationContext notificationContext) {
-    return true;
-  }
-
-  @Override
-  protected NotificationInfo makeNotification(NotificationContext notificationContext) {
-    String roomId = notificationContext.value(MATRIX_ROOM_ID);
-    String userName = notificationContext.value(MATRIX_ROOM_MEMBER);
-    Integer unreadMessagesCount = notificationContext.value(MATRIX_ROOM_UNREAD_COUNT);
-    return NotificationInfo.instance()
-                           .to(userName)
-                           .with("ROOM_ID", roomId)
-                           .with("UNREAD_MESSAGES_COUNT", String.valueOf(unreadMessagesCount))
-                           .key(getId())
-                           .end();
+    MentionReceivedNotificationPlugin mentionReceivedNotificationPlugin = new MentionReceivedNotificationPlugin(initParams);
+    NotificationInfo notificationInfo = mentionReceivedNotificationPlugin.buildNotification(ctx);
+    assertNotNull(notificationInfo);
+    assertEquals("user", notificationInfo.getTo());
   }
 }

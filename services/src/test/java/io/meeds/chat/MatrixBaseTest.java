@@ -18,6 +18,9 @@
  */
 package io.meeds.chat;
 
+import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.MatrixService;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.kernel.test.AbstractSpringTest;
 import io.meeds.kernel.test.KernelExtension;
@@ -30,19 +33,38 @@ import org.exoplatform.component.test.KernelBootstrap;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.component.RequestLifeCycle;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
+import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
+import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
+import org.exoplatform.social.core.space.model.Space;
+import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import static io.meeds.chat.service.utils.MatrixConstants.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({ SpringExtension.class, KernelExtension.class })
 @SpringBootApplication(scanBasePackages = { MatrixBaseTest.MODULE_NAME, AvailableIntegration.KERNEL_TEST_MODULE,
-    AvailableIntegration.JPA_MODULE, AvailableIntegration.LIQUIBASE_MODULE, AvailableIntegration.WEB_MODULE, })
+    AvailableIntegration.JPA_MODULE, AvailableIntegration.LIQUIBASE_MODULE, AvailableIntegration.WEB_MODULE, "io.meeds.pwa" })
 @EnableJpaRepositories(basePackages = MatrixBaseTest.MODULE_NAME)
 @TestPropertySource(properties = { "spring.liquibase.change-log=" + MatrixBaseTest.CHANGELOG_PATH,
     "spring.profiles.active=matrix", })
@@ -53,6 +75,27 @@ public class MatrixBaseTest extends AbstractSpringTest {
 
   public static final String     MODULE_NAME    = "io.meeds.chat";
 
+  public List<Space>             spacesToDelete = new ArrayList<>();
+
+  public String                  matrixRoomId   = "!thisIsACreatedRoom:matrix.meeds.tn";
+
+  public String                  accessToken    = "ThisIsAnAccessToken";
+
+  @Autowired
+  public SpaceService            spaceService;
+
+  @Autowired
+  public CachedIdentityStorage   identityStorage;
+
+  @Autowired
+  public MatrixService           matrixService;
+
+  @MockBean
+  public ProfileSearchConnector  profileSearchConnector;
+
+  @MockBean
+  public MatrixHttpClient        matrixHttpClient;
+
   private static KernelBootstrap bootstrap;
 
   public static final String     CHANGELOG_PATH = "classpath:db/changelog/matrix-rdbms.db.changelog-master.xml";
@@ -62,6 +105,7 @@ public class MatrixBaseTest extends AbstractSpringTest {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "ThisIsAJWTSecretOfMatrixForTestingPurposes");
     PropertyManager.setProperty(MATRIX_SERVER_URL, "https://matrix.exo.tn");
     PropertyManager.setProperty(MATRIX_SERVER_NAME, "matrix.exo.tn");
+    PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "root");
   }
 
   public PortalContainer getContainer() {
@@ -74,6 +118,55 @@ public class MatrixBaseTest extends AbstractSpringTest {
     return container;
   }
 
+  @BeforeEach
+  protected void setUp() throws Exception {
+    begin();
+    PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
+    when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
+    when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
+    ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
+
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
+    when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(true);
+    MatrixUserPermission matrixUserPermission = new MatrixUserPermission();
+    matrixUserPermission.setUserName("demo");
+    matrixUserPermission.setUserRole(MANAGER_ROLE);
+    MatrixUserPermission raulUserPermission = new MatrixUserPermission();
+    raulUserPermission.setUserName("raul");
+    raulUserPermission.setUserRole(SIMPLE_USER_ROLE);
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    matrixRoomPermissions.setUsers(new ArrayList(List.of(new MatrixUserPermission[] { matrixUserPermission,
+        raulUserPermission })));
+    when(matrixHttpClient.getRoomSettings(anyString(), anyString())).thenReturn(matrixRoomPermissions);
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString())).thenAnswer(invocation -> {
+      String matrixUserId = invocation.getArgument(1);
+      return "@" + matrixUserId + ":matrix.meeds.tn";
+    });
+    when(matrixHttpClient.saveUserAccount(any(),
+                                          anyString(),
+                                          anyBoolean(),
+                                          anyString(),
+                                          anyBoolean(),
+                                          anyBoolean())).thenAnswer(invocation -> {
+                                            String matrixUserId = invocation.getArgument(1);
+                                            return "@" + matrixUserId + ":matrix.meeds.tn";
+                                          });
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
+  }
+
+  @AfterEach
+  protected void tearDown() {
+    for (Space space : spacesToDelete) {
+      try {
+        this.spaceService.deleteSpace(space);
+      } catch (Exception e) {
+        // Nothing to do
+      }
+    }
+    end();
+  }
+
   protected void begin() {
     PortalContainer container = getContainer();
     ExoContainerContext.setCurrentContainer(container);
@@ -82,5 +175,31 @@ public class MatrixBaseTest extends AbstractSpringTest {
 
   protected void end() {
     RequestLifeCycle.end();
+  }
+
+  protected Space getSpaceInstance(int number) {
+    Space space = new Space();
+    space.setDisplayName("my space " + number);
+    space.setPrettyName(space.getDisplayName());
+    space.setRegistration(Space.OPEN);
+    space.setDescription("add new space " + number);
+    space.setVisibility(Space.PUBLIC);
+    space.setRegistration(Space.VALIDATION);
+    Identity spaceIdentity = new Identity();
+    spaceIdentity.setRemoteId(space.getPrettyName());
+    spaceIdentity.setProviderId(SpaceIdentityProvider.NAME);
+    identityStorage.saveIdentity(spaceIdentity);
+    Space createdSpace = this.spaceService.createSpace(space, "root");
+    String[] managers = new String[] { "demo", "tom" };
+    String[] members = new String[] { "demo", "raul", "ghost", "dragon" };
+    String[] invitedUsers = new String[] { "register1", "mary" };
+    String[] pendingUsers = new String[] { "jame", "paul", "hacker" };
+    Arrays.stream(pendingUsers).forEach(u -> spaceService.addPendingUser(createdSpace, u));
+    Arrays.stream(invitedUsers).forEach(u -> spaceService.addInvitedUser(createdSpace, u));
+    Arrays.stream(members).forEach(u -> spaceService.addMember(createdSpace, u));
+    Arrays.stream(managers).forEach(u -> spaceService.addMember(createdSpace, u));
+    Arrays.stream(managers).forEach(u -> spaceService.setManager(createdSpace, u, true));
+    spacesToDelete.add(createdSpace);
+    return createdSpace;
   }
 }

@@ -18,34 +18,37 @@
 -->
 <template>
   <v-app>
-    <div class="VuetifyApp">
-      <div class="v-application v-application--is-ltr theme--light">
-        <div class="v-application--wrap">
-          <v-btn
-              id="btnChatButtonNew"
-              :title="$t('matrix.chat.button.tooltip')"
-              class="text-xs-center"
-              @click="openDrawer"
-              icon>
-              <v-badge
-                :value="totalUnreadMessages > 0"
-                :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
-                flat
-                color="var(--allPagesBadgePrimaryColor, #d32a2a)"
-                overlap>
-                <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
-              </v-badge>
-          </v-btn>
-        </div>
-        <matrix-chat-drawer
-          v-if="open"
-          ref="meedsChatDrawer"
-          :rooms="rooms"
-          :loading="loading"
-          @closed="open = false" />
-        <meeds-chat-quick-create-discussion-drawer />
-      </div>
-    </div>
+    <v-btn
+      id="btnChatButtonNew"
+      :title="$t('matrix.chat.button.tooltip')"
+      class="text-xs-center"
+      icon
+      @click="openDrawer">
+      <v-badge
+        :value="totalUnreadMessages > 0"
+        :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
+        color="var(--allPagesBadgePrimaryColor, #d32a2a)"
+        flat
+        overlap>
+        <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
+      </v-badge>
+    </v-btn>
+    <matrix-chat-drawer
+      v-if="open"
+      ref="meedsChatDrawer"
+      :rooms="rooms"
+      :loading="loading"
+      :presence="presence"
+      @closed="open = false"/>
+    <meeds-chat-quick-create-discussion-drawer/>
+    <room-action-menu-drawer />
+    <audio
+      ref="messageAudio"
+      class="hidden">
+      <source src="/matrix/audio/notif.wav">
+      <source src="/matrix/audio/notif.mp3">
+      <source src="/chat/audio/notif.ogg">
+    </audio>
   </v-app>
 </template>
 <script>
@@ -66,9 +69,7 @@
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
-        localStorage.removeItem("matrix_user_id");
-        localStorage.removeItem("matrix_access_token");
-        localStorage.removeItem('matrix_last_login');
+        this.$matrixService.dropUserData();
       }
 
       const matrixInfos = localStorage.getItem('matrix_user_id');
@@ -77,9 +78,7 @@
           if(enabled) {
             this.$matrixService.authenticate().then(resp => {
               if(resp.user_id) {
-                localStorage.setItem("matrix_user_id", resp.user_id);
-                localStorage.setItem("matrix_access_token", resp.access_token);
-                localStorage.setItem("matrix_last_login", new Date().getTime());
+                this.$matrixService.initUserData(resp);
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
                   this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
@@ -104,12 +103,7 @@
         this.$matrixService.installPusher();
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('roomId')){
-        this.openRoom(urlParams.get('roomId'));
-      }
-
-      this.$root.$on('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$on('chat-event-total-unread-updated', e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
       document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
@@ -118,8 +112,18 @@
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
       document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
     },
+    mounted() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('roomId') && urlParams.get('roomId')) {
+        this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
+      }
+      this.$nextTick().then(() => {
+        this.$matrixService.registerUserToken();
+      });
+    },
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
+      this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
       document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
       document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
@@ -141,6 +145,7 @@
     },
     methods: {
       enqueueMessageReceivedEvent(event) {
+        this.enableAndPlayBipSound(event);
         this.messageEventQueue.push(event);
         this.processNextMessageEvent();
       },
@@ -159,6 +164,33 @@
         } finally {
           this.processingMessageQueue = false;
           await this.processNextMessageEvent();
+        }
+      },
+      enableAndPlayBipSound() {
+        const keyToCheck = 'matrix_allow_bip';
+        if (event.detail?.message?.sender !== matrixUserId) {
+          if (localStorage.getItem(keyToCheck) === null) {
+            document.dispatchEvent(new CustomEvent('alert-message', {detail: {
+              alertType: 'info',
+              alertMessage: this.$t('matrix.message.allow.bip.ask'),
+              alertTimeout: 5000000,
+              alertLinkCallback: () =>
+              {
+                localStorage.setItem(keyToCheck, 'true');
+                document.dispatchEvent(new CustomEvent('close-alert-message'));
+              },
+              alertLinkTooltip: this.$t('matrix.message.allow.bip.confirm'),
+              alertLinkText: this.$t('matrix.message.allow.bip.link.text'),
+              alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
+            }}));
+          } else if (localStorage.getItem(keyToCheck) === 'true') {
+            const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
+            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
+              this.$refs.messageAudio.play().catch(err => {
+                this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
+              });
+            }
+          }
         }
       },
       openDrawer() {
@@ -292,10 +324,21 @@
           this.loading = false;
         });
       },
-      openRoom(roomId) {
+      addRoomIfNotExists(room) {
+        if (!room?.id) {
+          return;
+        }
+        const exists = this.rooms?.some(r => r.id === room.id);
+        if (!exists) {
+          this.rooms?.push(room);
+        }
+      },
+      openRoom(event) {
+        const room = event?.detail || event;
+        this.addRoomIfNotExists(room);
         this.openDrawer();
         setTimeout(() => {
-          this.$root.$emit("open-chat-discussion", roomId);
+          this.$root.$emit("open-chat-discussion", room);
         }, 100);
       },
       sendMessageStatistics(message, room) {

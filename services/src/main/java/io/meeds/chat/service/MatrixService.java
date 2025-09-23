@@ -21,6 +21,7 @@ package io.meeds.chat.service;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.utils.MatrixHttpClient;
@@ -34,11 +35,16 @@ import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 
+import org.exoplatform.container.ExoContainerContext;
+import org.exoplatform.container.component.RequestLifeCycle;
+import org.exoplatform.services.cache.CacheService;
+import org.exoplatform.services.cache.ExoCache;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.Membership;
 import org.exoplatform.services.organization.OrganizationService;
-import org.exoplatform.services.resources.ResourceBundleService;
+import org.exoplatform.services.organization.Query;
+import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
@@ -61,47 +67,50 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 @Service
 public class MatrixService {
 
-  private static final Log      LOG = ExoLogger.getLogger(MatrixService.class);
+  private static final Log               LOG                       = ExoLogger.getLogger(MatrixService.class);
 
   @Autowired
-  private MatrixRoomStorage     matrixRoomStorage;
+  private MatrixRoomStorage              matrixRoomStorage;
 
   @Autowired
-  private IdentityManager       identityManager;
+  private IdentityManager                identityManager;
 
   @Autowired
-  private IdentityStorage       identityStorage;
+  private IdentityStorage                identityStorage;
 
   @Autowired
-  private OrganizationService   organizationService;
+  private OrganizationService            organizationService;
 
   @Autowired
-  private SpaceService          spaceService;
+  private SpaceService                   spaceService;
 
   @Autowired
-  private ResourceBundleService resourceBundleService;
-
-  @Autowired
-  private MatrixHttpClient      matrixHttpClient;
+  private MatrixHttpClient               matrixHttpClient;
 
   /**
    * -- GETTER -- Checks if the Matrix service is available
    */
   @Getter
-  private boolean               serviceAvailable;
+  private boolean                        serviceAvailable;
 
-  private String                matrixAccessToken;
+  private String                         matrixAccessToken;
+
+  private final ExoCache<String, String> userMatrixIdsCache;
+
+  public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
                        IdentityStorage identityStorage,
                        OrganizationService organizationService,
-                       MatrixHttpClient matrixHttpClient) {
+                       MatrixHttpClient matrixHttpClient,
+                       CacheService cacheService) {
     this.matrixRoomStorage = matrixRoomStorage;
     this.identityManager = identityManager;
     this.identityStorage = identityStorage;
     this.organizationService = organizationService;
     this.matrixHttpClient = matrixHttpClient;
+    this.userMatrixIdsCache = cacheService.getCacheInstance(USER_MATRIX_ID_CACHE_NAME);
   }
 
   @PostConstruct
@@ -109,8 +118,7 @@ public class MatrixService {
     try {
       this.getMatrixAccessToken();
 
-      String userFullMatrixID = "@" + PropertyManager.getProperty(MATRIX_ADMIN_USERNAME) + ":"
-          + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      String userFullMatrixID = getUserFullMatrixID(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
       this.overrideAdminRateLimit(userFullMatrixID);
       String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
       if (StringUtils.isNotBlank(displayName)) {
@@ -123,17 +131,59 @@ public class MatrixService {
     }
   }
 
+  /**
+   * Convert the user id into the full Matrx ID format
+   * 
+   * @param userName
+   * @return formatted username
+   */
+  public String getUserFullMatrixID(String userName) {
+    if (StringUtils.isNotBlank(userName) && userName.startsWith("@") && userName.indexOf(":") > 0) { // NOSONAR
+      return userName;
+    }
+    return "@" + userName + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+  }
+
   private String getMatrixAccessToken() throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(this.matrixAccessToken)) {
       try {
         String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
-        this.matrixAccessToken = matrixHttpClient.getAdminAccessToken(jwtAccessToken);
-      } catch (JsonException | IOException | InterruptedException e) {
-        LOG.error("Could not get Matrix Access token for the administrator account !");
+        this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken);
+      } catch (JsonException | IOException e) {
+        LOG.error("Could not get Matrix Access token for the administrator account !", e);
         throw e;
       }
     }
     return this.matrixAccessToken;
+  }
+
+  /**
+   * Retrieves an access token for a user using a JWT token
+   * 
+   * @param jwtToken
+   * @return String the access token
+   */
+  public String getAccessToken(String jwtToken) throws JsonException, IOException, InterruptedException {
+    return matrixHttpClient.getAccessToken(jwtToken);
+  }
+
+  /**
+   * Invalidate a specific access token
+   * 
+   * @param accessToken
+   * @return true if success
+   */
+  public boolean invalidateAccessToken(String accessToken) {
+    try {
+      return matrixHttpClient.invalidateAccessToken(accessToken);
+    } catch (IOException e) {
+      LOG.error("Could not invalidate an access token !", e);
+      return false;
+    } catch (InterruptedException interruptedException) {
+      Thread.currentThread().interrupt();
+      LOG.error("Could not invalidate an access token !", interruptedException);
+      return false;
+    }
   }
 
   public void updateUserDisplayName(String matrixFullID, String newDisplayName) {
@@ -208,8 +258,11 @@ public class MatrixService {
    * @return Room
    */
   public Room getById(String roomId, boolean includeDisabled) {
-    roomId = extractRoomId(roomId);
-    return matrixRoomStorage.getById(roomId, includeDisabled);
+    if (StringUtils.isNotBlank(roomId)) {
+      roomId = extractRoomId(roomId);
+      return matrixRoomStorage.getById(roomId, includeDisabled);
+    }
+    return null;
   }
 
   /**
@@ -581,9 +634,9 @@ public class MatrixService {
               joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
             } else {
               kickUserFromRoom(spaceRoom.getRoomId(),
-                      matrixIdOfMember,
-                      "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
-                              member));
+                               matrixIdOfMember,
+                               "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
+                                                                                                                                     member));
             }
           } catch (Exception e) {
             if (e instanceof InterruptedException) {
@@ -635,6 +688,131 @@ public class MatrixService {
         Thread.currentThread().interrupt();
       }
       LOG.error("Could not update the rate limits for the Matrix admin user", e);
+    }
+  }
+
+  /**
+   * Retrieves the message related to the event ID
+   * 
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @return MatrixMessage the received message
+   */
+  public MatrixMessage getRoomEvent(String eventId, String roomId, String token) {
+    try {
+      String accessToken = StringUtils.isNotBlank(token) ? token : getMatrixAccessToken();
+      MatrixMessage message = matrixHttpClient.getEventById(eventId, roomId, accessToken);
+      if (message != null && "m.room.message".equals(message.getType())) {
+        return message;
+      }
+    } catch (IOException | InterruptedException | JsonException e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      LOG.error("Could not retrieve the Room event {}", eventId, e);
+    }
+    return null;
+  }
+
+  /**
+   * Retrieves the message related to the event ID
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @return MatrixMessage the received message
+   */
+  public MatrixMessage getRoomEvent(String eventId, String roomId) {
+    try {
+      return getRoomEvent(eventId, roomId, getMatrixAccessToken());
+    } catch (IOException | JsonException e) {
+      LOG.error("Could not retrieve the Room event {}", eventId, e);
+    } catch (InterruptedException interruptedException) {
+      Thread.currentThread().interrupt();
+      LOG.error("Could not retrieve the Room event {}", eventId, interruptedException);
+    }
+    return null;
+  }
+
+  /**
+   * Finds the identity of a user based on its Matrix ID and a space where he is a
+   * member
+   * 
+   * @param matrixId
+   * @param space
+   * @return
+   */
+  public Identity findSpaceMemberByMatrixId(String matrixId, Space space) {
+    matrixId = extractUserId(matrixId);
+    if (userMatrixIdsCache.get(matrixId) != null) {
+      return identityManager.getOrCreateUserIdentity(userMatrixIdsCache.get(matrixId));
+    }
+    for (String member : space.getMembers()) {
+      Identity memberIdentity = identityManager.getOrCreateUserIdentity(member);
+      if (memberIdentity != null && memberIdentity.getProfile().getProperties().containsKey(USER_MATRIX_ID)
+          && memberIdentity.getProfile().getProperties().get(USER_MATRIX_ID).equals(matrixId)) {
+        userMatrixIdsCache.put(matrixId, member);
+        return memberIdentity;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * find the user on Meeds based on his id on Matrix
+   * 
+   * @param userMatrixId the ID of the user on Matrix
+   * @return the user Identity
+   */
+  public String findUserByMatrixId(String userMatrixId) {
+    if (StringUtils.isBlank(userMatrixId)) {
+      throw new IllegalArgumentException("the user Matrix ID is required");
+    }
+    String simplifiedMatrixId = extractUserId(userMatrixId);
+    if (userMatrixIdsCache.get(simplifiedMatrixId) != null) {
+      return userMatrixIdsCache.get(simplifiedMatrixId);
+    }
+    try {
+      String userAsJson = matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken());
+      Iterator<JsonValue> jsonIterator = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson)
+                                                                .getElement("threepids")
+                                                                .getElements();
+      while (jsonIterator.hasNext()) {
+        JsonValue threePids = jsonIterator.next();
+        if ("email".equals(threePids.getElement("medium").getStringValue())) {
+          User user = getUserByEmail(threePids.getElement("address").getStringValue());
+          if (user != null) {
+            userMatrixIdsCache.put(userMatrixId, user.getUserName());
+            return user.getUserName();
+          }
+        }
+      }
+    } catch (InterruptedException interruptedException) {
+      Thread.currentThread().interrupt();
+      return userMatrixId;
+    } catch ( Exception e) {
+      return userMatrixId;
+    }
+    return userMatrixId;
+  }
+
+  private User getUserByEmail(String email) {
+    if (email == null) {
+      return null;
+    }
+    RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
+    try {
+      Query query = new Query();
+      query.setEmail(email);
+      User[] users = organizationService.getUserHandler().findUsersByQuery(query).load(0, 10);
+      if (users.length > 0) {
+        return users[0];
+      } else {
+        return null;
+      }
+    } catch (Exception e) {
+      return null;
+    } finally {
+      RequestLifeCycle.end();
     }
   }
 }

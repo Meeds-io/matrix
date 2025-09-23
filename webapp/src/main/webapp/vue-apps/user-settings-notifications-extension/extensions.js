@@ -16,28 +16,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-export const chatConstants = {
-  DEFAULT_ROOM_AVATAR: '/matrix/img/room-default.jpg',
 
-  // Static String for action names
-  ACTION_OPEN_CHAT_ROOM: 'meeds-chat-open-room',
-
-  ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'meeds-open-quick-create-discussion-drawer',
-
-  ACTION_CHAT_OPEN_DISCUSSION_DRAWER: 'open-discussion-drawer',
-
-  ENTER_CODE_KEY: 13,
-
-  MESSAGES_LOAD_LIMIT : 200,
-
-  // IndexedDB configuration
-  DB_SETTINGS: {
-    DB_NAME: 'CHAT',
-    DB_VERSION: 4,
-    DB_STORES: {
-      SETTINGS: 'SETTINGS',
-      READ_RECEIPTS: 'READ_RECEIPTS',
-    }
-  }
-
-}
+extensionRegistry.registerComponent('UserSettingsNotifications', 'user-settings-notifications-extension', {
+  id: 'PushNotificationsSettingsExtension',
+  rank: 10,
+  vueComponent: Vue.options.components['matrix-push-notifications-settings'],
+});

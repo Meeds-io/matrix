@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.service.utils;
 
+import io.meeds.chat.model.MatrixMessage;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -37,6 +38,9 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -54,7 +58,7 @@ public class MatrixHttpClient {
    * @throws IOException
    * @throws InterruptedException
    */
-  public String getAdminAccessToken(String userJWTToken) throws JsonException, IOException, InterruptedException {
+  public String getAccessToken(String userJWTToken) throws JsonException, IOException, InterruptedException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -81,7 +85,7 @@ public class MatrixHttpClient {
 
           LOG.warn("Too many requests on Matrix server, retrying the authentication of the admin after {}ms", sleepInMs);
           Thread.sleep(sleepInMs);
-          return getAdminAccessToken(userJWTToken);
+          return getAccessToken(userJWTToken);
         } else {
           LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
                     String.valueOf(response.statusCode()),
@@ -296,6 +300,7 @@ public class MatrixHttpClient {
 
   /**
    * Saves the user account on Matrix
+   * 
    * @param user the user identity
    * @param matrixUserId the user Matrix ID to set
    * @param isNew if the user has been just created
@@ -318,7 +323,12 @@ public class MatrixHttpClient {
    * @return the user Matrix ID
    */
 
-  public String saveUserAccount(Identity user, String matrixUserId, boolean isNew, String token, boolean isEnableUserOperation, boolean isUserEnabled) {
+  public String saveUserAccount(Identity user,
+                                String matrixUserId,
+                                boolean isNew,
+                                String token,
+                                boolean isEnableUserOperation,
+                                boolean isUserEnabled) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -330,7 +340,7 @@ public class MatrixHttpClient {
     String payload;
     String password = null;
     if (isNew) {
-      password = PasswordGenerator.generatePassword(10);
+      password = PasswordKeyGenerator.generatePassword(10);
       payload = """
            {
             "password": "%s",
@@ -359,7 +369,7 @@ public class MatrixHttpClient {
            ],
            "deactivated": %s
            }
-          """.formatted(PasswordGenerator.generatePassword(10),
+          """.formatted(PasswordKeyGenerator.generatePassword(10),
                         user.getProfile().getFullName(),
                         user.getProfile().getEmail(),
                         String.valueOf(false));
@@ -533,7 +543,7 @@ public class MatrixHttpClient {
    * @param userMatrixId the Matrix id of the user
    * @param raisonMessage the raison message
    */
-  public void kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
+  public boolean kickUserFromRoom(String roomId, String userMatrixId, String raisonMessage, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -552,15 +562,18 @@ public class MatrixHttpClient {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
       if (response.statusCode() >= 200 && response.statusCode() < 300) {
         LOG.info("User {} successfully kicked out of room {}", userMatrixId, roomId);
+        return true;
       } else {
         LOG.error("Error kicking user {} from room {}, Matrix server returned HTTP {} error {}",
                   userMatrixId,
                   roomId,
                   String.valueOf(response.statusCode()),
                   response.body());
+        return false;
       }
     } catch (Exception e) {
       LOG.error("Could not kick out a user from the room on Matrix", e);
+      return false;
     }
   }
 
@@ -973,6 +986,32 @@ public class MatrixHttpClient {
   }
 
   /**
+   * Retrieve the user details from Matrix server
+   *
+   * @param matrixIdOfUser the ID of the user on Matrix
+   * @param accessToken the access token
+   * @return String representing JSON of the user
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public String getUser(String matrixIdOfUser, String accessToken) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String encodedUserMatrixId = URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + encodedUserMatrixId;
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return response.body();
+    } else {
+      throw new RuntimeException("Error retrieving the details of the user %s ,Matrix server returned HTTP %s error %s".formatted(matrixIdOfUser,
+                                                                                                                                  String.valueOf(response.statusCode()),
+                                                                                                                                  response.body()));
+    }
+  }
+
+  /**
    * Set the user presence on Matrix server
    * 
    * @param matrixIdOfUser the ID of the user n Matrix
@@ -1023,6 +1062,7 @@ public class MatrixHttpClient {
 
   /**
    * Overrides the rate limits for a given user
+   * 
    * @param userIdOnMatrix the user Id on Matrix
    * @param messagesPerSecond the allowed number of messages per second
    * @param burstCount how many actions that can be performed before being limited
@@ -1032,9 +1072,9 @@ public class MatrixHttpClient {
    * @throws InterruptedException
    */
   public String overrideRateLimitForUser(String userIdOnMatrix,
-                                          int messagesPerSecond,
-                                          int burstCount,
-                                          String accessToken) throws IOException, InterruptedException {
+                                         int messagesPerSecond,
+                                         int burstCount,
+                                         String accessToken) throws IOException, InterruptedException {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
@@ -1061,6 +1101,7 @@ public class MatrixHttpClient {
 
   /**
    * Gets the overridden the rate limits for a given user
+   * 
    * @param userIdOnMatrix the user Id on Matrix
    * @param accessToken the access token
    * @return String the applied rate limits configuration
@@ -1083,6 +1124,87 @@ public class MatrixHttpClient {
       throw new RuntimeException("Error overriding the rate limits for the user %s ,Matrix server returned HTTP %s error %s".formatted(userIdOnMatrix,
                                                                                                                                        String.valueOf(response.statusCode()),
                                                                                                                                        response.body()));
+    }
+  }
+
+  /**
+   * Retrieves an event from Matrix by its Id
+   *
+   * @param eventId the event ID
+   * @return Map representing the message
+   */
+  public MatrixMessage getEventById(String eventId, String roomId, String accessToken) throws IOException,
+                                                                                       InterruptedException,
+                                                                                       JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + roomId + "/event/" + eventId;
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      JsonValue jsonMessage = new JsonGeneratorImpl().createJsonObjectFromString(response.body());
+      MatrixMessage message = new MatrixMessage();
+      message.setEventId(eventId);
+      message.setRoomId(jsonMessage.getElement("room_id").getStringValue());
+      message.setType(jsonMessage.getElement("type").getStringValue());
+      message.setSender(jsonMessage.getElement("sender").getStringValue());
+      message.setTimeStamp(Long.parseLong(jsonMessage.getElement("origin_server_ts").getStringValue()));
+      if (jsonMessage.getElement("content") != null) {
+        JsonValue content = jsonMessage.getElement("content");
+        message.setMessageContent(content.getElement("body").getStringValue());
+        message.setMessageType(content.getElement("msgtype").getStringValue());
+        if ("m.text".equals(message.getMessageType()) && content.getElement("org.matrix.custom.html") != null) {
+          message.setMessageContent(jsonMessage.getElement("formatted_body").getStringValue());
+        }
+        JsonValue mentionsElement = content.getElement("m.mentions");
+        if (mentionsElement != null) {
+          JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
+          if (mentionedUsersElement != null) {
+            Iterator<JsonValue> mentionedUsersIterator = mentionedUsersElement.getElements();
+            List<String> mentionedUsers = new ArrayList<>();
+            while (mentionedUsersIterator.hasNext()) {
+              JsonValue nextMentioned = mentionedUsersIterator.next();
+              mentionedUsers.add(nextMentioned.getStringValue());
+            }
+            message.setMentionedUsers(mentionedUsers);
+          }
+        }
+      }
+      return message;
+    } else {
+      if (response.statusCode() != 404) {
+        throw new RuntimeException("Error retrieving the message of the event %s ,Matrix server returned HTTP %s error %s".formatted(eventId,
+                                                                                                                                     String.valueOf(response.statusCode()),
+                                                                                                                                     response.body()));
+      } else {
+        // if the event is missing or the user has not the right to access it (event in
+        // a private room)
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Invalidates an access token on Matrix server
+   * 
+   * @param accessToken
+   * @return
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public boolean invalidateAccessToken(String accessToken) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/logout";
+
+    HttpResponse<String> response = sendHttpPostRequest(url, accessToken, "");
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return true;
+    } else {
+      throw new RuntimeException("Error invalidating access token ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
+                                                                                                                      response.body()));
     }
   }
 }

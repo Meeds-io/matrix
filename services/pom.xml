@@ -34,7 +34,7 @@
   </build>
 
   <properties>
-    <exo.test.coverage.ratio>0.53</exo.test.coverage.ratio>
+    <exo.test.coverage.ratio>0.63</exo.test.coverage.ratio>
   </properties>
 
   <dependencies>
@@ -51,6 +51,10 @@
     <dependency>
       <groupId>io.meeds.social</groupId>
       <artifactId>social-component-service</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.meeds.social</groupId>
+      <artifactId>social-component-notification</artifactId>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>

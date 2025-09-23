@@ -85,8 +85,34 @@ public class MatrixConstants {
                                                                         new ArgumentLiteral<>(Integer.class,
                                                                                               "MATRIX_ROOM_UNREAD_COUNT");
 
+  public static final ArgumentLiteral<String>  MATRIX_ROOM_NAME                            =
+                                                                new ArgumentLiteral<>(String.class, "MATRIX_ROOM_NAME");
+
+  public static final ArgumentLiteral<String>  MATRIX_ROOM_TYPE                            =
+                                                                new ArgumentLiteral<>(String.class, "MATRIX_ROOM_TYPE");
+
+  public static final ArgumentLiteral<String>  MATRIX_ROOM_AVATAR                          =
+                                                                  new ArgumentLiteral<>(String.class, "MATRIX_ROOM_AVATAR");
+
+  public static final ArgumentLiteral<String>  MATRIX_MESSAGE_SENDER                       =
+                                                                     new ArgumentLiteral<>(String.class, "sender");
+
+  public static final ArgumentLiteral<String>  MATRIX_MESSAGE_URL                          =
+                                                                  new ArgumentLiteral<>(String.class, "MATRIX_MESSAGE_URL");
+
+  public static final ArgumentLiteral<String>  MATRIX_MESSAGE_CONTENT                      =
+                                                                      new ArgumentLiteral<>(String.class,
+                                                                                            "MATRIX_MESSAGE_CONTENT");
+
+  public static final ArgumentLiteral<String>  MATRIX_MESSAGE_SENDER_FULLNAME              =
+                                                                              new ArgumentLiteral<>(String.class,
+                                                                                                    "MATRIX_MESSAGE_SENDER_FULLNAME");
+
   public static final String                   MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN =
                                                                                            "MatrixMessageReceivedNotificationPlugin";
+
+  public static final String                   MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN =
+                                                                                           "MatrixMentionReceivedNotificationPlugin";
 
   public static final PluginKey                UNREAD_MESSAGE_KEY                          =
                                                                   PluginKey.key(MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN);
