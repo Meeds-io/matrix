@@ -219,7 +219,6 @@ public class MatrixRest implements ResourceContainer {
                 """.formatted(pushKey);
           }
           if (StringUtils.isNotBlank(userName)) {
-            ChatNotificationService chatNotificationService = CommonsUtils.getService(ChatNotificationService.class);
             int unreadCount = 0;
             JsonValue element = notifJsonValue.getElement("counts");
             if (element != null && element.getElement("unread") != null) {
