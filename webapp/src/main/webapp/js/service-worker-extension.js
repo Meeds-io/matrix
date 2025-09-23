@@ -21,42 +21,44 @@ self.addEventListener('push', event => {
         const eventAndRoomId = decodeURIComponent(params[1]).split('|');
         const eventId = eventAndRoomId[0];
         const roomId = eventAndRoomId[1];
-        event.waitUntil(new Promise(async (resolve, reject) => {
-          try {
-            if (action === 'open') {
-              if (!accessToken) {
-                const userSettings = await retrieveUserSettings();
-                accessToken = userSettings.access_token;
-                userId = userSettings.user_id;
-              }
-              const lastReadMessageObject = await retrieveLastReadObject(roomId);
-              const lastReadMessageTimestamp = lastReadMessageObject && lastReadMessageObject[userId] && lastReadMessageObject[userId].ts || 0;
-              let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}/${lastReadMessageTimestamp}`, {
-                method: 'PUT',
-                credentials: 'include',
-                body: accessToken
-              }).then(resp => {
-                if(resp?.ok) {
-                  return resp.json()
-                } else {
-                  console.error('could not retrieve the related chat event', resp);
-                  return null;
+        if (roomId && eventId) {
+          event.waitUntil(new Promise(async (resolve, reject) => {
+            try {
+              if (action === 'open') {
+                if (!accessToken) {
+                  const userSettings = await retrieveUserSettings();
+                  accessToken = userSettings.access_token;
+                  userId = userSettings.user_id;
                 }
-              });
-              if (chatNotification) {
-                const title = chatNotification.title;
-                chatNotification.icon = self.location.origin + chatNotification.icon;
-                chatNotification.type = CHAT_NOTIFICATION_TYPE;
-                delete chatNotification.actions;
-                chatNotification = prepareNotificationToSend(eventId, chatNotification);
-                await self.registration.showNotification(title, chatNotification);
-                await refreshBadge();
+                const lastReadMessageObject = await retrieveLastReadObject(roomId);
+                const lastReadMessageTimestamp = lastReadMessageObject && lastReadMessageObject[userId] && lastReadMessageObject[userId].ts || 0;
+                let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}/${lastReadMessageTimestamp}`, {
+                  method: 'PUT',
+                  credentials: 'include',
+                  body: accessToken
+                }).then(resp => {
+                  if(resp?.ok) {
+                    return resp.json()
+                  } else {
+                    console.error('could not retrieve the related chat event', resp);
+                    return null;
+                  }
+                });
+                if (chatNotification) {
+                  const title = chatNotification.title;
+                  chatNotification.icon = self.location.origin + chatNotification.icon;
+                  chatNotification.type = CHAT_NOTIFICATION_TYPE;
+                  delete chatNotification.actions;
+                  chatNotification = prepareNotificationToSend(eventId, chatNotification);
+                  await self.registration.showNotification(title, chatNotification);
+                  await refreshBadge();
+                }
               }
+            } catch (e) {
+              reject(e);
             }
-          } catch (e) {
-            reject(e);
-          }
-        }));
+          }));
+        }  
       }
     }
   }
