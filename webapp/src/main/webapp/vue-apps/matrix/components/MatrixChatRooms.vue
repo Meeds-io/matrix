@@ -3,9 +3,8 @@
     v-if="rooms?.length"
     class="d-flex flex-column">
     <matrix-chat-room
-      v-for="(room, i) in rooms"
+      v-for="room in rooms"
       :key="room.id"
-      :id="'room-'+i"
       :room="room" />
   </div>
   <div v-else-if="!loading" class="d-flex full-height align-center justify-center full-width">
@@ -28,10 +27,10 @@
       }
     },
     created() {
-      document.addEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+      document.addEventListener('matrix-joined-room', this.addJoinedRoom);
     },
     beforeDestroy() {
-      document.removeEventListener('matrix-joined-room',e => this.addJoinedRoom(e));
+      document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
     },
     methods: {
       addJoinedRoom(event) {

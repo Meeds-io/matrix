@@ -30,7 +30,7 @@
         color="var(--allPagesBadgePrimaryColor, #d32a2a)"
         flat
         overlap>
-        <v-icon size="20" :class="presenceClass">fa-comments</v-icon>
+        <v-icon size="20" :color="presenceColor">fa-comments</v-icon>
       </v-badge>
     </v-btn>
     <matrix-chat-drawer
@@ -55,17 +55,24 @@
 
   export default {
     data: () => ({
-      presence: 'online',
+      presence: 'offline',
       open: false,
       totalUnreadMessages: 0,
       rooms: null,
       loading: false,
       messageEventQueue: [],
       processingMessageQueue: false,
-      seenEventIds: new Map()
+      seenEventIds: new Map(),
+      userName: eXo?.env?.portal.userName,
+      presenceInterval: null,
+      isPresencePollingOwner: false,
+      presencePollingKey: 'presence_polling_owner'
     }),
     created() {
+      this.tryBecomePresencePollingOwner();
+      this.getUserStatus();
       this.scheduleSeenEventsCleanup();
+      this.setupBroadcastChannelListener();
       const lastLoginOnMatrix = localStorage.getItem('matrix_last_login');
       const dayInMs = 24*60*60*1000;
       if(!lastLoginOnMatrix || (lastLoginOnMatrix && new Date().getTime() - lastLoginOnMatrix > dayInMs)) {
@@ -81,7 +88,7 @@
                 this.$matrixService.initUserData(resp);
                 this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
-                  this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+                  this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
                   this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
@@ -97,7 +104,7 @@
       } else {
         this.loadRooms();
         this.$matrixService.saveFilter().then(filterResponse => {
-          this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id).then(() => this.presence = localStorage.getItem('matrix_user_presence'));
+          this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
           this.bindSyncPollingListeners(filterResponse.filter_id);
         });
         this.$matrixService.installPusher();
@@ -105,12 +112,17 @@
 
       this.$root.$on('chat-event-total-unread-updated', e => this.totalUnreadMessages = e);
       this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
-      document.addEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
-      document.addEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
+      this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
+      document.addEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
+      document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
       document.addEventListener('matrix-message-deleted', this.messageDeleted);
-      document.addEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
-      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
-      document.addEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
+      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+      document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
+      document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
+      document.addEventListener('space-unmuted', this.handleSpaceUnmute)
+      document.addEventListener('space-muted', this.handleSpaceMute)
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
+      window.addEventListener('storage', this.handleLocaleStorageUpdate);
     },
     mounted() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -124,12 +136,18 @@
     beforeDestroy() {
       this.$root.$off('chat-event-total-unread-updated',e => this.totalUnreadMessages = e);
       this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
-      document.removeEventListener('matrix-message-received', event => this.enqueueMessageReceivedEvent(event));
+      this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
+      document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
       document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-      document.removeEventListener('matrix-message-reaction-added', event => this.reactionReceived(event));
-      document.removeEventListener('matrix-user-status-updated', event => this.userStatusUpdated(event));
-      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, event => this.openRoom(event.detail));
-      document.removeEventListener('matrix-room-mark-full-read', event => this.updateUnreadMessages(event));
+      document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
+      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+      document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
+      document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
+      document.removeEventListener('space-unmuted', this.handleSpaceUnmute)
+      document.removeEventListener('space-muted', this.handleSpaceMute)
+      window.removeEventListener('beforeunload', this.handleBeforeUnload);
+      window.removeEventListener('storage', this.handleLocaleStorageUpdate);
+      this.releasePresencePollingOwner();
     },
     watch: {
       open() {
@@ -139,11 +157,105 @@
       },
     },
     computed: {
-      presenceClass() {
-        return `chat-button-status-${this.presence}`;
+      presenceColor() {
+        return this.presence && this.$root.statusMap[this.presence];
+      },
+      isUserStatusAvailable() {
+        return this.presence === 'available';
       }
     },
     methods: {
+      handleTotalUnreadUpdate(total) {
+        this.totalUnreadMessages = total;
+      },
+      updateTotalUnread(value, isDecrement = false, broadcast = false) {
+        this.totalUnreadMessages = Math.max(0, this.totalUnreadMessages + (isDecrement ? -value : value));
+        if (broadcast) {
+          this.postBroadcastUpdateTotalUnread();
+        }
+      },
+      postBroadcastUpdateTotalUnread() {
+        this.$root.channel.postMessage({
+          type: 'total-unread-messages-updated',
+          payload: {totalUnreadMessages: this.totalUnreadMessages}
+        });
+      },
+      getUserStatus() {
+        return this.$userStateService.getUserStatus(this.userName).then(data => {
+          this.presence = data?.status;
+        });
+      },
+      tryBecomePresencePollingOwner() {
+        const now = Date.now();
+        const ownerRaw = localStorage.getItem(this.presencePollingKey);
+        const owner = ownerRaw ? JSON.parse(ownerRaw) : null;
+
+        if (!owner || now - owner.timestamp > 35000) {
+          const myOwner = {id: this._uid, timestamp: now};
+          localStorage.setItem(this.presencePollingKey, JSON.stringify(myOwner));
+          this.becomePresencePollingOwner();
+        }
+      },
+      becomePresencePollingOwner() {
+        if (this.isPresencePollingOwner) {
+          return;
+        }
+        this.isPresencePollingOwner = true;
+
+        if (this.presencePollingInterval) {
+          clearInterval(this.presencePollingInterval);
+        }
+
+        this.refreshUserStatus();
+        this.presencePollingInterval = setInterval(() => {
+          if (document.hidden || !navigator.onLine) {
+            return;
+          }
+          this.refreshUserStatus();
+        }, 30000 + Math.floor(Math.random() * 5000));
+      },
+      async refreshUserStatus() {
+        this.getUserStatus();
+        if (this.rooms?.length) {
+          this.rooms = await Promise.all(
+            this.rooms.map(async room => {
+              if (room.directChat && room.dmMemberId) {
+                const userData = await this.$userStateService.getUserStatus(room.dmMemberId);
+                this.$root.channel.postMessage({
+                  type: 'user-status-updated',
+                  payload: {userId: room.dmMemberId, status: userData?.status}
+                });
+                return {...room, presence: userData?.status};
+              }
+              return room;
+            })
+          );
+        }
+      },
+      handleCurrentUserStatusUpdated({detail: {userId, status}}) {
+        if (this.userName === userId) {
+          this.presence = status;
+          this.$root.channel.postMessage({
+            type: 'user-status-updated',
+            payload: {userId: userId, status: this.presence}
+          });
+        }
+      },
+      handleUserStatusUpdated({userId, status}) {
+        if (userId === this.userName && this.presence !== status) {
+          this.presence = status;
+          return;
+        }
+        const updatedRooms = this.rooms?.map(room => room.directChat && room.dmMemberId === userId
+        && room.presence !== status ?
+          {...room, presence: status} : room);
+        if (updatedRooms) {
+          this.rooms = updatedRooms;
+        }
+      },
+      handleBeforeUnload() {
+        this.releasePresencePollingOwner();
+      },
       enqueueMessageReceivedEvent(event) {
         this.enableAndPlayBipSound(event);
         this.messageEventQueue.push(event);
@@ -166,9 +278,9 @@
           await this.processNextMessageEvent();
         }
       },
-      enableAndPlayBipSound() {
+      enableAndPlayBipSound({detail: {roomId, message}}) {
         const keyToCheck = 'matrix_allow_bip';
-        if (event.detail?.message?.sender !== matrixUserId) {
+        if (message?.sender !== matrixUserId) {
           if (localStorage.getItem(keyToCheck) === null) {
             document.dispatchEvent(new CustomEvent('alert-message', {detail: {
               alertType: 'info',
@@ -184,8 +296,8 @@
               alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
             }}));
           } else if (localStorage.getItem(keyToCheck) === 'true') {
-            const roomIndex = this.rooms?.findIndex(room => room.id === event?.detail?.roomId);
-            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted) {
+            const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
+            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
               this.$refs.messageAudio.play().catch(err => {
                 this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
               });
@@ -198,6 +310,9 @@
         this.$refs.meedsChatDrawer?.open();
       },
       async handleMessageReceivedEvent(event) {
+        if (this.loading || !this.rooms) {
+          return;
+        }
         const {roomId, message} = event.detail || {};
         if (!roomId || !message || !message.event_id) {
           return;
@@ -244,8 +359,8 @@
         updatedRooms.unshift(updatedRoom);
         this.rooms = updatedRooms;
 
-        if (isNewMessageFromOtherUser) {
-          this.totalUnreadMessages++;
+        if (isNewMessageFromOtherUser && !updatedRoom.muted) {
+          this.updateTotalUnread(1);
         }
       },
       scheduleSeenEventsCleanup() {
@@ -286,8 +401,10 @@
 
             if (updatedRoom.unreadMessages === 1) {
               updatedRoom.unreadMessages--;
-              this.totalUnreadMessages--;
-              this.$matrixService.markRoomAsFullyRead(roomId, eventId);
+              this.updateTotalUnread(1, true);
+              this.$matrixService.markRoomAsFullyRead(roomId, eventId).then(() => {
+                updatedRoom.unreadMessages = 0;
+              });
             }
           }
 
@@ -299,19 +416,9 @@
       updateUnreadMessages(event) {
         const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === event.detail.roomId);
         const updatedRoom = this.rooms?.[updatedRoomIndex];
-        if(updatedRoom) {
-          this.totalUnreadMessages -= updatedRoom.unreadMessages;
+        if (updatedRoom) {
+          this.updateTotalUnread(updatedRoom.unreadMessages, true);
           updatedRoom.unreadMessages = 0;
-        }
-      },
-      userStatusUpdated(event) {
-        if(event.detail.userId === localStorage.getItem('matrix_user_id')) {
-          this.presence = event.detail.presence;
-        } else if(this.rooms) {
-          const updatedUserStatusIndex = this.rooms.findIndex(room => room.dmMemberId === event.detail.userId);
-          if(updatedUserStatusIndex >= 0) {
-            this.rooms[updatedUserStatusIndex].presence = event.detail.presence;
-          }
         }
       },
       loadRooms() {
@@ -375,11 +482,74 @@
       },
       bindSyncPollingListeners(matrixFilterId) {
         document.addEventListener('visibilitychange', () => {
+          if (document.hidden && this.isPresencePollingOwner) {
+            this.releasePresencePollingOwner();
+          }
           if (!document.hidden) {
             this.$matrixService.startMatrixSyncLoop(matrixFilterId).catch(console.error);
+            this.tryBecomePresencePollingOwner();
           }
         });
-      }
+      },
+      getLocalRoomById(roomId) {
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.id === roomId);
+        return this.rooms?.[updatedRoomIndex];
+      },
+      getLocalRoomBySpaceId(spaceId) {
+        const updatedRoomIndex = this.rooms?.findIndex?.(room => room.spaceId === spaceId);
+        return this.rooms?.[updatedRoomIndex];
+      },
+      handleRoomMuteUpdate(room) {
+        const updatedRoom = this.getLocalRoomById(room?.roomId);
+        const wasMuted = updatedRoom.muted;
+        updatedRoom.muted = room.muted;
+
+        if (wasMuted !== room.muted) {
+          const delta = updatedRoom.unreadMessages || 0;
+          this.updateTotalUnread(delta, room.muted, true);
+        }
+      },
+      handleSpaceMute({detail: {spaceId}}) {
+        const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
+        if (updatedRoom) {
+          updatedRoom.muted = true;
+          this.updateTotalUnread(updatedRoom.unreadMessages, false, true);
+        }
+      },
+      handleSpaceUnmute({detail: {spaceId}}) {
+        const updatedRoom = this.getLocalRoomBySpaceId(spaceId);
+        if (updatedRoom) {
+          updatedRoom.muted = false;
+          this.updateTotalUnread(updatedRoom.unreadMessages, true, true);
+        }
+      },
+      setupBroadcastChannelListener() {
+        this.$root.channel.addEventListener('message', event => {
+          if (!this.rooms) {
+            return;
+          }
+          const {type, payload} = event.data;
+          if (type === 'total-unread-messages-updated' && this.totalUnreadMessages !== payload.totalUnreadMessages) {
+            this.totalUnreadMessages = payload.totalUnreadMessages;
+          }
+          if (type === 'user-status-updated') {
+            this.handleUserStatusUpdated(payload);
+          }
+        });
+      },
+      handleLocaleStorageUpdate(e) {
+        if (e.key === this.presencePollingKey && !e.newValue) {
+          this.tryBecomePresencePollingOwner();
+        }
+      },
+      releasePresencePollingOwner() {
+        if (this.isPresencePollingOwner) {
+          this.isPresencePollingOwner = false;
+          clearInterval(this.presencePollingInterval);
+          this.presencePollingInterval = null;
+          localStorage.removeItem(this.presencePollingKey);
+        }
+      },
     }
   };
 </script>

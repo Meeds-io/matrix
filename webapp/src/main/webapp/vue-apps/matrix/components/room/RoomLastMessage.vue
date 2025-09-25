@@ -19,7 +19,7 @@
   <div
     v-if="lastMessageContent"
     class="chat-room-last-message text-truncate mt-1 text-subtitle"
-    :class="{'font-weight-bold' : room.unreadMessages > 0}"
+    :class="{'font-weight-bold' : hasUnreadMessages && !isMuted}"
     v-sanitized-html="lastMessageContent">
   </div>
   <v-skeleton-loader
@@ -60,6 +60,12 @@ export default{
     },
     isLastMessageSenderCurrentUser() {
       return this.lastMessageSender === matrixUserId;
+    },
+    hasUnreadMessages() {
+      return this.room.unreadMessages > 0
+    },
+    isMuted() {
+      return this.room?.muted;
     }
   },
   methods: {

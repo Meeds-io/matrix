@@ -13,15 +13,31 @@
     <template slot="title">
       <a :href="url">
         <div class="d-flex">
-          <div
-            :style="`backgroundImage: url(${room.avatarUrl})`"
-            :class="avatarBorderClass"
-            class="flex-shrink-0 meeds-chat-contact-avatar ma-0 size-9 d-flex">
-            <div
-             v-if="room.directChat"
-             :class="[presenceClass, avatarBorderClass]"
-             class="matrix-user-status size-2" />
-          </div>
+          <v-badge
+            :color="presenceColor"
+            :value="room.directChat"
+            class="my-auto mx-0 pa-0"
+            content=""
+            offset-x="10"
+            offset-y="10"
+            width="12"
+            height="12"
+            bordered
+            bottom
+            overlap
+            dot>
+            <v-avatar
+              :tile="!room.directChat"
+              :class="{'rounded-lg': !room.directChat}"
+              width="36"
+              min-width="36"
+              height="36">
+              <v-img
+                :src="room.avatarUrl"
+                :lazy-src="room.avatarUrl"
+                :alt="room?.name" />
+            </v-avatar>
+          </v-badge>
           <span class="mx-3 text-title text-truncate content-align">
             {{room.name}}
             <span v-if="room.external">
@@ -51,7 +67,7 @@
         </div>
       </div>
       <v-menu
-        v-if="canEditSpace"
+        v-model="menu"
         content-class="border-radius overflow-hidden"
         :nudge-left="-30"
         open-on-click
@@ -73,6 +89,7 @@
         </template>
         <v-list class="pa-0">
           <v-list-item
+            v-if="canEditSpace"
             class="ps-2 pe-3 height-auto"
             @click="editSpace">
             <v-sheet
@@ -86,6 +103,26 @@
               </v-icon>
             </v-sheet>
             {{ $t('matrix.room.space.editProperties') }}
+          </v-list-item>
+          <v-list-item
+            class="ps-2 pe-3 height-auto"
+            @click.stop="muteRoom">
+            <v-sheet
+              class="d-flex"
+              width="28"
+              height="36">
+              <v-icon
+                class="icon-default-color mx-auto"
+                size="16">
+                {{ isMuted ? 'fas fa-bell' : 'fas fa-bell-slash' }}
+              </v-icon>
+            </v-sheet>
+            <span v-if="!isMuted">
+              {{ $t('matrix.room.mute.label') }}
+            </span>
+            <span v-else>
+              {{ $t('matrix.room.unmute.label') }}
+            </span>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -228,6 +265,7 @@ export default {
       expanded: false,
       drawerWidth: 420,
       space: null,
+      menu: false
     };
   },
   provide() {
@@ -237,8 +275,27 @@ export default {
     };
   },
   computed: {
+    isAtBottomMessages() {
+      const element = this.getMessagesContainerElement();
+        if (!element) {
+          return true;
+        }
+      return element.scrollHeight - this.messageContainerScrollTop - element.clientHeight <= 60;
+    },
+    isMuted() {
+      return this.room?.muted;
+    },
+    spaceId() {
+      return this.room?.spaceId;
+    },
+    presence() {
+      return this.room?.presence
+    },
+    presenceColor() {
+      return this.presence && this.$root.statusMap[this.presence];
+    },
     canEditSpace() {
-      return this.room?.spaceId && this.space?.canEdit;
+      return this.space?.canEdit;
     },
     composerContainerMaxWidth() {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined
@@ -248,12 +305,6 @@ export default {
     },
     disableSendMessage() {
       return !this.messageContent?.trim()?.length;
-    },
-    presenceClass() {
-      return this.room.presence && `matrix-status-${this.room.presence}` || 'matrix-status-offline';
-    },
-    avatarBorderClass() {
-      return this.room.directChat ? 'rounded-circle' : 'rounded-lg';
     },
     url() {
       if(this.room?.directChat && this.room?.userId) {
@@ -273,12 +324,12 @@ export default {
   },
   created() {
     document.addEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
-    document.addEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
-    this.$root.$on('open-chat-discussion',e => this.openDiscussion(e));
-    this.$root.$on('room-discussion-opened', () => this.initRoomActionComponents());
-    this.$root.$on('chat-edit-message', e => this.editMessage(e));
-    this.$root.$on('chat-delete-message', e => this.openDeleteMessageDialog(e));
+    this.$root.$on('open-chat-discussion', this.openDiscussion);
+    this.$root.$on('room-discussion-opened', this.initRoomActionComponents);
+    this.$root.$on('chat-edit-message', this.editMessage);
+    this.$root.$on('chat-delete-message',  this.openDeleteMessageDialog);
   },
   watch:{
     room() {
@@ -286,14 +337,26 @@ export default {
     }
   },
   beforeDestroy() {
-    document.removeEventListener('matrix-message-received', event => this.messageReceived(event));
+    document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-    this.$root.$off('open-chat-discussion',e => this.openDiscussion(e));
-    this.$root.$off('room-discussion-opened', () => this.initRoomActionComponents());
-    this.$root.$off('chat-edit-message', e => this.editMessage(e));
-    this.$root.$off('chat-delete-message', e => this.openDeleteMessageDialog(e));
+    this.$root.$off('open-chat-discussion', this.openDiscussion);
+    this.$root.$off('room-discussion-opened', this.initRoomActionComponents);
+    this.$root.$off('chat-edit-message', this.editMessage);
+    this.$root.$off('chat-delete-message', this.openDeleteMessageDialog);
   },
   methods: {
+    muteRoom() {
+      this.$matrixService.muteRoom(this.room.id, this.spaceId, this.isMuted).then(() => {
+        this.$root.$emit(
+          'alert-message',
+          this.$t(`matrix.room.${!this.isMuted ? 'mute' : 'unmute'}.success`),
+          'success');
+        this.menu = false;
+        setTimeout(() => {
+          this.room.muted = !this.isMuted;
+        }, 100)
+      });
+    },
     handleExpand(expanded) {
       setTimeout(() => {
         this.expanded = expanded;
@@ -369,6 +432,32 @@ export default {
     onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
+    },
+    scrollToBottomMessages() {
+      if (!this.hasUnseenMessages) {
+        this.clearUnseenData();
+      }
+      this.scrollToEnd();
+    },
+    onInputFocus(event) {
+      setTimeout(() => {
+        if (this.isAtBottomMessages) {
+          const lastMessageIndex = this.messages.length - 1;
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: {roomId: this.room.id}
+            }));
+          });
+        }
+      }, 200)
+      this.isInputFocused = true;
+      this.resizeComposerArea(event)
+    },
+    getMessagesContainerElement() {
+      if (!this.messagesContainerElement) {
+        this.messagesContainerElement = document.getElementById(this.messagesContainerId);
+      }
+      return this.messagesContainerElement;
     },
     resetComposer() {
       if (!this.$refs.messageComposerArea) {
@@ -500,7 +589,9 @@ export default {
           document.getElementById(`chat-message-${lastMessageIndex}`).scrollIntoView({
             behavior: 'instant'
           });
-          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id);
+          this.$matrixService.markRoomAsFullyRead(this.room.id, this.messages[lastMessageIndex]?.event_id).then(() => {
+            this.room.unreadMessages = 0;
+          });
         }
       }
     },

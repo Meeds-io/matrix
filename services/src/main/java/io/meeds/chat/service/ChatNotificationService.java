@@ -68,7 +68,6 @@ import static io.meeds.pwa.service.PwaNotificationService.*;
 @Service
 public class ChatNotificationService {
   private static final Log          LOG                          = ExoLogger.getLogger(ChatNotificationService.class);
-
   @Autowired
   private MatrixService             matrixService;
 
@@ -93,7 +92,7 @@ public class ChatNotificationService {
   @Autowired
   private SettingService            settingService;
 
-  private static UserStateService userStateService;
+  private static UserStateService   userStateService;
 
   private static UserSettingService userSettingService;
 
@@ -107,7 +106,7 @@ public class ChatNotificationService {
 
   public static final String        PUSH_NOTIFICATIONS_SETTINGS  = "pushNotificationsSettings";
 
-  /**
+    /**
    * Sends a notification Creation request to the Push service on the browser
    * based on the event contents
    *
@@ -119,6 +118,9 @@ public class ChatNotificationService {
    */
   public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
     if (!isPushNotificationsEnabled(userName)) {
+      return null;
+    }
+    if (!isPushEnabledForUser(userName, roomId)) {
       return null;
     }
     // Create Push notification
@@ -294,8 +296,56 @@ public class ChatNotificationService {
     } catch (Exception e) {
       link = String.format("/portal/%s", portalConfigService.getMetaPortal());
     }
+      return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+  }
 
-    return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+  public boolean isPrivateRoomMutedForUser(String userName, String roomId) {
+    return getMutedRooms(userName).contains(roomId);
+  }
+
+  public void toggleMutePrivateRoom(String userName, String roomId) {
+    Set<String> mutedRoomIds = new HashSet<>(getMutedRooms(userName));
+    boolean changed;
+    changed = mutedRoomIds.remove(roomId);
+    if (!changed) {
+      changed = mutedRoomIds.add(roomId);
+    }
+    if (changed) {
+      settingService.set(Context.USER.id(userName),
+                         USER_CHAT_NOTIFICATION_SCOPE,
+                         MUTED_ROOMS,
+                         SettingValue.create(JsonUtils.toJsonString(mutedRoomIds)));
+    }
+  }
+
+  private Set<String> getMutedRooms(String userName) {
+    try {
+      SettingValue<?> settingValue = settingService.get(Context.USER.id(userName), USER_CHAT_NOTIFICATION_SCOPE, MUTED_ROOMS);
+      if (settingValue == null || settingValue.getValue() == null) {
+        return Collections.emptySet();
+      }
+      return JsonUtils.OBJECT_MAPPER.readValue(settingValue.getValue().toString(), new TypeReference<>() {
+      });
+    } catch (Exception e) {
+      LOG.error("Error reading muted rooms setting value for user {}", userName, e);
+      return Collections.emptySet();
+    }
+  }
+
+  private boolean isPushEnabledForUser(String userName, String roomId) {
+    Room room = matrixService.getById(roomId);
+    if (room == null) {
+      return false;
+    }
+    boolean roomMuted;
+    if (StringUtils.isNotBlank(room.getSpaceId())) {
+      UserSetting userSetting = getUserSettingService().get(userName);
+      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
+    } else {
+      roomMuted = isPrivateRoomMutedForUser(userName, roomId);
+    }
+    UserStateModel userStatus = getUserStateService().getUserState(userName);
+    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
   }
 
   /**
