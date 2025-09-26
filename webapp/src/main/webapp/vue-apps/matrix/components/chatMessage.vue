@@ -35,6 +35,11 @@
         {{ formattedDate }}
       </v-chip>
     </div>
+    <v-divider
+      v-if="showUnSeenMessageSeparator && showUnseen"
+      v-intersect="onIntersect"
+      id="unseenSeparator"
+      class="mx-4 my-4 primary-border-color primary" />
     <div
       :id="message.event_id"
       class="px-4"
@@ -90,10 +95,10 @@
               @reaction="reactToMessage" />
           </v-menu>
           <div
-            class="message-reactions d-flex flex-wrap"
+            class="position-sticky mt-n1 d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
             <message-reaction-item
-              v-if="!isRedacted"
+              v-if="!isRedacted && hasReactions"
               v-for="reaction in message.reactions"
               :key="reaction.key"
               :reaction="reaction"
@@ -101,6 +106,18 @@
               :is-my-message="isMyMessage"
               @reaction="$emit('reaction', $event, message)" />
           </div>
+          <v-sheet
+            v-if="hasLastReaders"
+            height="24">
+            <message-receipt-list
+              :room="room"
+              :read-receipts="readReceipts"
+              :class="{
+                'mt-2': !hasReactions,
+                'me-3': !isMyMessage
+              }"
+              class="d-flex justify-end" />
+          </v-sheet>
         </div>
       </div>
     </div>
@@ -125,6 +142,14 @@
       room: {
         type: Object,
         default: {},
+      },
+      unseenMessagesData: {
+        type: Object,
+        default: null
+      },
+      isInputFocused: {
+        type: Boolean,
+        default: false
       }
     },
     data() {
@@ -145,15 +170,21 @@
         touchHoldTimeout: null,
         touchMoved: false,
         touchStartY: 0,
-        ignoreClickUntil: 0
+        ignoreClickUntil: 0,
+        readReceipts: [],
+        loadingReceipts: false,
+        showUnseen: true,
+        hideTimeout: null
       };
     },
     created() {
+      this.loadMessageReadReceipts();
       this.$matrixService.getUserByMatrixId(this.message.sender, this.room).then(sender => {
         this.sender = sender;
       });
       document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
       document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+      document.addEventListener('matrix-message-read', this.handleMessageRead)
       document.addEventListener('click', this.onClickOutside, true);
       document.addEventListener('touchstart', this.onClickOutside, true);
       this.$root.$on('message-child-menu-closed', this.closeChildMenu);
@@ -167,7 +198,30 @@
       this.$root.$off('message-child-menu-opened', this.openChildMenu);
       this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     },
+    watch: {
+      isInputFocused() {
+        if (this.isInputFocused && this.isUnseenInViewPort && this.showUnSeenMessageSeparator) {
+          this.startHideUnseenSeparatorTimer();
+        }
+      }
+    },
     computed: {
+      firstUnseenEventId() {
+        const eventId = this?.unseenMessagesData?.firstUnseenEventId;
+        return eventId != null ? String(eventId) : null;
+        },
+      showUnSeenMessageSeparator() {
+        return this.unseenViewPortInfo?.below === false && this.message?.event_id === this.firstUnseenEventId;
+      },
+      unseenViewPortInfo() {
+        return this.unseenMessagesData?.viewPortInfo;
+      },
+      isUnseenInViewPort() {
+        return this.unseenViewPortInfo?.visibleTop === true;
+      },
+      hasLastReaders() {
+        return this.message?.hasLastReaders;
+      },
       displaySender() {
         return !this.isMyMessage && ((this.previousHasReactions && !this.room.directChat) ||
             ((this.previousMessage.sender !== this.message.sender ||
@@ -176,6 +230,9 @@
       },
       previousHasReactions() {
         return this.previousMessage?.reactions?.length > 0;
+      },
+      hasReactions() {
+        return this.message?.reactions?.length > 0;
       },
       isMyMessage() {
         return localStorage.getItem('matrix_user_id') === this.message.sender;
@@ -244,6 +301,9 @@
       isRedacted() {
         return !this.message.content.body && this.message.redacted_because?.redacts;
       },
+      roomLastReadReceipts() {
+        return this.room?.lastReadReceipts;
+      }
     },
     methods: {
       reactToMessage(emoji) {
@@ -332,6 +392,49 @@
             messageContainer && !messageContainer.contains(event.target)
         ) {
           this.closeMenu();
+        }
+      },
+      loadMessageReadReceipts() {
+        if (!this.hasLastReaders) {
+          return;
+        }
+        this.loadingReceipts = true;
+        this.$matrixService.loadReadReceiptsForMessage(this.roomLastReadReceipts, this.message.event_id).then(users => {
+          this.readReceipts = users;
+        }).finally(() => this.loadingReceipts = false);
+      },
+      handleMessageRead({detail: {eventId, userId}}) {
+        if (this.message.event_id !== eventId && this.readReceipts.includes(userId)) {
+          this.readReceipts = this.readReceipts.filter(u => u !== userId);
+        } else if (this.message.event_id === eventId) {
+          if (!this.readReceipts.includes(userId) && userId !== matrixUserId) {
+            this.readReceipts = [...this.readReceipts, userId];
+          }
+        }
+        this.$set(this.message, 'hasLastReaders', this.readReceipts.length > 0);
+      },
+      onIntersect(entries) {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          if (this.isUnseenInViewPort && !this.isInputFocused) {
+            return;
+          }
+          this.startHideUnseenSeparatorTimer();
+        } else {
+          this.clearHideUnseenSeparatorTimer();
+        }
+      },
+      startHideUnseenSeparatorTimer() {
+        this.clearHideUnseenSeparatorTimer();
+        this.hideTimeout = setTimeout(() => {
+          this.showUnseen = false;
+          this.$emit('reset-unseen');
+        }, 2000);
+      },
+      clearHideUnseenSeparatorTimer() {
+        if (this.hideTimeout) {
+          clearTimeout(this.hideTimeout);
+          this.hideTimeout = null;
         }
       }
     }

@@ -266,10 +266,6 @@
     border: 1px solid @greyColorLighten1
   }
 
-  .message-reactions {
-    margin-top: -4px;
-    position: sticky;
-  }
   .message-reaction-item {
     border-radius: 16px;
     background: #F0F0F0 0% 0% no-repeat padding-box;
@@ -286,7 +282,39 @@
       color: @whiteColorDefault !important;
     }
   }
+
+  @keyframes fadePulseScale {
+    0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.4);
+    }
+  }
+
+  .writing-dot {
+    animation-name: fadePulseScale;
+    animation-duration: 1.5s;
+    margin: 0 2;
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-in-out;
+  }
+
+  .writing-dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .writing-dot:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+
+  .writing-dot:nth-child(3) {
+    animation-delay: 0.6s;
+  }
 }
+
 .VuetifyApp .chat-action-menu-item {
   min-height: 36px !important;
   min-width: 100px !important;

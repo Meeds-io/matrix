@@ -9,8 +9,8 @@ import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCre
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
-import MessageReplyQuote from "./components/message/MessageReplyQuote.vue";
-import MessageEditBanner from "./components/message/MessageEditBanner.vue";
+import MessageReplyQuote from './components/message/MessageReplyQuote.vue';
+import MessageEditBanner from './components/message/MessageEditBanner.vue';
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
 import MessageUser from './components/message/MessageUser.vue';
 import MessageActionList from './components/message/action/MessageActionList.vue'
@@ -21,10 +21,14 @@ import SpaceSettingsAdministration from './components/space-settings/SpaceSettin
 import RoomActionMenu from './components/room/RoomActionMenu.vue';
 import RoomActionMenuDrawer from './components/room/RoomActionMenuDrawer.vue';
 import RoomActionListItems from './components/room/RoomActionListItems.vue';
+import MessageReceiptList from './components/message/receipt/MessageReceiptList.vue';
+import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
+import MessageReadReceiptListDrawer from './components/message/read/MessageReadReceiptListDrawer.vue';
+import MessageTypingIndicator from './components/message/write/MessageTypingIndicator.vue';
 
+import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
-import {chatConstants} from './js/Constants.js';
 import * as timeUtils from './js/timeUtils.js';
 import * as matrixUtils from './js/matrixUtils'
 import './icons-extensions.js'
@@ -53,7 +57,11 @@ const components = {
   'meeds-chat-space-settings': SpaceSettingsAdministration,
   'room-action-menu': RoomActionMenu,
   'room-action-menu-drawer': RoomActionMenuDrawer,
-  'room-action-list-items': RoomActionListItems
+  'room-action-list-items': RoomActionListItems,
+  'message-receipt-list': MessageReceiptList,
+  'message-receipt': MessageReceipt,
+  'message-read-receipt-list-drawer': MessageReadReceiptListDrawer,
+  'message-typing-indicator': MessageTypingIndicator
 };
 
 for (const key in components) {
