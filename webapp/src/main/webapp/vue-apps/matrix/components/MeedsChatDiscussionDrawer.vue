@@ -172,7 +172,7 @@
             class="ms-4 mt-2"
             @scroll="scrollToEnd" />
         </div>
-        <sticky-arrow-button
+        <floating-arrow-button
           v-if="!loading && hasUnseenMessages"
           :show-badge="hasUnseenMessages"
           :closeable-tooltip="$t('matrix.messages.mark.as.read')"
@@ -183,7 +183,7 @@
           closeable
           up-arrow
           @closed="clearUnseenData" />
-        <sticky-arrow-button
+        <floating-arrow-button
           v-if="!loading && !isAtBottomMessages"
           :show-badge="hasUnseenNewReceivedMessage"
           :button-tooltip="$t('matrix.messages.jump.to.last')"
