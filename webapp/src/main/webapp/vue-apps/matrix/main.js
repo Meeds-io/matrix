@@ -25,6 +25,7 @@ import MessageReceiptList from './components/message/receipt/MessageReceiptList.
 import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
 import MessageReadReceiptListDrawer from './components/message/read/MessageReadReceiptListDrawer.vue';
 import MessageTypingIndicator from './components/message/write/MessageTypingIndicator.vue';
+import VoiceMessageRecorder from './components/message/VoiceMessageRecorder.vue';
 
 import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
@@ -61,7 +62,8 @@ const components = {
   'message-receipt-list': MessageReceiptList,
   'message-receipt': MessageReceipt,
   'message-read-receipt-list-drawer': MessageReadReceiptListDrawer,
-  'message-typing-indicator': MessageTypingIndicator
+  'message-typing-indicator': MessageTypingIndicator,
+  'voice-message-recorder': VoiceMessageRecorder
 };
 
 for (const key in components) {
