@@ -163,11 +163,11 @@ export default {
       });
     },
     handleEditMessage() {
-      this.$root.$emit('chat-edit-message', this.message);
+      this.$emit('edit', this.message);
       this.close();
     },
     handleDeleteMessage() {
-      this.$root.$emit('chat-delete-message', this.message);
+      this.$emit('delete', this.message);
       this.close();
     },
     close() {

@@ -60,7 +60,8 @@
       </span>
       <canvas
         ref="waveform"
-        :width="canvasWidth"
+        class="my-auto flex-shrink-1 d-flex no-min-width me-4 full-width"
+        style="height: 30px;"
         height="30"/>
     </div>
     <div class="d-flex flex-column justify-end">
@@ -122,7 +123,7 @@ export default {
       endTimestamp: 0,
       recordDuration: 0,
       maxUploadSize: null,
-      currentTime: 0
+      currentTime: 0,
     };
   },
   props: {
@@ -147,6 +148,9 @@ export default {
       return this.isRecording || this.audioBlob;
     },
     canvasWidth() {
+      if (this.$root.fullPageMode) {
+        return this.$root.fullPageMessagesContainerWidth;
+      }
       return this.expanded && this.drawerWidth * 0.421 || 150;
     },
     recordingLabel() {
@@ -163,7 +167,8 @@ export default {
         cancelAnimationFrame(this.animationFrame);
         let drawSamples = this.samples;
         if (!this.isRecording) {
-          drawSamples = this.downsample(this.samples, this.canvasWidth);
+          const width = this.$refs.waveform?.width || 150;
+          drawSamples = this.downsample(this.samples, width);
         }
         requestAnimationFrame(() => {
           if (this.isRecording) {
@@ -361,6 +366,9 @@ export default {
     },
     drawStaticWaveform(samples = this.samples) {
       const canvas = this.$refs.waveform;
+      if (!canvas) {
+        return;
+      }
       const ctx = canvas.getContext("2d");
       const barWidth = 2;
       const minHeight = 0.02;
@@ -468,7 +476,8 @@ export default {
         this.isPlaying = true;
         this.isPlaybackPaused = false;
         this.audioPlayer.play().then(() => {
-          const samples = this.downsample(this.samples, this.canvasWidth);
+          const width = this.$refs.waveform?.width || 150;
+          const samples = this.downsample(this.samples, width);
           this.animatePlayback(samples);
           this.startTimer();
         });
