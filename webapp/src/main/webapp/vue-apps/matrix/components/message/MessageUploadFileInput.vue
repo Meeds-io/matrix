@@ -167,7 +167,7 @@ export default {
         const { msgtype, info } = await this.extractFileMetadata(file);
 
         try {
-          const mxcUri = await this.$matrixService.uploadMatrixImage(file, (percent) => {
+          const mxcUri = await this.$matrixService.uploadMatrixFile(file, (percent) => {
             const uploadPart = (percent / 100) * file.size;
             const combinedBytes = uploadedBytes + uploadPart;
             this.uploadProgress = Math.min(Math.round((combinedBytes / totalBytes) * 80), 80);
