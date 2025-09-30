@@ -49,6 +49,8 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.social.websocket.entity.WebSocketMessage;
+import org.exoplatform.ws.frameworks.cometd.ContinuationService;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,7 +59,6 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ScheduledFuture;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static io.meeds.pwa.service.PwaNotificationService.*;
@@ -96,7 +97,7 @@ public class ChatNotificationService {
 
   public static String              IN_KEY                       = "matrix.words.in";
 
-  private static final String       USER_STATUS_AVAILABLE        = "available";
+  private static final String       USER_STATUS_DO_NOT_DISTURB   = "donotdisturb";
 
   public static final Scope         USER_CHAT_NOTIFICATION_SCOPE = Scope.APPLICATION.id("ChatNotificationSettings");
 
@@ -114,18 +115,25 @@ public class ChatNotificationService {
    * @param unreadCount the number of unread messages
    * @return thread to perform notification action
    */
-  public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
+  public void sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
     if (!canSendPushNotificationToUser(userName, roomId)) {
-      return null;
+      return;
     }
-    // Create Push notification
     HashMap<String, Object> params = new HashMap<>();
-    String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
-    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
-    params.put("username", userName);
-    params.put(EVENT_ACTION_PARAM_NAME, "open");
-    params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "CHAT_NOTIFICATION");
-    return pwaNotificationService.create(params);
+    ContinuationService continuationService = CommonsUtils.getService(ContinuationService.class);
+    if (continuationService.isPresent(userName)) {
+      params.put("roomId", roomId);
+      params.put("eventId", eventId);
+      WebSocketMessage webSocketMessage = new WebSocketMessage("chat-ws-message-received", params);
+      continuationService.sendMessage(userName, "/meeds/chat", webSocketMessage);
+    } else {
+      String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
+      params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
+      params.put("username", userName);
+      params.put(EVENT_ACTION_PARAM_NAME, "open");
+      params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "CHAT_NOTIFICATION");
+      pwaNotificationService.create(params);
+    }
   }
 
   /**
@@ -370,7 +378,7 @@ public class ChatNotificationService {
       roomMuted = isPrivateRoomMutedForUser(userName, roomId);
     }
     UserStateModel userStatus = getUserStateService().getUserState(userName);
-    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
+    return !userStatus.getStatus().equals(USER_STATUS_DO_NOT_DISTURB) && !roomMuted;
   }
 
   private static UserStateService getUserStateService() {
