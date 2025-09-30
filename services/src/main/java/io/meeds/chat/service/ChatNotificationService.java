@@ -63,6 +63,9 @@ import java.util.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static io.meeds.pwa.service.PwaNotificationService.*;
 
+/**
+ * This service creates and manages all different notifications related to the chat application
+ */
 @Service
 public class ChatNotificationService {
   private static final Log          LOG                          = ExoLogger.getLogger(ChatNotificationService.class);
@@ -113,7 +116,6 @@ public class ChatNotificationService {
    * @param userName the user name
    * @param roomId the room ID
    * @param unreadCount the number of unread messages
-   * @return thread to perform notification action
    */
   public void sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
     if (!canSendPushNotificationToUser(userName, roomId)) {
@@ -189,6 +191,8 @@ public class ChatNotificationService {
    * @param eventId the event Id
    * @param roomId the room ID
    * @param userName the user who received the notification
+   * @param lastMessageTimeStamp the timestamp of the last message
+   * @param token the authorization token
    * @return notification object
    */
   public PwaNotificationMessage createNotification(String eventId,
@@ -211,6 +215,7 @@ public class ChatNotificationService {
    * @param roomId the room ID
    * @param userName the username of the receiver of the notification
    * @param pushKey jwt token of one of the users in case the room is private
+   * @return true if the Mention notification is created, false otherwise
    */
   public boolean createMentionNotification(String eventId, String roomId, String userName, String pushKey) {
     Room room = matrixService.getById(roomId);

@@ -38,17 +38,19 @@ self.addEventListener('push', event => {
 });
 
 self.addEventListener('message', event => {
-  if (self?.Notification?.permission === 'granted') {
-    const data = event?.data || {};
-    if(data.type === CHAT_NOTIFICATION_TYPE) {
-      if (data.roomId && data.eventId) {
-        event.waitUntil(new Promise(async (resolve, reject) => {
-          try {
-            processChatNotification(data.roomId, data.eventId);
-          } catch (e) {
-            reject(e);
-          }
-        }));
+  if (event.origin === self.location.origin) {
+    if (self?.Notification?.permission === 'granted') {
+      const data = event?.data || {};
+      if(data.type === CHAT_NOTIFICATION_TYPE) {
+        if (data.roomId && data.eventId) {
+          event.waitUntil(new Promise(async (resolve, reject) => {
+            try {
+              processChatNotification(data.roomId, data.eventId);
+            } catch (e) {
+              reject(e);
+            }
+          }));
+        }
       }
     }
   }
