@@ -49,6 +49,8 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
+import org.exoplatform.social.websocket.entity.WebSocketMessage;
+import org.exoplatform.ws.frameworks.cometd.ContinuationService;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -56,15 +58,14 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
+import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static io.meeds.pwa.service.PwaNotificationService.*;
 
+/**
+ * This service creates and manages all different notifications related to the chat application
+ */
 @Service
 public class ChatNotificationService {
   private static final Log          LOG                          = ExoLogger.getLogger(ChatNotificationService.class);
@@ -98,7 +99,7 @@ public class ChatNotificationService {
 
   public static String              IN_KEY                       = "matrix.words.in";
 
-  private static final String       USER_STATUS_AVAILABLE        = "available";
+  private static final String       USER_STATUS_DO_NOT_DISTURB   = "donotdisturb";
 
   public static final Scope         USER_CHAT_NOTIFICATION_SCOPE = Scope.APPLICATION.id("ChatNotificationSettings");
 
@@ -114,23 +115,26 @@ public class ChatNotificationService {
    * @param userName the user name
    * @param roomId the room ID
    * @param unreadCount the number of unread messages
-   * @return thread to perform notification action
    */
-  public ScheduledFuture<?> sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
-    if (!isPushNotificationsEnabled(userName)) {
-      return null;
+  public void sendCreateNotificationAction(String eventId, String userName, String roomId, int unreadCount) {
+    if (!canSendPushNotificationToUser(userName, roomId)) {
+      return;
     }
-    if (!isPushEnabledForUser(userName, roomId)) {
-      return null;
-    }
-    // Create Push notification
     HashMap<String, Object> params = new HashMap<>();
-    String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
-    params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
-    params.put("username", userName);
-    params.put(EVENT_ACTION_PARAM_NAME, "open");
-    params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "CHAT_NOTIFICATION");
-    return pwaNotificationService.create(params);
+    ContinuationService continuationService = CommonsUtils.getService(ContinuationService.class);
+    if (continuationService.isPresent(userName)) {
+      params.put("roomId", roomId);
+      params.put("eventId", eventId);
+      WebSocketMessage webSocketMessage = new WebSocketMessage("chat-ws-message-received", params);
+      continuationService.sendMessage(userName, "/meeds/chat", webSocketMessage);
+    } else {
+      String encodedId = URLEncoder.encode(eventId + "|" + roomId, StandardCharsets.UTF_8).replace("+", "%20");
+      params.put(EVENT_NOTIFICATION_ID_PARAM_NAME, encodedId);
+      params.put("username", userName);
+      params.put(EVENT_ACTION_PARAM_NAME, "open");
+      params.put(EVENT_NOTIFICATION_TYPE_PARAM_NAME, "CHAT_NOTIFICATION");
+      pwaNotificationService.create(params);
+    }
   }
 
   /**
@@ -186,6 +190,8 @@ public class ChatNotificationService {
    * @param eventId the event Id
    * @param roomId the room ID
    * @param userName the user who received the notification
+   * @param lastMessageTimeStamp the timestamp of the last message
+   * @param token the authorization token
    * @return notification object
    */
   public PwaNotificationMessage createNotification(String eventId,
@@ -195,7 +201,7 @@ public class ChatNotificationService {
                                                    String token) {
     MatrixMessage message = matrixService.getRoomEvent(eventId, roomId, token);
     // Do not create a notification is the message is before the last message
-    if (lastMessageTimeStamp >= message.getTimeStamp()) {
+    if (message == null || lastMessageTimeStamp >= message.getTimeStamp()) {
       return null;
     }
     return createNotification(message, userName);
@@ -208,6 +214,7 @@ public class ChatNotificationService {
    * @param roomId the room ID
    * @param userName the username of the receiver of the notification
    * @param pushKey jwt token of one of the users in case the room is private
+   * @return true if the Mention notification is created, false otherwise
    */
   public boolean createMentionNotification(String eventId, String roomId, String userName, String pushKey) {
     Room room = matrixService.getById(roomId);
@@ -332,22 +339,6 @@ public class ChatNotificationService {
     }
   }
 
-  private boolean isPushEnabledForUser(String userName, String roomId) {
-    Room room = matrixService.getById(roomId);
-    if (room == null) {
-      return false;
-    }
-    boolean roomMuted;
-    if (StringUtils.isNotBlank(room.getSpaceId())) {
-      UserSetting userSetting = getUserSettingService().get(userName);
-      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
-    } else {
-      roomMuted = isPrivateRoomMutedForUser(userName, roomId);
-    }
-    UserStateModel userStatus = getUserStateService().getUserState(userName);
-    return userStatus.getStatus().equals(USER_STATUS_AVAILABLE) && !roomMuted;
-  }
-
   /**
    * Check the status of the Push notifications on Chat for a specified user
    * 
@@ -372,6 +363,25 @@ public class ChatNotificationService {
                        USER_CHAT_NOTIFICATION_SCOPE,
                        PUSH_NOTIFICATIONS_SETTINGS,
                        new SettingValue<>(String.valueOf(pushNotificationStatus)));
+  }
+
+  private boolean canSendPushNotificationToUser(String userName, String roomId) {
+    if (!this.isPushNotificationsEnabled(userName)) {
+      return false;
+    }
+    Room room = matrixService.getById(roomId);
+    if (room == null) {
+      return false;
+    }
+    boolean roomMuted;
+    if (StringUtils.isNotBlank(room.getSpaceId())) {
+      UserSetting userSetting = getUserSettingService().get(userName);
+      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
+    } else {
+      roomMuted = isPrivateRoomMutedForUser(userName, roomId);
+    }
+    UserStateModel userStatus = getUserStateService().getUserState(userName);
+    return !userStatus.getStatus().equals(USER_STATUS_DO_NOT_DISTURB) && !roomMuted;
   }
 
   private static UserStateService getUserStateService() {

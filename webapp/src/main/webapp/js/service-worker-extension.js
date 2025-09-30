@@ -25,35 +25,27 @@ self.addEventListener('push', event => {
           event.waitUntil(new Promise(async (resolve, reject) => {
             try {
               if (action === 'open') {
-                if (!accessToken) {
-                  const userSettings = await retrieveUserSettings();
-                  accessToken = userSettings.access_token;
-                  userId = userSettings.user_id;
-                }
-                const lastReadMessageObject = await retrieveLastReadObject(roomId);
-                const lastReadMessageTimestamp = lastReadMessageObject && lastReadMessageObject[userId] && lastReadMessageObject[userId].ts || 0;
-                let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}/${lastReadMessageTimestamp}`, {
-                  method: 'PUT',
-                  credentials: 'include',
-                  body: accessToken
-                }).then(resp => {
-                  if(resp?.ok) {
-                    return resp.json()
-                  } else {
-                    console.error('could not retrieve the related chat event', resp);
-                    return null;
-                  }
-                });
-                if (chatNotification) {
-                  const title = chatNotification.title;
-                  chatNotification.icon = self.location.origin + chatNotification.icon;
-                  chatNotification.type = CHAT_NOTIFICATION_TYPE;
-                  delete chatNotification.actions;
-                  chatNotification = prepareNotificationToSend(eventId, chatNotification);
-                  await self.registration.showNotification(title, chatNotification);
-                  await refreshBadge();
-                }
+                processChatNotification(roomId, eventId);
               }
+            } catch (e) {
+              reject(e);
+            }
+          }));
+        }
+      }
+    }
+  }
+});
+
+self.addEventListener('message', event => {
+  if (event.origin === self.location.origin) {
+    if (self?.Notification?.permission === 'granted') {
+      const data = event?.data || {};
+      if(data.type === CHAT_NOTIFICATION_TYPE) {
+        if (data.roomId && data.eventId) {
+          event.waitUntil(new Promise(async (resolve, reject) => {
+            try {
+              processChatNotification(data.roomId, data.eventId);
             } catch (e) {
               reject(e);
             }
@@ -93,4 +85,35 @@ async function retrieveFromDb(dbStore, itemKey) {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => resolve(null);
   });
+}
+
+async function processChatNotification(roomId, eventId) {
+  if (!accessToken) {
+    const userSettings = await retrieveUserSettings();
+    accessToken = userSettings.access_token;
+    userId = userSettings.user_id;
+  }
+  const lastReadMessageObject = await retrieveLastReadObject(roomId);
+  const lastReadMessageTimestamp = lastReadMessageObject && lastReadMessageObject[userId] && lastReadMessageObject[userId].ts || 0;
+  let chatNotification = await fetch(`/matrix/rest/matrix/notification/${roomId}/${eventId}/${lastReadMessageTimestamp}`, {
+    method: 'PUT',
+    credentials: 'include',
+    body: accessToken
+  }).then(resp => {
+    if(resp?.ok) {
+      return resp.json()
+    } else {
+      console.error('could not retrieve the related chat event', resp);
+      return null;
+    }
+  });
+  if (chatNotification) {
+    const title = chatNotification.title;
+    chatNotification.icon = self.location.origin + chatNotification.icon;
+    chatNotification.type = CHAT_NOTIFICATION_TYPE;
+    delete chatNotification.actions;
+    chatNotification = prepareNotificationToSend(eventId, chatNotification);
+    await self.registration.showNotification(title, chatNotification);
+    await refreshBadge();
+  }
 }
