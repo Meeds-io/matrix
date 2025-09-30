@@ -181,7 +181,7 @@
   margin-bottom: 2px !important;
 }
 
-#ChatDiscussionDrawer {
+#ChatDiscussionDrawer, #meedsChatDrawer {
   #chatMessagesContainer {
     height: 100%;
     overflow: auto;
@@ -318,4 +318,39 @@
 .VuetifyApp .chat-action-menu-item {
   min-height: 36px !important;
   min-width: 100px !important;
+}
+
+#meedsChatDrawer.fullPageHeader,
+#meedsChatDrawer.fullPageHeader_no_room {
+  .drawerTitle {
+    flex: none !important;
+    width: 404px;
+    background-color: @primaryBackground !important;
+    
+    margin-left: -16px ~'; /** orientation=lt */ ';
+    margin-right: -16px ~'; /** orientation=rt */ ';
+
+    padding-left: 16px ~'; /** orientation=lt */ ';
+    padding-right: 16px ~'; /** orientation=rt */ ';
+
+    align-self: stretch;
+    align-items: center !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+
+    .filter {
+      .v-input__slot {
+        background-color: @primaryBackground !important;
+      }
+    }
+  }
+
+  .drawerIcons {
+    width: 100%;
+
+    button:nth-child(1) {
+      margin-left: auto ~'; /** orientation=lt */ ';
+      margin-right: auto ~'; /** orientation=rt */ ';
+    }
+  }
 }
