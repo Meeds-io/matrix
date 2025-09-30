@@ -236,10 +236,13 @@
     },
     computed: {
       expanded() {
-        return this.getIsExpanded();
+        return this?.getIsExpanded?.() || this.$root?.fullPageMode;
+      },
+      parentWidth() {
+        return this?.getParentDrawerWidth?.() || this.$root?.fullPageMessagesContainerWidth;
       },
       messageMaxWidth() {
-        return this.getParentDrawerWidth() * (2 / 3);
+        return this.parentWidth * (2 / 3);
       },
       messageContentWidth() {
         if (this.isAudio && this.expanded) {
