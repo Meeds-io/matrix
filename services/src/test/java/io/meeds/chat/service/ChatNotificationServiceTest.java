@@ -27,6 +27,8 @@ import org.exoplatform.services.user.UserStateService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
+import org.exoplatform.social.websocket.entity.WebSocketMessage;
+import org.exoplatform.ws.frameworks.cometd.ContinuationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +39,6 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
-import java.util.concurrent.ScheduledFuture;
 
 import static io.meeds.chat.service.ChatNotificationService.PUSH_NOTIFICATIONS_SETTINGS;
 import static io.meeds.chat.service.ChatNotificationService.USER_CHAT_NOTIFICATION_SCOPE;
@@ -81,6 +82,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Mock
   private ResourceBundleService      resourceBundleService;
 
+  @Mock
+  private ContinuationService        continuationService;
+
   private MockedStatic<CommonsUtils> commonsUtils;
 
   @BeforeEach
@@ -90,6 +94,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     commonsUtils = mockStatic(CommonsUtils.class, CALLS_REAL_METHODS);
     commonsUtils.when(() -> CommonsUtils.getService(UserStateService.class)).thenReturn(userStateService);
     commonsUtils.when(() -> CommonsUtils.getService(UserSettingService.class)).thenReturn(userSettingService);
+    commonsUtils.when(() -> CommonsUtils.getService(ContinuationService.class)).thenReturn(continuationService);
     when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
     when(userSettingService.get(anyString())).thenReturn(userSetting);
     ReflectionTestUtils.setField(chatNotificationService, "settingService", settingService);
@@ -108,12 +113,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   void sendCreateNotificationAction() throws Exception {
     Space space = getSpaceInstance(2);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
-
-    when(userStateModel.getStatus()).thenReturn("available");
-    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    PwaNotificationService mockedPWANotificationService = mock(PwaNotificationService.class);
+    ReflectionTestUtils.setField(chatNotificationService, "pwaNotificationService", mockedPWANotificationService);
     String eventId = "eventIDOnMatrix";
-    ScheduledFuture<?> action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
-    assertNotNull(action);
 
     // Create mention
     MatrixMessage matrixMessage = new MatrixMessage(eventId,
@@ -126,18 +128,52 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     123456789);
     when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
 
-    action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
-    assertNotNull(action);
+    // Sending notifications using Push providers
+    when(continuationService.isPresent(anyString())).thenReturn(false);
+
+    when(userStateModel.getStatus()).thenReturn("available");
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification will be sent
+    verify(mockedPWANotificationService, times(1)).create(any(Map.class));
+
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification will be sent
+    verify(mockedPWANotificationService, times(2)).create(any(Map.class));
 
     when(userStateModel.getStatus()).thenReturn("donotdisturb");
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
-    action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
-    assertNull(action);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification won't be sent : user status is Do not disturb
+    verify(mockedPWANotificationService, times(2)).create(any(Map.class));
 
     when(userStateModel.getStatus()).thenReturn("available");
     when(userSetting.isSpaceMuted(anyLong())).thenReturn(true);
-    action = chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
-    assertNull(action);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification won't be sent: space is muted
+    verify(mockedPWANotificationService, times(2)).create(any(Map.class));
+
+    // Sending notifications using Web sockets
+    when(continuationService.isPresent(anyString())).thenReturn(true);
+
+    when(userStateModel.getStatus()).thenReturn("available");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification will be sent
+    verify(continuationService, times(1)).sendMessage(anyString(), anyString(), any(WebSocketMessage.class));
+
+    when(userStateModel.getStatus()).thenReturn("donotdisturb");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification won't be sent : user status is Do not disturb
+    verify(continuationService, times(1)).sendMessage(anyString(), anyString(),  any(WebSocketMessage.class));
+
+    when(userStateModel.getStatus()).thenReturn("available");
+    when(userSetting.isSpaceMuted(anyLong())).thenReturn(true);
+    chatNotificationService.sendCreateNotificationAction(eventId, "demo", roomId, 5);
+    // Notification won't be sent: space is muted
+    verify(continuationService, times(1)).sendMessage(anyString(), anyString(),  any(WebSocketMessage.class));
+
   }
 
   @Test
@@ -315,7 +351,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     NotificationInfo notificationInfo = NotificationInfo.instance()
                                                         .setFrom("raul")
                                                         .to("demo")
-                                                        .with("ROOM_ID", "§roomIdenitfier:matrix.meeds.tn")
+                                                        .with("ROOM_ID", "!roomIdenitfier:matrix.meeds.tn")
                                                         .with("MATRIX_ROOM_NAME", "Sample room")
                                                         .with("MATRIX_ROOM_TYPE", "SPACE")
                                                         .with("MATRIX_SENDER_FULL_NAME", "Raul Hamdi")
