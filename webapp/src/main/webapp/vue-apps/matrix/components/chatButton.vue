@@ -120,8 +120,9 @@
       document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
       document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
       document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
-      document.addEventListener('space-unmuted', this.handleSpaceUnmute)
-      document.addEventListener('space-muted', this.handleSpaceMute)
+      document.addEventListener('space-unmuted', this.handleSpaceUnmute);
+      document.addEventListener('space-muted', this.handleSpaceMute);
+      document.addEventListener('chat-ws-message-received', this.handleWSMessageReceived);
       window.addEventListener('beforeunload', this.handleBeforeUnload);
       window.addEventListener('storage', this.handleLocaleStorageUpdate);
     },
@@ -144,8 +145,9 @@
       document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
       document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
       document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
-      document.removeEventListener('space-unmuted', this.handleSpaceUnmute)
-      document.removeEventListener('space-muted', this.handleSpaceMute)
+      document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
+      document.removeEventListener('chat-ws-message-received', this.handleWSMessageReceived);
+      document.removeEventListener('space-muted', this.handleSpaceMute);
       window.removeEventListener('beforeunload', this.handleBeforeUnload);
       window.removeEventListener('storage', this.handleLocaleStorageUpdate);
       this.releasePresencePollingOwner();
@@ -568,6 +570,18 @@
           clearInterval(this.presencePollingInterval);
           this.presencePollingInterval = null;
           localStorage.removeItem(this.presencePollingKey);
+        }
+      },
+      handleWSMessageReceived({detail: {wsEventName, message}}) {
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.ready.then((registration) => {
+            const messageObject = {
+                                    type: 'CHAT_NOTIFICATION',
+                                    eventId: message.eventId,
+                                    roomId: message.roomId,
+                                  };
+            registration.active.postMessage(messageObject);
+          });
         }
       },
     }
