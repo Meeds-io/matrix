@@ -60,13 +60,16 @@ public class MatrixAuthJWTFilter implements Filter {
       if (cookies != null) {
         if (httpRequest.getRemoteUser() != null
             && Arrays.stream(cookies).noneMatch(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))) {
-          String sessionToken = matrixService.getJWTSessionToken(httpRequest.getRemoteUser());
-          Cookie cookie = new Cookie(MATRIX_JWT_COOKIE, sessionToken);
-          cookie.setPath("/");
-          cookie.setMaxAge(604800); // 7 days in seconds
-          cookie.setHttpOnly(false);
-          cookie.setSecure(request.isSecure());
-          httpResponse.addCookie(cookie);
+          String userNameOnMatrix = matrixService.getMatrixIdForUser(httpRequest.getRemoteUser());
+          if (StringUtils.isNotBlank(userNameOnMatrix)) {
+            String sessionToken = matrixService.getJWTSessionToken(userNameOnMatrix);
+            Cookie cookie = new Cookie(MATRIX_JWT_COOKIE, sessionToken);
+            cookie.setPath("/");
+            cookie.setMaxAge(604800); // 7 days in seconds
+            cookie.setHttpOnly(false);
+            cookie.setSecure(request.isSecure());
+            httpResponse.addCookie(cookie);
+          }
         } else if (StringUtils.isBlank(httpRequest.getRemoteUser())) {
           Cookie oldCookie = Arrays.stream(cookies)
                                    .filter(cookie -> MATRIX_JWT_COOKIE.equals(cookie.getName()))
