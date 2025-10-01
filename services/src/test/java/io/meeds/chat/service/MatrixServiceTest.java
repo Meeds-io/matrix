@@ -40,6 +40,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -291,5 +292,15 @@ class MatrixServiceTest extends MatrixBaseTest {
     when(matrixHttpClient.invalidateAccessToken(accessToken)).thenThrow(new InterruptedException());
     result = matrixService.invalidateAccessToken("sys_sampleAccessToken");
     assertFalse(result);
+  }
+
+  @org.junit.Test
+  public void testCleanMatrixUsername() {
+    String[] usernames = new String[] { "Samueâl", "fre@d", "Shazia", "gorkef/",
+            "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}" };
+    for (String username : usernames) {
+      String result = matrixService.cleanMatrixUsername(username);
+      assertNotNull(result);
+    }
   }
 }
