@@ -25,6 +25,8 @@
         <v-btn
           v-bind="attrs"
           :loading="pendingPlay"
+          :aria-label="!isPlaying && $t('matrix.chat.audio.play.label') 
+            || $t('matrix.chat.audio.pause.label')"
           class="white"
           width="28"
           height="28"
@@ -51,6 +53,7 @@
     <audio
       ref="audio"
       :src="audioSource"
+      preload="metadata"
       @ended="onAudioEnded"
       @loadedmetadata="onLoadedMetadata"
       @canplay="onCanPlay" />
@@ -130,7 +133,9 @@ export default {
   methods: {
     resizeCanvas() {
       const canvas = this.$refs.waveform;
-      if (!canvas) return;
+      if (!canvas) {
+        return;
+      }
 
       canvas.width = this.canvasWidth;
       canvas.height = 15;
@@ -138,12 +143,12 @@ export default {
       this.drawStaticWaveform();
     },
     handleAutoPlay(target) {
-      if (this.message.origin_server_ts === target.origin_server_ts) {
+      if (this.message.event_id === target.event_id) {
         this.toggleAudio();
       }
     },
     handlePauseAudio(source) {
-      if (this.message.origin_server_ts !== source.origin_server_ts) {
+      if (this.message.event_id !== source.event_id) {
         this.pauseAudio();
       }
     },
@@ -196,17 +201,18 @@ export default {
       audio.currentTime = 0;
       this.currentTime = this.message.content.info?.duration / 1000;
     },
-    updateTime() {
-      const audio = this.$refs.audio;
-      this.currentTime = audio.currentTime;
-    },
     startTimer() {
-      this.timerInterval = setInterval(() => {
-        this.updateTime();
-      }, 200);
+      const audio = this.$refs.audio;
+      const update = () => {
+        this.currentTime = audio.currentTime;
+        if (this.isPlaying) {
+          this.animationFrameId = requestAnimationFrame(update);
+        }
+      };
+      update();
     },
     stopTimer() {
-      clearInterval(this.timerInterval);
+      cancelAnimationFrame(this.animationFrameId);
     },
     onAudioEnded() {
       this.isPlaying = false;
@@ -220,19 +226,23 @@ export default {
       const canvas = this.$refs.waveform;
       const ctx = canvas.getContext('2d');
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
-          || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
+          || Array.from({length: 50}, () => Math.random());
 
       canvas.width = this.canvasWidth;
-      canvas.height = 15;
+      canvas.height = 24;
 
       const barWidth = canvas.width / waveform.length;
       const middleY = canvas.height / 2;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const maxValue = Math.max(...waveform);
+      const amplifyFactor = 1.5;
       waveform.forEach((value, index) => {
-        const barHeight = (value / 100) * (canvas.height / 2) + 0.5;
-        const x = index * barWidth;
+        const normalized = (value / maxValue) * amplifyFactor;
+        const barHeight = Math.max(normalized * (canvas.height / 2), 1);
+        const x = index * (canvas.width / waveform.length);
         ctx.fillStyle = this.waveColor;
-        ctx.globalAlpha = isComplete ? 1 : 0.3;
+        ctx.globalAlpha = isComplete ? 1 : 0.5;
         ctx.fillRect(x, middleY - barHeight, barWidth, barHeight * 2);
       });
     },
@@ -241,31 +251,39 @@ export default {
       const ctx = canvas.getContext('2d');
       const audio = this.$refs.audio;
       const waveform = this.message.content['org.matrix.msc1767.audio']?.waveform
-          || Array.from({length: 50}, () => Math.floor(Math.random() * 100));
+          || Array.from({ length: 50 }, () => Math.random());
+
       canvas.width = this.canvasWidth;
-      canvas.height = 15;
+      canvas.height = 24;
 
       const barWidth = canvas.width / waveform.length;
       const middleY = canvas.height / 2;
+      const maxValue = Math.max(...waveform);
+      const amplifyFactor = 1.5;
+
       const draw = () => {
-        if (this.isEnded) {
+        if (!this.isPlaying) {
           return;
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const currentTime = audio.currentTime;
-        const duration = this.message.content.info?.duration / 1000 - 1;
-        const progress = currentTime / duration;
+        const duration = audio.duration === Infinity
+          ? this.message.content.info?.duration / 1000
+          : audio.duration;
+
+        const progress = audio.currentTime / duration;
         const playedBars = Math.floor(progress * waveform.length);
 
         waveform.forEach((value, index) => {
-          const barHeight = (value / 100) * (canvas.height / 2) + 0.5;
-          const x = index * barWidth;
+          const normalized = (value / maxValue) * amplifyFactor;
+          const barHeight = Math.max(normalized * (canvas.height / 2), 1);
+          const x = index * (canvas.width / waveform.length);
           ctx.fillStyle = this.waveColor;
-          ctx.globalAlpha = index <= playedBars ? 1 : 0.3;
+          ctx.globalAlpha = index <= playedBars ? 1 : 0.5;
           ctx.fillRect(x, middleY - barHeight, barWidth, barHeight * 2);
         });
+
         this.animationFrameId = requestAnimationFrame(draw);
       };
 

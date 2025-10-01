@@ -1123,7 +1123,7 @@ export function buildReplyToObject(messages, eventId) {
   return replyToObject;
 }
 
-export function uploadMatrixImage(file, onProgress) {
+export function uploadMatrixFile(file, onProgress) {
   return new Promise((resolve, reject) => {
     const uploadUrl = `/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`;
     const xhr = new XMLHttpRequest();
