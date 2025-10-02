@@ -57,6 +57,7 @@ import java.time.Instant;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
+import static org.apache.commons.lang3.StringUtils.isNumeric;
 
 @Service
 public class MatrixService {
@@ -262,8 +263,15 @@ public class MatrixService {
                                 boolean isNew,
                                 boolean isEnableUserOperation,
                                 boolean isUserEnabled) throws JsonException, IOException, InterruptedException {
+    String matrixUserId = user.getRemoteId();
+    if (isNumeric(user.getRemoteId())) {
+      String prefix = StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)) ? PropertyManager.getProperty(MATRIX_USERNAME_PREFIX) : "u";
+      matrixUserId = prefix + user.getRemoteId();
+    }
+    matrixUserId = cleanMatrixUsername(matrixUserId);
+
     String matrixId = matrixHttpClient.saveUserAccount(user,
-                                                       user.getRemoteId(),
+                                                       matrixUserId,
                                                        isNew,
                                                        this.getMatrixAccessToken(),
                                                        isEnableUserOperation,
@@ -530,5 +538,15 @@ public class MatrixService {
    */
   public List<Room> getSpaceRoomsBySpaceIds(List<String> spaceIds) {
     return matrixRoomStorage.getSpaceRoomsBySpaceIds(spaceIds);
+  }
+
+  /**
+   * Cleans the username to be compatible with the usernames on Matrix server
+   *
+   * @param userName the user identifier
+   * @return String the cleaned username
+   */
+  public String cleanMatrixUsername(String userName) {
+    return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
   }
 }
