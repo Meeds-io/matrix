@@ -202,7 +202,7 @@ public class ChatNotificationService {
                                                    String token) {
     MatrixMessage message = matrixService.getRoomEvent(eventId, roomId, token);
     // Do not create a notification is the message is before the last message
-    if (lastMessageTimeStamp >= message.getTimeStamp()) {
+    if (message == null || lastMessageTimeStamp >= message.getTimeStamp()) {
       return null;
     }
     return createNotification(message, userName);
