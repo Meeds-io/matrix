@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -263,15 +264,25 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals(directMessagingRoom.getRoomId(), createdRoom.getRoomId());
   }
 
-    @Test
-    void getById() throws Exception {
-      Space space = getSpaceInstance(1);
-      String roomId = matrixService.createRoom(space);
-      assertNotNull(roomId);
-      Room room = matrixService.getById(roomId);
-      assertNotNull(room);
-      String splitRoomId = roomId.substring(0, roomId.indexOf(":"));
-      Room room1 = matrixService.getById(splitRoomId);
-      assertNotNull(room1);
+  @Test
+  void getById() throws Exception {
+    Space space = getSpaceInstance(1);
+    String roomId = matrixService.createRoom(space);
+    assertNotNull(roomId);
+    Room room = matrixService.getById(roomId);
+    assertNotNull(room);
+    String splitRoomId = roomId.substring(0, roomId.indexOf(":"));
+    Room room1 = matrixService.getById(splitRoomId);
+    assertNotNull(room1);
+  }
+
+  @Test
+  public void testCleanMatrixUsername() {
+    String[] usernames = new String[] { "Samueâl", "fre@d", "Shazia", "gorkef/",
+            "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}" };
+    for (String username : usernames) {
+      String result = matrixService.cleanMatrixUsername(username);
+      assertNotNull(result);
     }
+  }
 }
