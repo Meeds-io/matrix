@@ -32,7 +32,7 @@
     :max-width="expanded && messageMaxWidth || undefined"
     class="chat-message-content-body text-break"
     @click="isImage && openImagePreview(message)">
-    <message-reply-quote
+    <matrix-message-reply-quote
       v-if="message?.replyTo"
       :message="message"
       :room="room"
@@ -41,13 +41,13 @@
       v-if="isText"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      v-sanitized-html="formattedMessage">
+      v-sanitized-html="formattedMessage" >
     </div>
     <div
       v-if="isRedacted"
       :id="`message-content-${message.event_id}`"
       :key="`${message.event_id}-${message.redacted_because.redacts}`"
-      class="d-flex flex-no-wrap">
+      class="d-flex flex-no-wrap" >
       <v-icon
         size="16"
         class="ma-auto me-2">
@@ -106,7 +106,7 @@
         </div>
       </a>
     </div>
-    <audio-message
+    <matrix-audio-message
       v-if="isAudioMessage"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"

@@ -48,7 +48,7 @@
           </v-btn>
         </div>
       </div>
-      <room-avatar
+      <matrix-room-avatar
         v-else-if="room"
         :room="room" />
     </template>
@@ -56,9 +56,9 @@
       <div
         v-if="room && fullPageMode"
         class="text-truncate">
-        <room-avatar :room="room" />
+        <matrix-room-avatar :room="room" />
       </div>
-      <room-header-actions
+      <matrix-room-header-actions
         ref="roomHeaderActions"
         v-if="room"
         :room="room"
