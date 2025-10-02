@@ -226,7 +226,7 @@ public class MatrixHttpClient {
            "admin": false,
            "mac": "%s"
           }
-        """.formatted(nonce, cleanMatrixUsername(user.getUserName()), user.getDisplayName(), user.getUserName(), hmac);
+        """.formatted(nonce, user.getUserName(), user.getDisplayName(), user.getUserName(), hmac);
 
     try {
       HttpResponse<String> response = sendHttpPostRequest(url, token, payload);
@@ -323,7 +323,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
 
-    String fullMatrixUserId = "@%s:%s".formatted(cleanMatrixUsername(matrixUserId),
+    String fullMatrixUserId = "@%s:%s".formatted(matrixUserId,
                                                  PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + fullMatrixUserId;
 
@@ -345,7 +345,7 @@ public class MatrixHttpClient {
             "user_type": null,
             "locked": false
           }
-          """.formatted(password, user.getRemoteId(), user.getProfile().getEmail());
+          """.formatted(password, user.getProfile().getFullName(), user.getProfile().getEmail());
     } else if (isEnableUserOperation && isUserEnabled) {
       payload = """
           {
@@ -910,16 +910,6 @@ public class MatrixHttpClient {
       LOG.error("Could not delete the room on Matrix", e);
       return false;
     }
-  }
-
-  /**
-   * Cleans the username to be compatible with the usernames on Matrix server
-   * 
-   * @param userName the user identifier
-   * @return String the cleaned username
-   */
-  public String cleanMatrixUsername(String userName) {
-    return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
   }
 
   public String getUserDisplayName(String userMatrixId,

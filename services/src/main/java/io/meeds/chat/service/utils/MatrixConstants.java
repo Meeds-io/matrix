@@ -40,6 +40,8 @@ public class MatrixConstants {
 
   public static final String                   MATRIX_SERVER_NAME                          = "meeds.matrix.server.name";
 
+  public static final String                   MATRIX_USERNAME_PREFIX                      = "meeds.matrix.username.prefix";
+
   public static final String                   MATRIX_RESTRICTED_USERS_GROUP               =
                                                                              "meeds.matrix.restricted.users.groupId";
 
