@@ -68,12 +68,13 @@
       @blur="hover = false"
       @mouseenter="hover = true"
       @mouseleave="hover = false">
-      <img
+      <v-img
         :src="imageThumbnailURL"
         :alt="message.content.body"
         :width="imageThumbnailMaxWidth"
         :height="imageThumbnailMaxHeight"
-        class="position-absolute">
+        :aspect-ratio="imageRatio"
+        class="position-absolute" />
         <div v-if="isGifImage" class="position-absolute transparent border-radius ms-2 mt-2">
           <v-chip
             label
@@ -207,8 +208,8 @@
     },
     data() {
       return {
-        defaultThumbnailMaxWidth: 250,
-        defaultThumbnailMaxHeight: 250,
+        collapsedImageSize: 250,
+        expandedImageMaxHeight: 500,
         hover: false,
         defaultSize: false,
         dateTimeFormat: {
@@ -235,6 +236,12 @@
       },
     },
     computed: {
+      defaultThumbnailMaxWidth() {
+        return this.expanded ?  this.parentWidth * 0.5  : this.collapsedImageSize;
+      },
+      defaultThumbnailMaxHeight() {
+        return this.expanded ? this.expandedImageMaxHeight : this.collapsedImageSize;
+      },
       expanded() {
         return this?.getIsExpanded?.() || this.$root?.fullPageMode;
       },
@@ -242,13 +249,13 @@
         return this?.getParentDrawerWidth?.() || this.$root?.fullPageMessagesContainerWidth;
       },
       messageMaxWidth() {
-        return this.parentWidth * (2 / 3);
+        return this.parentWidth * 0.8;
       },
       messageContentWidth() {
         if (this.isAudio && this.expanded) {
           return this.messageMaxWidth
         }
-        return this.isImage ? this.imageThumbnailMaxWidth : this.isFile ? this.messageMaxWidth : undefined;
+        return this.isImage ? this.imageThumbnailMaxWidth  : undefined;
       },
       isImage() {
         return this.message.content.msgtype === 'm.image';
@@ -327,7 +334,9 @@
         }
       },
       imageRatio() {
-        return this.message.content.info.w / this.message.content.info.h;
+        const w = this.message.content.info?.w || this.message.content.w || 1;
+        const h = this.message.content.info?.h || this.message.content.h || 1;
+        return w / h;
       },
       imageThumbnailURL() {
         if(this.message.content?.info?.thumbnail_url && !this.defaultSize && !this.isSmallImage(this.message)) {

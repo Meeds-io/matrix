@@ -19,7 +19,7 @@
   <div
     id="chatMessagesContainer"
     ref="chatMessagesContainer"
-    class="specific-scrollbar position-relative"
+    class="specific-scrollbar position-relative overflow-x-hidden"
     v-touch="{down: () => loadMoreMessages()}"
     @scroll="onMessagesContainerScroll">
     <div
@@ -227,6 +227,7 @@ export default {
       this.leftReactions = newestProcessed.leftReactions;
       await this.$nextTick();
       this.scrollToEnd();
+      this.loading = false;
 
       for (const chunk of chunks) {
         await new Promise(resolve => requestAnimationFrame(resolve));
@@ -253,7 +254,6 @@ export default {
           this.scrollToEnd();
         }
       }
-      this.loading = false;
     },
     messageReceived(event) {
       if (!this.messages) {
