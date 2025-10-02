@@ -92,6 +92,8 @@
               :is-my-message="isMyMessage"
               @close="closeMenuOnMobile"
               @reply="replyToMessage"
+              @edit="editMessage"
+              @delete="deleteMessage"
               @reaction="reactToMessage" />
           </v-menu>
           <div
@@ -208,7 +210,7 @@
     computed: {
       firstUnseenEventId() {
         const eventId = this?.unseenMessagesData?.firstUnseenEventId;
-        return eventId != null ? String(eventId) : null;
+        return eventId !== null ? String(eventId) : null;
         },
       showUnSeenMessageSeparator() {
         return this.unseenViewPortInfo?.below === false && this.message?.event_id === this.firstUnseenEventId;
@@ -313,6 +315,12 @@
       replyToMessage() {
         this.$emit('reply', this.message);
         this.closeMenuOnMobile();
+      },
+      editMessage(message) {
+        this.$root.$emit('edit-message', this.room.id, message)
+      },
+      deleteMessage(message) {
+        this.$root.$emit('delete-message', this.room.id, message)
       },
       closeMenuOnMobile() {
         if (this.isMobile) {
