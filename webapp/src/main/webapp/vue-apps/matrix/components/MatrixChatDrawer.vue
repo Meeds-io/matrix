@@ -58,7 +58,7 @@
         <matrix-chat-rooms
           :rooms="sortedRooms"
           :loading="loading" />
-        <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
+        <matrix-chat-discussion-drawer ref="ChatDiscussionDrawer" />
       </div>
     </template>
   </exo-drawer>

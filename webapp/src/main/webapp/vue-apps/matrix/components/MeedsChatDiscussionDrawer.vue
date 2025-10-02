@@ -151,7 +151,7 @@
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
           @scroll="loadMoreMessages">
-          <meeds-chat-message
+          <matrix-chat-message
             v-for="(message, i) in messages"
             :id="`chat-message-${i}`"
             :ref="`chat-message-${i}`"
@@ -165,7 +165,7 @@
             @reply="replyToMessage"
             @reaction="reactToMessage"
             @reset-unseen="resetUnseenData" />
-          <message-typing-indicator
+          <matrix-message-typing-indicator
             v-if="isTyping"
             :room="room"
             :typing-users="typingUsers"
@@ -197,7 +197,7 @@
         :class="{'justify-self-center': expanded}"
         class="d-flex"
         width="100%">
-        <message-upload-file-input
+        <matrix-message-upload-file-input
          v-if="!isRecording"
          :room="room"
          paste-target="messageComposerArea"
@@ -214,7 +214,7 @@
           v-else
           class="flex-grow-1 no-min-width border-radius-16"
           :class="{'border-color-grey-lighten': hasReplyQuote || messageToEdit}">
-          <message-reply-quote
+          <matrix-message-reply-quote
             v-if="hasReplyQuote"
             ref="replyQuote"
             :message="targetReplyMessage"
@@ -223,7 +223,7 @@
             read-only
             closeable
             @close="cancelReply" />
-          <message-edit-banner
+          <matrix-message-edit-banner
             v-if="messageToEdit"
             ref="editMessageBanner"
             @close="cancelEditMessage" />

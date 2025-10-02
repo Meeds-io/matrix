@@ -37,8 +37,8 @@ export function registerChatExtensions(chatTitle) {
     extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
 
     extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
-      id: 'meeds-chat-space-settings',
-      vueComponent: Vue.options.components['meeds-chat-space-settings'],
+      id: 'matrix-chat-space-settings',
+      vueComponent: Vue.options.components['matrix-chat-space-settings'],
       rank: 10,
     });
 
@@ -50,13 +50,13 @@ export function registerChatExtensions(chatTitle) {
         const room = await matrixService.getSpaceRoom(params.identityId);
         return room.status === 'ENABLED';
       },
-      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      vueComponent: Vue.options.components['matrix-popover-chat-button'],
       rank: 40,
     });
 
     extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
       id: 'matrix-chat-user-popover',
-      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      vueComponent: Vue.options.components['matrix-popover-chat-button'],
       rank: 40,
     });
   }

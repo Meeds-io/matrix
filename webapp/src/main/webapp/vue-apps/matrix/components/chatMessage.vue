@@ -45,7 +45,7 @@
       class="px-4"
       :class="{'mt-3' : message.sender !== previousMessage.sender}">
       <div class="d-relative">
-        <message-user
+        <matrix-message-user
           v-if="displaySender"
           class="mb-n4 width-fit-content"
           :room="room"
@@ -74,7 +74,7 @@
               <div
                 v-bind="attrs"
                 v-on="on">
-                <meeds-chat-message-content
+                <matrix-chat-message-content
                   :message="message"
                   :display-sender="displaySender"
                   :css-class="messageContentClass"
@@ -86,7 +86,7 @@
                   :is-redacted="isRedacted" />
               </div>
             </template>
-            <message-action-list
+            <matrix-message-action-list
               ref="actionList"
               :message="message"
               :is-my-message="isMyMessage"
@@ -97,7 +97,7 @@
           <div
             class="position-sticky mt-n1 d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
-            <message-reaction-item
+            <matrix-message-reaction-item
               v-if="!isRedacted && hasReactions"
               v-for="reaction in message.reactions"
               :key="reaction.key"
@@ -109,7 +109,7 @@
           <v-sheet
             v-if="hasLastReaders"
             height="24">
-            <message-receipt-list
+            <matrix-message-receipt-list
               :room="room"
               :read-receipts="readReceipts"
               :class="{

@@ -32,7 +32,7 @@
     :max-width="expanded && messageMaxWidth || undefined"
     class="chat-message-content-body text-break"
     @click="isImage && openImagePreview(message)">
-    <message-reply-quote
+    <matrix-message-reply-quote
       v-if="message?.replyTo"
       :message="message"
       :room="room"
@@ -105,7 +105,7 @@
         </div>
       </a>
     </div>
-    <audio-message
+    <matrix-audio-message
       v-if="isAudioMessage"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"

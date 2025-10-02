@@ -40,9 +40,9 @@
       :loading="loading"
       :presence="presence"
       @closed="open = false"/>
-    <meeds-chat-quick-create-discussion-drawer/>
-    <room-action-menu-drawer />
-    <message-read-receipt-list-drawer />
+    <matrix-chat-quick-create-discussion-drawer/>
+    <matrix-room-action-menu-drawer />
+    <matrix-message-read-receipt-list-drawer />
     <audio
       ref="messageAudio"
       class="hidden">
