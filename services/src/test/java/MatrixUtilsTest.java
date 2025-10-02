@@ -123,16 +123,6 @@ public class MatrixUtilsTest {
     }
   }
 
-  @Test
-  public void testCleanMatrixUsername() {
-    String[] usernames = new String[] { "Samueâl", "fre@d", "Shazia", "gorkef/",
-        "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}" };
-    for (String username : usernames) {
-      String result = matrixHttpClient.cleanMatrixUsername(username);
-      assertNotNull(result);
-    }
-  }
-
   public void testDeleteSpace() throws Exception {
     long currentTime = System.currentTimeMillis();
     String matrixRoomId =

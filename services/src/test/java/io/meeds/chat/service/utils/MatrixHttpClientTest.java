@@ -3,6 +3,8 @@ package io.meeds.chat.service.utils;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.impl.UserImpl;
+import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -227,6 +229,62 @@ class MatrixHttpClientTest {
 
   @Test
   void saveUserAccount() {
+    Identity identity = new Identity();
+    identity.setRemoteId("userOne");
+    Profile profile = new Profile();
+    profile.setProperty(Profile.FULL_NAME, "User One");
+    profile.setProperty(Profile.EMAIL, "user@email.com");
+    identity.setProfile(profile);
+    String userIdOnMatrix = "userOneOnMatrix";
+    String userId = "userOneOnMatrix";
+
+    when(responseOK.body()).thenReturn("{\"name\": \"@userOneOnMatrix:matrix.meeds.tn\",\"access_token\":\"accessTokenForUserOne\"}");
+    String returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, true, accessToken);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
+    assertEquals(userId, returnedUserId);
+
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, true);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
+    assertEquals(userId, returnedUserId);
+
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals(userIdOnMatrix, returnedUserId);
+    assertEquals(userId, returnedUserId);
+
+    // username with only digits
+    // Default prefix : u
+    userId = "12";
+    when(responseOK.body()).thenReturn("{\"name\": \"@u12:matrix.meeds.tn\",\"access_token\":\"accessTokenForU12\"}");
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals("u" + userId, returnedUserId);
+
+    // Customized prefix : user
+    userId = "12";
+    when(responseOK.body()).thenReturn("{\"name\": \"@user12:matrix.meeds.tn\",\"access_token\":\"accessTokenForUser12\"}");
+    PropertyManager.setProperty(MATRIX_USERNAME_PREFIX, "user");
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals("user" + userId, returnedUserId);
+    // Customized prefix : user
+    userId = "12";
+    when(responseOK.body()).thenReturn("{\"name\": \"@user12:matrix.meeds.tn\",\"access_token\":\"accessTokenForUser12\"}");
+    PropertyManager.setProperty(MATRIX_USERNAME_PREFIX, "user");
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals("user" + userId, returnedUserId);
+
+    // Customized prefix : user
+    userId = "12";
+    when(responseOK.body()).thenReturn("{\"name\": \"@user12:matrix.meeds.tn\",\"access_token\":\"accessTokenForUser12\"}");
+    PropertyManager.setProperty(MATRIX_USERNAME_PREFIX, "user");
+    returnedUserId = matrixHttpClient.saveUserAccount(identity, userId, false, accessToken, true, false);
+    assertNotNull(returnedUserId);
+    assertEquals("user" + userId, returnedUserId);
+
   }
 
   @Test
