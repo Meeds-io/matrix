@@ -912,11 +912,11 @@ export function sendMessage(payload, roomId) {
 export function markRoomAsFullyRead(roomId, eventId) {
   if(!roomId) {
     console.warn('No roomId provided, Mark as read call will be canceled')
-    return;
+    return Promise.resolve(false);
   }
   if(!eventId) {
     console.warn('No event Id provided, Mark as read call will be canceled')
-    return;
+    return Promise.resolve(false);
   }
   if(!roomId.includes(":")) {
     roomId = `${roomId}:${matrixServerName}`;
@@ -934,7 +934,7 @@ export function markRoomAsFullyRead(roomId, eventId) {
     if (!resp?.ok) {
       throw new Error('Mark room as fully read : Response code indicates a server error', resp);
     } else {
-      return true;
+      return Promise.resolve(true);
     }
   });
 }
@@ -1030,6 +1030,7 @@ export async function processMessages(roomId, messageItems) {
   });
 
   return {
+    roomId: roomId,
     messages: Array.from(messagesMap.values()),
     leftReactions,
   };

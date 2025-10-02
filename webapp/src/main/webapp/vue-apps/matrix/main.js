@@ -1,10 +1,9 @@
-import MatrixComponent from './components/component.vue';
-import MatrixChatButton from './components/chatButton.vue';
+import MatrixChatButton from './components/ChatButton.vue';
 import MatrixChatDrawer from './components/MatrixChatDrawer.vue';
 import MatrixChatRooms from './components/MatrixChatRooms.vue';
 import MatrixChatRoom from './components/MatrixChatRoom.vue';
-import MeedsChatMessage from './components/chatMessage.vue';
-import MeedsChatMessageContent from './components/chatMessageContent.vue';
+import MeedsChatMessage from './components/ChatMessage.vue';
+import MeedsChatMessageContent from './components/ChatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
@@ -26,6 +25,10 @@ import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
 import MessageReadReceiptListDrawer from './components/message/read/MessageReadReceiptListDrawer.vue';
 import MessageTypingIndicator from './components/message/write/MessageTypingIndicator.vue';
 import VoiceMessageRecorder from './components/message/VoiceMessageRecorder.vue';
+import RoomMessages from './components/room/RoomMessages.vue';
+import MessageComposer from './components/message/MessageComposer.vue';
+import RoomAvatar from './components/room/RoomAvatar.vue';
+import RoomHeaderActions from './components/room/RoomHeaderActions.vue';
 
 import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
@@ -36,11 +39,11 @@ import './icons-extensions.js'
 import TouchHold from './js/directives/touchHold.js';
 
 const components = {
-  'matrix-component': MatrixComponent,
   'matrix-chat-button': MatrixChatButton,
   'matrix-chat-drawer': MatrixChatDrawer,
   'matrix-chat-rooms': MatrixChatRooms,
   'matrix-chat-room': MatrixChatRoom,
+<<<<<<< HEAD
   'matrix-chat-message': MeedsChatMessage,
   'matrix-chat-message-content': MeedsChatMessageContent,
   'matrix-popover-chat-button': PopoverChatButton,
@@ -64,6 +67,10 @@ const components = {
   'matrix-message-read-receipt-list-drawer': MessageReadReceiptListDrawer,
   'matrix-message-typing-indicator': MessageTypingIndicator,
   'matrix-voice-message-recorder': VoiceMessageRecorder
+  'matrix-room-messages': RoomMessages,
+  'matrix-message-composer': MessageComposer,
+  'matrix-room-avatar': RoomAvatar,
+  'matrix-room-header-actions': RoomHeaderActions,
 };
 
 for (const key in components) {
@@ -104,6 +111,8 @@ export function init(serverName) {
         return {
           serverName: serverName,
           channel: channel,
+          fullPageMode: false,
+          fullPageMessagesContainerWidth: 420,
           statusMap: {
             available: '#2eb58c',
             donotdisturb: '#bc4343',

@@ -2,14 +2,16 @@
   <div
     :id="`room${room.spaceId || room.dmMemberId}`"
     :class="{
-      'background-grey-primary': isActive,
+      'background-grey-primary': isActive && !$root?.fullPageMode,
+      'grey-lighten1-background-opacity-3': isActive && $root?.fullPageMode,
+      'grey-lighten1-background-opacity-4': isSelected && $root?.fullPageMode,
       'no-select': isMobile}"
     class="d-flex chat-room-item position-relative py-3 px-5 clickable"
     v-touch-hold="openMenu"
     @click="openRoom"
     @mouseenter="hover = true"
     @mouseleave="hover = false;">
-  <v-badge
+    <v-badge
       :color="presenceColor"
       :value="isPrivateRoom"
       class="ma-0 pa-0"
@@ -101,6 +103,10 @@ export default {
     room: {
       type: Object,
       default: null,
+    },
+    selectedRoom: {
+      type: Object,
+      default: false
     }
   },
   created() {
@@ -109,6 +115,9 @@ export default {
     }
   },
   computed: {
+    isSelected() {
+      return this.selectedRoom?.id === this.room?.id;
+    },
     isActive() {
       return this.hover || this.menuOpen;
     },
@@ -142,6 +151,7 @@ export default {
     },
     openRoom() {
       document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, {detail: this.room}));
+      localStorage.setItem('lastOpenedRoomId', this.room.id);
     },
     getUpdateTime(room) {
       return this.$matrixService.formatDate(room.updated);

@@ -34,15 +34,22 @@
       </v-badge>
     </v-btn>
     <matrix-chat-drawer
-      v-if="open"
       ref="meedsChatDrawer"
       :rooms="rooms"
       :loading="loading"
-      :presence="presence"
-      @closed="open = false"/>
-    <matrix-chat-quick-create-discussion-drawer/>
-    <matrix-room-action-menu-drawer />
-    <matrix-message-read-receipt-list-drawer />
+      :presence="presence" />
+    <meeds-chat-discussion-drawer ref="ChatDiscussionDrawer" />
+    <meeds-chat-quick-create-discussion-drawer/>
+    <room-action-menu-drawer />
+    <message-read-receipt-list-drawer />
+    <exo-confirm-dialog
+      ref="deleteConfirmDialog"
+      :title="$t('matrix.chat.label.confirmDeleteTitle')"
+      :message="$t('matrix.chat.label.confirmDeleteMessage')"
+      :ok-label="$t('matrix.chat.label.confirm')"
+      :cancel-label="$t('matrix.chat.label.cancel')"
+      @ok="deleteMessage"
+      @closed="onDialogClosed" />
     <audio
       ref="messageAudio"
       class="hidden">
@@ -67,7 +74,9 @@
       userName: eXo?.env?.portal.userName,
       presenceInterval: null,
       isPresencePollingOwner: false,
-      presencePollingKey: 'presence_polling_owner'
+      presencePollingKey: 'presence_polling_owner',
+      messageToDelete: null,
+      targetRoomId: null
     }),
     created() {
       this.tryBecomePresencePollingOwner();
@@ -125,6 +134,7 @@
       document.addEventListener('chat-ws-message-received', this.handleWSMessageReceived);
       window.addEventListener('beforeunload', this.handleBeforeUnload);
       window.addEventListener('storage', this.handleLocaleStorageUpdate);
+      this.$root.$on('delete-message',  this.openDeleteMessageDialog);
     },
     mounted() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -150,6 +160,7 @@
       document.removeEventListener('space-muted', this.handleSpaceMute);
       window.removeEventListener('beforeunload', this.handleBeforeUnload);
       window.removeEventListener('storage', this.handleLocaleStorageUpdate);
+      this.$root.$off('delete-message',  this.openDeleteMessageDialog);
       this.releasePresencePollingOwner();
     },
     watch: {
@@ -325,6 +336,26 @@
               });
             }
           }
+        }
+      },
+      openDeleteMessageDialog(roomId, message) {
+        this.messageToDelete = message;
+        this.targetRoomId = roomId
+        this.$refs.deleteConfirmDialog.open();
+      },
+      onDialogClosed() {
+        this.messageToDelete = null;
+        this.targetRoomId = null;
+      },
+      deleteMessage() {
+        if (this.messageToDelete?.event_id) {
+          this.$matrixService.redactEvent(this.targetRoomId, this.messageToDelete.event_id).then(deletionEvent => {
+            this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.success'), 'success');
+          }).catch(() => {
+            this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
+          });
+        } else {
+          this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
         }
       },
       openDrawer() {
