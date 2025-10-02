@@ -168,7 +168,7 @@
             :expanded="fullPageMode"
             :is-input-focused="isInputFocused"
             @loading="loading = $event"
-            class="flex-grow-1 overflow-auto" />
+            class="flex-grow-1 overflow-x-hidden" />
         </div>
         <div class="flex-shrink-0 px-4 py-2">
           <message-composer
