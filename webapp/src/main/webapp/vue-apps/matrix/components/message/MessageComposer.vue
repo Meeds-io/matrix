@@ -191,7 +191,7 @@ export default {
       };
       this.$nextTick(() => {
         this.$refs?.messageComposerArea?.focus();
-      })
+      });
     },
     editMessage(roomId, message) {
       if (this.room?.id !== roomId) {
@@ -223,17 +223,19 @@ export default {
         msgtype: 'm.text'
       };
 
-      const mentionsArray = Array.from(composer.querySelectorAll('span[data-user-id]'))
-          .map(span => `@${span.getAttribute('data-user-id')}:${matrixServerName}`)
-          .filter((v, i, a) => a.indexOf(v) === i); // unique
-
+      const mentionsArray = [];
+      for (const selectedSpan of this.$refs.messageComposerArea.querySelectorAll('span[data-user-id]')) {
+        const userId = `@${  selectedSpan.dataset.userId  }:${  matrixServerName}`;
+        if (!mentionsArray.includes(userId)) {
+          mentionsArray.push(userId);
+        }
+      }
       if (mentionsArray.length) {
-        const regexForMentions = /<span class="atwho-inserted"[\p{L}0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L}0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L}0-9="\-_@<>:;\/#.()]*<\/span>/gu;
-        const messageHTML = composer.innerHTML.replace(
+        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;\/#.()]*<\/span>/gu;
+        const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(
             regexForMentions,
-            (_, userId, userName) => `<a href="https://matrix.to/#/@${userId}:${matrixServerName}">${userName}</a>`
+          '<a href="https://matrix.to/#/@$1:' + matrixServerName + '">$2</a>'
         );
-
         message.format = "org.matrix.custom.html";
         message.formatted_body = messageHTML;
         message['m.mentions'] = { user_ids: mentionsArray };
