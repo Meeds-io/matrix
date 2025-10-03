@@ -146,7 +146,7 @@
       class="fill-height">
       <v-sheet
         :max-width="420"
-        :min-width="420"
+        :min-width="fullPageMode ? 420 : undefined"
         :class="{
           'disabled-background': !rooms?.length,
           'background-grey-primary ': fullPageMode
