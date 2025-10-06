@@ -48,8 +48,10 @@ export default{
     },
   },
   created() {
-    this.getAndBuildRoomLastMessage();
     document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+  },
+  mounted() {
+    this.$nextTick().then(() => this.getAndBuildRoomLastMessage());
   },
   computed: {
     lastMessageContent() {
