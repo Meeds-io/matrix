@@ -31,7 +31,7 @@
     </template>
     <template slot="content">
       <div class="pa-5">
-        <message-receipt
+        <matrix-message-receipt
           v-for="receipt in readReceipts"
           :key="receipt"
           :receipt="receipt"

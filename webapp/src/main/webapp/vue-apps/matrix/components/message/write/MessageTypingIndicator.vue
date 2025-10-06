@@ -19,7 +19,7 @@
 
 <template>
   <div class="mx-8 d-flex">
-    <message-receipt
+    <matrix-message-receipt
       v-for="(user, index) in typingUsers"
       :key="user"
       :receipt="user"

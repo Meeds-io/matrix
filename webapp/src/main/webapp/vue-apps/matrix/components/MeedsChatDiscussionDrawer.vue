@@ -151,7 +151,7 @@
           class="d-flex flex-column"
           @wheel="loadMoreMessages"
           @scroll="loadMoreMessages">
-          <meeds-chat-message
+          <matrix-chat-message
             v-for="(message, i) in messages"
             :id="`chat-message-${i}`"
             :ref="`chat-message-${i}`"
@@ -165,7 +165,7 @@
             @reply="replyToMessage"
             @reaction="reactToMessage"
             @reset-unseen="resetUnseenData" />
-          <message-typing-indicator
+          <matrix-message-typing-indicator
             v-if="isTyping"
             :room="room"
             :typing-users="typingUsers"
@@ -197,15 +197,24 @@
         :class="{'justify-self-center': expanded}"
         class="d-flex"
         width="100%">
-        <message-upload-file-input
+        <matrix-message-upload-file-input
+         v-if="!isRecording"
          :room="room"
          paste-target="messageComposerArea"
          drop-target="ChatDiscussionDrawer"
          class="me-2 mb-0_5 d-flex flex-column justify-end" />
+        <voice-message-recorder
+          ref="voiceMessageRecorder"
+          v-if="isRecording"
+          :room="room"
+          :expanded="expanded"
+          :drawer-width="drawerWidth"
+          @cancel="cancelRecording" />
         <div
+          v-else
           class="flex-grow-1 no-min-width border-radius-16"
           :class="{'border-color-grey-lighten': hasReplyQuote || messageToEdit}">
-          <message-reply-quote
+          <matrix-message-reply-quote
             v-if="hasReplyQuote"
             ref="replyQuote"
             :message="targetReplyMessage"
@@ -214,7 +223,7 @@
             read-only
             closeable
             @close="cancelReply" />
-          <message-edit-banner
+          <matrix-message-edit-banner
             v-if="messageToEdit"
             ref="editMessageBanner"
             @close="cancelEditMessage" />
@@ -242,9 +251,11 @@
             </div>
           </div>
         </div>
-        <div class="d-flex flex-column justify-end">
+        <div
+          v-if="!isRecording"
+          class="d-flex flex-column justify-end">
           <v-btn
-            :disabled="disableSendMessage"
+            v-if="hasComposerContent"
             class="ms-2 mb-0_5"
             icon
             @click="sendMessage">
@@ -252,6 +263,17 @@
               color="primary"
               size="20">
               fa-paper-plane
+            </v-icon>
+          </v-btn>
+          <v-btn
+            v-else
+            class="ms-2 mb-0_5"
+            icon
+            @click="isRecording = true">
+            <v-icon
+              class="icon-default-color"
+              size="20">
+              fa-solid fa-microphone
             </v-icon>
           </v-btn>
         </div>
@@ -311,7 +333,8 @@ export default {
       messagesContainerElement: null,
       isInputFocused: false,
       hasUnseenNewReceivedMessage: false,
-      messageContainerScrollTop: 0
+      messageContainerScrollTop: 0,
+      isRecording: false,
     };
   },
   provide() {
@@ -363,8 +386,8 @@ export default {
     hasReplyQuote() {
       return !!this.targetReplyMessage;
     },
-    disableSendMessage() {
-      return !this.messageContent?.trim()?.length;
+    hasComposerContent() {
+      return !!this.messageContent?.trim()?.length;
     },
     url() {
       if(this.room?.directChat && this.room?.userId) {
@@ -406,6 +429,13 @@ export default {
     room() {
       // reset the room actions to initialize them again when another room is opened
       this.roomActionComponents = [];
+    },
+    isRecording() {
+      if (this.isRecording) {
+        this.$nextTick(() => {
+          this.$refs?.voiceMessageRecorder?.startRecording();
+        });
+      }
     }
   },
   beforeDestroy() {
@@ -1113,6 +1143,12 @@ export default {
           this.$root.channel.postMessage({type: 'reset-unseen-data'});
         }
       });
+    },
+    cancelRecording() {
+      this.isRecording = false;
+      this.$nextTick(() => {
+        this.$refs?.messageComposerArea?.focus()
+      })
     }
   },
 };
