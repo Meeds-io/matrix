@@ -26,7 +26,8 @@
         :selectedRoom="selectedRoom"
         :room="room" />
     </div>
-    <div id="remainingRoomsElement">
+    <div id="remainingRoomsElement"
+      v-intersect="onIntersect">
       <matrix-chat-room
         v-if="rooms?.length > limit && displayRemainingRooms"
         v-for="room in remainingRooms"
@@ -64,30 +65,12 @@
     },
     data() {
       return {
-        observer: null,
         limit: 20,
         displayRemainingRooms: false,
       }
     },
     created() {
       document.addEventListener('matrix-joined-room', this.addJoinedRoom);
-    },
-    mounted () {
-      const callback = (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            this.displayRemainingRooms = true;
-          }
-        });
-      };
-      const options = {
-        root: null,
-        rootMargin: '0px',
-        scrollMargin: '0px',
-        threshold: 0.1,
-      };
-      this.observer = new IntersectionObserver(callback, options);
-      this.observer.observe(document.getElementById('remainingRoomsElement'));
     },
     beforeDestroy() {
       document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
@@ -111,6 +94,13 @@
           this.rooms[roomExistsIndex].members.unshift(event.detail.members);
         }
       },
+      onIntersect(entries) {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            this.displayRemainingRooms = true;
+          }
+        });
+      }
     }
   }
 </script>
