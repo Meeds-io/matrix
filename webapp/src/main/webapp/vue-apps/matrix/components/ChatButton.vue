@@ -96,12 +96,12 @@
             this.$matrixService.authenticate().then(resp => {
               if(resp.user_id) {
                 this.$matrixService.initUserData(resp);
-                this.loadRooms();
                 this.$matrixService.saveFilter().then(filterResponse => {
                   this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
                   this.bindSyncPollingListeners(filterResponse.filter_id);
                 });
                 this.$matrixService.installPusher();
+                this.$nextTick().then(() => this.loadRooms());
               } else {
                 this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
                 this.$root.$emit('matrix-login-failed');
@@ -112,7 +112,7 @@
           }
         });
       } else {
-        this.loadRooms();
+        this.$nextTick().then(() => this.loadRooms());
         this.$matrixService.saveFilter().then(filterResponse => {
           this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
           this.bindSyncPollingListeners(filterResponse.filter_id);
