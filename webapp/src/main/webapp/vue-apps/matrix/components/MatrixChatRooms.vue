@@ -19,7 +19,9 @@
   <div
     v-if="rooms?.length"
     class="d-flex flex-column">
-    <div id="initialRoomsElement">
+    <div 
+      id="initialRoomsElement"
+      ref="initialRoomsElement">
       <matrix-chat-room
         v-for="room in initialRooms"
         :key="room.id"
@@ -71,6 +73,9 @@
     },
     created() {
       document.addEventListener('matrix-joined-room', this.addJoinedRoom);
+    },
+    mounted() {
+      this.$refs.initialRoomsElement.scrollIntoView();
     },
     beforeDestroy() {
       document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
