@@ -666,6 +666,25 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  @GetMapping("findId/{userId}")
+  @Secured("users")
+  @Operation(summary = "Get the matrix ID of a user", method = "GET", description = "Get the matrix ID of a user")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> getMatrixId(@PathVariable("userId")
+  String userId) {
+    if (userId == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "user id is mandatory");
+    }
+    String matrixId = matrixService.getMatrixIdForUser(userId);
+    if (StringUtils.isNotBlank(matrixId)) {
+      return ResponseEntity.ok().body(matrixId);
+    } else {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no Matrix account for the user " + userId);
+    }
+  }
+
   private String checkAndParseUserFromToken(String token) {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
     Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
