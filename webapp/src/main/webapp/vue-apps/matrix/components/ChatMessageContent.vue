@@ -41,13 +41,13 @@
       v-if="isText"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      v-sanitized-html="formattedMessage" >
+      v-sanitized-html="formattedMessage">
     </div>
     <div
       v-if="isRedacted"
       :id="`message-content-${message.event_id}`"
       :key="`${message.event_id}-${message.redacted_because.redacts}`"
-      class="d-flex flex-no-wrap" >
+      class="d-flex flex-no-wrap">
       <v-icon
         size="16"
         class="ma-auto me-2">
