@@ -34,7 +34,7 @@
       </v-sheet>
       <span v-if="!isMuted">
         {{ $t('matrix.room.mute.label') }}
-        </span>
+      </span>
       <span v-else>
         {{ $t('matrix.room.unmute.label') }}
       </span>

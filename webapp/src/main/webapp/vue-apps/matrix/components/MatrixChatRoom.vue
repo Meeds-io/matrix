@@ -16,7 +16,7 @@
 -->
 <template>
   <div
-    :id="`room${room.spaceId || room.dmMemberId}`"
+    :id="roomItemTagId"
     :class="{
       'background-grey-primary': isActive && !$root?.fullPageMode,
       'grey-lighten1-background-opacity-3': isActive && $root?.fullPageMode,
@@ -79,6 +79,7 @@
           v-else-if="isActive && !isMobile"
           ref="menu"
           :room="room"
+          :attached-id="roomItemTagId"
           @open="menuOpen = true"
           @close="menuOpen = false" />
         <v-badge
@@ -113,7 +114,7 @@ export default {
       menuOpen: false,
       hover: false,
       pressTimer: null
-    }
+    };
   },
   props: {
     room: {
@@ -122,6 +123,10 @@ export default {
     },
     selectedRoom: {
       type: Object,
+      default: null
+    },
+    fromRoomList: {
+      type: Boolean,
       default: false
     }
   },
@@ -133,6 +138,9 @@ export default {
     });
   },
   computed: {
+    roomItemTagId() {
+      return `room${this.room.spaceId || this.room.dmMemberId}${this.fromRoomList ? 'fromRoomList' : ''}`;
+    },
     isSelected() {
       return this.selectedRoom?.id === this.room?.id;
     },
@@ -152,7 +160,7 @@ export default {
       return this.room?.avatarUrl;
     },
     presence() {
-      return this.room?.presence
+      return this.room?.presence;
     },
     presenceColor() {
       return this.presence && this.$root.statusMap[this.presence];
@@ -168,7 +176,12 @@ export default {
       });
     },
     openRoom() {
-      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, {detail: this.room}));
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, 
+        {
+          detail: {
+            room: this.room,
+            fromRoomList: this.fromRoomList}
+        }));
       localStorage.setItem('lastOpenedRoomId', this.room.id);
     },
     getUpdateTime(room) {
@@ -178,5 +191,5 @@ export default {
       this.$root.$emit('open-room-action-menu', this.room);
     }
   }
-}
+};
 </script>
