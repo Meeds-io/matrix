@@ -60,10 +60,10 @@
             <div
               v-if="!canCreatePrivateRooms"
               class="caption font-weight-light ps-1 muted font-italic">
-                <span class="mr-2">
-                  <v-icon small>info</v-icon>
-                  {{ $t('matrix.chat.quick.create.discussion.info') }}.
-                </span>
+              <span class="mr-2">
+                <v-icon small>info</v-icon>
+                {{ $t('matrix.chat.quick.create.discussion.info') }}.
+              </span>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default {
       this.$refs.QuickCreateDiscussionDrawer.close();
     },
     createPrivateRoom() {
-      this.loading = true
+      this.loading = true;
       const space = {
         invitedMembers: this.invitedSpaceMembers,
         subscription: this.spaceCircleTemplate.spaceDefaultRegistration?.toLowerCase?.(),
@@ -146,11 +146,11 @@ export default {
         this.$matrixService.getParticipantInfo(id).then(participant => {
           if (participant?.matrixId) {
             this.$matrixService.openDMRoom(eXo.env.portal.userName, id, matrixServerName,
-                matrixUserId, participant.matrixId);
+              matrixUserId, participant.matrixId);
           }
-        })
+        });
       } else {
-        this.$matrixService.openSpaceRoom(id)
+        this.$matrixService.openSpaceRoom(id);
       }
       this.close();
     },

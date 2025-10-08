@@ -122,7 +122,7 @@ export default {
       messageContent: null,
       typingTimeout: null,
       mentioningInProgress: false
-    }
+    };
   },
   props: {
     room: {
@@ -151,7 +151,7 @@ export default {
       return !!this.targetReplyMessage;
     },
     composerContainerMaxWidth() {
-      return this.expanded && this.drawerWidth * 2 / 3 || undefined
+      return this.expanded && this.drawerWidth * 2 / 3 || undefined;
     },
     hasComposerContent() {
       return !!this.messageContent?.trim()?.length;
@@ -212,7 +212,7 @@ export default {
     },
     sendMessage() {
       const composer = this.$refs.messageComposerArea;
-      let messageText = composer.innerText.trim();
+      const messageText = composer.innerText.trim();
 
       if (!messageText) {
         return;
@@ -231,12 +231,12 @@ export default {
         }
       }
       if (mentionsArray.length) {
-        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;\/#.()]*<\/span>/gu;
+        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;/#.()]*<\/span>/gu;
         const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(
-            regexForMentions,
-          '<a href="https://matrix.to/#/@$1:' + matrixServerName + '">$2</a>'
+          regexForMentions,
+          `<a href="https://matrix.to/#/@$1:${  matrixServerName  }">$2</a>`
         );
-        message.format = "org.matrix.custom.html";
+        message.format = 'org.matrix.custom.html';
         message.formatted_body = messageHTML;
         message['m.mentions'] = { user_ids: mentionsArray };
       }
@@ -271,7 +271,7 @@ export default {
       this.resetComposer();
       this.mentioningInProgress = false;
       this.messageToEdit = null;
-      this.scrollToEnd();
+      this.$emit('scroll-to-end');
     },
     resetComposer() {
       if (!this.$refs.messageComposerArea) {
@@ -365,7 +365,7 @@ export default {
               }
 
               if (
-                  lastNoResultQuery &&
+                lastNoResultQuery &&
                   cleanQuery.startsWith(lastNoResultQuery.toLowerCase()) &&
                   cleanQuery.length > lastNoResultQuery.length
               ) {
@@ -410,11 +410,11 @@ export default {
 
                   const filters = user?.profile?.properties ?? [];
                   const settings = filters
-                      .filter(property => !!property.value)
-                      .map(property => ({[property.propertyName]: property.value}));
+                    .filter(property => !!property.value)
+                    .map(property => ({[property.propertyName]: property.value}));
 
                   const data = await component.$userService.getUsersByAdvancedFilter(
-                      settings, 0, 10, '', 'all', cleanQuery, false, null, 'true'
+                    settings, 0, 10, '', 'all', cleanQuery, false, null, 'true'
                   );
 
                   const matchedUser = data?.users?.find(u => u.username === user?.profile?.username);
@@ -461,12 +461,12 @@ export default {
       }
     },
     insertNewLineAtCursor() {
-      let selection = window.getSelection();
+      const selection = window.getSelection();
       if (!selection.rangeCount) {
         return;
       }
-      let range = selection.getRangeAt(0);
-      let br = document.createElement('br');
+      const range = selection.getRangeAt(0);
+      const br = document.createElement('br');
       range.insertNode(br);
       range.setStartAfter(br);
       if (!this.insertedNewLine) {
@@ -509,10 +509,10 @@ export default {
     onInputFocus(event) {
       setTimeout(() => {
         this.markRoomAsRead();
-      }, 200)
+      }, 200);
       this.isInputFocused = true;
       this.$emit('input-focus', this.isInputFocused);
-      this.resizeComposerArea(event)
+      this.resizeComposerArea(event);
     },
     markRoomAsRead() {
       this.$emit('mark-room-as-read', this.room?.id);
@@ -529,8 +529,8 @@ export default {
     cancelRecording() {
       this.isRecording = false;
       this.$nextTick(() => {
-        this.$refs?.messageComposerArea?.focus()
-      })
+        this.$refs?.messageComposerArea?.focus();
+      });
     }
   }
 };
