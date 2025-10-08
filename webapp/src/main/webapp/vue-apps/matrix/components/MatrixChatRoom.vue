@@ -46,10 +46,10 @@
         width="52"
         min-width="52"
         height="52">
-        <v-img
+        <img
           :src="avatarUrl"
-          :lazy-src="room.avatarUrl"
-          :alt="room?.name" />
+          loading="lazy"
+          alt="">
       </v-avatar>
     </v-badge>
     <div

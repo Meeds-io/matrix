@@ -26,10 +26,12 @@
         :selectedRoom="selectedRoom"
         :room="room" />
     </div>
-    <div id="remainingRoomsElement"
+    <div 
+      id="remainingRoomsElement"
+      v-if="rooms?.length > limit"
       v-intersect="onIntersect">
       <matrix-chat-room
-        v-if="rooms?.length > limit && displayRemainingRooms"
+        v-if="displayRemainingRooms"
         v-for="room in remainingRooms"
         :key="room.id"
         :selectedRoom="selectedRoom"

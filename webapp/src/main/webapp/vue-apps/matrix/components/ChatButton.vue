@@ -97,266 +97,18 @@ export default {
       this.$matrixService.dropUserData();
     }
     const matrixInfos = localStorage.getItem('matrix_user_id');
-    if (!matrixInfos || matrixInfos !== matrixUserId) {
+    if(!matrixInfos || matrixInfos !== matrixUserId) {
       this.$matrixService.checkAuthenticationTypes().then(enabled => {
-        if (enabled) {
+        if(enabled) {
           this.$matrixService.authenticate().then(resp => {
-            if (resp.user_id) {
+            if(resp.user_id) {
               this.$matrixService.initUserData(resp);
-              this.loadRooms();
-
-<<<<<<< HEAD
               this.$matrixService.saveFilter().then(filterResponse => {
                 this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
                 this.bindSyncPollingListeners(filterResponse.filter_id);
-=======
-      const matrixInfos = localStorage.getItem('matrix_user_id');
-      if(!matrixInfos || matrixInfos !== matrixUserId) {
-        this.$matrixService.checkAuthenticationTypes().then(enabled => {
-          if(enabled) {
-            this.$matrixService.authenticate().then(resp => {
-              if(resp.user_id) {
-                this.$matrixService.initUserData(resp);
-                this.$matrixService.saveFilter().then(filterResponse => {
-                  this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
-                  this.bindSyncPollingListeners(filterResponse.filter_id);
-                });
-                this.$matrixService.installPusher();
-                this.$nextTick().then(() => this.loadRooms());
-              } else {
-                this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
-                this.$root.$emit('matrix-login-failed');
-              }
-            });
-          } else {
-            this.$root.$emit('alert-message', `${this.$t('meeds.matrix.jwt.disabled')}`, 'error');
-          }
-        });
-      } else {
-        this.$nextTick().then(() => this.loadRooms());
-        this.$matrixService.saveFilter().then(filterResponse => {
-          this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
-          this.bindSyncPollingListeners(filterResponse.filter_id);
-        });
-        this.$matrixService.installPusher();
-      }
-
-      this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
-      this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
-      this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
-      document.addEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
-      document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
-      document.addEventListener('matrix-message-deleted', this.messageDeleted);
-      document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
-      document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
-      document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
-      document.addEventListener('space-unmuted', this.handleSpaceUnmute);
-      document.addEventListener('space-muted', this.handleSpaceMute);
-      document.addEventListener('chat-ws-message-received', this.handleWSMessageReceived);
-      window.addEventListener('beforeunload', this.handleBeforeUnload);
-      window.addEventListener('storage', this.handleLocaleStorageUpdate);
-      this.$root.$on('delete-message',  this.openDeleteMessageDialog);
-    },
-    mounted() {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('roomId') && urlParams.get('roomId')) {
-        this.$matrixService.getRoomById(urlParams.get('roomId')).then(room => this.openRoom(room));
-      }
-      this.$nextTick().then(() => {
-        this.$matrixService.registerUserToken();
-      });
-    },
-    beforeDestroy() {
-      this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
-      this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
-      this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
-      document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
-      document.removeEventListener('matrix-message-deleted', this.messageDeleted);
-      document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
-      document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
-      document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
-      document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
-      document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
-      document.removeEventListener('chat-ws-message-received', this.handleWSMessageReceived);
-      document.removeEventListener('space-muted', this.handleSpaceMute);
-      window.removeEventListener('beforeunload', this.handleBeforeUnload);
-      window.removeEventListener('storage', this.handleLocaleStorageUpdate);
-      this.$root.$off('delete-message',  this.openDeleteMessageDialog);
-      this.releasePresencePollingOwner();
-    },
-    watch: {
-      open() {
-        if (this.open) {
-          this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
-        }
-      },
-    },
-    computed: {
-      presenceColor() {
-        return this.presence && this.$root.statusMap[this.presence];
-      },
-      isUserStatusAvailable() {
-        return this.presence === 'available';
-      }
-    },
-    methods: {
-      handleTotalUnreadUpdate(total) {
-        this.totalUnreadMessages = total;
-      },
-      updateTotalUnread(value, isDecrement = false, broadcast = false) {
-        this.totalUnreadMessages = Math.max(0, this.totalUnreadMessages + (isDecrement ? -value : value));
-        if (broadcast) {
-          this.postBroadcastUpdateTotalUnread();
-        }
-      },
-      postBroadcastUpdateTotalUnread() {
-        this.$root.channel.postMessage({
-          type: 'total-unread-messages-updated',
-          payload: {totalUnreadMessages: this.totalUnreadMessages}
-        });
-      },
-      getUserStatus() {
-        return this.$userStateService.getUserStatus(this.userName).then(data => {
-          this.presence = data?.status;
-        });
-      },
-      tryBecomePresencePollingOwner() {
-        const now = Date.now();
-        const ownerRaw = localStorage.getItem(this.presencePollingKey);
-        const owner = ownerRaw ? JSON.parse(ownerRaw) : null;
-
-        if (!owner || now - owner.timestamp > 35000) {
-          const myOwner = {id: this._uid, timestamp: now};
-          localStorage.setItem(this.presencePollingKey, JSON.stringify(myOwner));
-          this.becomePresencePollingOwner();
-        }
-      },
-      becomePresencePollingOwner() {
-        if (this.isPresencePollingOwner) {
-          return;
-        }
-        this.isPresencePollingOwner = true;
-
-        if (this.presencePollingInterval) {
-          clearInterval(this.presencePollingInterval);
-        }
-
-        this.refreshUserStatus();
-        this.presencePollingInterval = setInterval(() => {
-          if (document.hidden || !navigator.onLine) {
-            return;
-          }
-          this.refreshUserStatus();
-        }, 30000 + Math.floor(Math.random() * 5000));
-      },
-      async refreshUserStatus() {
-        this.getUserStatus();
-        if (this.rooms?.length) {
-          this.rooms = await Promise.all(
-            this.rooms.map(async room => {
-              if (room.directChat && room.dmMemberId) {
-                const userData = await this.$userStateService.getUserStatus(room.dmMemberId);
-                this.$root.channel.postMessage({
-                  type: 'user-status-updated',
-                  payload: {userId: room.dmMemberId, status: userData?.status}
-                });
-                return {...room, presence: userData?.status};
-              }
-              return room;
-            })
-          );
-        }
-      },
-      handleCurrentUserStatusUpdated({detail: {userId, status}}) {
-        if (this.userName === userId) {
-          this.presence = status;
-          this.$root.channel.postMessage({
-            type: 'user-status-updated',
-            payload: {userId: userId, status: this.presence}
-          });
-        }
-      },
-      handleUserStatusUpdated({userId, status}) {
-        if (userId === this.userName && this.presence !== status) {
-          this.presence = status;
-          return;
-        }
-        const updatedRooms = this.rooms?.map(room => room.directChat && room.dmMemberId === userId
-        && room.presence !== status ?
-          {...room, presence: status} : room);
-        if (updatedRooms) {
-          this.rooms = updatedRooms;
-        }
-      },
-      handleBeforeUnload() {
-        this.releasePresencePollingOwner();
-      },
-      enqueueMessageReceivedEvent(event) {
-        this.enableAndPlayBipSound(event);
-        this.messageEventQueue.push(event);
-        this.handleUnseenMessages(event);
-        this.processNextMessageEvent();
-      },
-      async processNextMessageEvent() {
-        if (this.processingMessageQueue || !this.messageEventQueue.length) {
-          return;
-        }
-
-        this.processingMessageQueue = true;
-        const event = this.messageEventQueue.shift();
-
-        try {
-          await this.handleMessageReceivedEvent(event);
-        } catch (err) {
-          console.error('Error while handling message event:', err);
-        } finally {
-          this.processingMessageQueue = false;
-          await this.processNextMessageEvent();
-        }
-      },
-      async handleUnseenMessages({ detail: { roomId, message } }) {
-        if (message.sender === matrixUserId) {
-          return;
-        }
-        const lastReadMessage = await this.$matrixService.loadLastReadReceipts(roomId);
-        const lastReadMessageTimestamp = lastReadMessage?.[matrixUserId]?.ts || 0;
-
-        if (message.origin_server_ts > lastReadMessageTimestamp) {
-          let unseenData = await this.$matrixService.getUnseenMessages(roomId, matrixUserId);
-          if (!unseenData) {
-            unseenData = {};
-          }
-          if (!unseenData.firstUnseenEventId) {
-            unseenData.firstUnseenEventId = message.event_id;
-          }
-          await this.$matrixService.saveUnseenMessages(roomId, matrixUserId, unseenData);
-        }
-      },
-      enableAndPlayBipSound({detail: {roomId, message}}) {
-        const keyToCheck = 'matrix_allow_bip';
-        if (message.sender !== matrixUserId) {
-          if (localStorage.getItem(keyToCheck) === null) {
-            document.dispatchEvent(new CustomEvent('alert-message', {detail: {
-              alertType: 'info',
-              alertMessage: this.$t('matrix.message.allow.bip.ask'),
-              alertTimeout: 5000000,
-              alertLinkCallback: () =>
-              {
-                localStorage.setItem(keyToCheck, 'true');
-                document.dispatchEvent(new CustomEvent('close-alert-message'));
-              },
-              alertLinkTooltip: this.$t('matrix.message.allow.bip.confirm'),
-              alertLinkText: this.$t('matrix.message.allow.bip.link.text'),
-              alertDismissCallback: () => localStorage.setItem(keyToCheck, 'false')
-            }}));
-          } else if (localStorage.getItem(keyToCheck) === 'true') {
-            const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
-            if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
-              this.$refs.messageAudio.play().catch(err => {
-                this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
->>>>>>> f800fce (fix: improve displaying rooms on first display - MEED-9326 (#358))
               });
               this.$matrixService.installPusher();
+              this.$nextTick().then(() => this.loadRooms());
             } else {
               this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
               this.$root.$emit('matrix-login-failed');
@@ -367,7 +119,7 @@ export default {
         }
       });
     } else {
-      this.loadRooms();
+      this.$nextTick().then(() => this.loadRooms());
       this.$matrixService.saveFilter().then(filterResponse => {
         this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
         this.bindSyncPollingListeners(filterResponse.filter_id);
@@ -431,42 +183,9 @@ export default {
     },
     isUserStatusAvailable() {
       return this.presence === 'available';
-    },
-    filteredRooms() {
-      if (!this.searchTerm) {
-        return this.rooms;
-      }
-      const normalize = str =>
-        str?.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase() || '';
-
-      const normalizedSearch = normalize(this.searchTerm);
-
-      return this.rooms.filter(room =>
-        normalize(room.name).includes(normalizedSearch)
-      );
-    },
-    sortedRooms() {
-      if (!Array.isArray(this.filteredRooms)) {
-        return [];
-      }
-      return [...this.filteredRooms].sort(
-        (a, b) =>
-          (b.updated || 0) - (a.updated || 0) ||
-              a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
-      );
-    },
+    }
   },
   methods: {
-    handleFilterUpdate(text) {
-      this.loading = true;
-      if (this.searchTimer) {
-        clearTimeout(this.searchTimer);
-      }
-      this.searchTimer = setTimeout(() => {
-        this.searchTerm = text;
-        this.loading = false;
-      }, 300);
-    },
     handleTotalUnreadUpdate(total) {
       this.totalUnreadMessages = total;
     },
@@ -548,9 +267,9 @@ export default {
         this.presence = status;
         return;
       }
-      const updatedRooms = this.rooms?.map(room => (room.directChat && room.dmMemberId === userId
-        && room.presence !== status ?
-        {...room, presence: status} : room));
+      const updatedRooms = this.rooms?.map(room => room.directChat && room.dmMemberId === userId
+      && room.presence !== status ?
+        {...room, presence: status} : room);
       if (updatedRooms) {
         this.rooms = updatedRooms;
       }
@@ -619,7 +338,7 @@ export default {
         } else if (localStorage.getItem(keyToCheck) === 'true') {
           const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
           if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
-            this.$refs.messageAudio.play().catch(() => {
+            this.$refs.messageAudio.play().catch(err => {
               this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
             });
           }
