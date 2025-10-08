@@ -25,16 +25,19 @@
       <matrix-chat-room
         v-for="room in initialRooms"
         :key="room.id"
-        :selectedRoom="selectedRoom"
+        :selected-room="selectedRoom"
+        :from-room-list="fromRoomList"
         :room="room" />
     </div>
-    <div id="remainingRoomsElement"
+    <div 
+      id="remainingRoomsElement"
+      v-if="rooms?.length > limit && displayRemainingRooms"
       v-intersect="onIntersect">
       <matrix-chat-room
-        v-if="rooms?.length > limit && displayRemainingRooms"
         v-for="room in remainingRooms"
         :key="room.id"
-        :selectedRoom="selectedRoom"
+        :selected-room="selectedRoom"
+        :from-room-list="fromRoomList"
         :room="room" />
     </div>
   </div>
@@ -50,62 +53,64 @@
   </div>
 </template>
 <script>
-  export default {
-    props: {
-      rooms: {
-        type: Array,
-        default: () => []
-      },
-      loading: {
-        type: Boolean,
-        default: false
-      },
-      selectedRoom: {
-        type: Object,
-        default: null
+
+export default {
+  data() {
+    return {
+      limit: 15,
+      displayRemainingRooms: false,
+    };
+  },
+  props: {
+    rooms: {
+      type: Array,
+      default: () => []
+    },
+    loading: {
+      type: Boolean,
+      default: false
+    },
+    selectedRoom: {
+      type: Object,
+      default: null
+    },
+    fromRoomList: {
+      type: Boolean,
+      default: false
+    }
+  },
+  created() {
+    document.addEventListener('matrix-joined-room', this.addJoinedRoom);
+  },
+  beforeDestroy() {
+    document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
+  },
+  computed: {
+    initialRooms() {
+      return this.rooms.slice(0, this.limit);
+    },
+    remainingRooms() {
+      return this.rooms.slice(this.limit, this.rooms.length);
+    }
+  },
+  methods: {
+    addJoinedRoom(event) {
+      const roomExistsIndex = this.rooms.findIndex(room => room.id === event.detail.id);
+      if (roomExistsIndex < 0) {
+        this.rooms.unshift(event.detail);
+      } else if (this.rooms[roomExistsIndex]) {
+        this.rooms[roomExistsIndex].name = event.detail.name || this.rooms[roomExistsIndex].name;
+        this.rooms[roomExistsIndex].avatarUrl = event.detail.avatarUrl || this.rooms[roomExistsIndex].avatarUrl;
+        this.rooms[roomExistsIndex].members.unshift(event.detail.members);
       }
     },
-    data() {
-      return {
-        limit: 15,
-        displayRemainingRooms: false,
-      }
-    },
-    created() {
-      document.addEventListener('matrix-joined-room', this.addJoinedRoom);
-    },
-    mounted() {
-      this.$refs.initialRoomsElement.scrollIntoView();
-    },
-    beforeDestroy() {
-      document.removeEventListener('matrix-joined-room', this.addJoinedRoom);
-    },
-    computed: {
-      initialRooms() {
-        return this.rooms.slice(0, this.limit);
-      },
-      remainingRooms() {
-        return this.rooms.slice(this.limit, this.rooms.length);
-      }
-    },
-    methods: {
-      addJoinedRoom(event) {
-        const roomExistsIndex = this.rooms.findIndex(room => room.id === event.detail.id);
-        if(roomExistsIndex < 0) {
-          this.rooms.unshift(event.detail);
-        } else if (this.rooms[roomExistsIndex]) {
-          this.rooms[roomExistsIndex].name = event.detail.name || this.rooms[roomExistsIndex].name;
-          this.rooms[roomExistsIndex].avatarUrl = event.detail.avatarUrl || this.rooms[roomExistsIndex].avatarUrl;
-          this.rooms[roomExistsIndex].members.unshift(event.detail.members);
+    onIntersect(entries) {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          this.displayRemainingRooms = true;
         }
-      },
-      onIntersect(entries) {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            this.displayRemainingRooms = true;
-          }
-        });
-      }
+      });
     }
   }
+};
 </script>

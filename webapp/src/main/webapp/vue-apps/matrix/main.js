@@ -29,13 +29,16 @@ import RoomMessages from './components/room/RoomMessages.vue';
 import MessageComposer from './components/message/MessageComposer.vue';
 import RoomAvatar from './components/room/RoomAvatar.vue';
 import RoomHeaderActions from './components/room/RoomHeaderActions.vue';
+import MatrixChatBody from './components/MatrixChatBody.vue';
+import FilterRoomListInput from './components/room/FilterRoomListInput.vue';
+import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
 
 import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import * as timeUtils from './js/timeUtils.js';
-import * as matrixUtils from './js/matrixUtils'
-import './icons-extensions.js'
+import * as matrixUtils from './js/matrixUtils';
+import './icons-extensions.js';
 import TouchHold from './js/directives/touchHold.js';
 
 const components = {
@@ -70,13 +73,17 @@ const components = {
   'message-composer': MessageComposer,
   'room-avatar': RoomAvatar,
   'room-header-actions': RoomHeaderActions,
+  'matrix-chat-body': MatrixChatBody,
+  'matrix-filter-room-list-input': FilterRoomListInput,
+  'chat-header-user-avatar': ChatHeaderUserAvatar
+
 };
 
 for (const key in components) {
   Vue.component(key, components[key]);
 }
 
-Vue.directive('touch-hold', TouchHold)
+Vue.directive('touch-hold', TouchHold);
 
 window.Object.defineProperty(Vue.prototype, '$matrixService', {
   value: matrixService,
@@ -112,6 +119,7 @@ export function init(serverName) {
           channel: channel,
           fullPageMode: false,
           fullPageMessagesContainerWidth: 420,
+          defaultRoomListContainerWidth: 404,
           statusMap: {
             available: '#2eb58c',
             donotdisturb: '#bc4343',
