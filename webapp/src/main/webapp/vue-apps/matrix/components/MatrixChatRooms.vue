@@ -19,7 +19,9 @@
   <div
     v-if="rooms?.length"
     class="d-flex flex-column">
-    <div id="initialRoomsElement">
+    <div 
+      id="initialRoomsElement"
+      ref="initialRoomsElement">
       <matrix-chat-room
         v-for="room in initialRooms"
         :key="room.id"
