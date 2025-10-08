@@ -41,13 +41,13 @@
       v-if="isText"
       :id="`message-content-${message.event_id}`"
       :key="message.event_id"
-      v-sanitized-html="formattedMessage" >
+      v-sanitized-html="formattedMessage">
     </div>
     <div
       v-if="isRedacted"
       :id="`message-content-${message.event_id}`"
       :key="`${message.event_id}-${message.redacted_because.redacts}`"
-      class="d-flex flex-no-wrap" >
+      class="d-flex flex-no-wrap">
       <v-icon
         size="16"
         class="ma-auto me-2">
@@ -75,13 +75,13 @@
         :height="imageThumbnailMaxHeight"
         :aspect-ratio="imageRatio"
         class="position-absolute" />
-        <div v-if="isGifImage" class="position-absolute transparent border-radius ms-2 mt-2">
-          <v-chip
-            label
-            small>
-            GIF
-          </v-chip>
-        </div>
+      <div v-if="isGifImage" class="position-absolute transparent border-radius ms-2 mt-2">
+        <v-chip
+          label
+          small>
+          GIF
+        </v-chip>
+      </div>
     </div>
     <div
       v-if="isFile"
@@ -115,274 +115,276 @@
       :container-max-width="messageMaxWidth"
       :next-message="nextMessage" />
     <div class="d-flex full-width justify-end">
-    <v-tooltip
-      v-if="message?.edited"
-      open-delay="800"
-      bottom>
-      <template #activator="{on, bind}">
-        <div
-          v-on="on"
-          v-bind="bind"
-          class="text-font-small-size chat-message-content-timestamp">
-          <span>
-           {{ $t('matrix.message.edited.label') }}
-          </span>
-        </div>
-      </template>
-      <date-format
-        :value="message.updatedAt"
-        :format="dateTimeFormat" />
-    </v-tooltip>
+      <v-tooltip
+        v-if="message?.edited"
+        open-delay="800"
+        bottom>
+        <template #activator="{on, bind}">
+          <div
+            v-on="on"
+            v-bind="bind"
+            class="text-font-small-size chat-message-content-timestamp">
+            <span>
+              {{ $t('matrix.message.edited.label') }}
+            </span>
+          </div>
+        </template>
+        <date-format
+          :value="message.updatedAt"
+          :format="dateTimeFormat" />
+      </v-tooltip>
       <v-icon
         v-if="message?.edited"
         size="3"
         :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
-        class="ms-2 me-1 align-center">fas fa-circle</v-icon>
+        class="ms-2 me-1 align-center">
+        fas fa-circle
+      </v-icon>
       <v-tooltip
         open-delay="800"
         bottom>
-      <template #activator="{on, bind}">
-        <div v-on="on"
-           v-bind="bind"
-           v-show="displayTimestamp"
-           class="text-font-small-size chat-message-content-timestamp">
-             <v-chip
-               v-if="isImage"
-               class="text-font-small-size pa-1 ma-1 chat-message-timestamp-chip"
-               x-small>
-               {{ timestamp }}
-             </v-chip>
-             <div v-else>
-               {{ timestamp }}
-             </div>
-        </div>
-      </template>
+        <template #activator="{on, bind}">
+          <div
+            v-on="on"
+            v-bind="bind"
+            v-show="displayTimestamp"
+            class="text-font-small-size chat-message-content-timestamp">
+            <v-chip
+              v-if="isImage"
+              class="text-font-small-size pa-1 ma-1 chat-message-timestamp-chip"
+              x-small>
+              {{ timestamp }}
+            </v-chip>
+            <div v-else>
+              {{ timestamp }}
+            </div>
+          </div>
+        </template>
         <date-format
           :value="message.origin_server_ts"
           :format="dateFormat" />
-    </v-tooltip>
+      </v-tooltip>
     </div>
   </v-sheet>
 </template>
 
 <script>
-  export default {
-    inject: ['getIsExpanded', 'getParentDrawerWidth'],
-    props: {
-      message: {
-        type: Object,
-        default: {},
+export default {
+  props: {
+    message: {
+      type: Object,
+      default: {},
+    },
+    displaySender: {
+      type: Boolean,
+      default: false
+    },
+    displayTimestamp: {
+      type: Boolean,
+      default: false
+    },
+    timestamp: {
+      type: String,
+      default: false
+    },
+    nextMessage: {
+      type: Object,
+      default: null
+    },
+    isSelfMessage: {
+      type: Boolean,
+      default: false
+    },
+    cssClass: {
+      type: String,
+      default: ''
+    },
+    room: {
+      type: Object,
+      default: null
+    },
+    isRedacted: {
+      type: Boolean,
+      default: false
+    }
+  },
+  data() {
+    return {
+      collapsedImageSize: 250,
+      expandedImageMaxHeight: 500,
+      hover: false,
+      defaultSize: false,
+      dateTimeFormat: {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       },
-      displaySender: {
-        type: Boolean,
-        default: false
-      },
-      displayTimestamp: {
-        type: Boolean,
-        default: false
-      },
-      timestamp: {
-        type: String,
-        default: false
-      },
-      nextMessage: {
-        type: Object,
-        default: null
-      },
-      isSelfMessage: {
-        type: Boolean,
-        default: false
-      },
-      cssClass: {
-        type: String,
-        default: ''
-      },
-      room: {
-        type: Object,
-        default: null
-      },
-      isRedacted: {
-        type: Boolean,
-        default: false
+    };
+  },
+  created() {
+    if (this.isFile) {
+      this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
+    }
+  },
+  watch: {
+    hover() {
+      if (this.hover && this.isAnimatedImage) {
+        this.defaultSize = true;
+      } else {
+        this.defaultSize = false;
       }
     },
-    data() {
-      return {
-        collapsedImageSize: 250,
-        expandedImageMaxHeight: 500,
-        hover: false,
-        defaultSize: false,
-        dateTimeFormat: {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        },
-      };
+  },
+  computed: {
+    defaultThumbnailMaxWidth() {
+      return this.expanded ?  this.parentWidth * 0.5  : this.collapsedImageSize;
     },
-    created() {
-      if (this.isFile) {
-        this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
+    defaultThumbnailMaxHeight() {
+      return this.expanded ? this.expandedImageMaxHeight : this.collapsedImageSize;
+    },
+    expanded() {
+      return this.$root?.fullPageMode;
+    },
+    parentWidth() {
+      return this.$root?.fullPageMessagesContainerWidth;
+    },
+    messageMaxWidth() {
+      return this.parentWidth * 0.8;
+    },
+    messageContentWidth() {
+      if (this.isAudio && this.expanded) {
+        return this.messageMaxWidth;
       }
+      return this.isImage ? this.imageThumbnailMaxWidth  : undefined;
     },
-    watch: {
-      hover() {
-        if (this.hover && this.isAnimatedImage) {
-          this.defaultSize = true;
-        } else {
-          this.defaultSize = false;
-        }
-      },
+    isImage() {
+      return this.message.content.msgtype === 'm.image';
     },
-    computed: {
-      defaultThumbnailMaxWidth() {
-        return this.expanded ?  this.parentWidth * 0.5  : this.collapsedImageSize;
-      },
-      defaultThumbnailMaxHeight() {
-        return this.expanded ? this.expandedImageMaxHeight : this.collapsedImageSize;
-      },
-      expanded() {
-        return this?.getIsExpanded?.() || this.$root?.fullPageMode;
-      },
-      parentWidth() {
-        return this?.getParentDrawerWidth?.() || this.$root?.fullPageMessagesContainerWidth;
-      },
-      messageMaxWidth() {
-        return this.parentWidth * 0.8;
-      },
-      messageContentWidth() {
-        if (this.isAudio && this.expanded) {
-          return this.messageMaxWidth
-        }
-        return this.isImage ? this.imageThumbnailMaxWidth  : undefined;
-      },
-      isImage() {
-        return this.message.content.msgtype === 'm.image';
-      },
-      isText() {
-        return this.message.content.msgtype === 'm.text';
-      },
-      isAudio() {
-        return this.message?.content?.msgtype === 'm.audio';
-      },
-      isVideo() {
-        return this.message?.content?.msgtype === 'm.video'
-      },
-      isAudioMessage() {
-        return this.isAudio && !this.isUploadedAudioFile;
-      },
-      isUploadedAudioFile() {
-        return this.isAudio && (!this.message?.content?.['org.matrix.msc3245.voice']
+    isText() {
+      return this.message.content.msgtype === 'm.text';
+    },
+    isAudio() {
+      return this.message?.content?.msgtype === 'm.audio';
+    },
+    isVideo() {
+      return this.message?.content?.msgtype === 'm.video';
+    },
+    isAudioMessage() {
+      return this.isAudio && !this.isUploadedAudioFile;
+    },
+    isUploadedAudioFile() {
+      return this.isAudio && (!this.message?.content?.['org.matrix.msc3245.voice']
                             && !this.message?.content?.['org.matrix.msc2516.voice']);
-      },
-      isFile() {
-        return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile
+    },
+    isFile() {
+      return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile
                                                          || this.isVideo;
-      },
-      isAnimatedImage() {
-        return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
-      },
-      isGifImage() {
-        return this.message.content?.info?.mimetype === 'image/gif';
-      },
-      fileDownloadLink() {
-        const url = this.message.content.url.replace('mxc://', '');
-        return `/_matrix/media/v3/download/${url}`;
-      },
-      formattedMessage() {
-        let formatMessage = this.message.content.format === 'org.matrix.custom.html'
+    },
+    isAnimatedImage() {
+      return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
+    },
+    isGifImage() {
+      return this.message.content?.info?.mimetype === 'image/gif';
+    },
+    fileDownloadLink() {
+      const url = this.message.content.url.replace('mxc://', '');
+      return `/_matrix/media/v3/download/${url}`;
+    },
+    formattedMessage() {
+      const formatMessage = this.message.content.format === 'org.matrix.custom.html'
                             && this.message.content.formatted_body
                             || this.message.content.body.replace(/\n/g, '<br />')
                             || '';
-        return this.$matrixService.formatMentionsInMessage(formatMessage);
-      },
-      imageThumbnailMaxWidth() {
-        const width = this.message.content.info.w || this.message.content.w;
-        const height = this.message.content.info.h || this.message.content.h;
-        if(width <= 60) {
-          return 60;
-        }
-        if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
-          if (this.message.content.info.h < this.defaultThumbnailMaxHeight) {
-            return this.message.content.info.w;
-          } else {
-            return this.defaultThumbnailMaxHeight / (height / width);
-          }
-        } else if (this.message.content.info.w >= this.message.content.info.h) {
-          return this.defaultThumbnailMaxWidth;
+      return this.$matrixService.formatMentionsInMessage(formatMessage);
+    },
+    imageThumbnailMaxWidth() {
+      const width = this.message.content.info.w || this.message.content.w;
+      const height = this.message.content.info.h || this.message.content.h;
+      if (width <= 60) {
+        return 60;
+      }
+      if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
+        if (this.message.content.info.h < this.defaultThumbnailMaxHeight) {
+          return this.message.content.info.w;
         } else {
           return this.defaultThumbnailMaxHeight / (height / width);
         }
-      },
-      imageThumbnailMaxHeight() {
-        const width = this.message.content.info.w || this.message.content.w;
-        const height = this.message.content.info.h || this.message.content.h;
-        if(height <= 60) {
-          return 60;
-        }
-        if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
-          if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
-            return this.message.content.info.h;
-          } else {
-            return this.defaultThumbnailMaxWidth / (width / height);
-          }
-        } else if (this.message.content.info.w >= this.message.content.info.h) {
-          return this.defaultThumbnailMaxWidth / (width / height);
-        } else {
-          return this.defaultThumbnailMaxHeight;
-        }
-      },
-      imageRatio() {
-        const w = this.message.content.info?.w || this.message.content.w || 1;
-        const h = this.message.content.info?.h || this.message.content.h || 1;
-        return w / h;
-      },
-      imageThumbnailURL() {
-        if(this.message.content?.info?.thumbnail_url && !this.defaultSize && !this.isSmallImage(this.message)) {
-          const imageId = this.message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
-          return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
-        } else {
-          const imageId = this.message.content?.url.replace(`mxc://${matrixServerName}/`,'');
-          return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`
-        }
-      },
-    },
-    methods: {
-      isSmallImage(message) {
-        return message.content?.info?.size < 1000000;
-      },
-      imageDownloadURL(message) {
-        const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
-        return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`
-      },
-      imageId(message) {
-        return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
-      },
-      openImagePreview(message) {
-        const thumbnailImageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
-        const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
-        const images = [{
-          id: imageId,
-          name: message.content.body,
-          filename: message.content.body,
-          size: message.content.info.size,
-          mimetype: message.content.info.mimetype,
-          updated: message.origin_server_ts,
-          alt: message.content.body,
-          thumbnailUrl:  message.content?.info?.mimetype === 'image/gif' || message.content?.info?.mimetype === 'image/webp' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
-          downloadUrl: this.imageDownloadURL(message),
-        }];
-        document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
-      },
-      getFileIcon(mimeType) {
-        const extensions = Vue.prototype.$filesIconsExtension;
-        let extension = extensions[0].get(mimeType);
-        if (!extension) {
-          extension = extensions[0].get('file');
-        }
-        return extension;
+      } else if (this.message.content.info.w >= this.message.content.info.h) {
+        return this.defaultThumbnailMaxWidth;
+      } else {
+        return this.defaultThumbnailMaxHeight / (height / width);
       }
+    },
+    imageThumbnailMaxHeight() {
+      const width = this.message.content.info.w || this.message.content.w;
+      const height = this.message.content.info.h || this.message.content.h;
+      if (height <= 60) {
+        return 60;
+      }
+      if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
+        if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
+          return this.message.content.info.h;
+        } else {
+          return this.defaultThumbnailMaxWidth / (width / height);
+        }
+      } else if (this.message.content.info.w >= this.message.content.info.h) {
+        return this.defaultThumbnailMaxWidth / (width / height);
+      } else {
+        return this.defaultThumbnailMaxHeight;
+      }
+    },
+    imageRatio() {
+      const w = this.message.content.info?.w || this.message.content.w || 1;
+      const h = this.message.content.info?.h || this.message.content.h || 1;
+      return w / h;
+    },
+    imageThumbnailURL() {
+      if (this.message.content?.info?.thumbnail_url && !this.defaultSize && !this.isSmallImage(this.message)) {
+        const imageId = this.message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
+        return `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`;
+      } else {
+        const imageId = this.message.content?.url.replace(`mxc://${matrixServerName}/`,'');
+        return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`;
+      }
+    },
+  },
+  methods: {
+    isSmallImage(message) {
+      return message.content?.info?.size < 1000000;
+    },
+    imageDownloadURL(message) {
+      const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
+      return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`;
+    },
+    imageId(message) {
+      return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
+    },
+    openImagePreview(message) {
+      const thumbnailImageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
+      const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
+      const images = [{
+        id: imageId,
+        name: message.content.body,
+        filename: message.content.body,
+        size: message.content.info.size,
+        mimetype: message.content.info.mimetype,
+        updated: message.origin_server_ts,
+        alt: message.content.body,
+        thumbnailUrl: message.content?.info?.mimetype === 'image/gif' || message.content?.info?.mimetype === 'image/webp' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
+        downloadUrl: this.imageDownloadURL(message),
+      }];
+      document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
+    },
+    getFileIcon(mimeType) {
+      const extensions = Vue.prototype.$filesIconsExtension;
+      let extension = extensions[0].get(mimeType);
+      if (!extension) {
+        extension = extensions[0].get('file');
+      }
+      return extension;
     }
   }
+};
 </script>

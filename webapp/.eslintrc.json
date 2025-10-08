@@ -3,9 +3,12 @@
     "eslint-config-meedsio"
   ],
   "globals": {
+    "matrixUserId": true,
+    "matrixServerName": true
   },
   "rules": {
     "vue/no-mutating-props": "warn",
-    "vue/multi-word-component-names": "off"
+    "vue/multi-word-component-names": "off",
+    "no-await-in-loop": "off"
   }
 }

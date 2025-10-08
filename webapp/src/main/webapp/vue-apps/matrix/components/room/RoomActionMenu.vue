@@ -21,9 +21,9 @@
   <v-menu
     ref="menu"
     v-model="menu"
-    :attach="`#room${room.spaceId || room.dmMemberId}`"
+    :attach="`#${attachedId}`"
     :nudge-top="-1"
-    content-class="no-min-width border-radius overflow-hidden"
+    content-class="no-min-width border-radius z-index-modal overflow-hidden"
     close-on-content-click
     offset-y
     left
@@ -47,7 +47,7 @@
     </template>
     <room-action-list-items
       :room="room"
-      @close="menu = false"/>
+      @close="menu = false" />
   </v-menu>
 </template>
 
@@ -57,20 +57,24 @@ export default {
   data() {
     return {
       menu: false,
-    }
+    };
   },
   props: {
     room: {
       type: Object,
       default: null
+    },
+    attachedId: {
+      type: String,
+      default: ''
     }
   },
   watch: {
     menu() {
       if (this.menu) {
-        this.$emit('open')
+        this.$emit('open');
       } else {
-        this.$emit('close')
+        this.$emit('close');
       }
     }
   }
