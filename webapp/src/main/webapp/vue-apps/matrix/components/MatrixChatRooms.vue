@@ -65,7 +65,7 @@
     },
     data() {
       return {
-        limit: 20,
+        limit: 15,
         displayRemainingRooms: false,
       }
     },
