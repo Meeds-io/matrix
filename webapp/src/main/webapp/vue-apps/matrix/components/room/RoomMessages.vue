@@ -93,6 +93,8 @@ export default {
       leftReactions: [],
       composerDefaultHeight: 40,
       messageContainerScrollTop: 0,
+      messageContainerScrollHeight: 0,
+      messageContainerClientHeight: 0,
       unSeenMessagesData: {
         firstUnseenEventId: null,
         inViewport: {
@@ -106,7 +108,10 @@ export default {
       messagesContainerId: 'chatMessagesContainer',
       roomLastReadReceipts: null,
       currentLoadToken: 0,
-    }
+      isUserScrolling: false,
+      userScrollTimeout: null,
+      messagesCache: new Map()
+    };
   },
   props: {
     room: {
@@ -123,20 +128,16 @@ export default {
     document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData)
-    this.$root.channel.addEventListener('message', this.handleBroadcastMessage)
+    document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData);
+    this.$root.channel.addEventListener('message', this.handleBroadcastMessage);
   },
   beforeDestroy() {
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData)
-    this.$root.channel.removeEventListener('message', this.handleBroadcastMessage)
-  },
-  async mounted() {
-    await this.initDiscussion();
-    await this.loadAndProcessMessages();
+    document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData);
+    this.$root.channel.removeEventListener('message', this.handleBroadcastMessage);
   },
   computed: {
     typingUsers() {
@@ -157,24 +158,22 @@ export default {
       return info.visibleTop === false && (info.above === true || info.below === false);
     },
     isAtBottomMessages() {
-      const element = this.getMessagesContainerElement();
-      if (!element) {
-        return true;
-      }
-      return element.scrollHeight - this.messageContainerScrollTop - element.clientHeight <= 60;
-    },
+      return (
+        this.messageContainerScrollHeight - this.messageContainerScrollTop - this.messageContainerClientHeight <= 60
+      );
+    }
   },
   watch: {
     loading() {
       this.$nextTick(() => {
         this.$emit('loading', this.loading);
-      })
+      });
     },
     room() {
       this.messages = [];
       this.loading = false;
       // cancel any ongoing loads
-      this.currentLoadToken++; 
+      this.currentLoadToken++;
       this.loadAndProcessMessages();
     }
   },
@@ -199,7 +198,7 @@ export default {
 
       const resp = await this.$matrixService.loadRoomMessages(roomId);
 
-      if (this.currentLoadToken !== loadToken) {
+      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
         return;
       }
 
@@ -219,28 +218,30 @@ export default {
       const lastChunk = chunks.shift();
       const newestProcessed = await this.$matrixService.processMessages(roomId, lastChunk);
 
-      if (this.currentLoadToken !== loadToken) {
+      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
         return;
       }
 
       this.messages = newestProcessed.messages;
       this.leftReactions = newestProcessed.leftReactions;
       await this.$nextTick();
-      this.scrollToEnd();
+      if (!this.isUserScrolling) {
+        this.scrollToEnd(loadToken, roomId);
+      }
       this.loading = false;
 
       for (const chunk of chunks) {
         await new Promise(resolve => requestAnimationFrame(resolve));
         const processed = await this.$matrixService.processMessages(roomId, chunk);
 
-        if (this.currentLoadToken !== loadToken) {
+        if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
           return;
         }
         const container = this.getMessagesContainerElement();
         if (!container) {
           return;
         }
-        
+
         const prevScrollTop = container.scrollTop;
         const prevScrollHeight = container.scrollHeight;
 
@@ -250,7 +251,7 @@ export default {
 
         if (prevScrollTop + container.clientHeight < prevScrollHeight - 10) {
           container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
-        } else {
+        } else if (!this.isUserScrolling) {
           this.scrollToEnd();
         }
       }
@@ -382,7 +383,7 @@ export default {
       }
       this.room.name = this.space.displayName;
     },
-    async handleUpdateUnseenData(event) {
+    handleUpdateUnseenData(event) {
       const {roomId} = event.detail;
       if (this.room?.id !== roomId) {
         return;
@@ -393,7 +394,7 @@ export default {
         } else {
           await this.loadUnseenMessagesData();
         }
-      }, 500)
+      }, 500);
     },
     async loadUnseenMessagesData() {
       this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
@@ -409,54 +410,66 @@ export default {
       this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
         this.resetData();
         this.$root.channel.postMessage({type: 'reset-unseen-data'});
-      })
+      });
     },
     getMessagesContainerElement() {
       return document.getElementById(this.messagesContainerId);
     },
-    scrollToEnd() {
-      const container = this.getMessagesContainerElement();
-      if (!this.messages || !container) {
+    scrollToEnd(loadToken = this.currentLoadToken, roomId = this.room?.id) {
+      const container = this.$refs.chatMessagesContainer;
+      if (!container || !this.messages?.length) {
         return;
       }
-      const lastMessageIndex = this.messages.length - 1;
-      const lastMessageEl = document.getElementById(`chat-message-${lastMessageIndex}`);
-      if (lastMessageEl) {
-        lastMessageEl.scrollIntoView({behavior: 'auto'});
+      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
+        return;
       }
       requestAnimationFrame(() => {
-        // Force scroll to bottom in case last message is too tall
+        if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
+          return;
+        }
         container.scrollTop = container.scrollHeight;
         this.hasUnseenNewReceivedMessage = false;
+
         if (this.isInputFocused) {
           this.markRoomAsRead();
         }
-      })
+      });
     },
     replyToMessage(message) {
-      this.$root.$emit('reply-to-message', this.room?.id, this.messages, message)
+      this.$root.$emit('reply-to-message', this.room?.id, this.messages, message);
     },
     async reactToMessage(emoji, targetMessage) {
       const existingReaction = targetMessage?.reactions?.find?.(reaction => reaction.key === emoji
           && reaction.userIds.includes(matrixUserId));
       if (existingReaction) {
-        await this.removeReaction(emoji, targetMessage)
+        await this.removeReaction(emoji, targetMessage);
       } else {
         await this.$matrixService.reactToMessage(emoji, this.room.id, targetMessage.event_id);
       }
     },
     async removeReaction(emoji, targetMessage) {
       const reactionEventId = await this.$matrixService.findReactionEventId(
-          emoji,
-          targetMessage.event_id,
-          matrixUserId,
-          this.room.id);
+        emoji,
+        targetMessage.event_id,
+        matrixUserId,
+        this.room.id);
       if (reactionEventId) {
         await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
-    onMessagesContainerScroll() {
-      this.messageContainerScrollTop = this.getMessagesContainerElement().scrollTop;
+    onMessagesContainerScroll(event) {
+      const container = event.target;
+      this.messageContainerScrollTop = container.scrollTop;
+
+      this.messageContainerScrollHeight = container.scrollHeight;
+      this.messageContainerClientHeight = container.clientHeight;
+
+      this.isUserScrolling = true;
+      clearTimeout(this.userScrollTimeout);
+      this.userScrollTimeout = setTimeout(() => {
+        this.isUserScrolling = false;
+      }, 300);
+
       if (this.isAtBottomMessages) {
         this.hasUnseenNewReceivedMessage = false;
       }
@@ -477,7 +490,7 @@ export default {
         composerDOMEl.style.height = `${this.composerDefaultHeight}px`;
       }
       this.lastScrollTop = scrollTop >= 0 && scrollTop || 0;
-      if(this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
+      if (this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
         return;
       }
       this.loadingNewMessages = true;
