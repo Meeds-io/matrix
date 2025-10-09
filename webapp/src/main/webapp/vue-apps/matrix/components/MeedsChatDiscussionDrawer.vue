@@ -48,7 +48,7 @@
           </v-btn>
         </div>
       </div>
-      <room-avatar
+      <matrix-room-avatar
         v-else-if="room"
         :room="room" />
     </template>
@@ -56,9 +56,9 @@
       <div
         v-if="room && fullPageMode"
         class="text-truncate">
-        <room-avatar :room="room" />
+        <matrix-room-avatar :room="room" />
       </div>
-      <room-header-actions
+      <matrix-room-header-actions
         ref="roomHeaderActions"
         v-if="room"
         :room="room"
@@ -187,8 +187,13 @@ export default {
       }
       this.previousRoomId = this.selectedRoom?.id;
       this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+
+      setTimeout(() => {
+        this.$refs?.chatBody?.scrollToEnd();
+      }, 50);
     },
     close() {
+      this.componentKey++;
       this.open = false;
       this.$refs.chatBody?.reset();
       this.$refs.ChatDiscussionDrawer?.close();

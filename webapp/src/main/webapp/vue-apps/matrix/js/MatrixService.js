@@ -765,8 +765,8 @@ export function getUserByMatrixId(userIdOnMatrix, room) {
   });
 }
 
-export async function loadRoomMessages(roomId, from, to) {
-  const filter = {'lazy_load_members': true, types: ['m.room.message', 'm.reaction']};
+export function loadRoomMessages(roomId, from, to) {
+  const filter = {'lazy_load_members': true, types: ['m.room.message']};
   const formData = new FormData();
   formData.append('limit', chatConstants.MESSAGES_LOAD_LIMIT);
   if (from) {
@@ -792,6 +792,43 @@ export async function loadRoomMessages(roomId, from, to) {
     } else {
       return resp.json();
     }
+  });
+}
+
+export async function loadMessageReactions(roomId, eventId) {
+  const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction`;
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      },
+      method: 'GET',
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error(`Load reactions failed: ${resp.status} ${text}`);
+      return;
+    }
+    const data = await resp.json();
+
+    return data.chunk || [];
+  } catch (err) {
+    console.error('Error loading reactions for message', eventId, err);
+    return [];
+  }
+}
+
+export async function fetchAndProcessReactions(message, roomId) {
+  if (!Array.isArray(message.reactions)) {
+    message.reactions = [];
+  }
+  if (!message.reactionsMap) {
+    message.reactionsMap = new Map();
+  }
+  const reactions = await loadMessageReactions(roomId, message.event_id);
+  reactions.forEach(reactionEvent => {
+    processMessageReaction(message, reactionEvent);
   });
 }
 
@@ -960,81 +997,67 @@ export function formatMentionsInRoomList(message) {
 export async function processMessages(roomId, messageItems) {
   const messagesMap = new Map();
   const replyDependencyMap = new Map();
-  const leftReactions = [];
 
   const lastReadEventIds = await getLastReadEventIds(roomId);
+  const reactionPromises = [];
+  for (const item of messageItems) {
+    if (item.type !== 'm.room.message') {continue;}
 
-  messageItems.forEach(item => {
-    if (item.type === 'm.room.message') {
-      const relatesTo = item.content['m.relates_to'];
-      const newContent = item.content['m.new_content'];
-      messageTimestampsMap.set(item.event_id, item.origin_server_ts);
+    const relatesTo = item.content['m.relates_to'];
+    const newContent = item.content['m.new_content'];
+    messageTimestampsMap.set(item.event_id, item.origin_server_ts);
 
-      // Handle edits
-      if (relatesTo?.rel_type === 'm.replace' && newContent) {
-        const targetEventId = relatesTo.event_id;
-        const originalMessage = messagesMap.get(targetEventId);
-        if (originalMessage && !isRedacted(originalMessage)) {
-          originalMessage.content.body = newContent.body;
-          originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
-          if (newContent.format && newContent.format === 'org.matrix.custom.html') {
-            originalMessage.content.format = newContent.format;
-            originalMessage.content.formatted_body = newContent.formatted_body;
-          } else {
-            delete originalMessage.content.format;
-            delete originalMessage.content.formatted_body;
-          }
-          if (newContent['m.mentions'] && newContent['m.mentions'].user_ids?.length > 0) {
-            originalMessage.content['m.mentions'] = newContent['m.mentions'];
-          } else {
-            delete originalMessage.content['m.mentions'];
-          }
-          originalMessage.edited = true;
-          originalMessage.updatedAt = item.origin_server_ts;
+    if (relatesTo?.rel_type === 'm.replace' && newContent) {
+      const targetEventId = relatesTo.event_id;
+      const originalMessage = messagesMap.get(targetEventId);
+      if (originalMessage && !isRedacted(originalMessage)) {
+        originalMessage.content.body = newContent.body;
+        originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
 
-          const dependents = replyDependencyMap.get(targetEventId) || [];
-          for (const messageId of dependents) {
-            const message = messagesMap.get(messageId);
-            if (message) {
-              message.replyTo = buildReplyToObject(messagesMap, targetEventId);
-            }
-          }
-        }
-      } else {
-        item.reactions = item.reactions || [];
-
-        const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
-        if (inReplyTo) {
-          item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
-
-          if (!replyDependencyMap.has(inReplyTo)) {
-            replyDependencyMap.set(inReplyTo, []);
-          }
-          replyDependencyMap.get(inReplyTo).push(item.event_id);
-        }
-
-        item.hasLastReaders = lastReadEventIds.has(item.event_id);
-        messagesMap.set(item.event_id, item);
-      }
-    } else if (item.type === 'm.reaction') {
-      const relatesTo = item.content['m.relates_to'];
-      const isAnnotation = relatesTo?.rel_type === 'm.annotation';
-
-      if (isAnnotation) {
-        const messageReactedTo = messagesMap.get(relatesTo.event_id);
-        if (messageReactedTo) {
-          processMessageReaction(messageReactedTo, item);
+        if (newContent.format === 'org.matrix.custom.html') {
+          originalMessage.content.format = newContent.format;
+          originalMessage.content.formatted_body = newContent.formatted_body;
         } else {
-          leftReactions.push(item);
+          delete originalMessage.content.format;
+          delete originalMessage.content.formatted_body;
+        }
+
+        if (newContent['m.mentions']?.user_ids?.length) {
+          originalMessage.content['m.mentions'] = newContent['m.mentions'];
+        } else {
+          delete originalMessage.content['m.mentions'];
+        }
+
+        originalMessage.edited = true;
+        originalMessage.updatedAt = item.origin_server_ts;
+
+        const dependents = replyDependencyMap.get(targetEventId) || [];
+        for (const messageId of dependents) {
+          const message = messagesMap.get(messageId);
+          if (message) {
+            message.replyTo = buildReplyToObject(messagesMap, targetEventId);
+          }
         }
       }
-    }
-  });
+    } else {
+      const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
+      if (inReplyTo) {
+        item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
+        if (!replyDependencyMap.has(inReplyTo)) {replyDependencyMap.set(inReplyTo, []);}
+        replyDependencyMap.get(inReplyTo).push(item.event_id);
+      }
 
+      item.hasLastReaders = lastReadEventIds.has(item.event_id);
+      messagesMap.set(item.event_id, item);
+
+      reactionPromises.push(fetchAndProcessReactions(item, roomId));
+    }
+  }
+
+  await Promise.allSettled(reactionPromises);
   return {
-    roomId: roomId,
+    roomId,
     messages: Array.from(messagesMap.values()),
-    leftReactions,
   };
 }
 

@@ -34,10 +34,10 @@
     <div
       id="roomChatMessages"
       v-show="messages && !loading"
-      class="d-flex flex-column"
+      class="d-flex flex-column fill-height"
       @wheel="loadMoreMessages"
       @scroll="loadMoreMessages">
-      <meeds-chat-message
+      <matrix-chat-message
         v-for="(message, i) in messages"
         :id="`chat-message-${i}`"
         :ref="`chat-message-${i}`"
@@ -48,10 +48,11 @@
         :room="room"
         :unseen-messages-data="unSeenMessagesData"
         :is-input-focused="isInputFocused"
+        class="transition-2s"
         @reply="replyToMessage"
         @reaction="reactToMessage"
         @reset-unseen="resetUnseenData" />
-      <message-typing-indicator
+      <matrix-message-typing-indicator
         v-if="isTyping"
         :room="room"
         :typing-users="typingUsers"
@@ -90,7 +91,6 @@ export default {
       hasUnseenNewReceivedMessage: false,
       loadingNewMessages: false,
       hasMoreMessages: true,
-      leftReactions: [],
       composerDefaultHeight: 40,
       messageContainerScrollTop: 0,
       messageContainerScrollHeight: 0,
@@ -190,80 +190,67 @@ export default {
         return;
       }
 
+      const roomId = this.room.id;
+      const loadToken = ++this.currentLoadToken;
+
       this.loading = true;
       await this.$nextTick();
 
-      const loadToken = ++this.currentLoadToken;
-      const roomId = this.room.id;
+      try {
+        const resp = await this.$matrixService.loadRoomMessages(roomId);
+        this.from = resp.start;
+        this.to = resp.end;
 
-      const resp = await this.$matrixService.loadRoomMessages(roomId);
-      this.from = resp.start;
-      this.to = resp.end;
+        if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
+          this.loading = false;
+          return;
+        }
 
-      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
-        this.loading = false;
-        return;
-      }
-
-      if (!resp.chunk?.length) {
-        this.loading = false;
-        return;
-      }
-
-      const allMessages = resp.chunk;
-      const chunkSize = 10;
-      const chunks = [];
-      for (let i = 0; i < allMessages.length; i += chunkSize) {
-        chunks.push(allMessages.slice(i, i + chunkSize).reverse());
-      }
-
-      let leftoverReactions = [];
-
-      // Process last chunk first
-      const lastChunk = chunks.shift();
-      const newestProcessed = await this.$matrixService.processMessages(roomId, lastChunk);
-
-      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
-        return;
-      }
-
-      this.messages = newestProcessed.messages;
-      leftoverReactions = newestProcessed.leftReactions;
-
-      await this.$nextTick();
-      if (!this.isUserScrolling) {
-        this.scrollToEnd(loadToken, roomId);
-      }
-      this.loading = false;
-
-      for (const chunk of chunks) {
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        const processed = await this.$matrixService.processMessages(roomId, chunk);
+        const allMessages = resp.chunk;
+        if (!allMessages?.length) {
+          this.loading = false;
+          return;
+        }
+        const reversedMessages = allMessages.slice();
+        const processed = await new Promise(resolve => {
+          (window.requestIdleCallback || window.requestAnimationFrame)(async () => {
+            const result = await this.$matrixService.processMessages(roomId, reversedMessages);
+            resolve(result);
+          });
+        });
 
         if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
           return;
         }
 
+        const result = processed.messages;
+        const chunkSize = 10;
+        const chunks = [];
+
+        for (let i = 0; i < result.length; i += chunkSize) {
+          chunks.push(result.slice(i, i + chunkSize).reverse());
+        }
+
+        this.messages = chunks.shift();
+
         const container = this.getMessagesContainerElement();
-        if (!container) {
-          return;
+
+        for (const chunk of chunks) {
+          const prevScrollHeight = container.scrollHeight;
+          this.messages = [...chunk, ...this.messages];
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop += newScrollHeight - prevScrollHeight;
         }
 
-        const prevScrollTop = container.scrollTop;
-        const prevScrollHeight = container.scrollHeight;
-
-        this.messages = [...processed.messages, ...this.messages];
-
-        leftoverReactions = [...leftoverReactions, ...processed.leftReactions];
-
-        await this.$nextTick();
-        await new Promise(resolve => requestAnimationFrame(resolve));
-
-        if (prevScrollTop + container.clientHeight < prevScrollHeight - 10) {
-          container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
-        } else if (!this.isUserScrolling) {
+        /*setTimeout(() => {
           this.scrollToEnd();
-        }
+        }, 50);*/
+
+      } catch (err) {
+        console.error('Error loading messages:', err);
+      } finally {
+        this.loading = false;
       }
     },
     messageReceived(event) {
@@ -511,10 +498,9 @@ export default {
           if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
             this.hasMoreMessages = false;
           }
-          const messagesToProcess = [...resp.chunk.reverse(), ...this.leftReactions];
+          const messagesToProcess = [...resp.chunk.reverse()];
           const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
           this.messages = [...processedMessages.messages, ...this.messages];
-          this.leftReactions = processedMessages.leftReactions;
           this.from = resp.start;
           this.to = resp.end;
         }).finally(() => {

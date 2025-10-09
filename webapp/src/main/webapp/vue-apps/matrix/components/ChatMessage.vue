@@ -20,8 +20,7 @@
   <div
     class="chat-message-content"
     :class="{
-      'mb-3':!nextMessage,
-      'mb-1': nextMessage,
+      'mb-2':!nextMessage,
       'no-select': isMobile
     }"
     v-touch-hold="openMenu"
@@ -100,7 +99,7 @@
             v-if="!isRedacted && hasReactions"
             class="position-sticky mt-n1 d-flex flex-wrap"
             :class="{'justify-end': isMyMessage}">
-            <message-reaction-item
+            <matrix-message-reaction-item
               v-for="reaction in message.reactions"
               :key="reaction.key"
               :reaction="reaction"

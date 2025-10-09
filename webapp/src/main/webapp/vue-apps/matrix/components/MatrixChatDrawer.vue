@@ -67,9 +67,9 @@
       <div 
         v-if="selectedRoom && fullPageMode"
         class="text-truncate">
-        <room-avatar :room="selectedRoom" />
+        <matrix-room-avatar :room="selectedRoom" />
       </div>
-      <room-header-actions
+      <matrix-room-header-actions
         v-if="selectedRoom && fullPageMode"
         ref="roomHeaderActions"
         :room="selectedRoom"
@@ -184,6 +184,10 @@ export default {
       }
       this.previousRoomId = this.selectedRoom?.id;
       this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+
+      setTimeout(() => {
+        this.$refs?.chatBody?.scrollToEnd();
+      }, 50);
     },
     handleFilterUpdate(text) {
       this.filterText = text;

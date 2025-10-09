@@ -39,15 +39,15 @@
       :loading-rooms="loading"
       :presence="presence"
       @filter-updated="handleFilterUpdate" />
-    <meeds-chat-discussion-drawer
+    <matrix-chat-discussion-drawer
       ref="ChatDiscussionDrawer"
       :rooms="sortedRooms"
       :presence="presence"
       :loading-rooms="loading"
       @filter-updated="handleFilterUpdate" />
-    <meeds-chat-quick-create-discussion-drawer />
-    <room-action-menu-drawer />
-    <message-read-receipt-list-drawer />
+    <matrix-chat-quick-create-discussion-drawer />
+    <matrix-room-action-menu-drawer />
+    <matrix-message-read-receipt-list-drawer />
     <exo-confirm-dialog
       ref="deleteConfirmDialog"
       :title="$t('matrix.chat.label.confirmDeleteTitle')"
