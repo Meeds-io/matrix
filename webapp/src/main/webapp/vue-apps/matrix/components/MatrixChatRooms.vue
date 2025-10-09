@@ -19,11 +19,14 @@
   <div
     v-if="rooms?.length"
     class="d-flex flex-column">
-    <div id="initialRoomsElement">
+    <div 
+      id="initialRoomsElement"
+      ref="initialRoomsElement">
       <matrix-chat-room
         v-for="room in initialRooms"
         :key="room.id"
-        :selectedRoom="selectedRoom"
+        :selected-room="selectedRoom"
+        :from-room-list="fromRoomList"
         :room="room" />
     </div>
     <div 
@@ -34,7 +37,8 @@
         v-if="displayRemainingRooms"
         v-for="room in remainingRooms"
         :key="room.id"
-        :selectedRoom="selectedRoom"
+        :selected-room="selectedRoom"
+        :from-room-list="fromRoomList"
         :room="room" />
     </div>
   </div>
@@ -52,6 +56,12 @@
 <script>
 
 export default {
+  data() {
+    return {
+      limit: 30,
+      displayRemainingRooms: false,
+    };
+  },
   props: {
     rooms: {
       type: Array,
@@ -68,12 +78,6 @@ export default {
     fromRoomList: {
       type: Boolean,
       default: false
-    }
-  },
-  data() {
-    return {
-      limit: 20,
-      displayRemainingRooms: false,
     }
   },
   created() {
@@ -93,7 +97,7 @@ export default {
   methods: {
     addJoinedRoom(event) {
       const roomExistsIndex = this.rooms.findIndex(room => room.id === event.detail.id);
-      if(roomExistsIndex < 0) {
+      if (roomExistsIndex < 0) {
         this.rooms.unshift(event.detail);
       } else if (this.rooms[roomExistsIndex]) {
         this.rooms[roomExistsIndex].name = event.detail.name || this.rooms[roomExistsIndex].name;

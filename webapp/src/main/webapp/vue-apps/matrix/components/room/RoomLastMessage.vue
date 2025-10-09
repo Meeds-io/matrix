@@ -85,7 +85,7 @@ export default{
         if (!message) {
           return;
         }
-        if (!this.room.updated || this.room.updated <= message.origin_server_ts) {
+        if (!this.room.updated || this.room.updated < message.origin_server_ts) {
           this.$set(this.room, 'updated', message.origin_server_ts);
         }
         const lastMessage = await this.$matrixService.buildRoomLastMessage(message, message.type, this.room);

@@ -97,11 +97,11 @@ export default {
       this.$matrixService.dropUserData();
     }
     const matrixInfos = localStorage.getItem('matrix_user_id');
-    if(!matrixInfos || matrixInfos !== matrixUserId) {
+    if (!matrixInfos || matrixInfos !== matrixUserId) {
       this.$matrixService.checkAuthenticationTypes().then(enabled => {
-        if(enabled) {
+        if (enabled) {
           this.$matrixService.authenticate().then(resp => {
-            if(resp.user_id) {
+            if (resp.user_id) {
               this.$matrixService.initUserData(resp);
               this.$matrixService.saveFilter().then(filterResponse => {
                 this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
@@ -109,6 +109,7 @@ export default {
               });
               this.$matrixService.installPusher();
               this.$nextTick().then(() => this.loadRooms());
+
             } else {
               this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
               this.$root.$emit('matrix-login-failed');
@@ -176,6 +177,9 @@ export default {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
       }
     },
+    sortedRooms() {
+      this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+    }
   },
   computed: {
     presenceColor() {
@@ -183,9 +187,42 @@ export default {
     },
     isUserStatusAvailable() {
       return this.presence === 'available';
-    }
+    },
+    filteredRooms() {
+      if (!this.searchTerm) {
+        return this.rooms;
+      }
+      const normalize = str =>
+        str?.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase() || '';
+
+      const normalizedSearch = normalize(this.searchTerm);
+
+      return this.rooms.filter(room =>
+        normalize(room.name).includes(normalizedSearch)
+      );
+    },
+    sortedRooms() {
+      if (!Array.isArray(this.filteredRooms)) {
+        return [];
+      }
+      return [...this.filteredRooms].sort(
+        (a, b) =>
+          (b.updated || 0) - (a.updated || 0) ||
+              a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
+      );
+    },
   },
   methods: {
+    handleFilterUpdate(text) {
+      this.loading = true;
+      if (this.searchTimer) {
+        clearTimeout(this.searchTimer);
+      }
+      this.searchTimer = setTimeout(() => {
+        this.searchTerm = text;
+        this.loading = false;
+      }, 300);
+    },
     handleTotalUnreadUpdate(total) {
       this.totalUnreadMessages = total;
     },
@@ -267,9 +304,9 @@ export default {
         this.presence = status;
         return;
       }
-      const updatedRooms = this.rooms?.map(room => room.directChat && room.dmMemberId === userId
-      && room.presence !== status ?
-        {...room, presence: status} : room);
+      const updatedRooms = this.rooms?.map(room => (room.directChat && room.dmMemberId === userId
+        && room.presence !== status ?
+        {...room, presence: status} : room));
       if (updatedRooms) {
         this.rooms = updatedRooms;
       }
@@ -338,7 +375,7 @@ export default {
         } else if (localStorage.getItem(keyToCheck) === 'true') {
           const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
           if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
-            this.$refs.messageAudio.play().catch(err => {
+            this.$refs.messageAudio.play().catch(() => {
               this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
             });
           }
@@ -483,6 +520,11 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
+        if (cachedRooms) {
+          this.rooms = JSON.parse(cachedRooms);
+        }
+      });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
         this.rooms = matrixRoomsObject.rooms || [];
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
