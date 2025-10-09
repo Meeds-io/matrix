@@ -177,6 +177,9 @@ export default {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
       }
     },
+    sortedRooms() {
+      this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+    }
   },
   computed: {
     presenceColor() {
@@ -517,6 +520,11 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
+        if (cachedRooms) {
+          this.rooms = JSON.parse(cachedRooms);
+        }
+      });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
         this.rooms = matrixRoomsObject.rooms || [];
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);

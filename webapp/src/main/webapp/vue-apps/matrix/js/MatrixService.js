@@ -500,6 +500,9 @@ export async function toRoomObject(rooms, currentMemberId) {
 
     if (latestMessage) {
       lastMessagesByRoom?.set?.(roomId, latestMessage);
+      if (latestMessage.origin_server_ts > roomItem.updated) {
+        roomItem.updated = latestMessage.origin_server_ts;
+      }
     }
   }
   myRooms.rooms = Array.from(roomMap.values());
@@ -1534,6 +1537,23 @@ export async function registerUserToken() {
     'settings',
     settings
   );
+}
+
+export async function cacheRooms(rooms) {
+  const dbExists = await dbStorage.isDatabaseExists(chatConstants.DB_SETTINGS.DB_NAME);
+  if (!dbExists) {
+    await dbStorage.createDatabase(chatConstants.DB_SETTINGS);
+  }
+  await dbStorage.setValue(
+    chatConstants.DB_SETTINGS,
+    chatConstants.DB_SETTINGS.DB_STORES.CACHE,
+    'cachedRooms',
+    rooms
+  );
+}
+
+export function retrieveCachedRooms() {
+  return dbStorage.getValue(chatConstants.DB_SETTINGS, chatConstants.DB_SETTINGS.DB_STORES.CACHE, 'cachedRooms');
 }
 
 export async function muteRoom(roomId, spaceId, isMuted) {
