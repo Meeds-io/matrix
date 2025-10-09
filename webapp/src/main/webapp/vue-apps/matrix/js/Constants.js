@@ -29,7 +29,7 @@ export const chatConstants = {
 
   ENTER_CODE_KEY: 13,
 
-  MESSAGES_LOAD_LIMIT: 100,
+  MESSAGES_LOAD_LIMIT: 25,
 
   // IndexedDB configuration
   DB_SETTINGS: {

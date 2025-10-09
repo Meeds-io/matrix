@@ -29,7 +29,6 @@
       }"
       class="fill-height overflow-y-auto flex-shrink-1 flex-grow-1 overflow-x-hidden specific-scrollbar">
       <matrix-chat-rooms
-        v-if="fromRoomList || parentExpanded"
         :rooms="rooms"
         :selected-room="selectedRoom"
         :from-room-list="fromRoomList"
@@ -40,7 +39,6 @@
       class="d-flex flex-column flex-grow-1 fill-height">
       <div class="flex-grow-1 d-flex flex-column overflow-hidden">
         <room-messages
-          v-if="selectedRoom && (!fromRoomList || parentExpanded)"
           ref="roomMessages"
           :room="selectedRoom"
           :expanded="fullPageMode"
@@ -95,10 +93,10 @@ export default {
       return this.$root.fullPageMode;
     },
     showMessages() {
-      return (this.fromRoomList && this.fullPageMode) || !this.fromRoomList;
+      return this.selectedRoom && (!this.fromRoomList || this.parentExpanded);
     },
     showRoomList() {
-      return (!this.fromRoomList && this.fullPageMode) || this.fromRoomList;
+      return this.fromRoomList || this.parentExpanded;
     }
   },
   async mounted() {

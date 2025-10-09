@@ -174,7 +174,6 @@ export default {
       if (this.fullPageMode && fromRoomList) {
         return;
       }
-      this.componentKey++;
       this.room = room;
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
@@ -187,8 +186,13 @@ export default {
       }
       this.previousRoomId = this.selectedRoom?.id;
       this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+
+      setTimeout(() => {
+        this.$refs?.chatBody?.scrollToEnd();
+      }, 50);
     },
     close() {
+      this.componentKey++;
       this.open = false;
       this.$refs.chatBody?.reset();
       this.$refs.ChatDiscussionDrawer?.close();

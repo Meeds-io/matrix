@@ -184,6 +184,10 @@ export default {
       }
       this.previousRoomId = this.selectedRoom?.id;
       this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+
+      setTimeout(() => {
+        this.$refs?.chatBody?.scrollToEnd();
+      }, 50);
     },
     handleFilterUpdate(text) {
       this.filterText = text;

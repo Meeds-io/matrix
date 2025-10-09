@@ -20,8 +20,7 @@
   <div
     class="chat-message-content"
     :class="{
-      'mb-3':!nextMessage,
-      'mb-1': nextMessage,
+      'mb-2':!nextMessage,
       'no-select': isMobile
     }"
     v-touch-hold="openMenu"
