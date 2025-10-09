@@ -62,7 +62,7 @@
           {{ externalTag }}
         </span>
       </div>
-      <room-last-message :room="room" />
+      <matrix-room-last-message :room="room" />
     </div>
     <div class="ps-3">
       <div class="last-message-timestamp text-subtitle">
@@ -75,7 +75,7 @@
           class="align-center align-content-center error-color-background white--text text-font-small-size">
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </v-avatar>
-        <room-action-menu
+        <matrix-room-action-menu
           v-else-if="isActive && !isMobile"
           ref="menu"
           :room="room"

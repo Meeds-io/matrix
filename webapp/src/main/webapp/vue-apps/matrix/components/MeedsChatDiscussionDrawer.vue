@@ -20,7 +20,7 @@
       <div
         v-else-if="fullPageMode"
         class="d-flex">
-        <chat-header-user-avatar :presence="presence" />
+        <matrix-chat-header-user-avatar :presence="presence" />
         <div class="ms-auto me-5">
           <v-btn
             v-if="fullPageMode"

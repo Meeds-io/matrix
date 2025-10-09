@@ -83,9 +83,9 @@
       <div 
         v-if="selectedRoom && fullPageMode"
         class="text-truncate">
-        <room-avatar :room="selectedRoom" />
+        <matrix-room-avatar :room="selectedRoom" />
       </div>
-      <room-header-actions
+      <matrix-room-header-actions
         v-if="selectedRoom && fullPageMode"
         ref="roomHeaderActions"
         :room="selectedRoom"

@@ -38,7 +38,7 @@
       v-if="showMessages"
       class="d-flex flex-column flex-grow-1 fill-height">
       <div class="flex-grow-1 d-flex flex-column overflow-hidden">
-        <room-messages
+        <matrix-room-messages
           ref="roomMessages"
           :room="selectedRoom"
           :expanded="fullPageMode"
@@ -47,7 +47,7 @@
           class="flex-grow-1 overflow-x-hidden" />
       </div>
       <div class="flex-shrink-0 px-4 py-2">
-        <message-composer
+        <matrix-message-composer
           v-if="selectedRoom"
           ref="messageComposer"
           :room="selectedRoom"

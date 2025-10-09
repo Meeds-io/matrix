@@ -45,7 +45,7 @@
         </v-icon>
       </v-btn>
     </template>
-    <room-action-list-items
+    <matrix-room-action-list-items
       :room="room"
       @close="menu = false" />
   </v-menu>

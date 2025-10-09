@@ -75,7 +75,7 @@ const components = {
   'matrix-room-header-actions': RoomHeaderActions,
   'matrix-chat-body': MatrixChatBody,
   'matrix-filter-room-list-input': FilterRoomListInput,
-  'chat-header-user-avatar': ChatHeaderUserAvatar
+  'matrix-chat-header-user-avatar': ChatHeaderUserAvatar
 };
 
 for (const key in components) {

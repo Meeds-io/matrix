@@ -37,7 +37,7 @@
       class="d-flex flex-column fill-height"
       @wheel="loadMoreMessages"
       @scroll="loadMoreMessages">
-      <meeds-chat-message
+      <matrix-chat-message
         v-for="(message, i) in messages"
         :id="`chat-message-${i}`"
         :ref="`chat-message-${i}`"
@@ -52,7 +52,7 @@
         @reply="replyToMessage"
         @reaction="reactToMessage"
         @reset-unseen="resetUnseenData" />
-      <message-typing-indicator
+      <matrix-message-typing-indicator
         v-if="isTyping"
         :room="room"
         :typing-users="typingUsers"

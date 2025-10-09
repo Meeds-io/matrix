@@ -51,13 +51,13 @@ export function registerChatExtensions(chatTitle) {
         const room = await matrixService.getSpaceRoom(params.identityId);
         return room.status === 'ENABLED';
       },
-      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      vueComponent: Vue.options.components['matrix-popover-chat-button'],
       rank: 40,
     });
 
     extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
       id: 'matrix-chat-user-popover',
-      vueComponent: Vue.options.components['meeds-popover-chat-button'],
+      vueComponent: Vue.options.components['matrix-popover-chat-button'],
       rank: 40,
     });
   }

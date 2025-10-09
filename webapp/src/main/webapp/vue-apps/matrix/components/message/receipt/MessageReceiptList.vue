@@ -19,7 +19,7 @@
 
 <template>
   <div>
-    <message-receipt
+    <matrix-message-receipt
       v-for="receipt in filteredReadReceipts.slice(0, receiptsToDisplay)"
       :key="receipt"
       :receipt="receipt"

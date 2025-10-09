@@ -21,7 +21,7 @@
   <div
     v-if="quoted"
     class="d-flex">
-    <message-sender-name
+    <matrix-message-sender-name
       class="text-color font-weight-bold"
       :sender="sender" />
   </div>
@@ -42,7 +42,7 @@
               boilerplate />
           </template>
         </v-img>
-        <message-sender-name
+        <matrix-message-sender-name
           class="align-content-start line-height-1 mx-1 text-title text-subtitle-1 text-truncate"
           :style="userNameColor"
           :sender="sender" />

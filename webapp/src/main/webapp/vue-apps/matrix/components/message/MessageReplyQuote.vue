@@ -58,7 +58,7 @@
       </div>
       <div class="flex-column no-min-width max-width-fit">
         <div class="flex-row">
-          <message-user
+          <matrix-message-user
             :sender-id="targetMessage.targetUser"
             :room="room"
             :quoted="true" />
