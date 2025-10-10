@@ -646,4 +646,18 @@ class MatrixRestTest {
     response.andExpect(status().isOk());
     response.andExpect(content().string("@demo:matrix.exo.tn"));
   }
+    @Test
+    void getMatrixId() throws Exception {
+      ResultActions response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+              .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+      response.andExpect(status().isNotFound());
+
+      when(matrixService.getMatrixIdForUser("demo")).thenReturn("@demo:matrix.exo.tn");
+      response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+              .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+      response.andExpect(status().isOk());
+      response.andExpect(content().string("@demo:matrix.exo.tn"));
+    }
 }
