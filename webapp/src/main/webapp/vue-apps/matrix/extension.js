@@ -9,11 +9,12 @@ export function registerChatExtensions(chatTitle) {
     iconOnly: true,
     order: 10,
     enabled: async function(identity) {
-      if(identity.userName || identity.username) {
-        const userMatrixId = identity.properties?.some(property => property.propertyName === 'matrixId') && identity.properties?.find(property => property.propertyName === 'matrixId').value;
+      const userIdentifier = identity.userName || identity.username;
+      if (userIdentifier) {
+        const matrixUserId = await matrixService.getMatrixIdOfUser(userIdentifier);
         return identity?.enabled && identity.username !== eXo.env.portal.userName
                && localStorage.getItem("matrix_user_id")
-               && userMatrixId;
+               && matrixUserId;
       } else {
         const room = await matrixService.getSpaceRoom(identity.id);
         return room.status === 'ENABLED';
@@ -22,11 +23,11 @@ export function registerChatExtensions(chatTitle) {
     click: (profile) => {
       const userName = profile.userName || profile.username;
       if(userName) {
-        const matrixProperty = profile.properties.filter(property => property.propertyName === 'matrixId');
-        if(matrixProperty && matrixProperty.length > 0) {
-          const invitedUserMatrixId = matrixProperty[0].value;
-          matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName, matrixUserId, invitedUserMatrixId);
-        }
+        matrixService.getMatrixIdOfUser(userName).then(invitedUserMatrixId => {
+          if (invitedUserMatrixId) {
+            matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName, matrixUserId, invitedUserMatrixId);
+          }
+        });
       } else {
         matrixService.openSpaceRoom(profile.id);
       }

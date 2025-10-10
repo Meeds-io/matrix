@@ -1610,3 +1610,19 @@ export async function resetUnseenOnFirstMessageSeen(roomId, userId) {
   }
   return false;
 }
+
+export function getMatrixIdOfUser(userId) {
+  if (!userId) {
+    return;
+  }
+  return fetch(`/matrix/rest/matrix/findId/${userId}`, {
+    method: 'GET',
+    credentials: 'include',
+  }).then(resp => {
+    if (resp?.ok) {
+      return resp.text();
+    } else {
+      throw new Error('Get Matrix Id of user : Response code indicates a server error', resp);
+    }
+  });
+}
