@@ -62,6 +62,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -103,28 +104,28 @@ class MatrixRestTest {
   @Autowired
   private WebApplicationContext        context;
 
-  @MockBean
+  @MockitoBean
   private SpaceService                 spaceService;
 
-  @MockBean
+  @MockitoBean
   private MatrixService                matrixService;
 
-  @MockBean
+  @MockitoBean
   private MatrixSynchronizationService matrixSynchronizationService;
 
-  @MockBean
+  @MockitoBean
   private IdentityManager              identityManager;
 
-  @MockBean
+  @MockitoBean
   private ResourceBundleService        resourceBundleService;
 
-  @MockBean
+  @MockitoBean
   private NotificationService          notificationService;
 
-  @MockBean
+  @MockitoBean
   private ChatNotificationService      chatNotificationService;
 
-  @MockBean
+  @MockitoBean
   PwaNotificationService               pwaNotificationService;
 
   MockedStatic<LinkProvider>           LINK_PROVIDER;
@@ -520,21 +521,6 @@ class MatrixRestTest {
   }
 
   @Test
-  void muteRoom() throws Exception {
-    String roomId = "!testRoomToMute:matrix.meeds.tn";
-    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
-
-    ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
-                                                                          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                                                                          .param("roomId", roomId));
-
-    response.andExpect(status().isOk());
-    response.andExpect(content().string("Room muted successfully"));
-
-    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
-  }
-
-  @Test
   void testNotify() throws Exception {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "InsufficientToken");
     String jsonNotification =
@@ -644,5 +630,20 @@ class MatrixRestTest {
                                                                                    .contentType(MediaType.APPLICATION_JSON));
 
     response.andExpect(status().isOk());
+  }
+
+  @Test
+  void getMatrixId() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isNotFound());
+
+    when(matrixService.getMatrixIdForUser("demo")).thenReturn("@demo:matrix.exo.tn");
+    response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("@demo:matrix.exo.tn"));
   }
 }

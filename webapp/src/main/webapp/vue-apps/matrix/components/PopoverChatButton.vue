@@ -50,14 +50,13 @@ export default {
       event.preventDefault();
       event.stopPropagation();
       if(this.identityType === 'USER_TIPTIP') {
-        this.$userService.getUser(this.identityId, 'settings').then(data => {
-          const matrixIdProperty = data.properties.filter(p => p.propertyName == 'matrixId').shift();
-          if(matrixIdProperty) {
-            const contactMatrixId = matrixIdProperty.value;
+        this.$userService.getUser(this.identityId).then(data => {
+          const userName = data.userName || data.username;
+          this.$matrixService.getMatrixIdOfUser(userName).then(contactMatrixId => {
             if(contactMatrixId) {
               this.$matrixService.openDMRoom(eXo.env.portal.userName, data.userName, matrixServerName, matrixUserId, contactMatrixId);
             }
-          }
+          });
         });
       } else if (this.identityType === 'space'){
         this.$matrixService.openSpaceRoom(this.identityId);
