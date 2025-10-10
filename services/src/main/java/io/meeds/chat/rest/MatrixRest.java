@@ -594,30 +594,6 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
-  @PostMapping("/muteRoom")
-  @Secured("users")
-  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
-  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
-      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
-      @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<String> muteRoom(HttpServletRequest request,
-                                         @Parameter(description = "ID of the room to mute")
-                                         @RequestParam(name = "roomId")
-                                         String roomId) {
-
-    String userName = request.getRemoteUser();
-    if (StringUtils.isBlank(roomId)) {
-      return ResponseEntity.badRequest().body("roomId parameter is required");
-    }
-    try {
-      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
-      return ResponseEntity.ok("Room muted successfully");
-    } catch (Exception e) {
-      LOG.error("Error muting room {} for user {}", roomId, userName, e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
-    }
-  }
-
   @GetMapping("/isPushNotificationsEnabled/{userName}")
   @Secured("users")
   @Operation(summary = "Get the status of push notifications enabled/disabled", method = "GET", description = "Get the status of push notifications enabled/disabled")
@@ -663,6 +639,50 @@ public class MatrixRest implements ResourceContainer {
     } catch (Exception e) {
       LOG.error("Could not update the status of Push notifications of {}", e);
       return ResponseEntity.internalServerError().build();
+    }
+  }
+
+  @PostMapping("/muteRoom")
+  @Secured("users")
+  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
+      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> muteRoom(HttpServletRequest request,
+                                         @Parameter(description = "ID of the room to mute")
+                                         @RequestParam(name = "roomId")
+                                         String roomId) {
+
+    String userName = request.getRemoteUser();
+    if (StringUtils.isBlank(roomId)) {
+      return ResponseEntity.badRequest().body("roomId parameter is required");
+    }
+    try {
+      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+      return ResponseEntity.ok("Room muted successfully");
+    } catch (Exception e) {
+      LOG.error("Error muting room {} for user {}", roomId, userName, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
+    }
+  }
+  
+  
+  @GetMapping("findId/{userId}")
+  @Secured("users")
+  @Operation(summary = "Get the matrix ID of a user", method = "GET", description = "Get the matrix ID of a user")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "404", description = "User not found"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> getMatrixId(@PathVariable("userId")
+  String userId) {
+    if (userId == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "user id is mandatory");
+    }
+    String matrixId = matrixService.getMatrixIdForUser(userId);
+    if (StringUtils.isNotBlank(matrixId)) {
+      return ResponseEntity.ok().body(matrixId);
+    } else {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no Matrix account for the user " + userId);
     }
   }
 
