@@ -48,6 +48,7 @@
         :room="room"
         :unseen-messages-data="unSeenMessagesData"
         :is-input-focused="isInputFocused"
+        :unseen-messages-count="unseenMessagesCount"
         class="transition-2s"
         @reply="replyToMessage"
         @reaction="reactToMessage"
@@ -161,6 +162,17 @@ export default {
       return (
         this.messageContainerScrollHeight - this.messageContainerScrollTop - this.messageContainerClientHeight <= 60
       );
+    },
+    unseenMessagesCount() {
+      const firstUnseenMessageId = this.unSeenMessagesData?.firstUnseenEventId;
+      const messages = this.messages || [];
+
+      if (!firstUnseenMessageId || !messages.length) {
+        return 0;
+      }
+
+      const index = messages.findIndex(msg => msg.event_id === firstUnseenMessageId);
+      return index >= 0 ? messages.length - (index + 1) : 0;
     }
   },
   watch: {
@@ -242,10 +254,6 @@ export default {
           const newScrollHeight = container.scrollHeight;
           container.scrollTop += newScrollHeight - prevScrollHeight;
         }
-
-        /*setTimeout(() => {
-          this.scrollToEnd();
-        }, 50);*/
 
       } catch (err) {
         console.error('Error loading messages:', err);
@@ -391,7 +399,7 @@ export default {
         } else {
           await this.loadUnseenMessagesData();
         }
-      }, 500);
+      }, 200);
     },
     async loadUnseenMessagesData() {
       this.unSeenMessagesData = await this.$matrixService.getUnseenMessagesData(this.room?.id, matrixUserId);
