@@ -511,7 +511,7 @@ export default {
       const updatedRoom = this.rooms?.[updatedRoomIndex];
       if (updatedRoom) {
         this.updateTotalUnread(updatedRoom.unreadMessages, true);
-        updatedRoom.unreadMessages = 0;
+        this.$set(updatedRoom, 'unreadMessages', 0);
       }
     },
     loadRooms() {
