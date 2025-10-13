@@ -110,10 +110,7 @@ export default {
 
       await this.$refs?.roomMessages?.initDiscussion();
       await this.$refs?.roomMessages?.loadAndProcessMessages();
-
-      setTimeout(async () => {
-        await this.$refs?.roomMessages?.loadUnseenMessagesData();
-      }, 500);
+      await this.$refs?.roomMessages?.loadUnseenMessagesData();
     },
     markRoomAsRead(roomId) {
       this.$refs.roomMessages.markRoomAsRead(roomId);
@@ -124,6 +121,7 @@ export default {
     reset() {
       this.$refs?.roomMessages?.reset();
       this.$refs?.messageComposer?.resetComposer();
+      this.$refs?.roomMessages?.clearUnseenData();
     }
   }
 };
