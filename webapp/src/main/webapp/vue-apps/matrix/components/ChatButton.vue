@@ -103,13 +103,13 @@ export default {
           this.$matrixService.authenticate().then(resp => {
             if (resp.user_id) {
               this.$matrixService.initUserData(resp);
-              this.loadRooms();
-
               this.$matrixService.saveFilter().then(filterResponse => {
                 this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
                 this.bindSyncPollingListeners(filterResponse.filter_id);
               });
               this.$matrixService.installPusher();
+              this.$nextTick().then(() => this.loadRooms());
+
             } else {
               this.$root.$emit('alert-message', `${this.$t('meeds.matrix.login.failed')}`, 'error');
               this.$root.$emit('matrix-login-failed');
@@ -120,7 +120,7 @@ export default {
         }
       });
     } else {
-      this.loadRooms();
+      this.$nextTick().then(() => this.loadRooms());
       this.$matrixService.saveFilter().then(filterResponse => {
         this.$matrixService.startMatrixSyncLoop(filterResponse.filter_id);
         this.bindSyncPollingListeners(filterResponse.filter_id);
@@ -177,6 +177,9 @@ export default {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
       }
     },
+    sortedRooms() {
+      this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+    }
   },
   computed: {
     presenceColor() {
@@ -517,6 +520,11 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
+        if (cachedRooms) {
+          this.rooms = JSON.parse(cachedRooms);
+        }
+      });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
         this.rooms = matrixRoomsObject.rooms || [];
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
