@@ -33,7 +33,8 @@
       <v-avatar
         width="36"
         min-width="36"
-        height="36">
+        height="36"
+        @click.stop="openMenu($event)">
         <v-img
           :src="avatarUrl"
           :lazy-src="avatarUrl"
@@ -41,6 +42,9 @@
       </v-avatar>
     </v-badge>
     <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
+    <sidebar-user-popup
+      ref="menu"
+      @user-status-updated="statusColor = $event" />
   </div>
 </template>
 
@@ -52,6 +56,9 @@ export default {
       default: 'available'
     }
   },
+  data: () => ({
+    statusColor: '#707070'
+  }),
   computed: {
     avatarUrl() {
       return this.$currentUserIdentity.profile.avatar;
@@ -62,6 +69,11 @@ export default {
     presenceColor() {
       return this.presence && this.$root.statusMap[this.presence];
     },
-  }
+  },
+  methods: {
+    openMenu(event) {
+      this.$refs?.menu?.open(event.clientX, event.clientY);
+    },
+  },
 };
 </script>
