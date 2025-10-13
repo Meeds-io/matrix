@@ -38,7 +38,7 @@
       v-if="showUnSeenMessageSeparator && showUnseen"
       v-intersect="onIntersect"
       id="unseenSeparator"
-      class="mx-4 my-4 primary-border-color primary" />
+      class="mx-4 mb-n2px primary-border-color primary" />
     <div
       :id="message.event_id"
       class="px-4"
@@ -151,6 +151,10 @@ export default {
     isInputFocused: {
       type: Boolean,
       default: false
+    },
+    unseenMessagesCount: {
+      type: Number,
+      default: 0
     }
   },
   data() {
@@ -198,6 +202,10 @@ export default {
     document.removeEventListener('touchstart', this.onClickOutside, true);
     this.$root.$off('message-child-menu-opened', this.openChildMenu);
     this.$root.$off('message-child-menu-closed', this.closeChildMenu);
+    this.clearHideUnseenSeparatorTimer();
+  },
+  mounted() {
+    this.scrollToUnseenSection();
   },
   watch: {
     isInputFocused() {
@@ -436,14 +444,24 @@ export default {
       this.hideTimeout = setTimeout(() => {
         this.showUnseen = false;
         this.$emit('reset-unseen');
-      }, 2000);
+      }, Math.max(this.unseenMessagesCount * 1000, 4000));
     },
     clearHideUnseenSeparatorTimer() {
       if (this.hideTimeout) {
         clearTimeout(this.hideTimeout);
         this.hideTimeout = null;
       }
-    }
+    },
+    scrollToUnseenSection() {
+      setTimeout(() => {
+        if (this.showUnSeenMessageSeparator && !this.isUnseenInViewPort) {
+          const element = document.getElementById(`message${this.message.origin_server_ts}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 500);
+    },
   }
 };
 </script>
