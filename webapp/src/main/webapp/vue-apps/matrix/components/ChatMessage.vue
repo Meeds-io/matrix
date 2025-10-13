@@ -453,7 +453,17 @@ export default {
         clearTimeout(this.hideTimeout);
         this.hideTimeout = null;
       }
-    }
+    },
+    scrollToUnseenSection() {
+      setTimeout(() => {
+        if (this.showUnSeenMessageSeparator && !this.isUnseenInViewPort) {
+          const element = document.getElementById(`message${this.message.origin_server_ts}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 500);
+    },
   }
 };
 </script>
