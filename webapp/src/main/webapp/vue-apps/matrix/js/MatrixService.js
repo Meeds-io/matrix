@@ -357,8 +357,8 @@ async function handleReadReceiptEvent(event, roomId) {
 
       // Only update if eventId is newer
       const prevEventId = lastReads?.[userId]?.eventId;
-      const prevTimestamp = prevEventId ? messageTimestampsMap.get(prevEventId) : 0;
-      const newTimestamp = messageTimestampsMap.get(eventId);
+      const prevTimestamp = lastReads?.[userId]?.ts || 0;
+      const newTimestamp = messageTimestampsMap?.get(eventId) || readData.ts;
 
       if (!prevEventId || (newTimestamp && newTimestamp > prevTimestamp)) {
         lastReads[userId] = {
