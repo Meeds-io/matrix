@@ -69,7 +69,7 @@
         ref="chatBody"
         :key="componentKey"
         :loading="loading"
-        :rooms="sortedRooms"
+        :rooms="rooms"
         :selected-room="room"
         :parent-expanded="expanded"
         @loading="loading = $event" />
@@ -126,9 +126,6 @@ export default {
     fullPageMode() {
       return this.$root.fullPageMode;
     },
-    sortedRooms() {
-      return this.rooms;
-    },
     customHeaderClass() {
       return this.fullPageMode ? this.room ? 'fullPageHeader' : 'fullPageHeader_no_room' : '';
     },
@@ -167,7 +164,7 @@ export default {
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
         this.selectedRoom = this.getLastOpenedRoom();
-        await this.openDiscussion(this.selectedRoom || this.sortedRooms?.[0]);
+        await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
       }, 300);
     },
     async openDiscussion(room, fromRoomList) {
@@ -193,10 +190,8 @@ export default {
       }, 50);
     },
     close() {
-      this.componentKey++;
-      this.open = false;
       this.$refs.chatBody?.reset();
-      this.$refs.ChatDiscussionDrawer?.close();
+      this.open = false;
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);
