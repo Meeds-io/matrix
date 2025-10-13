@@ -521,6 +521,21 @@ class MatrixRestTest {
   }
 
   @Test
+  void muteRoom() throws Exception {
+    String roomId = "!testRoomToMute:matrix.meeds.tn";
+    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
+                                                                          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                                                                          .param("roomId", roomId));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("Room muted successfully"));
+
+    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+  }
+
+  @Test
   void testNotify() throws Exception {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "InsufficientToken");
     String jsonNotification =
@@ -633,31 +648,17 @@ class MatrixRestTest {
   }
 
   @Test
-  void muteRoom() throws Exception {
-    String roomId = "!testRoomToMute:matrix.meeds.tn";
-    doNothing().when(chatNotificationService).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+  void getMatrixId() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+        .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
-    ResultActions response = mockMvc.perform(post(REST_PATH + "/muteRoom").with(simpleUser())
-                                                                          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                                                                          .param("roomId", roomId));
+    response.andExpect(status().isNotFound());
+
+    when(matrixService.getMatrixIdForUser("demo")).thenReturn("@demo:matrix.exo.tn");
+    response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
+        .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
     response.andExpect(status().isOk());
-    response.andExpect(content().string("Room muted successfully"));
-
-    verify(chatNotificationService, times(1)).toggleMutePrivateRoom(SIMPLE_USER, roomId);
+    response.andExpect(content().string("@demo:matrix.exo.tn"));
   }
-    @Test
-    void getMatrixId() throws Exception {
-      ResultActions response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
-              .contentType(MediaType.APPLICATION_FORM_URLENCODED));
-
-      response.andExpect(status().isNotFound());
-
-      when(matrixService.getMatrixIdForUser("demo")).thenReturn("@demo:matrix.exo.tn");
-      response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
-              .contentType(MediaType.APPLICATION_FORM_URLENCODED));
-
-      response.andExpect(status().isOk());
-      response.andExpect(content().string("@demo:matrix.exo.tn"));
-    }
 }
