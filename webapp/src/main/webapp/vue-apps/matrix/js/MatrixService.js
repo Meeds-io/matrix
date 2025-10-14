@@ -937,13 +937,14 @@ export function sendMessage(payload, roomId) {
       'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
     },
     body: JSON.stringify(payload)
-  }).then(resp => {
+  }).then(async resp => {
     if (!resp?.ok) {
       console.warn(`Request failed for sending message : \n text = [${message}] \n roomId = ${roomId} \n transactionId ${transactionId}`);
       throw new Error('Response code indicates a server error', resp);
     } else {
-      localStorage.setItem('matrix_transaction_index', index ++);
-      return true;
+      const data = await resp.json();
+      localStorage.setItem('matrix_transaction_index', index++);
+      return data.event_id;
     }
   });
 }
@@ -1650,5 +1651,16 @@ export function getMatrixIdOfUser(userId) {
     } else {
       throw new Error('Get Matrix Id of user : Response code indicates a server error', resp);
     }
+  });
+}
+
+export async function markMessageAsRead(roomId, eventId) {
+  await fetch(`/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
   });
 }
