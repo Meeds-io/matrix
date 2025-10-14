@@ -277,12 +277,15 @@ export default {
       if (!this.$refs.messageComposerArea) {
         return;
       }
-      this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
+      this.resetComposerHeight();
       this.$refs.messageComposerArea.innerHTML = '';
       this.messageContent = null;
       this.insertedNewLine = false;
       this.targetReplyMessage = null;
       this.messageToEdit = null;
+    },
+    resetComposerHeight() {
+      this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
     },
     insertEmojiIntoComposer(emoji, range = null) {
       const composer = this.$refs.messageComposerArea;
@@ -509,7 +512,7 @@ export default {
     onInputFocus(event) {
       setTimeout(() => {
         this.markRoomAsRead();
-      }, 200);
+      }, 500);
       this.isInputFocused = true;
       this.$emit('input-focus', this.isInputFocused);
       this.resizeComposerArea(event);
