@@ -106,7 +106,7 @@ export default {
     async openDiscussion() {
       setTimeout(() => {
         this.$refs?.messageComposer?.setInputFocus?.();
-      }, 200);
+      }, 500);
 
       await this.$refs?.roomMessages?.initDiscussion();
       await this.$refs?.roomMessages?.loadAndProcessMessages();
