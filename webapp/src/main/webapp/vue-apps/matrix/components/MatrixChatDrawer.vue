@@ -3,44 +3,58 @@
     ref="meedsChatDrawer"
     id="meedsChatDrawer"
     :loading="loading"
-    class="meeds-chat-drawer"
     :filter-placeholder="$t('matrix.rooms.filter.placeholder')"
-    use-filter
+    class="meeds-chat-drawer"
+    :use-filter="!fullPageMode"
+    :class="customHeaderClass"
+    allow-expand
     right
     @filter-updated="handleFilterUpdate"
-    @closed="close">
+    @expand-updated="handleExpanded"
+    @closed="$emit('closed')">
     <template slot="title">
+      <matrix-filter-room-list-input
+        v-if="showFilter && fullPageMode"
+        ref="filter"
+        :show-filter.sync="showFilter"
+        :filter-text.sync="filterText"
+        @update:filterText="handleFilterUpdate" />
       <div
+        v-else
         class="d-flex">
-        <v-badge
-          :color="presenceColor"
-          :value="true"
-          class="my-auto mx-0 pa-0"
-          content=""
-          offset-x="10"
-          offset-y="10"
-          width="12"
-          height="12"
-          bordered
-          bottom
-          overlap
-          dot>
-          <v-avatar
-            width="36"
-            min-width="36"
-            height="36">
-            <v-img
-              :src="avatarUrl"
-              :lazy-src="avatarUrl"
-              :alt="fullName" />
-          </v-avatar>
-        </v-badge>
-        <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
+        <matrix-chat-header-user-avatar :presence="presence" />
+        <div class="ms-auto me-5">
+          <v-btn
+            v-if="fullPageMode"
+            :title="$t('matrix.chat.quick.create.discussion')"
+            icon
+            @click="openQuickCreateChatDiscussionDrawer">
+            <v-icon
+              class="icon-default-color"
+              size="20">
+              fa-plus
+            </v-icon>
+          </v-btn>
+          <v-btn
+            v-if="fullPageMode"
+            icon
+            @click="openFilter">
+            <v-icon
+              :class="{
+                'primary--text': !!filterText,
+                'icon-default-color': !filterText
+              }"
+              size="20">
+              fa-filter
+            </v-icon>
+          </v-btn>
+        </div>
       </div>
     </template>
     <template
       slot="titleIcons">
       <v-btn
+        v-if="!fullPageMode"
         :title="$t('matrix.chat.quick.create.discussion')"
         icon
         @click="openQuickCreateChatDiscussionDrawer">
@@ -50,16 +64,27 @@
           fa-plus
         </v-icon>
       </v-btn>
+      <div 
+        v-if="selectedRoom && fullPageMode"
+        class="text-truncate">
+        <matrix-room-avatar :room="selectedRoom" />
+      </div>
+      <matrix-room-header-actions
+        v-if="selectedRoom && fullPageMode"
+        ref="roomHeaderActions"
+        :room="selectedRoom"
+        class="ms-auto" />
     </template>
     <template slot="content">
-      <div
-        :class="{'disabled-background': !rooms?.length}"
-        class="fill-height overflow-y-auto specific-scrollbar">
-        <matrix-chat-rooms
-          :rooms="sortedRooms"
-          :loading="loading" />
-        <matrix-chat-discussion-drawer ref="ChatDiscussionDrawer" />
-      </div>
+      <matrix-chat-body
+        ref="chatBody"
+        :key="componentKey"
+        :loading="loading"
+        :rooms="rooms"
+        :selected-room="selectedRoom"
+        :parent-expanded="expanded"
+        :from-room-list="true"
+        @loading="loading = $event" />
     </template>
   </exo-drawer>
 </template>
@@ -67,16 +92,21 @@
 export default {
   data() {
     return {
-      searchTimer: null,
-      searchTerm: null
-    }
+      loading: false,
+      filterText: '',
+      showFilter: false,
+      expanded: false,
+      selectedRoom: null,
+      componentKey: 0,
+      previousRoomId: null
+    };
   },
   props: {
     rooms: {
       type: Array,
       default: null
     },
-    loading: {
+    loadingRooms: {
       type: Boolean,
       default: false
     },
@@ -85,42 +115,30 @@ export default {
       default: 'available'
     }
   },
+  created() {
+    this.$root.$on('open-chat-discussion', this.openDiscussion);
+    window.addEventListener('resize', this.handleResize);
+  },
+  beforeDestroy() {
+    this.$root.$off('open-chat-discussion', this.openDiscussion);
+    window.removeEventListener('resize', this.handleResize);
+  },
   computed: {
-    avatarUrl() {
-      return this.$currentUserIdentity.profile.avatar;
+    fullPageMode() {
+      return this.$root.fullPageMode;
     },
-    fullName() {
-      return this.$currentUserIdentity?.profile?.fullname;
+    customHeaderClass() {
+      return this.fullPageMode ? this.selectedRoom ? 'fullPageHeader' : 'fullPageHeader_no_room' : '';
     },
-    filteredRooms() {
-      if (!this.searchTerm) {
-        return this.rooms;
-      }
-      const normalize = str =>
-          str?.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase() || '';
-
-      const normalizedSearch = normalize(this.searchTerm);
-
-      return this.rooms.filter(room =>
-          normalize(room.name).includes(normalizedSearch)
-      );
-    },
-    sortedRooms() {
-      if (!Array.isArray(this.filteredRooms)) {
-        return [];
-      }
-      return [...this.filteredRooms].sort(
-          (a, b) =>
-              (b.updated || 0) - (a.updated || 0) ||
-              a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
-      );
-    },
-    presenceColor() {
-      return this.presence && this.$root.statusMap[this.presence];
+    defaultRoomListContainerWidth() {
+      return this.$root.defaultRoomListContainerWidth;
     }
   },
   watch: {
     loading() {
+      this.checkLoading();
+    },
+    loadingRooms() {
       this.checkLoading();
     }
   },
@@ -128,31 +146,64 @@ export default {
     this.checkLoading();
   },
   methods: {
-    handleFilterUpdate(text) {
-      this.loading = true;
-      if (this.searchTimer) {
-        clearTimeout(this.searchTimer);
-      }
-      this.searchTimer = setTimeout(() => {
-        this.searchTerm = text;
-        this.loading = false;
+    openFilter() {
+      this.showFilter = !this.showFilter;
+      this.$nextTick(() => {
+        this.$refs.filter?.openFilter?.();
+      });
+    },
+    handleResize() {
+      this.computeMessagesContainerWidth();
+    },
+    computeMessagesContainerWidth() {
+      this.$root.fullPageMessagesContainerWidth = this.$refs?.meedsChatDrawer?.$el?.clientWidth
+        - this.defaultRoomListContainerWidth;
+    },
+    handleExpanded(expanded) {
+      setTimeout(async () => {
+        this.expanded = expanded;
+        this.$root.fullPageMode = expanded;
+        this.computeMessagesContainerWidth();
+        this.selectedRoom = this.getLastOpenedRoom();
+        await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
       }, 300);
     },
+    getLastOpenedRoom() {
+      const lastOpenedRoomId = localStorage.getItem('lastOpenedRoomId');
+      if (lastOpenedRoomId) {
+        return this.rooms.find(room => room.id === lastOpenedRoomId);
+      }
+      return null;
+    },
+    async openDiscussion(room) {
+      this.componentKey++;
+      this.selectedRoom = room;
+      const reload = this.previousRoomId && this.selectedRoom?.id !== this.previousRoomId;
+      if (reload) {
+        await this.$refs?.chatBody?.openDiscussion?.();
+      }
+      this.previousRoomId = this.selectedRoom?.id;
+      this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+
+      setTimeout(() => {
+        this.$refs?.chatBody?.scrollToEnd();
+      }, 50);
+    },
+    handleFilterUpdate(text) {
+      this.filterText = text;
+      this.$emit('filter-updated', text);
+    },
     checkLoading() {
-      if (this.loading) {
+      if (this.loading || this.loadingRooms) {
         this.$refs.meedsChatDrawer.startLoading();
       } else {
-        this.$refs.meedsChatDrawer.endLoading()
+        this.$refs.meedsChatDrawer.endLoading();
       }
     },
     open() {
       if (!this.$refs.meedsChatDrawer.drawer) {
         this.$refs.meedsChatDrawer.open();
       }
-    },
-    close() {
-      this.$refs.ChatDiscussionDrawer.close();
-      this.$refs.meedsChatDrawer.close();
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);

@@ -1,15 +1,17 @@
 <template>
   <div
-    :id="`room${room.spaceId || room.dmMemberId}`"
+    :id="roomItemTagId"
     :class="{
-      'background-grey-primary': isActive,
+      'background-grey-primary': isActive && !$root?.fullPageMode,
+      'grey-lighten1-background-opacity-3': isActive && $root?.fullPageMode,
+      'grey-lighten1-background-opacity-4': isSelected && $root?.fullPageMode,
       'no-select': isMobile}"
     class="d-flex chat-room-item position-relative py-3 px-5 clickable"
     v-touch-hold="openMenu"
     @click="openRoom"
     @mouseenter="hover = true"
     @mouseleave="hover = false;">
-  <v-badge
+    <v-badge
       :color="presenceColor"
       :value="isPrivateRoom"
       class="ma-0 pa-0"
@@ -61,6 +63,7 @@
           v-else-if="isActive && !isMobile"
           ref="menu"
           :room="room"
+          :attached-id="roomItemTagId"
           @open="menuOpen = true"
           @close="menuOpen = false" />
         <v-badge
@@ -95,12 +98,20 @@ export default {
       menuOpen: false,
       hover: false,
       pressTimer: null
-    }
+    };
   },
   props: {
     room: {
       type: Object,
       default: null,
+    },
+    selectedRoom: {
+      type: Object,
+      default: null
+    },
+    fromRoomList: {
+      type: Boolean,
+      default: false
     }
   },
   created() {
@@ -109,6 +120,12 @@ export default {
     }
   },
   computed: {
+    roomItemTagId() {
+      return `room${this.room.spaceId || this.room.dmMemberId}${this.fromRoomList ? 'fromRoomList' : ''}`;
+    },
+    isSelected() {
+      return this.selectedRoom?.id === this.room?.id;
+    },
     isActive() {
       return this.hover || this.menuOpen;
     },
@@ -125,7 +142,7 @@ export default {
       return this.room?.avatarUrl;
     },
     presence() {
-      return this.room?.presence
+      return this.room?.presence;
     },
     presenceColor() {
       return this.presence && this.$root.statusMap[this.presence];
@@ -141,7 +158,13 @@ export default {
       });
     },
     openRoom() {
-      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, {detail: this.room}));
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, 
+        {
+          detail: {
+            room: this.room,
+            fromRoomList: this.fromRoomList}
+        }));
+      localStorage.setItem('lastOpenedRoomId', this.room.id);
     },
     getUpdateTime(room) {
       return this.$matrixService.formatDate(room.updated);
@@ -150,5 +173,5 @@ export default {
       this.$root.$emit('open-room-action-menu', this.room);
     }
   }
-}
+};
 </script>

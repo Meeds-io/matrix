@@ -60,7 +60,8 @@
       </span>
       <canvas
         ref="waveform"
-        :width="canvasWidth"
+        class="my-auto flex-shrink-1 d-flex no-min-width me-4 full-width"
+        style="height: 30px;"
         height="30"/>
     </div>
     <div class="d-flex flex-column justify-end">
@@ -122,7 +123,7 @@ export default {
       endTimestamp: 0,
       recordDuration: 0,
       maxUploadSize: null,
-      currentTime: 0
+      currentTime: 0,
     };
   },
   props: {
@@ -147,6 +148,9 @@ export default {
       return this.isRecording || this.audioBlob;
     },
     canvasWidth() {
+      if (this.$root.fullPageMode) {
+        return this.$root.fullPageMessagesContainerWidth;
+      }
       return this.expanded && this.drawerWidth * 0.421 || 150;
     },
     recordingLabel() {
@@ -161,17 +165,13 @@ export default {
     expanded() {
       this.$nextTick(() => {
         cancelAnimationFrame(this.animationFrame);
-        let drawSamples = this.samples;
-        if (!this.isRecording) {
-          drawSamples = this.downsample(this.samples, this.canvasWidth);
-        }
         requestAnimationFrame(() => {
           if (this.isRecording) {
             this.drawWaveform();
           } else if (this.isPlaying) {
-            this.animatePlayback(drawSamples);
+            this.animatePlayback();
           } else {
-            this.drawStaticWaveform(drawSamples);
+            this.drawStaticWaveform();
           }
         });
       });
@@ -206,9 +206,7 @@ export default {
           this.uploadProgress = Math.min(Math.round((combinedBytes / file.size) * 80), 80);
         });
 
-        const canvasWidth = this.$refs.waveform?.width || 150;
-        const waveformSamples = this.downsample(this.samples, canvasWidth, 2)
-            .map(v => Math.floor(v * 255));
+        const waveformSamples = this.samples.map(v => Math.floor(v * 255));
 
         const durationMs = this.isRecording
           ? performance.now() - this.startTimestamp
@@ -285,9 +283,6 @@ export default {
         clearInterval(this.timer);
         cancelAnimationFrame(this.animationFrame);
 
-        const canvasWidth = this.$refs.waveform?.width || 150;
-        this.samples = this.downsample(this.samples, canvasWidth, 2);
-
         this.drawStaticWaveform();
       };
 
@@ -301,9 +296,17 @@ export default {
       const bufferLength = this.analyser.fftSize;
       const dataArray = new Uint8Array(bufferLength);
 
-      const barWidth = 2; // px
-      const maxBars = Math.floor(canvas.width / barWidth);
-      const minHeight = 0.02;
+      const width = canvas.clientWidth || 150;
+      canvas.width = width;
+      canvas.height = 30;
+      const canvasHeight = canvas.height;
+
+      const barPixelWidth = 2;
+      const barGap = 2;
+      const middleY = canvasHeight / 2;
+
+      const maxBars = Math.floor(canvas.width / barPixelWidth + barGap);
+      const minHeight = 1;
 
       if (!this.previewSamples) {
         this.previewSamples = [];
@@ -327,9 +330,7 @@ export default {
           }
         }
         let normalized = Math.pow(max / 128, 0.7);
-        if (normalized < minHeight) {
-          normalized = minHeight;
-        }
+        normalized = Math.max(normalized, minHeight / canvasHeight);
 
         const now = performance.now();
         if (now - lastUpdate > updateInterval) {
@@ -342,11 +343,11 @@ export default {
         this.samples.push(normalized);
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#707070";
         for (const [i, v] of this.previewSamples.entries()) {
-          const h = v * canvas.height;
-          const x = i * barWidth;
-          ctx.fillRect(x, (canvas.height - h) / 2, barWidth - 1, h);
+          const barHeight = Math.max(v * (canvasHeight / 2), minHeight);
+          const x = i * (barPixelWidth + barGap);
+
+          this.drawBar(ctx, x, middleY, barHeight, barPixelWidth, "#707070");
         }
       };
 
@@ -361,38 +362,63 @@ export default {
     },
     drawStaticWaveform(samples = this.samples) {
       const canvas = this.$refs.waveform;
-      const ctx = canvas.getContext("2d");
-      const barWidth = 2;
-      const minHeight = 0.02;
-
-      if (!samples || samples.length === 0) {
+      if (!canvas || !samples || !samples?.length) {
         return;
       }
 
-      const maxBars = Math.floor(canvas.width / barWidth);
-      const step = Math.max(1, Math.floor(samples.length / maxBars));
+      const ctx = canvas.getContext("2d");
+
+      const width = canvas.clientWidth || 150;
+      canvas.width = width;
+      canvas.height = 30;
+
+
+      const barPixelWidth = 2;
+      const barGap = 2;
+      const middleY = canvas.height / 2;
+
+
+      const totalBars = Math.floor(canvas.width / (barPixelWidth + barGap));
+      const step = (samples.length - 1) / (totalBars - 1);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#707070";
+      const maxBarHeight = middleY - 2;
+      const minBarHeight = 1;
 
-      for (let i = 0; i < maxBars; i++) {
-        const sampleIndex = i * step;
-        let v = samples[sampleIndex] || minHeight;
-        v = Math.pow(v, 0.7);
-        if (v < minHeight) {
-          v = minHeight;
-        }
-        const h = v * canvas.height;
-        const x = i * barWidth;
-        ctx.fillRect(x, (canvas.height - h) / 2, barWidth - 1, h);
+      for (let i = 0; i < totalBars; i++) {
+        const idx = i * step;
+        const lower = Math.floor(idx);
+        const upper = Math.ceil(idx);
+        const weight = idx - lower;
+        const v = lower === upper
+          ? samples[lower]
+          : samples[lower] * (1 - weight) + samples[upper] * weight;
+
+        const barHeight = Math.min(Math.max(Math.pow(v, 0.7) * maxBarHeight, minBarHeight), maxBarHeight);
+        const x = i * (barPixelWidth + barGap);
+
+        this.drawBar(ctx, x, middleY, barHeight, barPixelWidth, "#707070");
       }
     },
     animatePlayback(samples = this.samples) {
       const canvas = this.$refs.waveform;
+      if (!canvas || !samples || !samples?.length) {
+        return;
+      }
       const ctx = canvas.getContext("2d");
-      const barWidth = 2;
-      const minHeight = 0.02;
-      const totalBars = samples.length;
+
+      const width = canvas.clientWidth || 150;
+      canvas.width = width;
+      canvas.height = 30;
+      const canvasHeight = canvas.height;
+
+      const barPixelWidth = 2;
+      const barGap = 2;
+      const middleY = canvasHeight / 2;
+
+
+      const totalBars = Math.floor(canvas.width / (barPixelWidth + barGap));
+      const step = (samples.length - 1) / (totalBars - 1);
 
       const draw = () => {
         if (!this.isPlaying) {
@@ -404,44 +430,42 @@ export default {
           : this.audioPlayer.duration
 
         const currentBar = Math.floor(
-            (this.audioPlayer.currentTime / duration) * totalBars
+          (this.audioPlayer.currentTime / duration) * totalBars
         );
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+ 
+        for (let i = 0; i < totalBars; i++) {
+          const idx = i * step;
+          const lower = Math.floor(idx);
+          const upper = Math.ceil(idx);
+          const weight = idx - lower;
+          const v = lower === upper
+            ? samples[lower]
+            : samples[lower] * (1 - weight) + samples[upper] * weight;
 
-        for (const [i, v] of samples.entries()) {
-          const h = Math.max(v, minHeight) * canvas.height;
-          const x = i * barWidth;
+          const barHeight = Math.max(v * (canvasHeight / 2), 1);
+          const x = i * (barPixelWidth + barGap);
 
-          // Highlight played bars
-          ctx.fillStyle = "#707070";
-          ctx.globalAlpha = i < currentBar ? 1 : 0.5;
-          ctx.fillRect(x, (canvas.height - h) / 2, barWidth - 1, h);
+          const alpha = i <= currentBar ? 1 : 0.5;
+          ctx.globalAlpha = alpha;
+
+          this.drawBar(ctx, x, middleY, barHeight, barPixelWidth, "#707070");
         }
-
         this.animationFrame = requestAnimationFrame(draw);
+
       };
 
       draw();
     },
-    downsample(samples, canvasWidth, barWidth = 2) {
-      const totalBars = Math.floor(canvasWidth / barWidth);
-      const result = [];
-      // interpolation factor
-      const factor = (samples.length - 1) / (totalBars - 1);
-
-      for (let i = 0; i < totalBars; i++) {
-        const idx = i * factor;
-        const lower = Math.floor(idx);
-        const upper = Math.ceil(idx);
-        const weight = idx - lower;
-
-        const value = lower === upper
-          ? samples[lower]
-          : samples[lower] * (1 - weight) + samples[upper] * weight;
-        result.push(value || 0.02);
-      }
-      return result;
+    drawBar(ctx, x, middleY, barHeight, barPixelWidth, color) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = barPixelWidth;
+      ctx.lineCap = "round";
+      ctx.moveTo(x + barPixelWidth / 2, middleY - barHeight);
+      ctx.lineTo(x + barPixelWidth / 2, middleY + barHeight);
+      ctx.stroke();
     },
     createAudioPlayer() {
       if (this.audioBlob) {
@@ -468,8 +492,7 @@ export default {
         this.isPlaying = true;
         this.isPlaybackPaused = false;
         this.audioPlayer.play().then(() => {
-          const samples = this.downsample(this.samples, this.canvasWidth);
-          this.animatePlayback(samples);
+          this.animatePlayback();
           this.startTimer();
         });
       }
