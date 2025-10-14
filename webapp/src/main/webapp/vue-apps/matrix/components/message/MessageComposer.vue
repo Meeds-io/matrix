@@ -210,7 +210,7 @@ export default {
       selection.removeAllRanges();
       selection.addRange(range);
     },
-    sendMessage() {
+    async sendMessage() {
       const composer = this.$refs.messageComposerArea;
       const messageText = composer.innerText.trim();
 
@@ -228,7 +228,7 @@ export default {
           .filter((v, i, a) => a.indexOf(v) === i); // unique
 
       if (mentionsArray.length) {
-        const regexForMentions = /<span class="atwho-inserted"[\p{L}0-9="\-_@<>:;\/#.()]*data-user-id="([^"]+)"[\p{L}0-9="\-_@<>:;\/#.()]*data-user-name="([^"]+)"[\p{L}0-9="\-_@<>:;\/#.()]*<\/span>/gu;
+        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;/#.()]*<\/span>/gu;
         const messageHTML = composer.innerHTML.replace(
             regexForMentions,
             (_, userId, userName) => `<a href="https://matrix.to/#/@${userId}:${matrixServerName}">${userName}</a>`
@@ -236,12 +236,12 @@ export default {
 
         message.format = "org.matrix.custom.html";
         message.formatted_body = messageHTML;
-        message['m.mentions'] = { user_ids: mentionsArray };
+        message['m.mentions'] = {user_ids: mentionsArray};
       }
 
       if (this.targetReplyMessage) {
         message['m.relates_to'] = {
-          'm.in_reply_to': { event_id: this.targetReplyMessage.event_id }
+          'm.in_reply_to': {event_id: this.targetReplyMessage.event_id}
         };
       }
 
@@ -261,7 +261,8 @@ export default {
         };
       }
 
-      this.$matrixService.sendMessage(message, this.room.id);
+      const eventId = await this.$matrixService.sendMessage(message, this.room.id);
+      this.$matrixService.markMessageAsRead(this.room.id, eventId);
       if (!this.messageToEdit) {
         this.$root.$emit('message-sent-statistics', message, this.room);
       }
