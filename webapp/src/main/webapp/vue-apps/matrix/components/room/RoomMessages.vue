@@ -62,6 +62,7 @@
     </div>
     <floating-arrow-button
       v-if="!loading && hasUnseenMessages"
+      ref="unseenScrollArrow"
       :show-badge="hasUnseenMessages"
       :closeable-tooltip="$t('matrix.messages.mark.as.read')"
       :button-tooltip="$t('matrix.messages.check.new')"
@@ -70,6 +71,7 @@
       top-position
       closeable
       up-arrow
+      @click="scrollToUnseenSectionSeparator"
       @closed="clearUnseenData" />
     <floating-arrow-button
       v-if="!loading && !isAtBottomMessages"
@@ -488,35 +490,27 @@ export default {
       });
     },
     loadMoreMessages() {
-      const messagesDOMEl = document.getElementById('chatMessagesContainer');
+      const messagesDOMEl = this.getMessagesContainerElement();
       const scrollTop = messagesDOMEl.scrollTop;
+
       if (scrollTop < this.lastScrollTop) {
         const composerDOMEl = document.getElementById('messageComposerArea');
         composerDOMEl.style.height = `${this.composerDefaultHeight}px`;
       }
+
       this.lastScrollTop = scrollTop >= 0 && scrollTop || 0;
+
       if (this.loadingNewMessages || !this.hasMoreMessages || messagesDOMEl.scrollTop > 0) {
         return;
       }
+
       this.loadingNewMessages = true;
-      const lastMessageId = this.messages[0].event_id;
-      setTimeout(() => {
-        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(async resp => {
-          // check if there is no more messages
-          if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
-            this.hasMoreMessages = false;
-          }
-          const messagesToProcess = [...resp.chunk.reverse()];
-          const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
-          this.messages = [...processedMessages.messages, ...this.messages];
-          this.from = resp.start;
-          this.to = resp.end;
-        }).finally(() => {
-          document.getElementById(`message-content-${lastMessageId}`).scrollIntoView({
-            behavior: 'instant'
-          });
+      setTimeout(async () => {
+        try {
+          await this.fetchAndAppendOlderMessages(true);
+        } finally {
           this.loadingNewMessages = false;
-        });
+        }
       }, 1000);
     },
     reset() {
@@ -528,7 +522,79 @@ export default {
       if (type === 'reset-unseen-data') {
         this.resetData();
       }
-    }
+    },
+    getMessageContentElement(eventId) {
+      return document.getElementById(`message-content-${eventId}`);
+    },
+    async scrollToUnseenSectionSeparator() {
+      const separatorFound = document.getElementById('unseenSeparator');
+      if (separatorFound) {
+        return;
+      }
+      const container = this.getMessagesContainerElement();
+      if (!container) {
+        return;
+      }
+      const firstUnseenEventId = this.unSeenMessagesData?.firstUnseenEventId;
+      if (!firstUnseenEventId) {
+        return;
+      }
+
+      let targetElement = this.getMessageContentElement(firstUnseenEventId);
+      let tries = 0;
+      const maxTries = 10;
+
+      while (!targetElement && this.hasMoreMessages && tries < maxTries) {
+        tries++;
+        await this.forceLoadMoreMessages();
+        await this.$nextTick();
+        targetElement = this.getMessageContentElement(firstUnseenEventId);
+      }
+
+      if (targetElement) {
+        targetElement.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+      } else {
+        this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');}
+    },
+    async fetchAndAppendOlderMessages(preserveScroll = true) {
+      const lastMessageId = this.messages?.[0]?.event_id;
+
+      const resp = await this.$matrixService.loadRoomMessages(this.room.id, this.to);
+      if (!resp.chunk?.length) {
+        this.hasMoreMessages = false;
+        return;
+      }
+      if (resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+        this.hasMoreMessages = false;
+      }
+
+      const messagesToProcess = [...resp.chunk.reverse()];
+      const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
+      this.messages = [...processedMessages.messages, ...this.messages];
+      this.from = resp.start;
+      this.to = resp.end;
+
+      if (preserveScroll && lastMessageId) {
+        await this.$nextTick();
+        const lastMsgEl = this.getMessageContentElement(lastMessageId);
+        lastMsgEl?.scrollIntoView({ behavior: 'instant' });
+      }
+    },
+    async forceLoadMoreMessages() {
+      if (this.loadingNewMessages || !this.hasMoreMessages) {
+        return;
+      }
+
+      this.loadingNewMessages = true;
+      try {
+        await this.fetchAndAppendOlderMessages(true);
+      } catch (err) {
+        console.error('Error loading older messages:', err);
+      } finally {
+        this.loadingNewMessages = false;
+      }
+    },
   }
 };
 </script>
