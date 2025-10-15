@@ -17,79 +17,79 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-<div>
-  <v-file-input
-    ref="fileInput"
-    :key="imagesOnly"
-    :accept="accept"
-    class="d-none position-absolute"
-    multiple
-    hide-input
-    @change="handleFileChange" />
-  <v-menu
-    v-model="menu"
-    close-on-content-click
-    content-class="mt-n2"
-    close-delay="500"
-    offset-y
-    top>
-    <template #activator="{ on, attrs }">
-      <v-btn
-        v-bind="attrs"
-        icon
-        :disabled="isUploading"
-        v-on="on">
-        <template v-if="isUploading">
-          <v-progress-circular
-            :indeterminate="uploadProgress >= 100"
-            :value="uploadProgress < 100 ? uploadProgress : undefined"
-            color="primary"
-            size="36"
-            width="2">
-            <span
-              class="text-caption">
-              {{ uploadProgress }}%
-            </span>
-          </v-progress-circular>
-        </template>
-        <template v-else>
-          <v-icon
-            size="20"
-            class="icon-default-color">
-            fas fa-plus
-          </v-icon>
-        </template>
-      </v-btn>
-    </template>
-    <v-list
-      class="ma-0 py-0 text-no-wrap width-fit-content border-box-sizing border-radius">
-      <v-list-item
-        class="ma-0 height-auto px-3 py-2"
-        @click="openFileExplorer(true)">
-        <v-list-item-icon class="me-1 ms-0 my-auto">
-          <v-icon size="16">
-            fa-solid fa-image
-          </v-icon>
-        </v-list-item-icon>
-        <v-list-item-title>
-          {{ $t('matrix.chat.image.label') }}
-        </v-list-item-title>
-      </v-list-item>
-      <v-list-item
-        class="ma-0 height-auto px-3 py-2"
-        @click="openFileExplorer(false)">
-        <v-list-item-icon class="me-1 ms-0 my-auto">
-          <v-icon size="16">
-            fas fa-paperclip
-          </v-icon>
-        </v-list-item-icon>
-        <v-list-item-title>
-          {{ $t('matrix.chat.attachment.label') }}
-        </v-list-item-title>
-      </v-list-item>
-    </v-list>
-  </v-menu>
-</div>
+  <div>
+    <v-file-input
+      ref="fileInput"
+      :key="imagesOnly"
+      :accept="accept"
+      class="d-none position-absolute"
+      multiple
+      hide-input
+      @change="handleFileChange" />
+    <v-menu
+      v-model="menu"
+      close-on-content-click
+      content-class="mt-n2"
+      close-delay="500"
+      offset-y
+      top>
+      <template #activator="{ on, attrs }">
+        <v-btn
+          v-bind="attrs"
+          icon
+          :disabled="isUploading"
+          v-on="on">
+          <template v-if="isUploading">
+            <v-progress-circular
+              :indeterminate="uploadProgress >= 100"
+              :value="uploadProgress < 100 ? uploadProgress : undefined"
+              color="primary"
+              size="36"
+              width="2">
+              <span
+                class="text-caption">
+                {{ uploadProgress }}%
+              </span>
+            </v-progress-circular>
+          </template>
+          <template v-else>
+            <v-icon
+              size="20"
+              class="icon-default-color">
+              fas fa-plus
+            </v-icon>
+          </template>
+        </v-btn>
+      </template>
+      <v-list
+        class="ma-0 py-0 text-no-wrap width-fit-content border-box-sizing border-radius">
+        <v-list-item
+          class="ma-0 height-auto px-3 py-2"
+          @click="openFileExplorer(true)">
+          <v-list-item-icon class="me-1 ms-0 my-auto">
+            <v-icon size="16">
+              fa-solid fa-image
+            </v-icon>
+          </v-list-item-icon>
+          <v-list-item-title>
+            {{ $t('matrix.chat.image.label') }}
+          </v-list-item-title>
+        </v-list-item>
+        <v-list-item
+          class="ma-0 height-auto px-3 py-2"
+          @click="openFileExplorer(false)">
+          <v-list-item-icon class="me-1 ms-0 my-auto">
+            <v-icon size="16">
+              fas fa-paperclip
+            </v-icon>
+          </v-list-item-icon>
+          <v-list-item-title>
+            {{ $t('matrix.chat.attachment.label') }}
+          </v-list-item-title>
+        </v-list-item>
+      </v-list>
+    </v-menu>
+  </div>
 </template>
 
 <script>
@@ -127,7 +127,7 @@ export default {
     this.getMaxUploadSize();
   },
   mounted() {
-    this.addPasteEventListener()
+    this.addPasteEventListener();
     this.addDropEventListener();
   },
   beforeDestroy() {
@@ -143,19 +143,19 @@ export default {
   methods: {
     getMaxUploadSize() {
       return this.$matrixService.getMaxUploadSize()
-          .then(maxSize => this.maxUploadSize = maxSize)
-          .catch(err => console.error('Error occurred:', err));
+        .then(maxSize => this.maxUploadSize = maxSize)
+        .catch(err => console.error('Error occurred:', err));
     },
     openFileExplorer(imagesOnly) {
       this.imagesOnly = imagesOnly;
       this.$nextTick(() => {
         this.$refs.fileInput?.$el?.querySelector('input')?.click();
       });
-      },
+    },
     async handleFileChange(files) {
       this.isUploading = true;
 
-      let totalBytes = this.getTotalBytes(files);
+      const totalBytes = this.getTotalBytes(files);
       let uploadedBytes = 0;
 
       for (const file of files) {
@@ -190,18 +190,19 @@ export default {
           this.$root.$emit('alert-message', this.$t('matrix.chat.upload.image.error.message', {0: this.ignoredFiles}), 'error');
         }
       }
+      this.$emit('file-sent');
       this.isUploading = false;
       if (this.ignoredFiles) {
         this.$root.$emit('alert-message', this.$t('matrix.chat.upload.image.ignored.message',
-            {0: this.ignoredFiles, 1: this.maxUploadSize / (1024 * 1024)}), 'warning');
+          {0: this.ignoredFiles, 1: this.maxUploadSize / (1024 * 1024)}), 'warning');
       }
       this.resetInput();
     },
     resetInput() {
       this.$refs.fileInput.$el.querySelector('input').value = '';
-      this.uploadProgress = 0
-      this.uploadedFiles = 0
-      this.ignoredFiles = 0
+      this.uploadProgress = 0;
+      this.uploadedFiles = 0;
+      this.ignoredFiles = 0;
     },
     handlePastePlainText(text) {
       const selection = window.getSelection();
@@ -260,7 +261,7 @@ export default {
     async extractFileMetadata(file) {
       const type = file.type;
       let msgtype = 'm.file';
-      let info = {
+      const info = {
         mimetype: type,
         size: file.size
       };
@@ -332,7 +333,7 @@ export default {
       if (message?.info?.uAudio) {
         message.msgtype = 'u.audio';
       }
-      this.$root.$emit('message-sent-statistics', message, this.room)
+      this.$root.$emit('message-sent-statistics', message, this.room);
     }
   }
 };
