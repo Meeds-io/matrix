@@ -799,7 +799,7 @@ export function loadRoomMessages(roomId, from, to) {
 }
 
 export async function loadMessageReactions(roomId, eventId) {
-  const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction`;
+  const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction?limit=100`;
   try {
     const resp = await fetch(url, {
       headers: {

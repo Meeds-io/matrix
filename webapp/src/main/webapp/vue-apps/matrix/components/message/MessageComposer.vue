@@ -26,7 +26,8 @@
       :room="room"
       paste-target="messageComposerArea"
       drop-target="ChatDiscussionDrawer"
-      class="me-2 mb-0_5 d-flex flex-column justify-end" />
+      class="me-2 mb-0_5 d-flex flex-column justify-end"
+      @file-sent="setInputFocus" />
     <voice-message-recorder
       ref="voiceMessageRecorder"
       v-if="isRecording"
@@ -139,10 +140,16 @@ export default {
     },
   },
   created() {
+    document.addEventListener('matrix-message-reaction-added', this.setInputFocus);
+    document.addEventListener('matrix-message-deleted', this.setInputFocus);
+
     this.$root.$on('edit-message', this.editMessage);
     this.$root.$on('reply-to-message', this.replyToMessage);
   },
   beforeDestroy() {
+    document.removeEventListener('matrix-message-reaction-added', this.setInputFocus);
+    document.removeEventListener('matrix-message-deleted', this.setInputFocus);
+
     this.$root.$off('edit-message', this.editMessage);
     this.$root.$off('reply-to-message', this.replyToMessage);
   },
@@ -154,7 +161,7 @@ export default {
       return this.expanded && this.drawerWidth * 2 / 3 || undefined;
     },
     hasComposerContent() {
-      return !!this.messageContent?.trim()?.length;
+      return !!this.messageContent?.trim()?.length || this.messageToEdit;
     }
   },
   watch: {
@@ -284,6 +291,7 @@ export default {
       this.insertedNewLine = false;
       this.targetReplyMessage = null;
       this.messageToEdit = null;
+      this.setInputFocus();
     },
     resetComposerHeight() {
       this.$refs.messageComposerArea.style.height = `${this.composerDefaultHeight}px`;
