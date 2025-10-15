@@ -358,6 +358,9 @@ export default {
     },
     reactionAdded(event) {
       if (this.room.id === event.detail.roomId && this.message.event_id === event.detail.message.content['m.relates_to'].event_id) {
+        if (!this.message?.reactions) {
+          this.$set(this.message, 'reactions', []);
+        }
         this.message = this.$matrixService.processMessageReaction(this.message, event.detail.message);
       }
     },
