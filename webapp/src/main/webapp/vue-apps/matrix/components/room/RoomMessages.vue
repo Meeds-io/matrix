@@ -131,8 +131,8 @@ export default {
     document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData);
-    this.$root.channel.addEventListener('message', this.handleBroadcastMessage);
+    document.addEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
+    document.addEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$on('room-discussion-opened', this.markRoomAsRead);
   },
   beforeDestroy() {
@@ -140,8 +140,8 @@ export default {
     document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData);
-    this.$root.channel.removeEventListener('message', this.handleBroadcastMessage);
+    document.removeEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
+    document.removeEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
   },
   computed: {
@@ -354,6 +354,11 @@ export default {
         });
       }
     },
+    resetLocalUnseenData(roomId, userId) {
+      if (this.room?.id === roomId && userId === matrixUserId) {
+        this.resetData();
+      }
+    },
     resetData() {
       if (!this.unSeenMessagesData?.viewPortInfo) {
         return;
@@ -422,7 +427,6 @@ export default {
     clearUnseenData() {
       this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
         this.resetData();
-        this.$root.channel.postMessage({type: 'reset-unseen-data'});
       });
     },
     getMessagesContainerElement() {
@@ -488,7 +492,6 @@ export default {
       this.$matrixService.resetUnseenOnFirstMessageSeen(this.room?.id, matrixUserId).then(reset => {
         if (reset) {
           this.resetData();
-          this.$root.channel.postMessage({type: 'reset-unseen-data'});
         }
       });
     },
@@ -519,12 +522,6 @@ export default {
     reset() {
       this.messages = [];
       this.lastScrollTop = 0;
-    },
-    handleBroadcastMessage(event) {
-      const {type} = event.data;
-      if (type === 'reset-unseen-data') {
-        this.resetData();
-      }
     },
     getMessageContentElement(eventId) {
       return document.getElementById(`message-content-${eventId}`);
