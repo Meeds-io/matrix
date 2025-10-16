@@ -179,7 +179,7 @@ export default {
         }
       }
     },
-    replyToMessage(roomId, messages, targetMessage) {
+    async replyToMessage(roomId, messages, targetMessage) {
       if (this.room?.id !== roomId) {
         return;
       }
@@ -187,7 +187,7 @@ export default {
       this.$refs.messageComposerArea.innerHTML = '';
       this.targetReplyMessage = {
         ...targetMessage,
-        replyTo: this.$matrixService.buildReplyToObject(messages, targetMessage.event_id)
+        replyTo: await this.$matrixService.buildReplyToObject(messages, targetMessage.event_id)
       };
       this.$nextTick(() => {
         this.$refs?.messageComposerArea?.focus();
