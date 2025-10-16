@@ -129,8 +129,8 @@ export default {
     document.addEventListener('matrix-message-received', this.messageReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData);
-    this.$root.channel.addEventListener('message', this.handleBroadcastMessage);
+    document.addEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
+    document.addEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$on('room-discussion-opened', this.markRoomAsRead);
   },
   beforeDestroy() {
@@ -138,8 +138,8 @@ export default {
     document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
-    document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData);
-    this.$root.channel.removeEventListener('message', this.handleBroadcastMessage);
+    document.removeEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
+    document.removeEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
   },
   computed: {
@@ -355,6 +355,11 @@ export default {
         });
       }
     },
+    resetLocalUnseenData(roomId, userId) {
+      if (this.room?.id === roomId && userId === matrixUserId) {
+        this.resetData();
+      }
+    },
     resetData() {
       if (!this.unSeenMessagesData?.viewPortInfo) {
         return;
@@ -423,7 +428,6 @@ export default {
     clearUnseenData() {
       this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
         this.resetData();
-        this.$root.channel.postMessage({type: 'reset-unseen-data'});
       });
     },
     getMessagesContainerElement() {
@@ -489,7 +493,6 @@ export default {
       this.$matrixService.resetUnseenOnFirstMessageSeen(this.room?.id, matrixUserId).then(reset => {
         if (reset) {
           this.resetData();
-          this.$root.channel.postMessage({type: 'reset-unseen-data'});
         }
       });
     },
@@ -529,12 +532,78 @@ export default {
       this.messages = [];
       this.lastScrollTop = 0;
     },
-    handleBroadcastMessage(event) {
-      const {type} = event.data;
-      if (type === 'reset-unseen-data') {
-        this.resetData();
+    getMessageContentElement(eventId) {
+      return document.getElementById(`message-content-${eventId}`);
+    },
+    async scrollToUnseenSectionSeparator() {
+      const separatorFound = document.getElementById('unseenSeparator');
+      if (separatorFound) {
+        return;
       }
-    }
+      const container = this.getMessagesContainerElement();
+      if (!container) {
+        return;
+      }
+      const firstUnseenEventId = this.unSeenMessagesData?.firstUnseenEventId;
+      if (!firstUnseenEventId) {
+        return;
+      }
+
+      let targetElement = this.getMessageContentElement(firstUnseenEventId);
+      let tries = 0;
+      const maxTries = 10;
+
+      while (!targetElement && this.hasMoreMessages && tries < maxTries) {
+        tries++;
+        await this.forceLoadMoreMessages();
+        await this.$nextTick();
+        targetElement = this.getMessageContentElement(firstUnseenEventId);
+      }
+
+      if (targetElement) {
+        targetElement.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+      } else {
+        this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');}
+    },
+    async fetchAndAppendOlderMessages(preserveScroll = true) {
+      const lastMessageId = this.messages?.[0]?.event_id;
+
+      const resp = await this.$matrixService.loadRoomMessages(this.room.id, this.to);
+      if (!resp.chunk?.length) {
+        this.hasMoreMessages = false;
+        return;
+      }
+      if (resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
+        this.hasMoreMessages = false;
+      }
+
+      const messagesToProcess = [...resp.chunk.reverse()];
+      const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
+      this.messages = [...processedMessages.messages, ...this.messages];
+      this.from = resp.start;
+      this.to = resp.end;
+
+      if (preserveScroll && lastMessageId) {
+        await this.$nextTick();
+        const lastMsgEl = this.getMessageContentElement(lastMessageId);
+        lastMsgEl?.scrollIntoView({ behavior: 'instant' });
+      }
+    },
+    async forceLoadMoreMessages() {
+      if (this.loadingNewMessages || !this.hasMoreMessages) {
+        return;
+      }
+
+      this.loadingNewMessages = true;
+      try {
+        await this.fetchAndAppendOlderMessages(true);
+      } catch (err) {
+        console.error('Error loading older messages:', err);
+      } finally {
+        this.loadingNewMessages = false;
+      }
+    },
   }
 };
 </script>
