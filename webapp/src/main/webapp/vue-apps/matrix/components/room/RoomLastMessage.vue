@@ -17,20 +17,23 @@
 
 <template>
   <div
-    v-if="lastMessageContent"
-    class="chat-room-last-message text-truncate mt-1 text-subtitle"
-    :class="{'font-weight-bold' : hasUnreadMessages && !isMuted}"
-    v-sanitized-html="lastMessageContent">
+    v-if="!isUpdatingLastMessage">
+    <div
+      v-if="lastMessageContent"
+      class="chat-room-last-message text-truncate mt-1 text-subtitle"
+      :class="{'font-weight-bold' : hasUnreadMessages && !isMuted}"
+      v-sanitized-html="lastMessageContent">
+    </div>
+    <div v-else class="text-subtitle text-truncate mt-1">
+      {{ $t('matrix.chat.start.conversation') }}
+    </div>
   </div>
   <v-skeleton-loader
-    v-else-if="isUpdatingLastMessage"
+    v-else
     class="mt-1"
     type="text"
     height="18"
     width="250"/>
-  <div v-else class="text-subtitle text-truncate mt-1">
-    {{ $t('matrix.chat.start.conversation') }}
-  </div>
 </template>
 
 <script>
@@ -50,6 +53,15 @@ export default{
   created() {
     this.getAndBuildRoomLastMessage();
     document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+  },
+  beforeDestroy() {
+    document.removeEventListener('matrix-message-reaction-removed', this.reactionRemoved);
+  },
+  mounted() {
+    this.$nextTick().then(() => {
+      this.isUpdatingLastMessage = true;
+      return this.getAndBuildRoomLastMessage();
+    }).then(() => this.isUpdatingLastMessage = false);
   },
   computed: {
     lastMessageContent() {
@@ -77,7 +89,6 @@ export default{
       this.getAndBuildRoomLastMessage();
     },
     async getAndBuildRoomLastMessage() {
-      this.isUpdatingLastMessage = true;
       try {
         const message = await this.$matrixService.getRoomLastMessage(this.room.id);
         if (!message) {
@@ -89,13 +100,11 @@ export default{
         const lastMessage = await this.$matrixService.buildRoomLastMessage(message, message.type, this.room);
         if (lastMessage) {
           this.$set(this.room, 'lastMessage', lastMessage);
-          await this.$nextTick();
           await this.updateLastMessageContent();
+          await this.$nextTick();
         }
       } catch (error) {
         console.error(error);
-      } finally {
-        this.isUpdatingLastMessage = false;
       }
     },
     async updateLastMessageContent() {
@@ -119,7 +128,6 @@ export default{
       if (this.room?.lastMessageContent !== formattedContent) {
         this.$set(this.room, 'lastMessageContent', formattedContent)
       }
-      this.isUpdatingLastMessage = false;
     },
     async formatReactionLastMessageContent(lastMessage) {
       const {sender, reactionKey, content} = lastMessage;

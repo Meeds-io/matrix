@@ -132,6 +132,7 @@ export default {
     document.addEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
     document.addEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$on('room-discussion-opened', this.markRoomAsRead);
+    this.$root.$on('move-to-message',  this.moveToMessage);
   },
   beforeDestroy() {
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
@@ -141,6 +142,7 @@ export default {
     document.removeEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
     document.removeEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
+    this.$root.$off('move-to-message',  this.moveToMessage);
   },
   computed: {
     fullPageMode() {
@@ -266,7 +268,7 @@ export default {
         this.loading = false;
       }
     },
-    messageReceived(event) {
+    async messageReceived(event) {
       if (!this.messages) {
         return;
       }
@@ -291,14 +293,14 @@ export default {
         for (let i = 0; i < this.messages.length; i++) {
           const message = this.messages[i];
           if (message?.replyTo?.targetEventId === receivedMessage.event_id) {
-            const replyTo = this.$matrixService.buildReplyToObject(this.messages, message.replyTo.targetEventId);
+            const replyTo = await this.$matrixService.buildReplyToObject(this.messages, message.replyTo.targetEventId);
             this.$set(this.messages, i, { ...message, replyTo });
           }
         }
       } else {
         this.messages.push(receivedMessage);
         if (inReplyTo) {
-          receivedMessage.replyTo = this.$matrixService.buildReplyToObject(this.messages, inReplyTo);
+          receivedMessage.replyTo = await this.$matrixService.buildReplyToObject(this.messages, inReplyTo);
         }
         setTimeout(() => {
           if (this.isAtBottomMessages) {
@@ -548,8 +550,10 @@ export default {
       if (!firstUnseenEventId) {
         return;
       }
-
-      let targetElement = this.getMessageContentElement(firstUnseenEventId);
+      await this.moveToMessage(firstUnseenEventId);
+    },
+    async moveToMessage(eventId) {
+      let targetElement = this.getMessageContentElement(eventId);
       let tries = 0;
       const maxTries = 10;
 
@@ -557,14 +561,14 @@ export default {
         tries++;
         await this.forceLoadMoreMessages();
         await this.$nextTick();
-        targetElement = this.getMessageContentElement(firstUnseenEventId);
+        targetElement = this.getMessageContentElement(eventId);
       }
 
       if (targetElement) {
         targetElement.scrollIntoView({behavior: 'smooth', block: 'center'});
-
       } else {
-        this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');}
+        this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');
+      }
     },
     async fetchAndAppendOlderMessages(preserveScroll = true) {
       const lastMessageId = this.messages?.[0]?.event_id;
