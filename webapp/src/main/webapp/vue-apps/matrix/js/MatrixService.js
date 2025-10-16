@@ -757,7 +757,7 @@ export function getUserByMatrixId(userIdOnMatrix, room) {
     return Promise.resolve(cachedUser);
   }
 
-  const memberId = extractUserIdFromRoomMembers(room, matrixId);
+  const memberId = extractUserIdFromRoomMembers(room, userIdOnMatrix);
   if (!memberId) {
     return Promise.resolve(null);
   }
@@ -1039,15 +1039,20 @@ export async function processMessages(roomId, messageItems) {
         for (const messageId of dependents) {
           const message = messagesMap.get(messageId);
           if (message) {
-            message.replyTo = buildReplyToObject(messagesMap, targetEventId);
+            message.replyTo = await buildReplyToObject(messagesMap, targetEventId);
           }
         }
       }
     } else {
       const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
       if (inReplyTo) {
-        item.replyTo = buildReplyToObject(messagesMap, inReplyTo);
-        if (!replyDependencyMap.has(inReplyTo)) {replyDependencyMap.set(inReplyTo, []);}
+        let replyToObject = await buildReplyToObject(messageItems, inReplyTo);
+        if (replyToObject) {
+          item.replyTo = replyToObject;
+        }
+        if (!replyDependencyMap.has(inReplyTo)) {
+          replyDependencyMap.set(inReplyTo, []);
+        }
         replyDependencyMap.get(inReplyTo).push(item.event_id);
       }
 
@@ -1103,13 +1108,19 @@ export function processMessageReaction(messageReactedTo, reactionItem) {
   return messageReactedTo;
 }
 
-export function buildReplyToObject(messages, eventId) {
+export async function buildReplyToObject(messages, eventId) {
+  if (!messages || !messages.length) {
+    return null;
+  }
   const getMessageById = (id) =>
     ((messages instanceof Map)
       ? messages.get(id)
       : (Array.isArray(messages) ? messages.find(msg => msg.event_id === id) : null));
 
-  const parentEvent = getMessageById(eventId);
+  let parentEvent = getMessageById(eventId);
+  if (!parentEvent) {
+    parentEvent = await getEvent(messages[0].room_id, eventId);
+  }
   if (!parentEvent) {
     return null;
   }
@@ -1285,7 +1296,10 @@ export async function getEvent(roomId, eventId) {
     }
   });
 
-  if (!response.ok) {throw new Error(`Failed to fetch event: ${response.statusText}`);}
+  if (!response.ok) {
+    console.warn(`Failed to fetch event: ${eventId} in room ${roomId}, it may be deleted or inaccessible`);
+    return null;
+  }
   return await response.json();
 }
 
@@ -1454,9 +1468,9 @@ export async function getUserIdentity(userId) {
 
 function extractUserIdFromRoomMembers(room, matrixId) {
   if (room.spaceId) {
-    return room.members.find(member => member.matrixId === matrixId)?.userId;
+    return room.members.find(member => member.matrixId === matrixId || matrixId === '@' + member.matrixId + ':' + matrixServerName)?.userId;
   }
-  return room.userId;
+  return matrixId === matrixUserId ? eXo.env.portal.userName : room.userId;
 }
 
 function handleRedactReaction(redactedEventId, roomId) {
