@@ -73,12 +73,6 @@ export default {
       default: false
     }
   },
-  watch: {
-    'memberInfo.userId': {
-      immediate: true,
-      handler: 'getUserInfo',
-    }
-  },
   computed: {
     senderMatrixId() {
       return this.senderId?.slice(1, this.senderId?.indexOf(':'));
@@ -116,7 +110,7 @@ export default {
       if (this.sender || !this.memberInfo) {
         return;
       }
-      this.$matrixService.getUserIdentity(this.memberInfo.userId).then(identity => {
+      this.$matrixService.getUserByMatrixId(this.senderId, this.room).then(identity => {
         this.sender = identity;
       });
     }
