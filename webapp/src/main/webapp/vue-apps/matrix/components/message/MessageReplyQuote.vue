@@ -168,11 +168,10 @@ export default {
       if (this.readOnly) {
         return;
       }
-      const targetId = `message-content-${this.targetMessage.targetEventId}`;
-      const targetElement = document.getElementById(targetId).parentElement;
-      if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'end'});
+      if (!this.targetMessage?.targetEventId) {
+        return;
       }
+      this.$root.$emit('move-to-message', this.targetMessage.targetEventId);
     },
     getFileIcon(mimeType) {
       const extensions = Vue.prototype.$filesIconsExtension;
