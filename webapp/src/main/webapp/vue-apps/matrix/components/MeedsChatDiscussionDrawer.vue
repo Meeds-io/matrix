@@ -67,7 +67,6 @@
     <template slot="content">
       <matrix-chat-body
         ref="chatBody"
-        :key="componentKey"
         :loading="loading"
         :rooms="rooms"
         :selected-room="room"
@@ -90,7 +89,8 @@ export default {
       previousRoomId: null,
       filterText: '',
       showFilter: false,
-      open: false
+      open: false,
+      wasExpanded: false,
     };
   },
   props: {
@@ -165,25 +165,23 @@ export default {
         this.computeMessagesContainerWidth();
         this.selectedRoom = this.getLastOpenedRoom();
         await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
+        this.wasExpanded = this.expanded;
       }, 300);
     },
     async openDiscussion(room, fromRoomList) {
       if (this.fullPageMode && fromRoomList) {
         return;
       }
-      this.componentKey++;
       this.room = room;
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
         this.$refs.ChatDiscussionDrawer?.open();
         this.open = true;
       }
       await this.$nextTick();
-      const reload = this.previousRoomId && this.selectedRoom?.id !== this.previousRoomId;
-      if (reload) {
+      if (this.wasExpanded || !this.fullPageMode) {
         await this.$refs?.chatBody?.openDiscussion?.();
       }
-      this.previousRoomId = this.selectedRoom?.id;
-      this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+      this.$root.$emit('room-discussion-opened', room?.id);
 
       setTimeout(() => {
         this.$refs?.chatBody?.scrollToEnd();
@@ -192,6 +190,7 @@ export default {
     close() {
       this.$refs.chatBody?.reset();
       this.open = false;
+      this.wasExpanded = false;
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);

@@ -143,6 +143,9 @@ export default {
     this.$root.channel.removeEventListener('message', this.handleBroadcastMessage);
   },
   computed: {
+    fullPageMode() {
+      return this.$root?.fullPageMode;
+    },
     typingUsers() {
       return this.typingCache?.[this.room?.id]?.typingUsers || [];
     },
@@ -300,6 +303,9 @@ export default {
         setTimeout(() => {
           if (this.isAtBottomMessages) {
             this.scrollToEnd();
+            if (!document.hidden && this.fullPageMode) {
+              this.markRoomAsRead(this.room?.id);
+            }
           } else {
             this.hasUnseenNewReceivedMessage = true;
           }
