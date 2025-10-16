@@ -312,6 +312,28 @@ export async function processEvents(response, isInitialSync) {
               });
             }
           }
+        } else if (e.type === 'io.meeds.unseen-data-reset') {
+          const userId = e.content?.userId;
+          deleteUnseenData(roomId,userId);
+          document.dispatchEvent(new CustomEvent('matrix-unseen-data-reset', {
+            detail: {
+              roomId,
+              userId: userId,
+              timestamp: e?.origin_server_ts,
+              event: e
+            }
+          }));
+        } else if (e.type === 'io.meeds.unseen-data-updated') {
+          const userId = e.content?.userId;
+          const unseenData = e?.content?.unseenData;
+          saveUnseenData(roomId, userId, unseenData);
+          document.dispatchEvent(new CustomEvent('matrix-unseen-data-updated', {
+            detail: {
+              roomId,
+              userId: userId,
+              unseenData: unseenData
+            }
+          }));
         }
       }
       const ephemeralEvents = response.rooms.join[roomId].ephemeral?.events;
@@ -384,7 +406,7 @@ async function handleReadReceiptEvent(event, roomId) {
   await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
 }
 
-export async function loadReadReceiptsForMessage(lastReads, eventId) {
+export function loadReadReceiptsForMessage(lastReads, eventId) {
   if (!lastReads) {
     return [];
   }
@@ -400,14 +422,14 @@ export async function loadLastReadReceipts(roomId) {
   return await dbStorage.getValue(dbSettings, receiptsStore, storeKey) || {};
 }
 
-async function isLastMessageInRoom(eventId, roomId) {
+function isLastMessageInRoom(eventId, roomId) {
   if (!lastMessagesByRoom) {
     return false;
   }
   return lastMessagesByRoom.get(roomId)?.event_id === eventId;
 }
 
-export async function toRoomObject(rooms, currentMemberId) {
+export function toRoomObject(rooms, currentMemberId) {
   const myRooms = {rooms: [], totalUnreadMessages: 0};
   const roomMap = new Map();
 
@@ -1597,19 +1619,22 @@ export async function sendTyping(roomId, isTyping, timeoutMs = 30000) {
 }
 
 export async function saveUnseenMessages(roomId, userId, unseenData) {
+  const result = await saveUnseenData(roomId, userId, unseenData);
+  populateUnseenSectionData(roomId, 'io.meeds.unseen-data-updated', {roomId: roomId, userId: userId, unseenData});
+  return result;
+}
+
+async function saveUnseenData(roomId, userId, unseenData) {
+  if (userId !== matrixUserId) {
+    return;
+  }  
   const key = `unseen::${roomId}::${userId}`;
-  const result = await dbStorage.setValue(
+  return await dbStorage.setValue(
     chatConstants.DB_SETTINGS,
     chatConstants.DB_SETTINGS.DB_STORES.UNSEEN_MESSAGES,
     key,
     unseenData
   );
-  document.dispatchEvent(
-    new CustomEvent('unseen-data-updated', {
-      detail: {roomId, userId, unseenData}
-    })
-  );
-  return result;
 }
 
 export function getUnseenMessages(roomId, userId) {
@@ -1621,9 +1646,18 @@ export function getUnseenMessages(roomId, userId) {
   );
 }
 
-export function clearUnseenMessages(roomId, userId) {
+export async function clearUnseenMessages(roomId, userId) {
+  deleteUnseenData(roomId, userId);
+  return await populateUnseenSectionData(roomId, 'io.meeds.unseen-data-reset', 
+    {roomId: roomId, userId: userId,});
+}
+
+function deleteUnseenData(roomId, userId) {
+  if (userId !== matrixUserId) {
+    return;
+  }
   const key = `unseen::${roomId}::${userId}`;
-  return dbStorage.setValue(
+  dbStorage.setValue(
     chatConstants.DB_SETTINGS,
     chatConstants.DB_SETTINGS.DB_STORES.UNSEEN_MESSAGES,
     key,
@@ -1632,7 +1666,6 @@ export function clearUnseenMessages(roomId, userId) {
     }
   );
 }
-
 export async function getUnseenMessagesData(roomId, userId) {
   const unseenData = await getUnseenMessages(roomId, userId);
   if (!unseenData?.firstUnseenEventId) {
@@ -1678,4 +1711,31 @@ export async function markMessageAsRead(roomId, eventId) {
     },
     body: JSON.stringify({})
   });
+}
+
+export async function populateUnseenSectionData(roomId, event, content) {
+  await sendCustomEvent(roomId, event, content);
+}
+
+export async function sendCustomEvent(roomId, eventType, content) {
+  const txnId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const url = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/${encodeURIComponent(eventType)}/${txnId}`;
+
+  const accessToken = localStorage.getItem('matrix_access_token');
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(content),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error(`Failed to send ${eventType}: ${resp.status} ${errText}`);
+    return null;
+  }
+
+  return await resp.json();
 }

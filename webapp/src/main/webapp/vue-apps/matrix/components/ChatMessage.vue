@@ -418,9 +418,8 @@ export default {
         return;
       }
       this.loadingReceipts = true;
-      this.$matrixService.loadReadReceiptsForMessage(this.roomLastReadReceipts, this.message.event_id).then(users => {
-        this.readReceipts = users;
-      }).finally(() => this.loadingReceipts = false);
+      this.readReceipts = this.$matrixService.loadReadReceiptsForMessage(this.roomLastReadReceipts, this.message.event_id);
+      this.loadingReceipts = false;
     },
     handleMessageRead({detail: {eventId, userId}}) {
       if (this.message.event_id !== eventId && this.readReceipts.includes(userId)) {
