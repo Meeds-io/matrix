@@ -177,8 +177,11 @@ export default {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
       }
     },
-    sortedRooms() {
-      this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+    sortedRooms: {
+      handler() {
+        this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+      },
+      deep: true,
     }
   },
   computed: {
