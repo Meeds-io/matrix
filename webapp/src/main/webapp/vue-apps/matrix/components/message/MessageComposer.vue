@@ -507,9 +507,6 @@ export default {
       this.$emit('input-focus', this.isInputFocused);
     },
     onInputFocus(event) {
-      setTimeout(() => {
-        this.markRoomAsRead();
-      }, 200);
       this.isInputFocused = true;
       this.$emit('input-focus', this.isInputFocused);
       this.resizeComposerArea(event);
