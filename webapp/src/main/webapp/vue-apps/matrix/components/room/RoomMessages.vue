@@ -133,6 +133,7 @@ export default {
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.addEventListener('unseen-data-updated', this.handleUpdateUnseenData);
     this.$root.channel.addEventListener('message', this.handleBroadcastMessage);
+    this.$root.$on('room-discussion-opened', this.markRoomAsRead);
   },
   beforeDestroy() {
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
@@ -141,6 +142,7 @@ export default {
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.removeEventListener('unseen-data-updated', this.handleUpdateUnseenData);
     this.$root.channel.removeEventListener('message', this.handleBroadcastMessage);
+    this.$root.$off('room-discussion-opened', this.markRoomAsRead);
   },
   computed: {
     typingUsers() {
@@ -300,6 +302,9 @@ export default {
         setTimeout(() => {
           if (this.isAtBottomMessages) {
             this.scrollToEnd();
+            if (!document.hidden) {
+              this.markRoomAsRead(this.room?.id);
+            }
           } else {
             this.hasUnseenNewReceivedMessage = true;
           }
@@ -340,7 +345,7 @@ export default {
       this.updateUnseenOnMessageDelete(redactedEventId, index);
     },
     markRoomAsRead(roomId) {
-      if (this.isAtBottomMessages && this.messages?.length) {
+      if (this.messages?.length) {
         const lastMessageIndex = this.messages.length - 1;
         this.$matrixService.markRoomAsFullyRead(roomId, this.messages[lastMessageIndex]?.event_id).then(() => {
           document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
@@ -412,6 +417,7 @@ export default {
         this.clearUnseenData();
       }
       this.scrollToEnd();
+      this.markRoomAsRead(this.room?.id);
     },
     clearUnseenData() {
       this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
@@ -436,10 +442,6 @@ export default {
         }
         container.scrollTop = container.scrollHeight;
         this.hasUnseenNewReceivedMessage = false;
-
-        if (this.isInputFocused) {
-          this.markRoomAsRead();
-        }
       });
     },
     replyToMessage(message) {
@@ -479,6 +481,7 @@ export default {
 
       if (this.isAtBottomMessages) {
         this.hasUnseenNewReceivedMessage = false;
+        this.markRoomAsRead(this.room?.id);
       }
     },
     resetUnseenData() {
