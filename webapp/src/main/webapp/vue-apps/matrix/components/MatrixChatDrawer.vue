@@ -78,7 +78,6 @@
     <template slot="content">
       <matrix-chat-body
         ref="chatBody"
-        :key="componentKey"
         :loading="loading"
         :rooms="rooms"
         :selected-room="selectedRoom"
@@ -176,14 +175,9 @@ export default {
       return null;
     },
     async openDiscussion(room) {
-      this.componentKey++;
       this.selectedRoom = room;
-      const reload = this.previousRoomId && this.selectedRoom?.id !== this.previousRoomId;
-      if (reload) {
-        await this.$refs?.chatBody?.openDiscussion?.();
-      }
-      this.previousRoomId = this.selectedRoom?.id;
-      this.$root.$emit('room-discussion-opened', this.selectedRoom?.id);
+      await this.$refs?.chatBody?.openDiscussion?.();
+      this.$root.$emit('room-discussion-opened', room?.id);
 
       setTimeout(() => {
         this.$refs?.chatBody?.scrollToEnd();

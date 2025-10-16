@@ -143,6 +143,9 @@ export default {
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
   },
   computed: {
+    fullPageMode() {
+      return this.$root?.fullPageMode;
+    },
     typingUsers() {
       return this.typingCache?.[this.room?.id]?.typingUsers || [];
     },
@@ -300,7 +303,7 @@ export default {
         setTimeout(() => {
           if (this.isAtBottomMessages) {
             this.scrollToEnd();
-            if (!document.hidden) {
+            if (!document.hidden && this.fullPageMode) {
               this.markRoomAsRead(this.room?.id);
             }
           } else {
