@@ -34,6 +34,7 @@
         width="36"
         min-width="36"
         height="36"
+        class="clickable"
         @click.stop="openMenu($event)">
         <v-img
           :src="avatarUrl"
