@@ -116,7 +116,9 @@ export default {
       this.$refs.roomMessages.markRoomAsRead(roomId);
     },
     scrollToEnd() {
-      this.$refs?.roomMessages?.scrollToEnd?.();
+      setTimeout(() => {
+        this.$refs?.roomMessages?.scrollToEnd?.();
+      }, 200);
     },
     reset() {
       this.$refs?.roomMessages?.reset();
