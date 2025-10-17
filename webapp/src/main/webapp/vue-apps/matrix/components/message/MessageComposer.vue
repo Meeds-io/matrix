@@ -223,19 +223,17 @@ export default {
         msgtype: 'm.text'
       };
 
-      const mentionsArray = [];
-      for (const selectedSpan of this.$refs.messageComposerArea.querySelectorAll('span[data-user-id]')) {
-        const userId = `@${  selectedSpan.dataset.userId  }:${  matrixServerName}`;
-        if (!mentionsArray.includes(userId)) {
-          mentionsArray.push(userId);
-        }
-      }
+      const mentionsArray = Array.from(composer.querySelectorAll('span[data-user-id]'))
+        .map(span => `@${span.getAttribute('data-user-id')}:${matrixServerName}`)
+        .filter((v, i, a) => a.indexOf(v) === i); // unique
+
       if (mentionsArray.length) {
         const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;/#.()]*<\/span>/gu;
-        const messageHTML = this.$refs.messageComposerArea.innerHTML.replace(
+        const messageHTML = composer.innerHTML.replace(
           regexForMentions,
-          `<a href="https://matrix.to/#/@$1:${  matrixServerName  }">$2</a>`
+          (_, userId, userName) => `<a href="https://matrix.to/#/@${userId}:${matrixServerName}">${userName}</a>`
         );
+
         message.format = 'org.matrix.custom.html';
         message.formatted_body = messageHTML;
         message['m.mentions'] = {user_ids: mentionsArray};
