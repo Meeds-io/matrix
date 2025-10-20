@@ -28,7 +28,9 @@
     type="text"
     height="18"
     width="250" />
-  <div v-else class="text-subtitle text-truncate mt-1">
+  <div
+    v-else-if="!showLoader && !showLastMessageContent"
+    class="text-subtitle text-truncate mt-1">
     {{ $t('matrix.chat.start.conversation') }}
   </div>
 </template>
