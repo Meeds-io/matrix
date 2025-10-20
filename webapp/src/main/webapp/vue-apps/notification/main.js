@@ -21,10 +21,11 @@ import './initComponents.js';
 import './extensions.js';
 
 const lang = eXo.env.portal.language;
-const url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`;
+const urls = [`${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrix-${lang}.json`,
+  `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.notification.MatrixChat-${lang}.json`];
 
 export function init() {
-  return exoi18n.loadLanguageAsync(lang, url)
+  return exoi18n.loadLanguageAsync(lang, urls)
     .then(() => {
       new Vue({
         i18n: exoi18n.i18n,
