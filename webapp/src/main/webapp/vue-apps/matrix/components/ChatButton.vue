@@ -213,6 +213,9 @@ export default {
               a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
       );
     },
+    isSoundOwner() {
+      return this.isPresencePollingOwner;
+    }
   },
   methods: {
     handleFilterUpdate(text) {
@@ -376,7 +379,8 @@ export default {
           }}));
         } else if (localStorage.getItem(keyToCheck) === 'true') {
           const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
-          if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted && this.isUserStatusAvailable) {
+          if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted
+              && this.isUserStatusAvailable && this.isSoundOwner) {
             this.$refs.messageAudio.play().catch(() => {
               this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
             });

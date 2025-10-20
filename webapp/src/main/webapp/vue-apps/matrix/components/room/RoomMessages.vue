@@ -179,7 +179,13 @@ export default {
       }
 
       const index = messages.findIndex(msg => msg.event_id === firstUnseenMessageId);
-      return index >= 0 ? messages.length - (index + 1) : 0;
+      if (index < 0) {
+        return 0;
+      }
+
+      const unseen = messages.slice(index + 1);
+      const filtered = unseen.filter(msg => msg.sender !== matrixUserId);
+      return filtered.length;
     }
   },
   watch: {
