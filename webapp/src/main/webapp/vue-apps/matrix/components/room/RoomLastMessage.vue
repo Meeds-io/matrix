@@ -17,32 +17,29 @@
 
 <template>
   <div
-    v-if="!isUpdatingLastMessage">
-    <div
-      v-if="lastMessageContent"
-      class="chat-room-last-message text-truncate mt-1 text-subtitle"
-      :class="{'font-weight-bold' : hasUnreadMessages && !isMuted}"
-      v-sanitized-html="lastMessageContent">
-    </div>
-    <div v-else class="text-subtitle text-truncate mt-1">
-      {{ $t('matrix.chat.start.conversation') }}
-    </div>
+    v-if="showLastMessageContent"
+    class="chat-room-last-message text-truncate mt-1 text-subtitle"
+    :class="{'font-weight-bold' : hasUnreadMessages && !isMuted}"
+    v-sanitized-html="lastMessageContent">
   </div>
   <v-skeleton-loader
-    v-else
+    v-else-if="showLoader"
     class="mt-1"
     type="text"
     height="18"
-    width="250"/>
+    width="250" />
+  <div v-else class="text-subtitle text-truncate mt-1">
+    {{ $t('matrix.chat.start.conversation') }}
+  </div>
 </template>
 
 <script>
 
-export default{
+export default {
   data() {
     return {
       isUpdatingLastMessage: false
-    }
+    };
   },
   props: {
     room: {
@@ -64,6 +61,12 @@ export default{
     }).then(() => this.isUpdatingLastMessage = false);
   },
   computed: {
+    showLastMessageContent() {
+      return !this.isUpdatingLastMessage && !!this.lastMessageContent;
+    },
+    showLoader() {
+      return this.isUpdatingLastMessage;
+    },
     lastMessageContent() {
       return this.room?.lastMessageContent;
     },
@@ -74,7 +77,7 @@ export default{
       return this.lastMessageSender === matrixUserId;
     },
     hasUnreadMessages() {
-      return this.room.unreadMessages > 0
+      return this.room.unreadMessages > 0;
     },
     isMuted() {
       return this.room?.muted;
@@ -126,7 +129,7 @@ export default{
       }
 
       if (this.room?.lastMessageContent !== formattedContent) {
-        this.$set(this.room, 'lastMessageContent', formattedContent)
+        this.$set(this.room, 'lastMessageContent', formattedContent);
       }
     },
     async formatReactionLastMessageContent(lastMessage) {
@@ -140,8 +143,8 @@ export default{
       }
 
       return isSelf
-          ? this.$t('matrix.message.you.reacted.with', {0: reactionKey, 1: content})
-          : this.$t('matrix.message.user.reacted.with', {0: reactedBy, 1: reactionKey, 2: content});
+        ? this.$root.$t('matrix.message.you.reacted.with', {0: reactionKey, 1: content})
+        : this.$root.$t('matrix.message.user.reacted.with', {0: reactedBy, 1: reactionKey, 2: content});
     },
     async resolveLastMessageSenderLabel() {
       if (this.isLastMessageSenderCurrentUser) {

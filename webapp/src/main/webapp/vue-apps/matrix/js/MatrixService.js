@@ -394,7 +394,7 @@ async function handleReadReceiptEvent(event, roomId) {
       }));
 
       if (userId === matrixUserId && readData.thread_id) {
-        const isLast = await isLastMessageInRoom(eventId, roomId);
+        const isLast = isLastMessageInRoom(eventId, roomId);
         if (isLast) {
           document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: { roomId } }));
         }
