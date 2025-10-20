@@ -39,7 +39,7 @@ export function registerChatExtensions(chatTitle) {
 
     extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
       id: 'meeds-chat-space-settings',
-      vueComponent: Vue.options.components['meeds-chat-space-settings'],
+      vueComponent: Vue.options.components['matrix-chat-space-settings'],
       rank: 10,
     });
 
