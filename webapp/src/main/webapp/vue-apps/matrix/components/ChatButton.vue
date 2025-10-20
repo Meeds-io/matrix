@@ -382,7 +382,11 @@ export default {
           const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
           if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted
               && this.isUserStatusAvailable && this.isSoundOwner) {
-            this.$refs.messageAudio.play().catch(() => {
+            this.$refs.messageAudio.play().catch((err) => {
+              if (err.name === 'NotAllowedError'
+                  && err?.message?.includes('didn\'t interact')) {
+                return;
+              }
               this.$root.$emit('alert-message', this.$t('matrix.message.audio.play.error'), 'error');
             });
           }
