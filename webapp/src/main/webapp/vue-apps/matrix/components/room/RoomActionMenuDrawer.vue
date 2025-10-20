@@ -28,7 +28,7 @@
       v-model="drawer"
       bottom>
       <template #content>
-        <matrixroom-action-list-items
+        <matrix-room-action-list-items
           :room="room"
           @close="close" />
       </template>
