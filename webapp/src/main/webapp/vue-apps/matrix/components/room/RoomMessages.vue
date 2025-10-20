@@ -133,6 +133,7 @@ export default {
     document.addEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.addEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
     document.addEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
+    document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
     this.$root.$on('room-discussion-opened', this.markRoomAsRead);
     this.$root.$on('move-to-message',  this.moveToMessage);
   },
@@ -143,6 +144,7 @@ export default {
     document.removeEventListener('matrix-room-typing-received', this.handleTypingReceived);
     document.removeEventListener('matrix-unseen-data-updated', this.handleUpdateUnseenData);
     document.removeEventListener('matrix-unseen-data-reset', this.resetLocalUnseenData);
+    document.removeEventListener('matrix-message-reaction-added', this.reactionAdded);
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
     this.$root.$off('move-to-message',  this.moveToMessage);
   },
@@ -205,6 +207,20 @@ export default {
     }
   },
   methods: {
+    reactionAdded({detail: {roomId}}) {
+      if (roomId !== this.room?.id) {
+        return;
+      }
+      const container = this.getMessagesContainerElement();
+      const oldHeight = container.scrollHeight;
+      requestAnimationFrame(() => {
+        const newHeight = container.scrollHeight;
+        const delta = newHeight - oldHeight;
+        if (delta !== 0) {
+          container.scrollBy({ top: delta, behavior: 'instant' });
+        }
+      });
+    },
     async initDiscussion() {
       this.reset();
       this.resetData();
