@@ -20,6 +20,7 @@ package io.meeds.chat.service;
 
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.LastMessage;
 import io.meeds.chat.rest.model.RoomEntity;
@@ -31,6 +32,7 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.model.AvatarAttachment;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -294,13 +296,49 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertFalse(result);
   }
 
-  @org.junit.Test
-  public void testCleanMatrixUsername() {
+  @Test
+  void testCleanMatrixUsername() {
     String[] usernames = new String[] { "Samueâl", "fre@d", "Shazia", "gorkef/",
             "²&é\"'(-è_çà)=²1234567890°+'azertyuiopqsdfghjklmù*^$wxcvbn,;:!?./§%µ¨£<>²&~#{[|`\\^@]}" };
     for (String username : usernames) {
       String result = matrixService.cleanMatrixUsername(username);
-      assertNotNull(result);
+      Assertions.assertNotNull(result);
     }
   }
+
+  @Test
+  void testLeftSpace() {
+    Space space = getSpaceInstance(1);
+    spaceService.removeMember(space, "dragon");
+    verify(matrixHttpClient, times(1)).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void testRenameSpace() {
+    Space space = getSpaceInstance(1);
+    spaceService.renameSpace(space, "New Space Name");
+    verify(matrixHttpClient, times(1)).renameRoom(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void testPromoteAndRevokeLead() throws JsonException, IOException, InterruptedException {
+    Space space = getSpaceInstance(1);
+    spaceService.setManager(space, "dragon", true);
+    // function already
+    verify(matrixHttpClient, times(4)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+
+    //revoke lead
+    spaceService.setManager(space, "dragon", false);
+
+    verify(matrixHttpClient, times(5)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+  }
+
+  @Test
+  void testSpaceDescriptionEdited() {
+    Space space = getSpaceInstance(1);
+    space.setDescription("New space description");
+    spaceService.updateSpace(space);
+    verify(matrixHttpClient, times(1)).updateRoomDescription(anyString(), anyString(), anyString());
+  }
+
 }

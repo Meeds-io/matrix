@@ -6,12 +6,14 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.services.security.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.*;
 
 @SpringJUnitConfig(MatrixBaseTest.class)
@@ -23,7 +25,7 @@ class MatrixListenerTest extends MatrixBaseTest {
   ListenerService             listenerService;
 
   @Autowired
-  IdentityManager identityManager;
+  IdentityManager             identityManager;
 
   @Test
   void testUserListener() throws Exception {
@@ -38,16 +40,20 @@ class MatrixListenerTest extends MatrixBaseTest {
     // Check enabling user
     organizationService.getUserHandler().setEnabled("raul", true, true);
     Mockito.verify(matrixHttpClient, Mockito.times(2))
-            .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+           .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
   }
 
   @Test
   void testUserLoginListener() {
     Identity identity = new Identity("ghost");
     ConversationState state = new ConversationState(identity);
+    org.exoplatform.social.core.identity.model.Identity ghostIdentity = identityManager.getOrCreateUserIdentity("ghost");
+    Profile profile = ghostIdentity.getProfile();
+    profile.setProperty(USER_MATRIX_ID, "");
+    identityManager.updateProfile(profile);
     listenerService.broadcast("exo.core.security.ConversationRegistry.register", this, state);
     Mockito.verify(matrixHttpClient, Mockito.times(1))
-            .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+           .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
   }
 
 }
