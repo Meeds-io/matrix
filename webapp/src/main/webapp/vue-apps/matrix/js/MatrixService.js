@@ -1001,32 +1001,53 @@ export function markRoomAsFullyRead(roomId, eventId) {
   });
 }
 
-export function formatMentionsInMessage(message) {
-  return message
-    .replace(
-      /<a href="https:\/\/matrix\.to\/#\/([^"]+)">([^<]+)<\/a>/g,
-      (match, matrixId, displayName) => {
-        const userId = userCache.get(matrixId.slice(1, matrixId.indexOf(':')))?.remoteId;
-        const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
-        return `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${displayName}</a>`;
+export async function formatMentionsInMessage(message, room) {
+  if (!message) {
+    return '';
+  }
+  const mentionRegex = /<a href="https:\/\/matrix\.to\/#\/([^"]+)">([^<]+)<\/a>/g;
+  const mentions = [...message.matchAll(mentionRegex)];
+
+  const replacements = await Promise.all(
+    mentions.map(async ([fullMatch, matrixId, displayName]) => {
+      const user = await getUserByMatrixId(matrixId, room);
+      const userId = user?.remoteId;
+      if (!userId) {
+        return fullMatch;
       }
-    ).replace(/\n/g, '<br />') || '';
+
+      const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
+      const formatted = `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${displayName}</a>`;
+      return { fullMatch, formatted };
+    })
+  );
+  let formattedMessage = message;
+  for (const { fullMatch, formatted } of replacements) {
+    formattedMessage = formattedMessage.replace(fullMatch, formatted);
+  }
+
+  return formattedMessage.replace(/\n/g, '<br />');
 }
+
 export function formatMentionsInRoomList(message) {
   return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
     .replace(/\n/g, '<br />') || '';
 }
 
-export async function processMessages(roomId, messageItems) {
+export async function processMessages(room, messageItems) {
+  const roomId = room?.id;
   const messagesMap = new Map();
   const replyDependencyMap = new Map();
 
   const lastReadEventIds = await getLastReadEventIds(roomId);
   const reactionPromises = [];
   const replyPromises = [];
+  const formatPromises = [];
 
   for (const item of messageItems) {
-    if (item.type !== 'm.room.message') {continue;}
+    if (item.type !== 'm.room.message') {
+      continue;
+    }
 
     const relatesTo = item.content['m.relates_to'];
     const newContent = item.content['m.new_content'];
@@ -1089,13 +1110,29 @@ export async function processMessages(roomId, messageItems) {
 
       reactionPromises.push(fetchAndProcessReactions(item, roomId));
     }
+    formatPromises.push(processMessageMentions(item, room));
   }
 
-  await Promise.allSettled([...replyPromises, ...reactionPromises]);
+  await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises]);
   return {
     roomId,
     messages: Array.from(messagesMap.values()),
   };
+}
+
+export async function processMessageMentions(item, room) {
+  const rawMessage =
+        (item.content.format === 'org.matrix.custom.html' && item.content.formatted_body) ||
+        item.content.body?.replace(/\n/g, '<br />') || '';
+
+  if (!rawMessage) {
+    return;
+  }
+  try {
+    item.formattedMessage = await formatMentionsInMessage(rawMessage, room);
+  } catch (err) {
+    console.error('processMentions failed for', item.event_id, err);
+  }
 }
 
 export async function getLastReadEventIds(roomId) {

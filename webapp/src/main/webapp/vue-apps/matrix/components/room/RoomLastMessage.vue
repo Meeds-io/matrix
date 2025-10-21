@@ -103,8 +103,8 @@ export default {
         const lastMessage = await this.$matrixService.buildRoomLastMessage(message, message.type, this.room);
         if (lastMessage) {
           this.$set(this.room, 'lastMessage', lastMessage);
-          await this.updateLastMessageContent();
           await this.$nextTick();
+          await this.updateLastMessageContent();
         }
       } catch (error) {
         console.error(error);
@@ -113,6 +113,7 @@ export default {
     async updateLastMessageContent() {
       const content = this.room?.lastMessage?.content;
       if (!content) {
+        this.$set(this.room, 'lastMessageContent', null);
         return;
       }
 
