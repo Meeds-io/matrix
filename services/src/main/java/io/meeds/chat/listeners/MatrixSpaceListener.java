@@ -90,6 +90,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         }
       }
     } catch (Exception e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);
     }
   }
@@ -106,6 +109,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       try {
         matrixService.renameRoom(room.getRoomId(), spaceDisplayName);
       } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
         LOG.error("Could not rename the room linked to the space {}", space.getDisplayName(), e);
       }
     }
@@ -121,23 +127,26 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     String restrictedGroupOfUsers = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
-    if (StringUtils.isBlank(matrixIdOfUser) && StringUtils.isNotBlank(restrictedGroupOfUsers)
-        && restrictedGroupOfUsers.equals(space.getGroupId()) && !userId.equals(matrixUserAdmin)) {
-      Identity user;
-      try {
+    try {
+      if (StringUtils.isBlank(matrixIdOfUser)
+          && (StringUtils.isBlank(restrictedGroupOfUsers) || (StringUtils.isNotBlank(restrictedGroupOfUsers)
+              && this.matrixService.isUserMemberOfGroup(userId, restrictedGroupOfUsers)))
+          && !userId.equals(matrixUserAdmin)) {
+        Identity user;
         user = identityManager.getOrCreateUserIdentity(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true);
-      } catch (Exception e) {
-        LOG.error("Could not retrieve the user {}", userId, e);
       }
-    }
-    Room room = matrixService.getRoomBySpace(space);
-    if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
-      try {
+
+      Room room = matrixService.getRoomBySpace(space);
+      if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
         matrixService.joinUserToRoom(room.getRoomId(), matrixIdOfUser);
-      } catch (Exception e) {
-        LOG.error("Could not join the user {} to the room of the space {} on Matrix", userId, space.getDisplayName(), e);
+
       }
+    } catch (Exception e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      LOG.error("Could not join the user {} to the room of the space {} on Matrix", userId, space.getDisplayName(), e);
     }
   }
 
@@ -156,6 +165,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
                                        matrixIdOfUser,
                                        MESSAGE_USER_KICKED_SPACE.formatted(space.getDisplayName()));
       } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
         LOG.error("Could not kick the user {] from the room of the space {}", userId, space.getDisplayName(), e);
       }
     }
@@ -187,6 +199,14 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
   }
 
+  /**
+   * Updates the user role based on his role in the space
+   * 
+   * @param space the space
+   * @param matrixIdOfUser the matrix ID of the user
+   * @param userRole the user role "0" for simple user, "50" for the manager
+   * @return true if the operation is successful
+   */
   private boolean updateMemberRoleInSpace(Space space, String matrixIdOfUser, String userRole) {
     Room room = matrixService.getRoomBySpace(space);
     if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
@@ -211,6 +231,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         }
         return matrixService.updateRoomSettings(room.getRoomId(), matrixRoomPermissions);
       } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
         LOG.error("Could not update member roles in the space {}", space.getDisplayName(), e);
       }
     }
@@ -246,6 +269,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         matrixService.updateRoomDescription(room.getRoomId(), space.getDescription());
       }
     } catch (Exception e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       LOG.error("Could not save the description of space {} ", space.getDisplayName(), e);
     }
   }
@@ -261,6 +287,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       try {
         matrixService.deleteRoom(room.getRoomId());
       } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
         LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName());
       }
     }
