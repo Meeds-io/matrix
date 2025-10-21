@@ -354,24 +354,37 @@ export default {
       const imageId = message.content?.url.replace(`mxc://${matrixServerName}/`,'');
       return `/_matrix/media/v3/download/${matrixServerName}/${imageId}?allow_redirect=true`;
     },
-    imageId(message) {
-      return message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'');
-    },
     openImagePreview(message) {
-      const thumbnailImageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
-      const imageId = message.content?.info?.thumbnail_url && message.content?.info?.thumbnail_url.replace(`mxc://${matrixServerName}/`,'') || message.content?.url?.replace(`mxc://${matrixServerName}/`,'');
+      if (!message?.content) {
+        return;
+      }
+
+      const content = message.content;
+      const info = content.info || {};
+      const imageId =
+          (info.thumbnail_url || content.url)?.replace(`mxc://${matrixServerName}/`, '') || '';
+
+      if (!imageId) {
+        return;
+      }
+
       const images = [{
         id: imageId,
-        name: message.content.body,
-        filename: message.content.body,
-        size: message.content.info.size,
-        mimetype: message.content.info.mimetype,
+        name: content.body || '',
+        filename: content.body || '',
+        size: info.size || 0,
+        mimetype: info.mimetype || '',
         updated: message.origin_server_ts,
-        alt: message.content.body,
-        thumbnailUrl: message.content?.info?.mimetype === 'image/gif' || message.content?.info?.mimetype === 'image/webp' ? this.imageDownloadURL(message) : `/_matrix/media/v3/thumbnail/${matrixServerName}/${imageId}?width=800&height=600&method=scale&allow_redirect=true`,
+        alt: content.body || '',
+        thumbnailUrl: this.imageDownloadURL(message),
         downloadUrl: this.imageDownloadURL(message),
       }];
-      document.dispatchEvent(new CustomEvent('open-attachments-preview', {detail: {'attachments': images || [],'id': imageId }}));
+
+      document.dispatchEvent(
+        new CustomEvent('open-attachments-preview', {
+          detail: { attachments: images, id: imageId },
+        })
+      );
     },
     getFileIcon(mimeType) {
       const extensions = Vue.prototype.$filesIconsExtension;
