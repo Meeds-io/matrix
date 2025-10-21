@@ -267,7 +267,7 @@ export default {
         const reversedMessages = allMessages.slice();
         const processed = await new Promise(resolve => {
           (window.requestIdleCallback || window.requestAnimationFrame)(async () => {
-            const result = await this.$matrixService.processMessages(roomId, reversedMessages);
+            const result = await this.$matrixService.processMessages(this.room, reversedMessages);
             resolve(result);
           });
         });
@@ -312,13 +312,14 @@ export default {
       const receivedMessage = event.detail.message;
       const relatesTo = receivedMessage.content['m.relates_to'];
       const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
-
+      await this.$matrixService.processMessageMentions(receivedMessage, this.room);
       if (receivedMessage.edited) {
         const index = this.messages.findIndex(msg => msg.event_id === receivedMessage.event_id);
         if (index !== -1) {
           this.$set(this.messages, index, {
             ...this.messages[index],
             content: receivedMessage.content,
+            formattedMessage: receivedMessage?.formattedMessage,
             updatedAt: receivedMessage.updatedAt,
             edited: true
           });
@@ -609,7 +610,7 @@ export default {
       }
 
       const messagesToProcess = [...resp.chunk.reverse()];
-      const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
+      const processedMessages = await this.$matrixService.processMessages(this.room, messagesToProcess);
       this.messages = [...processedMessages.messages, ...this.messages];
       this.from = resp.start;
       this.to = resp.end;
