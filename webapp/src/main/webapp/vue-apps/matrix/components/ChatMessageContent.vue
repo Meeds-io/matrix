@@ -293,11 +293,7 @@ export default {
       return `/_matrix/media/v3/download/${url}`;
     },
     formattedMessage() {
-      const formatMessage = this.message.content.format === 'org.matrix.custom.html'
-                            && this.message.content.formatted_body
-                            || this.message.content.body.replace(/\n/g, '<br />')
-                            || '';
-      return this.$matrixService.formatMentionsInMessage(formatMessage);
+      return this.message?.formattedMessage;
     },
     imageThumbnailMaxWidth() {
       const width = this.message.content.info.w || this.message.content.w;
