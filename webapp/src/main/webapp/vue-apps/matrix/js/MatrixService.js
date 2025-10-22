@@ -790,6 +790,39 @@ export function getUserByMatrixId(userIdOnMatrix, room) {
   });
 }
 
+export async function loadAllMessagesWithOriginalCount(roomId, from = null, to = null, desiredOriginalCount = 25, ) {
+  let allMessages = [];
+  let originalCount = 0;
+  let done = false;
+  let lastResponse = null;
+
+  while (!done) {
+    const response = await loadRoomMessages(roomId, from, to);
+    lastResponse = response;
+    const chunk = response.chunk || [];
+    if (!chunk.length) {
+      break;
+    }
+
+    allMessages = [...allMessages, ...chunk];
+    originalCount = allMessages.filter(msg => !msg.content['m.relates_to']?.rel_type).length;
+
+    if (originalCount >= desiredOriginalCount) {
+      done = true; 
+    } else {
+      from = response.end;
+      if (!from) {
+        break;
+      } 
+    }
+  }
+
+  return {
+    chunk: allMessages,
+    start: lastResponse?.start || from || null,
+    end: lastResponse?.end || to || null,
+  };}
+
 export function loadRoomMessages(roomId, from, to) {
   const filter = {'lazy_load_members': true, types: ['m.room.message']};
   const formData = new FormData();
@@ -1046,6 +1079,7 @@ export async function processMessages(room, messageItems) {
   const reactionPromises = [];
   const replyPromises = [];
   const formatPromises = [];
+  const lastAppliedEditTsMap = new Map();
 
   for (const item of messageItems) {
     if (item.type !== 'm.room.message') {
@@ -1058,34 +1092,18 @@ export async function processMessages(room, messageItems) {
 
     if (relatesTo?.rel_type === 'm.replace' && newContent) {
       const targetEventId = relatesTo.event_id;
-      const originalMessage = messagesMap.get(targetEventId);
+      const originalMessage = messagesMap.get(targetEventId) || getMessageById(targetEventId, messageItems);
       if (originalMessage && !isRedacted(originalMessage)) {
-        originalMessage.content.body = newContent.body;
-        originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
-
-        if (newContent.format === 'org.matrix.custom.html') {
-          originalMessage.content.format = newContent.format;
-          originalMessage.content.formatted_body = newContent.formatted_body;
-        } else {
-          delete originalMessage.content.format;
-          delete originalMessage.content.formatted_body;
+        const applied = applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTsMap, targetEventId);
+        if (!applied) {
+          continue;
         }
-
-        if (newContent['m.mentions']?.user_ids?.length) {
-          originalMessage.content['m.mentions'] = newContent['m.mentions'];
-        } else {
-          delete originalMessage.content['m.mentions'];
-        }
-
-        originalMessage.edited = true;
-        originalMessage.updatedAt = item.origin_server_ts;
-
         const dependents = replyDependencyMap.get(targetEventId) || [];
         for (const messageId of dependents) {
           const message = messagesMap.get(messageId);
           if (message) {
             replyPromises.push(
-              buildReplyToObject(messagesMap, targetEventId).then(replyTo => {
+              buildReplyToObject(messageItems, targetEventId).then(replyTo => {
                 message.replyTo = replyTo;
               })
             );
@@ -1121,6 +1139,54 @@ export async function processMessages(room, messageItems) {
     roomId,
     messages: Array.from(messagesMap.values()),
   };
+}
+
+function applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTsMap, targetEventId) {
+  const lastAppliedTs = lastAppliedEditTsMap.get(targetEventId) || 0;
+  if (item.origin_server_ts <= lastAppliedTs) {
+    return false;
+  }
+
+  originalMessage.content.body = newContent.body;
+  originalMessage.content.msgtype = newContent.msgtype || originalMessage.content.msgtype;
+
+  if (newContent.format === 'org.matrix.custom.html') {
+    originalMessage.content.format = newContent.format;
+    originalMessage.content.formatted_body = newContent.formatted_body;
+  } else {
+    delete originalMessage.content.format;
+    delete originalMessage.content.formatted_body;
+  }
+
+  if (newContent['m.mentions']?.user_ids?.length) {
+    originalMessage.content['m.mentions'] = newContent['m.mentions'];
+  } else {
+    delete originalMessage.content['m.mentions'];
+  }
+
+  originalMessage.edited = true;
+  originalMessage.updatedAt = item.origin_server_ts;
+
+  lastAppliedEditTsMap.set(targetEventId, item.origin_server_ts);
+  return true;
+}
+
+function getMessageById(id, messages) {
+  if (!messages) {
+    return null;
+  }
+  if (messages instanceof Map) {
+    return messages.get(id) || null;
+  }
+  if (Array.isArray(messages)) {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.event_id === id) {
+        return msg;
+      }
+    }
+  }
+  return null;
 }
 
 export async function processMessageMentions(item, room) {

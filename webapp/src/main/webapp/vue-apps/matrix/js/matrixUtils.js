@@ -19,14 +19,14 @@
 
 export function placeCaretAtEnd(el) {
   el.focus();
-  if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+  if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
     const range = document.createRange();
     range.selectNodeContents(el);
     range.collapse(false);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-  } else if (typeof document.body.createTextRange != "undefined") {
+  } else if (typeof document.body.createTextRange !== 'undefined') {
     const textRange = document.body.createTextRange();
     textRange.moveToElementText(el);
     textRange.collapse(false);
@@ -35,24 +35,44 @@ export function placeCaretAtEnd(el) {
 }
 
 export function getMessageViewportInfo(eventId) {
-    const container = document.getElementById("chatMessagesContainer");
-    const messageEl = document.getElementById(`message-content-${eventId}`);
+  const container = document.getElementById('chatMessagesContainer');
+  const messageEl = document.getElementById(`message-content-${eventId}`);
 
-    if (!container || !messageEl) {
-        return {
-          visibleTop: false,
-          above: false,
-          below: false
-        };
-    }
+  if (!container || !messageEl) {
+    return {
+      visibleTop: false,
+      above: false,
+      below: false
+    };
+  }
 
-    const containerRect = container.getBoundingClientRect();
-    const messageRect = messageEl.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const messageRect = messageEl.getBoundingClientRect();
 
-    const visibleTop = messageRect.top >= containerRect.top
+  const visibleTop = messageRect.top >= containerRect.top
       && messageRect.top <= containerRect.bottom;
-    const above = messageRect.bottom < containerRect.top;
-    const below = messageRect.top > containerRect.bottom;
+  const above = messageRect.bottom < containerRect.top;
+  const below = messageRect.top > containerRect.bottom;
 
-    return {visibleTop, above, below};
+  return {visibleTop, above, below};
+}
+
+export function restoreMentions(html) {
+  if (!html) {
+    return '';
+  }
+
+  const regex = /<a[^>]+href="\/portal\/dw\/profile\/([^"]+)"[^>]*>([^<]+)<\/a>/gu;
+
+  return html.replace(regex, (_, userId, userName) => {
+    const atQuery = userName.split(' ')[0];
+    const fullName = userName.split('@')[1];
+    return `<span class="atwho-inserted" data-atwho-at-query="${atQuery}" data-atwho-at-value="${userId}" contenteditable="false">
+      <span class="exo-mention" data-user-id="${userId}" data-user-name="${fullName}">
+        <i aria-hidden="true" class="v-icon fa" style="font-size: 14px;"></i>
+        ${fullName}
+        <a href="#" class="remove"><i class="uiIconClose uiIconLightGray"></i></a>
+      </span>
+    </span>`;
+  });
 }
