@@ -22,7 +22,7 @@
     v-if="quoted"
     class="d-flex">
     <matrix-message-sender-name
-      class="text-color font-weight-bold"
+      class="text-color text-truncate font-weight-bold"
       :sender="sender" />
   </div>
   <div v-else>
@@ -57,7 +57,7 @@ export default {
   data() {
     return {
       sender: null,
-    }
+    };
   },
   props: {
     room: {
@@ -79,7 +79,7 @@ export default {
     },
     memberInfo() {
       if (!this.room.spaceId) {
-        return this.room
+        return this.room;
       }
       return this.room?.members?.find?.(member => member.matrixId === this.senderMatrixId);
     },
@@ -96,7 +96,7 @@ export default {
       return this.sender?.profile?.avatar;
     },
     displayName() {
-      return this.sender?.profile?.displayName
+      return this.sender?.profile?.displayName;
     },
     fullName() {
       return this.sender?.profile?.fullname;
