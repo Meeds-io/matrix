@@ -207,7 +207,9 @@ export default {
       const composerArea = this.$refs.messageComposerArea;
       this.targetReplyMessage = null;
       this.messageToEdit = message;
-      composerArea.innerHTML = message.content.formatted_body || message.content.body ;
+      const messageContent = message.formattedMessage || message.content.formatted_body
+                                                        || message.content.body ;
+      composerArea.innerHTML = this.$matrixUtils.restoreMentions(messageContent);
       composerArea.focus();
       // Move the cursor to the end of the message
       const range = document.createRange();
@@ -230,21 +232,7 @@ export default {
         msgtype: 'm.text'
       };
 
-      const mentionsArray = Array.from(composer.querySelectorAll('span[data-user-id]'))
-        .map(span => `@${span.getAttribute('data-user-id')}:${matrixServerName}`)
-        .filter((v, i, a) => a.indexOf(v) === i); // unique
-
-      if (mentionsArray.length) {
-        const regexForMentions = /<span class="atwho-inserted"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-id="([^"]+)"[\p{L} 0-9="\-_@<>:;/#.()]*data-user-name="([^"]+)"[\p{L} 0-9 ="\-_@<>:;/#.()]*<\/span>/gu;
-        const messageHTML = composer.innerHTML.replace(
-          regexForMentions,
-          (_, userId, userName) => `<a href="https://matrix.to/#/@${userId}:${matrixServerName}">${userName}</a>`
-        );
-
-        message.format = 'org.matrix.custom.html';
-        message.formatted_body = messageHTML;
-        message['m.mentions'] = {user_ids: mentionsArray};
-      }
+      this.parseMentions(composer, message);
 
       if (this.targetReplyMessage) {
         message['m.relates_to'] = {
@@ -278,6 +266,32 @@ export default {
       this.mentioningInProgress = false;
       this.messageToEdit = null;
       this.$emit('scroll-to-end');
+    },
+    parseMentions(composer, message) {
+      const mentionsArray = Array.from(composer.querySelectorAll('span[data-user-id]'))
+        .map(span => `@${span.getAttribute('data-user-id')}:${matrixServerName}`)
+        .filter((v, i, a) => a.indexOf(v) === i);
+
+      if (mentionsArray.length) {
+        Array.from(composer.querySelectorAll('span.exo-mention')).forEach(span => {
+          const userId = span.getAttribute('data-user-id');
+          const userName = span.getAttribute('data-user-name');
+          if (!userId || !userName) {
+            return;
+          }
+          const parent = span.closest('span.atwho-inserted') || span;
+          const a = document.createElement('a');
+          a.href = `https://matrix.to/#/@${userId}:${matrixServerName}`;
+          a.textContent = userName;
+          parent.replaceWith(a);
+        });
+
+        const messageHTML = composer.innerHTML;
+
+        message.format = 'org.matrix.custom.html';
+        message.formatted_body = messageHTML;
+        message['m.mentions'] = { user_ids: mentionsArray };
+      }
     },
     resetComposer() {
       if (!this.$refs.messageComposerArea) {
