@@ -199,11 +199,8 @@ export default {
       });
     },
     room() {
-      this.messages = [];
-      this.loading = false;
       // cancel any ongoing loads
       this.currentLoadToken++;
-      this.loadAndProcessMessages();
     }
   },
   methods: {
