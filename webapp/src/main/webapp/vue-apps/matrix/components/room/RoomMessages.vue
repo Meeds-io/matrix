@@ -248,7 +248,7 @@ export default {
       await this.$nextTick();
 
       try {
-        const resp = await this.$matrixService.loadRoomMessages(roomId);
+        const resp = await this.$matrixService.loadAllMessagesWithOriginalCount(roomId);
         this.from = resp.start;
         this.to = resp.end;
 
@@ -606,7 +606,7 @@ export default {
     async fetchAndAppendOlderMessages(preserveScroll = true) {
       const lastMessageId = this.messages?.[0]?.event_id;
 
-      const resp = await this.$matrixService.loadRoomMessages(this.room.id, this.to);
+      const resp = await this.$matrixService.loadAllMessagesWithOriginalCount(this.room.id, this.to);
       if (!resp.chunk?.length) {
         this.hasMoreMessages = false;
         return;
