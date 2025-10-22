@@ -258,6 +258,7 @@ export default {
 
       const eventId = await this.$matrixService.sendMessage(message, this.room.id);
       this.$matrixService.markMessageAsRead(this.room.id, eventId);
+      this.$matrixService.sendTyping(this.room.id, false);
       if (!this.messageToEdit) {
         this.$root.$emit('message-sent-statistics', message, this.room);
       }
