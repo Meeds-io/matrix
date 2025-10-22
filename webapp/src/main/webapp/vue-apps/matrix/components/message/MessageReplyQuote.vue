@@ -61,7 +61,8 @@
           <matrix-message-user
             :sender-id="targetMessage.targetUser"
             :room="room"
-            :quoted="true" />
+            :quoted="true"
+            class="pe-4"/>
         </div>
         <v-sheet
           class="flex-row overflow-hidden flex-grow-1 transparent">
