@@ -61,6 +61,7 @@
           <matrix-message-user
             :sender-id="targetMessage.targetUser"
             :room="room"
+            :class="{'pe-5': closeable}"
             :quoted="true" />
         </div>
         <v-sheet
