@@ -28,7 +28,7 @@
       drop-target="ChatDiscussionDrawer"
       class="me-2 mb-0_5 d-flex flex-column justify-end"
       @file-sent="setInputFocus" />
-    <voice-message-recorder
+    <matrix-voice-message-recorder
       ref="voiceMessageRecorder"
       v-if="isRecording"
       :room="room"
