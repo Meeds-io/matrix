@@ -1301,7 +1301,7 @@ export async function buildReplyToObject(messages, eventId) {
                                               && !parentEvent?.content?.['org.matrix.msc2516.voice']);
 
   const replyToObject = {
-    body: parentEvent.content.body,
+    body: parentEvent.content.body?.replace(/<mx-reply>.*?<\/mx-reply>/, ''),
     isReplyToReply: isReplyToReply,
     targetUser: targetUser,
     targetEventId: targetEventId,
