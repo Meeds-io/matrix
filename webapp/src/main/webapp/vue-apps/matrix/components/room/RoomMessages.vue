@@ -508,6 +508,11 @@ export default {
         await this.$matrixService.redactEvent(this.room.id, reactionEventId);
       }
     },
+    keepScrollAtBottom() {
+      if (this.isAtBottomMessages) {
+        this.scrollToEnd();
+      }
+    },
     onMessagesContainerScroll(event) {
       const container = event.target;
       this.messageContainerScrollTop = container.scrollTop;
