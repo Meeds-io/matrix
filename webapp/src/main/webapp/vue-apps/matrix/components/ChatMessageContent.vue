@@ -134,10 +134,10 @@
           :format="dateTimeFormat" />
       </v-tooltip>
       <v-icon
-        v-if="message?.edited"
+        v-if="message?.edited && displayTimestamp"
         size="3"
         :class="{'text-color': !isSelfMessage, 'white--text': isSelfMessage }"
-        class="ms-2 me-1 align-center">
+        class="ms-2 me-2 align-center">
         fas fa-circle
       </v-icon>
       <v-tooltip
