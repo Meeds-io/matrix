@@ -53,6 +53,7 @@
           :room="selectedRoom"
           @mark-room-as-read="markRoomAsRead"
           @scroll-to-end="scrollToEnd"
+          @composer-resize="onComposerResize"
           @input-focus="isInputFocused = $event" />
       </div>
     </div>
@@ -119,6 +120,11 @@ export default {
       setTimeout(() => {
         this.$refs?.roomMessages?.scrollToEnd?.();
       }, 200);
+    },
+    onComposerResize() {
+      requestAnimationFrame(() => {
+        this.$refs?.roomMessages?.keepScrollAtBottom?.();
+      });
     },
     reset() {
       this.$refs?.roomMessages?.reset();
