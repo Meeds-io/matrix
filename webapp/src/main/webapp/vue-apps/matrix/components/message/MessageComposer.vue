@@ -481,6 +481,7 @@ export default {
         composerElement.style.height = `${maxHeight}px`;
         composerElement.style.overflowY = 'auto';
       }
+      this.$emit('composer-resize', newHeight);
     },
     insertNewLineAtCursor() {
       const selection = window.getSelection();
