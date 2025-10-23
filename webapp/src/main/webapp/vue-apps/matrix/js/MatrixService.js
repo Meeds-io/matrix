@@ -1053,7 +1053,7 @@ export function markRoomAsFullyRead(roomId, eventId) {
   });
 }
 
-export async function formatMentionsInMessage(message, room) {
+export async function formatMessage(message, room) {
   if (!message) {
     return '';
   }
@@ -1078,12 +1078,12 @@ export async function formatMentionsInMessage(message, room) {
     formattedMessage = formattedMessage.replace(fullMatch, formatted);
   }
 
-  return formattedMessage.replace(/\n/g, '<br />');
+  return formattedMessage.replaceAll('/\n', '<br />').replace(/<mx-reply>.*?<\/mx-reply>/, '');
 }
 
 export function formatMentionsInRoomList(message) {
   return message.replace(/<a href=\"https:\/\/matrix\.to\/#\/([^"]+)\">([^"]+)<\/a>/g, '<span class=\"font-weight-bold\" target=\"_blank\">@$2<\/span>')
-    .replace(/\n/g, '<br />') || '';
+    .replaceAll('/\n', '<br />').replace(/<mx-reply>.*?<\/mx-reply>/, '') || '';
 }
 
 export async function processMessages(room, messageItems) {
@@ -1133,6 +1133,7 @@ export async function processMessages(room, messageItems) {
           buildReplyToObject(messageItems, inReplyTo).then(replyToObject => {
             if (replyToObject) {
               item.replyTo = replyToObject;
+              item.content.body = item.content.body?.replace(/<mx-reply>.*?<\/mx-reply>/, '');
             }
           })
         );
@@ -1214,7 +1215,7 @@ export async function processMessageMentions(item, room) {
     return;
   }
   try {
-    item.formattedMessage = await formatMentionsInMessage(rawMessage, room);
+    item.formattedMessage = await formatMessage(rawMessage, room);
   } catch (err) {
     console.error('processMentions failed for', item.event_id, err);
   }
