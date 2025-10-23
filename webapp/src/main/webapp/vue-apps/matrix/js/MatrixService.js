@@ -358,7 +358,6 @@ export async function processEvents(response, isInitialSync) {
 }
 
 async function handleReadReceiptEvent(event, roomId) {
-  const matrixUserId = localStorage.getItem('matrix_user_id');
   const dbSettings = chatConstants.DB_SETTINGS;
   const receiptsStore = dbSettings.DB_STORES.READ_RECEIPTS;
   if (!event.content) {
@@ -368,25 +367,35 @@ async function handleReadReceiptEvent(event, roomId) {
   // Load current map of last reads per room
   const storeKey = `lastRead::${roomId}`;
   let lastReads = await dbStorage.getValue(dbSettings, receiptsStore, storeKey);
-  if (!lastReads) {lastReads = {};}
+  if (!lastReads) {
+    lastReads = {};
+  }
+
+  let updated = false;
 
   for (const eventId in event.content) {
-    const receipt = event.content[eventId]['m.read'];
-    if (!receipt) {continue;}
+    const receipt = event.content[eventId]?.['m.read'];
+    if (!receipt) {
+      continue;
+    }
 
     for (const userId in receipt) {
       const readData = receipt[userId];
+      if (!readData) {
+        continue;
+      }
 
       // Only update if eventId is newer
       const prevEventId = lastReads?.[userId]?.eventId;
       const prevTimestamp = lastReads?.[userId]?.ts || 0;
-      const newTimestamp = messageTimestampsMap?.get(eventId) || readData.ts;
+      const newTimestamp = messageTimestampsMap?.get(eventId) ?? readData.ts ?? Date.now();
 
-      if (!prevEventId || (newTimestamp && newTimestamp > prevTimestamp)) {
+      if (!prevEventId || (newTimestamp >= prevTimestamp)) {
         lastReads[userId] = {
           eventId: eventId,
           ts: newTimestamp,
         };
+        updated = true;
       }
 
       document.dispatchEvent(new CustomEvent('matrix-message-read', {
@@ -396,14 +405,19 @@ async function handleReadReceiptEvent(event, roomId) {
       if (userId === matrixUserId && readData.thread_id) {
         const isLast = isLastMessageInRoom(eventId, roomId);
         if (isLast) {
-          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { detail: { roomId } }));
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { 
+            detail: { roomId } 
+          })
+          );
         }
       }
     }
   }
 
   // Save updated map in one write
-  await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
+  if (updated) {
+    await dbStorage.setValue(dbSettings, receiptsStore, storeKey, lastReads);
+  }
 }
 
 export function loadReadReceiptsForMessage(lastReads, eventId) {
