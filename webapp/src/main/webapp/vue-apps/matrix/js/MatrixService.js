@@ -1131,6 +1131,7 @@ export async function processMessages(room, messageItems) {
           buildReplyToObject(messageItems, inReplyTo).then(replyToObject => {
             if (replyToObject) {
               item.replyTo = replyToObject;
+              item.content.body = item.content.body?.replace(/<mx-reply>.*?<\/mx-reply>/, '');
             }
           })
         );
@@ -1295,7 +1296,7 @@ export async function buildReplyToObject(messages, eventId) {
                                               && !parentEvent?.content?.['org.matrix.msc2516.voice']);
 
   const replyToObject = {
-    body: parentEvent.content.body?.replace(/<mx-reply>.*?<\/mx-reply>/, ''),
+    body: parentEvent.content.body,
     isReplyToReply: isReplyToReply,
     targetUser: targetUser,
     targetEventId: targetEventId,
