@@ -83,6 +83,7 @@
         :selected-room="selectedRoom"
         :parent-expanded="expanded"
         :from-room-list="true"
+        @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
   </exo-drawer>
@@ -145,6 +146,9 @@ export default {
     this.checkLoading();
   },
   methods: {
+    handleRoomActiveState(id, isActive) {
+      this.$emit('room-active-changed', id, isActive);
+    },
     openFilter() {
       this.showFilter = !this.showFilter;
       this.$nextTick(() => {
