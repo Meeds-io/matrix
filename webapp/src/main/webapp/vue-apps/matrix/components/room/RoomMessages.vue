@@ -389,7 +389,7 @@ export default {
         });
       }
     },
-    resetLocalUnseenData(roomId, userId) {
+    resetLocalUnseenData({detail: {roomId, userId}}) {
       if (this.room?.id === roomId && userId === matrixUserId) {
         this.resetData();
       }
@@ -460,7 +460,7 @@ export default {
       this.markRoomAsRead(this.room?.id);
     },
     clearUnseenData() {
-      this.$matrixService.clearUnseenMessages(this.room?.id, matrixUserId).then(() => {
+      this.$matrixService.resetUnseenOnFirstMessageSeen(this.room?.id, matrixUserId).then(() => {
         this.resetData();
       });
     },

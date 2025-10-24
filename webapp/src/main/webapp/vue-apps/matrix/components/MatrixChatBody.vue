@@ -103,6 +103,12 @@ export default {
   async mounted() {
     await this.openDiscussion();
   },
+  watch: {
+    isInputFocused() {
+      this.$emit('room-active-changed',
+        this.selectedRoom?.id, this.isInputFocused);
+    }
+  },
   methods: {
     async openDiscussion() {
       setTimeout(() => {
