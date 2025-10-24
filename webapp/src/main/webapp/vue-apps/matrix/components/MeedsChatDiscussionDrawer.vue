@@ -71,6 +71,7 @@
         :rooms="rooms"
         :selected-room="room"
         :parent-expanded="expanded"
+        @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
   </exo-drawer>
@@ -131,6 +132,9 @@ export default {
     },
   },
   methods: {
+    handleRoomActiveState(id, isActive) {
+      this.$emit('room-active-changed', id, isActive);
+    },
     handleFilterUpdate(text) {
       this.filterText = text;
       this.$emit('filter-updated', text);
