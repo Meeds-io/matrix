@@ -38,12 +38,14 @@
       :rooms="sortedRooms"
       :loading-rooms="loading"
       :presence="presence"
+      @room-active-changed="handleActiveRoomState"
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-discussion-drawer
       ref="ChatDiscussionDrawer"
       :rooms="sortedRooms"
       :presence="presence"
       :loading-rooms="loading"
+      @room-active-changed="handleActiveRoomState"
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-quick-create-discussion-drawer />
     <matrix-room-action-menu-drawer />
@@ -85,6 +87,7 @@ export default {
     targetRoomId: null,
     searchTimer: null,
     searchTerm: null,
+    activeRoomId: null,
   }),
   created() {
     this.tryBecomePresencePollingOwner();
@@ -218,6 +221,13 @@ export default {
     }
   },
   methods: {
+    handleActiveRoomState(id, isActive) {
+      this.activeRoomId = isActive ? id : null;
+      this.$root.channel.postMessage({
+        type: 'room-active-changed',
+        payload: {id, isActive},
+      });
+    },
     handleFilterUpdate(text) {
       this.loading = true;
       if (this.searchTimer) {
@@ -343,7 +353,7 @@ export default {
       }
     },
     async handleUnseenMessages({ detail: { roomId, message } }) {
-      if (message.sender === matrixUserId) {
+      if (message.sender === matrixUserId || roomId === this.activeRoomId) {
         return;
       }
       const lastReadMessage = await this.$matrixService.loadLastReadReceipts(roomId);
@@ -356,8 +366,8 @@ export default {
         }
         if (!unseenData.firstUnseenEventId) {
           unseenData.firstUnseenEventId = message.event_id;
+          await this.$matrixService.saveUnseenMessages(roomId, matrixUserId, unseenData);
         }
-        await this.$matrixService.saveUnseenMessages(roomId, matrixUserId, unseenData);
       }
     },
     enableAndPlayBipSound({detail: {roomId, message}}) {
@@ -636,6 +646,9 @@ export default {
           return;
         }
         const {type, payload} = event.data;
+        if (type === 'room-active-changed') {
+          this.activeRoomId = payload.isActive ? payload.id : null;
+        }
         if (type === 'total-unread-messages-updated' && this.totalUnreadMessages !== payload.totalUnreadMessages) {
           this.totalUnreadMessages = payload.totalUnreadMessages;
         }
