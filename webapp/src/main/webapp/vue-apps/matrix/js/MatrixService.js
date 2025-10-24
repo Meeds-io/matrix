@@ -1768,7 +1768,7 @@ export async function saveUnseenMessages(roomId, userId, unseenData) {
 async function saveUnseenData(roomId, userId, unseenData) {
   if (userId !== matrixUserId) {
     return;
-  }  
+  }
   const key = `unseen::${roomId}::${userId}`;
   return await dbStorage.setValue(
     chatConstants.DB_SETTINGS,
@@ -1789,7 +1789,7 @@ export function getUnseenMessages(roomId, userId) {
 
 export async function clearUnseenMessages(roomId, userId) {
   deleteUnseenData(roomId, userId);
-  return await populateUnseenSectionData(roomId, 'io.meeds.unseen-data-reset', 
+  return await populateUnseenSectionData(roomId, 'io.meeds.unseen-data-reset',
     {roomId: roomId, userId: userId,});
 }
 
@@ -1820,7 +1820,7 @@ export async function getUnseenMessagesData(roomId, userId) {
 
 export async function resetUnseenOnFirstMessageSeen(roomId, userId) {
   const unseenData = await getUnseenMessages(roomId, userId);
-  if (!unseenData) {
+  if (!unseenData || !unseenData?.firstUnseenEventId) {
     return false;
   }
   await clearUnseenMessages(roomId, userId);
