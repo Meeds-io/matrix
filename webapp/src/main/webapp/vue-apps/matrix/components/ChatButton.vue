@@ -540,12 +540,32 @@ export default {
     loadRooms() {
       this.loading = true;
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
-        this.rooms = matrixRoomsObject.rooms || [];
+        const loadedRooms = matrixRoomsObject.rooms || [];
+        this.rooms = this.mergeRoomsWithCache(loadedRooms, this.rooms);
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
       })
         .finally(() => {
           this.loading = false;
         });
+    },
+    mergeRoomsWithCache(loadedRooms, cachedRooms = [], preserveKeys = ['lastMessageContent']) {
+      if (!cachedRooms?.length) {
+        return loadedRooms;
+      }
+      const cachedMap = new Map(cachedRooms.map(room => [room.id, room]));
+      return loadedRooms.map(room => {
+        const cached = cachedMap.get(room.id);
+        if (!cached) {
+          return room;
+        }
+        const merged = { ...room };
+        preserveKeys.forEach(key => {
+          if (typeof cached[key] !== 'undefined') {
+            merged[key] = cached[key];
+          }
+        });
+        return merged;
+      });
     },
     addRoomIfNotExists(room) {
       if (!room?.id) {
