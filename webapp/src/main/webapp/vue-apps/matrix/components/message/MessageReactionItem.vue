@@ -34,7 +34,7 @@
           'me-2': !isMyMessage
         }"
         class="message-reaction-item px-2 mb-2 text-font-size"
-        @click="$emit('reaction', emojiChar)"/>
+        @click="$emit('reaction', emojiChar)" />
     </template>
     <span>{{ tooltipText }}</span>
   </v-tooltip>
@@ -101,18 +101,36 @@ export default {
     },
     formatUserList(usernames) {
       const length = usernames.length;
-      if (!length) return '';
-      if (length === 1) return usernames[0];
-      if (length === 2) return `${usernames[0]} ${this.andLabel} ${usernames[1]}`;
+      if (!length) {
+        return '';
+      }
+      if (length === 1) {
+        return usernames[0];
+      }
+      if (length === 2) {
+        return `${usernames[0]} ${this.andLabel} ${usernames[1]}`;
+      }
       return `${usernames.slice(0, -1).join(', ')} ${this.andLabel} ${usernames[length - 1]}`;
     },
-    async extractMemberFullName(matrixUserId) {
-      if (!this.room.spaceId) {
-        return this.room.userId;
+    async extractMemberFullName(matrixId) {
+      if (matrixId === matrixUserId) {
+        const currentUser = await this.$matrixService.getUserIdentity(eXo.env.portal.userName);
+        return currentUser?.profile?.fullname || matrixId;
       }
-      const member = this.room?.members?.find?.(member => member.matrixId === this.parseMatrixUserId(matrixUserId));
-      const user = await this.$matrixService.getUserByMatrixId(member?.userId, this.room);
-      return user?.profile?.fullname || this.member?.userId;
+
+      let userId;
+      if (!this.room.spaceId) {
+        userId = this.room.dmMemberId;
+      } else {
+        userId = this.room?.members?.find(member => member.matrixId === this.parseMatrixUserId(matrixId))?.userId;
+      }
+
+      if (!userId) {
+        return matrixId;
+      }
+
+      const user = await this.$matrixService.getUserByMatrixId(userId, this.room);
+      return user?.profile?.fullname || userId;
     }
   }
 };
