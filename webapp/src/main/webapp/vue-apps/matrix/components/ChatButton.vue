@@ -215,12 +215,17 @@ export default {
           (b.updated || 0) - (a.updated || 0) ||
               a.name?.localeCompare?.(b.name, undefined, {numeric: true}) || 0
       );
-    },
-    isSoundOwner() {
-      return this.isPresencePollingOwner;
     }
   },
   methods: {
+    isSoundOwner() {
+      const ownerRaw = localStorage.getItem(this.presencePollingKey);
+      if (!ownerRaw) {
+        return false;
+      }
+      const owner = JSON.parse(ownerRaw);
+      return owner?.id === this._uid;
+    },
     handleActiveRoomState(id, isActive) {
       this.activeRoomId = isActive ? id : null;
       this.$root.channel.postMessage({
@@ -390,7 +395,7 @@ export default {
         } else if (localStorage.getItem(keyToCheck) === 'true') {
           const roomIndex = this.rooms?.findIndex(room => room.id === roomId);
           if (Number.isInteger(roomIndex) && !this.rooms[roomIndex].muted
-              && this.isUserStatusAvailable && this.isSoundOwner) {
+              && this.isUserStatusAvailable && this.isSoundOwner()) {
             this.$refs.messageAudio.play().catch((err) => {
               if (err.name === 'NotAllowedError'){
                 return;
