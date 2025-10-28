@@ -379,6 +379,11 @@ async function handleReadReceiptEvent(event, roomId) {
       continue;
     }
 
+    const exists = await getEvent(roomId, eventId);
+    if (!exists || exists.type !== 'm.room.message') {
+      continue;
+    }
+
     for (const userId in receipt) {
       const readData = receipt[userId];
       if (!readData) {
@@ -405,8 +410,8 @@ async function handleReadReceiptEvent(event, roomId) {
       if (userId === matrixUserId && readData.thread_id) {
         const isLast = isLastMessageInRoom(eventId, roomId);
         if (isLast) {
-          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', { 
-            detail: { roomId } 
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+            detail: { roomId }
           })
           );
         }
@@ -822,12 +827,12 @@ export async function loadAllMessagesWithOriginalCount(roomId, from = null, to =
     originalCount = allMessages.filter(msg => !msg.content['m.relates_to']?.rel_type).length;
 
     if (originalCount >= desiredOriginalCount) {
-      done = true; 
+      done = true;
     } else {
       from = response.end;
       if (!from) {
         break;
-      } 
+      }
     }
   }
 
