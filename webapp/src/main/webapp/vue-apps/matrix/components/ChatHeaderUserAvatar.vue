@@ -45,6 +45,9 @@
     <span class="mx-5 content-align"> {{ $t('matrix.chat.discussions') }} </span>
     <sidebar-user-popup
       ref="menu"
+      attach-to="#meedsChatDrawer"
+      position-top="-220"
+      position-right="20"
       @user-status-updated="statusColor = $event" />
   </div>
 </template>
