@@ -111,7 +111,7 @@ export default {
       currentLoadToken: 0,
       isUserScrolling: false,
       userScrollTimeout: null,
-      messagesCache: new Map()
+      lastMarkedReadEventId: null,
     };
   },
   props: {
@@ -380,10 +380,15 @@ export default {
     markRoomAsRead(roomId) {
       if (this.messages?.length) {
         const lastMessageIndex = this.messages.length - 1;
-        this.$matrixService.markRoomAsFullyRead(roomId, this.messages[lastMessageIndex]?.event_id).then(() => {
+        const eventId = this.messages[lastMessageIndex]?.event_id;
+        if (eventId === this.lastMarkedReadEventId) {
+          return;
+        }
+        this.$matrixService.markRoomAsFullyRead(roomId, eventId).then(() => {
           document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
             detail: {roomId: roomId}
           }));
+          this.lastMarkedReadEventId = eventId;
         });
       }
     },
@@ -515,15 +520,14 @@ export default {
       this.messageContainerScrollHeight = container.scrollHeight;
       this.messageContainerClientHeight = container.clientHeight;
 
-      this.isUserScrolling = true;
-      clearTimeout(this.userScrollTimeout);
-      this.userScrollTimeout = setTimeout(() => {
-        this.isUserScrolling = false;
-      }, 300);
-
       if (this.isAtBottomMessages) {
         this.hasUnseenNewReceivedMessage = false;
-        this.markRoomAsRead(this.room?.id);
+        if (!document.hidden) {
+          clearTimeout(this.userScrollTimeout);
+          this.userScrollTimeout = setTimeout(() => {
+            this.markRoomAsRead(this.room?.id);
+          }, 500);
+        }
       }
     },
     resetUnseenData() {
