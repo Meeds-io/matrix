@@ -29,7 +29,7 @@
     height="18"
     width="250" />
   <div
-    v-else-if="showFallback"
+    v-else
     class="text-subtitle text-truncate mt-1">
     {{ $t('matrix.chat.start.conversation') }}
   </div>
@@ -40,8 +40,7 @@
 export default {
   data() {
     return {
-      isUpdatingLastMessage: false,
-      allowFallback: false
+      isUpdatingLastMessage: false
     };
   },
   props: {
@@ -61,9 +60,6 @@ export default {
       this.isUpdatingLastMessage = true;
       return this.getAndBuildRoomLastMessage();
     }).then(() => this.isUpdatingLastMessage = false);
-    setTimeout(() => {
-      this.allowFallback = true;
-    }, 200);
   },
   computed: {
     showLastMessageContent() {
@@ -74,9 +70,6 @@ export default {
     },
     lastMessageContent() {
       return this.room?.lastMessageContent;
-    },
-    showFallback() {
-      return this.allowFallback && !this.isUpdatingLastMessage && !this.lastMessageContent;
     },
     lastMessageSender() {
       return this.room?.lastMessage?.sender;
