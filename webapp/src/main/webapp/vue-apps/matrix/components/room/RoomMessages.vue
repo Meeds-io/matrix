@@ -336,7 +336,7 @@ export default {
         }
         setTimeout(() => {
           if (this.isAtBottomMessages) {
-            this.scrollToEnd();
+            requestAnimationFrame(() => this.scrollToEnd());
             if (!document.hidden && this.fullPageMode) {
               this.markRoomAsRead(this.room?.id);
             }
@@ -477,15 +477,17 @@ export default {
       if (!container || !this.messages?.length) {
         return;
       }
-      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
+
+      const token = this.currentLoadToken;
+      const currentRoomId = this.room?.id;
+      if (token !== loadToken || currentRoomId !== roomId) {
         return;
       }
-      requestAnimationFrame(() => {
-        if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
-          return;
-        }
-        container.scrollTop = container.scrollHeight;
-        this.hasUnseenNewReceivedMessage = false;
+
+      this.$nextTick(() => {
+        this.$matrixUtils.scrollToBottomWhenStable(container,
+          () => this.currentLoadToken === token && this.room?.id === roomId
+        );
       });
     },
     replyToMessage(message) {

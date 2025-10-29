@@ -76,3 +76,30 @@ export function restoreMentions(html) {
     </span>`;
   });
 }
+
+export function scrollToBottomWhenStable(container, isActive, options = {}) {
+  if (!container) {
+    return;
+  }
+  const { maxStableFrames = 5, maxFrames = 60 } = options;
+  let lastHeight = -1;
+  let stableFrames = 0;
+  let frameCount = 0;
+
+  const tick = () => {
+    if (!isActive()) {
+      return;
+    }
+    const height = container.scrollHeight;
+    container.scrollTop = height;
+
+    stableFrames = height === lastHeight ? stableFrames + 1 : 0;
+    lastHeight = height;
+
+    if (stableFrames >= maxStableFrames || ++frameCount >= maxFrames) {
+      return;
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
