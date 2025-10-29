@@ -88,6 +88,9 @@ export default {
     searchTimer: null,
     searchTerm: null,
     activeRoomId: null,
+    cacheRoomsTimeout: null,
+    cacheRoomsLock: false,
+    pendingCache: false,
   }),
   created() {
     this.tryBecomePresencePollingOwner();
@@ -181,10 +184,10 @@ export default {
       }
     },
     sortedRooms: {
-      handler() {
-        this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
-      },
       deep: true,
+      handler() {
+        this.cacheRoomsHandler();
+      },
     }
   },
   computed: {
@@ -219,6 +222,27 @@ export default {
     }
   },
   methods: {
+    cacheRoomsHandler() {
+      clearTimeout(this.cacheRoomsTimeout);
+      this.cacheRoomsTimeout = setTimeout(async () => {
+        if (!this.cacheRoomsLock) {
+          this.cacheRoomsLock = true;
+          try {
+            await this.$matrixService.cacheRooms(JSON.stringify(this.sortedRooms));
+          } catch (e) {
+            console.error('Failed to cache rooms:', e);
+          } finally {
+            this.cacheRoomsLock = false;
+            if (this.pendingCache) {
+              this.pendingCache = false;
+              this.cacheRoomsHandler();
+            }
+          }
+        } else {
+          this.pendingCache = true;
+        }
+      }, 1000);
+    },
     isSoundOwner() {
       const ownerRaw = localStorage.getItem(this.presencePollingKey);
       if (!ownerRaw) {
