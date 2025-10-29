@@ -33,7 +33,7 @@
     class="chat-message-content-body text-break"
     @click="isImage && openImagePreview(message)">
     <matrix-message-reply-quote
-      v-if="message?.replyTo"
+      v-if="message?.replyTo && !isRedacted"
       :message="message"
       :room="room"
       class="mb-2" />
