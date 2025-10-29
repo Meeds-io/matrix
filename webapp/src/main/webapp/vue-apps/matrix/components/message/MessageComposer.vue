@@ -122,7 +122,8 @@ export default {
       insertedNewLine: false,
       messageContent: null,
       typingTimeout: null,
-      mentioningInProgress: false
+      mentioningInProgress: false,
+      isSending: false
     };
   },
   props: {
@@ -220,6 +221,10 @@ export default {
       selection.addRange(range);
     },
     async sendMessage() {
+      if (this.isSending) {
+        return;
+      }
+
       const composer = this.$refs.messageComposerArea;
       const messageText = composer.innerText.trim();
 
@@ -227,46 +232,55 @@ export default {
         return;
       }
 
-      const message = {
-        body: messageText,
-        msgtype: 'm.text'
-      };
+      // lock send action
+      this.isSending = true;
 
-      this.parseMentions(composer, message);
-
-      if (this.targetReplyMessage) {
-        message['m.relates_to'] = {
-          'm.in_reply_to': {event_id: this.targetReplyMessage.event_id}
+      try {
+        const message = {
+          body: messageText,
+          msgtype: 'm.text'
         };
-      }
 
-      if (this.messageToEdit) {
-        message['m.new_content'] = {
-          msgtype: 'm.text',
-          body: message.body,
-          'm.mentions': message['m.mentions'] || {}
-        };
-        if (message.formatted_body) {
-          message['m.new_content'].formatted_body = message.formatted_body;
-          message['m.new_content'].format = message.format;
+        this.parseMentions(composer, message);
+
+        if (this.targetReplyMessage) {
+          message['m.relates_to'] = {
+            'm.in_reply_to': { event_id: this.targetReplyMessage.event_id }
+          };
         }
-        message['m.relates_to'] = {
-          rel_type: 'm.replace',
-          event_id: this.messageToEdit.event_id
-        };
-      }
 
-      const eventId = await this.$matrixService.sendMessage(message, this.room.id);
-      this.$matrixService.markMessageAsRead(this.room.id, eventId);
-      this.$matrixService.sendTyping(this.room.id, false);
-      if (!this.messageToEdit) {
-        this.$root.$emit('message-sent-statistics', message, this.room);
-      }
+        if (this.messageToEdit) {
+          message['m.new_content'] = {
+            msgtype: 'm.text',
+            body: message.body,
+            'm.mentions': message['m.mentions'] || {}
+          };
+          if (message.formatted_body) {
+            message['m.new_content'].formatted_body = message.formatted_body;
+            message['m.new_content'].format = message.format;
+          }
+          message['m.relates_to'] = {
+            rel_type: 'm.replace',
+            event_id: this.messageToEdit.event_id
+          };
+        }
 
-      this.resetComposer();
-      this.mentioningInProgress = false;
-      this.messageToEdit = null;
-      this.$emit('scroll-to-end');
+        const eventId = await this.$matrixService.sendMessage(message, this.room.id);
+        this.$matrixService.markMessageAsRead(this.room.id, eventId);
+        this.$matrixService.sendTyping(this.room.id, false);
+        if (!this.messageToEdit) {
+          this.$root.$emit('message-sent-statistics', message, this.room);
+        }
+
+        this.resetComposer();
+        this.mentioningInProgress = false;
+        this.messageToEdit = null;
+        this.$emit('scroll-to-end');
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      } finally {
+        this.isSending = false;
+      }
     },
     parseMentions(composer, message) {
       const mentionsArray = Array.from(composer.querySelectorAll('span[data-user-id]'))
