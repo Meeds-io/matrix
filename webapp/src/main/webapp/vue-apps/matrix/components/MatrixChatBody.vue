@@ -123,9 +123,9 @@ export default {
       this.$refs.roomMessages.markRoomAsRead(roomId);
     },
     scrollToEnd() {
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         this.$refs?.roomMessages?.scrollToEnd?.();
-      }, 200);
+      });
     },
     onComposerResize() {
       requestAnimationFrame(() => {
