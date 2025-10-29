@@ -112,6 +112,7 @@ export default {
       isUserScrolling: false,
       userScrollTimeout: null,
       lastMarkedReadEventId: null,
+      scrollBottomThreshold: 60
     };
   },
   props: {
@@ -169,7 +170,8 @@ export default {
     },
     isAtBottomMessages() {
       return (
-        this.messageContainerScrollHeight - this.messageContainerScrollTop - this.messageContainerClientHeight <= 60
+        this.messageContainerScrollHeight - this.messageContainerScrollTop - this.messageContainerClientHeight
+          <= this.scrollBottomThreshold
       );
     },
     unseenMessagesCount() {
@@ -202,6 +204,15 @@ export default {
     }
   },
   methods: {
+    isContainerAtBottomMessages() {
+      const container = this.getMessagesContainerElement();
+      if (!container) {
+        return false;
+      }
+      const distanceFromBottom =
+          container.scrollHeight - container.scrollTop - container.clientHeight;
+      return distanceFromBottom <= this.scrollBottomThreshold;
+    },
     reactionAdded({ detail: { roomId } }) {
       if (roomId !== this.room?.id) {
         return;
@@ -304,6 +315,7 @@ export default {
       if (this.room?.id !== event.detail.roomId) {
         return;
       }
+      const wasAtBottom = this.isContainerAtBottomMessages();
       const receivedMessage = event.detail.message;
       const relatesTo = receivedMessage.content['m.relates_to'];
       const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
@@ -328,12 +340,12 @@ export default {
           }
         }
       } else {
-        this.messages.push(receivedMessage);
         if (inReplyTo) {
           receivedMessage.replyTo = await this.$matrixService.buildReplyToObject(this.messages, inReplyTo);
         }
+        this.messages.push(receivedMessage);
         setTimeout(() => {
-          if (this.isAtBottomMessages) {
+          if (wasAtBottom) {
             this.scrollToEnd();
             if (!document.hidden && this.fullPageMode) {
               this.markRoomAsRead(this.room?.id);
@@ -475,15 +487,17 @@ export default {
       if (!container || !this.messages?.length) {
         return;
       }
-      if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
+
+      const token = this.currentLoadToken;
+      const currentRoomId = this.room?.id;
+      if (token !== loadToken || currentRoomId !== roomId) {
         return;
       }
-      requestAnimationFrame(() => {
-        if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
-          return;
-        }
-        container.scrollTop = container.scrollHeight;
-        this.hasUnseenNewReceivedMessage = false;
+
+      this.$nextTick(() => {
+        this.$matrixUtils.scrollToBottomWhenStable(container,
+          () => this.currentLoadToken === token && this.room?.id === roomId
+        );
       });
     },
     replyToMessage(message) {
