@@ -1060,6 +1060,7 @@ export async function formatMessage(message, room) {
   if (!message) {
     return '';
   }
+  message = message.replace(/<mx-reply>.*?<\/mx-reply>/, '');
   const mentionRegex = /<a href="https:\/\/matrix\.to\/#\/([^"]+)">([^<]+)<\/a>/g;
   const mentions = [...message.matchAll(mentionRegex)];
 
@@ -1070,9 +1071,9 @@ export async function formatMessage(message, room) {
       if (!userId) {
         return fullMatch;
       }
-
+      const mentionedDisplayName = user?.profile?.fullname || displayName || matrixId;
       const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
-      const formatted = `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${displayName}</a>`;
+      const formatted = `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${mentionedDisplayName}</a>`;
       return { fullMatch, formatted };
     })
   );
@@ -1081,7 +1082,7 @@ export async function formatMessage(message, room) {
     formattedMessage = formattedMessage.replace(fullMatch, formatted);
   }
 
-  return formattedMessage.replaceAll('/\n', '<br />').replace(/<mx-reply>.*?<\/mx-reply>/, '');
+  return formattedMessage.replaceAll('/\n', '<br />');
 }
 
 export function formatMentionsInRoomList(message) {
