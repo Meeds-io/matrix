@@ -446,22 +446,12 @@ export default {
                   const participant = room.members?.find(member => member.id !== matrixUserId);
                   const memberId = participant?.id || room.dmMemberId;
                   const user = await component.$matrixService.getUserByMatrixId(memberId, room);
-
-                  const filters = user?.profile?.properties ?? [];
-                  const settings = filters
-                    .filter(property => !!property.value)
-                    .map(property => ({[property.propertyName]: property.value}));
-
-                  const data = await component.$userService.getUsersByAdvancedFilter(
-                    settings, 0, 10, '', 'all', cleanQuery, false, null, 'true'
-                  );
-
-                  const matchedUser = data?.users?.find(u => u.username === user?.profile?.username);
+                  const matchedUser = user?.profile.fullname.toLowerCase().includes(cleanQuery.toLowerCase()) && user || null;
 
                   const results = matchedUser ? [{
                     uid: matchedUser.username,
-                    name: matchedUser.fullname,
-                    avatar: matchedUser.avatar,
+                    name: matchedUser.profile.fullname,
+                    avatar: matchedUser.profile.avatar,
                   }] : [];
 
                   return cacheAndCallback(cacheKey, cleanQuery, results, callback);
