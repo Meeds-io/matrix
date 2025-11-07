@@ -391,10 +391,25 @@ export default {
       this.$set(this.messages, index, redacted);
       this.updateUnseenOnMessageDelete(redactedEventId, index);
     },
+    getLatestMessageEventId() {
+      if (!this.messages?.length) {
+        return null;
+      }
+      let latest = null;
+      let latestTs = 0;
+
+      for (const msg of this.messages) {
+        const ts = msg.origin_server_ts || 0;
+        if (ts >= latestTs) {
+          latest = msg;
+          latestTs = ts;
+        }
+      }
+      return latest?.redacts || latest?.event_id || null;
+    },
     markRoomAsRead(roomId) {
       if (this.messages?.length) {
-        const lastMessageIndex = this.messages.length - 1;
-        const eventId = this.messages[lastMessageIndex]?.event_id;
+        const eventId = this.getLatestMessageEventId();
         if (eventId === this.lastMarkedReadEventId) {
           return;
         }
