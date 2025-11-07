@@ -467,6 +467,7 @@ export function toRoomObject(rooms, currentMemberId) {
       members: [],
     };
 
+    console.log(roomData.unread_notifications.notification_count);
     const membersMap = {};
     let latestMessage = null;
     for (const e of events) {
