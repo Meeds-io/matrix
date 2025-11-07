@@ -108,7 +108,7 @@
               @reaction="$emit('reaction', $event, message)" />
           </div>
           <v-sheet
-            v-if="hasLastReaders"
+            v-if="hasLastReaders || readReceipts?.length"
             height="24">
             <matrix-message-receipt-list
               :room="room"
@@ -155,6 +155,14 @@ export default {
     unseenMessagesCount: {
       type: Number,
       default: 0
+    },
+    isLastMessage: {
+      type: Boolean,
+      default: false
+    },
+    roomLastReadReceipts: {
+      type: Array,
+      default: null
     }
   },
   data() {
@@ -179,7 +187,7 @@ export default {
       readReceipts: [],
       loadingReceipts: false,
       showUnseen: true,
-      hideTimeout: null
+      hideTimeout: null,
     };
   },
   created() {
@@ -309,9 +317,6 @@ export default {
     },
     isRedacted() {
       return !this.message.content.body && this.message.redacted_because?.redacts;
-    },
-    roomLastReadReceipts() {
-      return this.room?.lastReadReceipts;
     }
   },
   methods: {
@@ -413,17 +418,33 @@ export default {
       }
     },
     loadMessageReadReceipts() {
-      if (!this.hasLastReaders) {
+      if (this.loadingReceipts) {
         return;
       }
       this.loadingReceipts = true;
-      this.readReceipts = this.$matrixService.loadReadReceiptsForMessage(this.roomLastReadReceipts, this.message.event_id);
-      this.loadingReceipts = false;
+      if (this.roomLastReadReceipts) {
+        this.loadReceipts(this.roomLastReadReceipts);
+        this.loadingReceipts = false;
+        return;
+      }
+      this.$matrixService.loadLastReadReceipts(this.room?.id)
+        .then(receipts => {
+          this.loadReceipts(receipts);
+        }).finally(() => this.loadingReceipts = false);
     },
-    handleMessageRead({detail: {eventId, userId}}) {
-      if (this.message.event_id !== eventId && this.readReceipts.includes(userId)) {
+    loadReceipts(roomLastReadReceipts) {
+      if (!this.hasLastReaders && !this.isLastMessage) {
+        return;
+      }
+      this.readReceipts = this.$matrixService.loadReadReceiptsForMessage(roomLastReadReceipts, this.message, this.isLastMessage);
+    },
+    handleMessageRead({detail: {eventId, userId, readData}}) {
+      const messageTs = this.message?.updated || this.message?.origin_server_ts;
+      if (this.message.event_id !== eventId && this.readReceipts.includes(userId)
+          && !this.isLastMessage) {
         this.readReceipts = this.readReceipts.filter(u => u !== userId);
-      } else if (this.message.event_id === eventId) {
+      } else if (this.message.event_id === eventId ||
+          (this.isLastMessage && messageTs < readData.ts)) {
         if (!this.readReceipts.includes(userId) && userId !== matrixUserId) {
           this.readReceipts = [...this.readReceipts, userId];
         }
@@ -453,17 +474,7 @@ export default {
         clearTimeout(this.hideTimeout);
         this.hideTimeout = null;
       }
-    },
-    scrollToUnseenSection() {
-      setTimeout(() => {
-        if (this.showUnSeenMessageSeparator && !this.isUnseenInViewPort) {
-          const element = document.getElementById(`message${this.message.origin_server_ts}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }
-      }, 500);
-    },
+    }
   }
 };
 </script>
