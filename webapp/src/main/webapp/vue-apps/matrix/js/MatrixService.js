@@ -7,7 +7,6 @@ const replyToCache = new Map();
 const userCache = new Map();
 const reactionEvents = new Map();
 const lastMessagesByRoom = new Map();
-const messageTimestampsMap = new Map();
 let isPolling = false;
 
 
@@ -256,7 +255,6 @@ export async function processEvents(response, isInitialSync) {
               }
             }));
             lastMessagesByRoom.set(roomId, message);
-            messageTimestampsMap.set(message.event_id, message.origin_server_ts);
           }
         } else if (e.type === 'm.room.redaction') {
           const redactedEventId = e.redacts;
@@ -393,7 +391,7 @@ async function handleReadReceiptEvent(event, roomId) {
       // Only update if eventId is newer
       const prevEventId = lastReads?.[userId]?.eventId;
       const prevTimestamp = lastReads?.[userId]?.ts || 0;
-      const newTimestamp = messageTimestampsMap?.get(eventId) ?? readData.ts ?? Date.now();
+      const newTimestamp = readData.ts ?? Date.now();
 
       if (!prevEventId || (newTimestamp >= prevTimestamp)) {
         lastReads[userId] = {
@@ -465,6 +463,7 @@ export function toRoomObject(rooms, currentMemberId) {
       members: [],
     };
 
+    console.log(roomData.unread_notifications.notification_count);
     const membersMap = {};
     let latestMessage = null;
     for (const e of events) {
@@ -1100,6 +1099,7 @@ export async function processMessages(room, messageItems) {
   const replyPromises = [];
   const formatPromises = [];
   const lastAppliedEditTsMap = new Map();
+    let lastEvent = null;
 
   for (const item of messageItems) {
     if (item.type !== 'm.room.message') {
@@ -1108,8 +1108,9 @@ export async function processMessages(room, messageItems) {
 
     const relatesTo = item.content['m.relates_to'];
     const newContent = item.content['m.new_content'];
-    messageTimestampsMap.set(item.event_id, item.origin_server_ts);
-
+      if (!lastEvent || item.origin_server_ts > lastEvent.origin_server_ts) {
+          lastEvent = item;
+      }
     if (relatesTo?.rel_type === 'm.replace' && newContent) {
       const targetEventId = relatesTo.event_id;
       const originalMessage = messagesMap.get(targetEventId) || getMessageById(targetEventId, messageItems);
@@ -1155,6 +1156,7 @@ export async function processMessages(room, messageItems) {
     formatPromises.push(processMessageMentions(item, room));
   }
 
+  room.lastEventId = lastEvent.event_id;
   await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises]);
   return {
     roomId,
