@@ -444,9 +444,8 @@ export default {
                   const memberId = participant?.id || room.dmMemberId;
                   const user = await component.$matrixService.getUserByMatrixId(memberId, room);
                   const matchedUser = user?.profile.fullname.toLowerCase().includes(cleanQuery.toLowerCase()) && user || null;
-
                   const results = matchedUser ? [{
-                    uid: matchedUser.username,
+                    uid: matchedUser.remoteId,
                     name: matchedUser.profile.fullname,
                     avatar: matchedUser.profile.avatar,
                   }] : [];
