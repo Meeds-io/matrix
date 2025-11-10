@@ -245,6 +245,7 @@ export async function processEvents(response, isInitialSync) {
                 content: e.content['m.new_content'],
                 edited: true,
                 updatedAt: e.origin_server_ts,
+                replacementEventId: e.event_id,
                 event_id: e.content['m.relates_to'].event_id
               }
               : e;
@@ -423,12 +424,15 @@ async function handleReadReceiptEvent(event, roomId) {
   }
 }
 
-export function loadReadReceiptsForMessage(lastReads, eventId) {
+export function loadReadReceiptsForMessage(lastReads, message, isLast) {
+  const messageTs = message.updatedAt || message.origin_server_ts;
+  const eventId = message.event_id;
   if (!lastReads) {
     return [];
   }
   return Object.entries(lastReads)
-    .filter(([userId, lastReadEvent]) => userId !== matrixUserId && lastReadEvent.eventId === eventId)
+    .filter(([userId, lastReadEvent]) => userId !== matrixUserId &&
+        ((lastReadEvent.eventId === eventId) || (isLast && messageTs < lastReadEvent.ts)))
     .map(([userId]) => userId);
 }
 
@@ -453,17 +457,16 @@ export function toRoomObject(rooms, currentMemberId) {
   for (const roomId in rooms) {
     const roomData = rooms[roomId];
     const events = [...roomData.timeline.events, ...roomData.state.events];
-
+    const notificationCount = roomData.unread_notifications.notification_count;
     const roomItem = {
       id: roomId,
       enabledUser: true,
       external: false,
       favorite: false,
-      unreadMessages: roomData.unread_notifications.notification_count,
+      unreadMessages: notificationCount,
       members: [],
     };
 
-    console.log(roomData.unread_notifications.notification_count);
     const membersMap = {};
     let latestMessage = null;
     for (const e of events) {
@@ -1025,34 +1028,37 @@ export function sendMessage(payload, roomId) {
   });
 }
 
-export function markRoomAsFullyRead(roomId, eventId) {
-  if (!roomId) {
-    console.warn('No roomId provided, Mark as read call will be canceled');
-    return Promise.resolve(false);
+export async function markRoomAsFullyRead(roomId, eventId) {
+  if (!roomId || !eventId) {
+    return false;
   }
-  if (!eventId) {
-    console.warn('No event Id provided, Mark as read call will be canceled');
-    return Promise.resolve(false);
-  }
+
   if (!roomId.includes(':')) {
     roomId = `${roomId}:${matrixServerName}`;
   }
-  const payload = {
-    'thread_id': 'main'
-  };
-  return fetch(`/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`, {
+
+  const accessToken = localStorage.getItem('matrix_access_token');
+  if (!accessToken) {
+    console.warn('No Matrix access token found');
+    return false;
+  }
+
+  const readReceiptUrl = `/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`;
+  const receiptPayload = { thread_id: 'main' };
+
+  const receiptResp = await fetch(readReceiptUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
-  }).then(resp => {
-    if (!resp?.ok) {
-      throw new Error('Mark room as fully read : Response code indicates a server error', resp);
-    } else {
-      return Promise.resolve(true);
-    }
+    body: JSON.stringify(receiptPayload)
   });
+
+  if (!receiptResp.ok) {
+    console.error('Failed to send m.read receipt', await receiptResp.text());
+    return false;
+  }
 }
 
 export async function formatMessage(message, room) {
@@ -1099,7 +1105,6 @@ export async function processMessages(room, messageItems) {
   const replyPromises = [];
   const formatPromises = [];
   const lastAppliedEditTsMap = new Map();
-    let lastEvent = null;
 
   for (const item of messageItems) {
     if (item.type !== 'm.room.message') {
@@ -1108,13 +1113,15 @@ export async function processMessages(room, messageItems) {
 
     const relatesTo = item.content['m.relates_to'];
     const newContent = item.content['m.new_content'];
-      if (!lastEvent || item.origin_server_ts > lastEvent.origin_server_ts) {
-          lastEvent = item;
-      }
     if (relatesTo?.rel_type === 'm.replace' && newContent) {
       const targetEventId = relatesTo.event_id;
       const originalMessage = messagesMap.get(targetEventId) || getMessageById(targetEventId, messageItems);
-      if (originalMessage && !isRedacted(originalMessage)) {
+      if (originalMessage) {
+        if (isRedacted(originalMessage)) {
+          originalMessage.updatedAt = item.origin_server_ts;
+          originalMessage.replacementEventId = item.event_id;
+          continue;
+        }  
         const applied = applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTsMap, targetEventId);
         if (!applied) {
           continue;
@@ -1156,7 +1163,6 @@ export async function processMessages(room, messageItems) {
     formatPromises.push(processMessageMentions(item, room));
   }
 
-  room.lastEventId = lastEvent.event_id;
   await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises]);
   return {
     roomId,
@@ -1189,6 +1195,7 @@ function applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTs
 
   originalMessage.edited = true;
   originalMessage.updatedAt = item.origin_server_ts;
+  originalMessage.replacementEventId = item.event_id;
 
   lastAppliedEditTsMap.set(targetEventId, item.origin_server_ts);
   return true;

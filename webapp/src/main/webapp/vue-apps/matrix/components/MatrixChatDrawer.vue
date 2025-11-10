@@ -196,7 +196,7 @@ export default {
     },
     async openDiscussion(room) {
       this.selectedRoom = room;
-      await this.$refs?.chatBody?.openDiscussion?.();
+      await this.$refs?.chatBody?.openDiscussion?.(room);
       this.$root.$emit('room-discussion-opened', room?.id);
 
       setTimeout(() => {
