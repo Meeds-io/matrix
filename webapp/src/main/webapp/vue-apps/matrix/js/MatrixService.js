@@ -467,7 +467,6 @@ export function toRoomObject(rooms, currentMemberId) {
       members: [],
     };
 
-    console.log(roomData.unread_notifications.notification_count);
     const membersMap = {};
     let latestMessage = null;
     for (const e of events) {
@@ -1140,7 +1139,6 @@ export async function processMessages(room, messageItems) {
   const replyPromises = [];
   const formatPromises = [];
   const lastAppliedEditTsMap = new Map();
-    let lastEvent = null;
 
   for (const item of messageItems) {
     if (item.type !== 'm.room.message') {
@@ -1199,7 +1197,6 @@ export async function processMessages(room, messageItems) {
     formatPromises.push(processMessageMentions(item, room));
   }
 
-  room.lastEventId = lastEvent.event_id;
   await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises]);
   return {
     roomId,
