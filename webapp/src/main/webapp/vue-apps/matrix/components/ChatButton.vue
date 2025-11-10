@@ -572,6 +572,7 @@ export default {
       this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
         if (cachedRooms) {
           this.rooms = JSON.parse(cachedRooms);
+          this.loading = false;
         }
       });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {

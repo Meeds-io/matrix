@@ -45,10 +45,12 @@
         :message="message"
         :previous-message="messages?.[i - 1]"
         :next-message="messages?.[i + 1]"
+        :is-last-message="i === messages?.length - 1"
         :room="room"
         :unseen-messages-data="unSeenMessagesData"
         :is-input-focused="isInputFocused"
         :unseen-messages-count="unseenMessagesCount"
+        :room-last-read-receipts="roomLastReadReceipts"
         class="transition-2s"
         @reply="replyToMessage"
         @reaction="reactToMessage"
@@ -239,12 +241,11 @@ export default {
         requestAnimationFrame(applyScroll);
       }
     },
-    async initDiscussion() {
+    async initDiscussion(room) {
       this.reset();
       this.resetData();
 
-      this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(this.room?.id);
-      this.room.lastReadReceipts = this.roomLastReadReceipts;
+      this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(room?.id || this.room?.id);
     },
     async loadAndProcessMessages() {
       if (!this.room?.id) {
@@ -392,20 +393,16 @@ export default {
       this.updateUnseenOnMessageDelete(redactedEventId, index);
     },
     getLatestMessageEventId() {
-      if (!this.messages?.length) {
-        return null;
-      }
-      let latest = null;
-      let latestTs = 0;
+      const ordered = [...this.messages].sort(
+        (a, b) => (b?.updatedAt || b.origin_server_ts || 0) - (a?.updatedAt || a.origin_server_ts || 0)
+      );
 
-      for (const msg of this.messages) {
-        const ts = msg.origin_server_ts || 0;
-        if (ts >= latestTs) {
-          latest = msg;
-          latestTs = ts;
+      for (const msg of ordered) {
+        if (msg?.type === 'm.room.message') {
+          return msg?.replacementEventId || msg?.event_id || null;
         }
       }
-      return latest?.redacts || latest?.event_id || null;
+      return null;
     },
     markRoomAsRead(roomId) {
       if (this.messages?.length) {
