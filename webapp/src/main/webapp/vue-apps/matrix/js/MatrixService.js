@@ -1061,6 +1061,40 @@ export async function markRoomAsFullyRead(roomId, eventId) {
   }
 }
 
+export async function getRoomLastMessageEventId(roomId) {
+  const filter = {
+    types: ['m.room.message']
+  };
+
+  const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
+  const params = new URLSearchParams({
+    dir: 'b',
+    limit: '1',
+    filter: JSON.stringify(filter)
+  });
+
+  try {
+    const response = await fetch(`${baseUrl}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch latest message:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const lastMessage = data?.chunk?.[0];
+    return lastMessage?.event_id || null;
+
+  } catch (err) {
+    console.error('Error fetching latest message:', err);
+    return null;
+  }
+}
+
 export async function formatMessage(message, room) {
   if (!message) {
     return '';

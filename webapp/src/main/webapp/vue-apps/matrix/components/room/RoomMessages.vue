@@ -392,21 +392,9 @@ export default {
       this.$set(this.messages, index, redacted);
       this.updateUnseenOnMessageDelete(redactedEventId, index);
     },
-    getLatestMessageEventId() {
-      const ordered = [...this.messages].sort(
-        (a, b) => (b?.updatedAt || b.origin_server_ts || 0) - (a?.updatedAt || a.origin_server_ts || 0)
-      );
-
-      for (const msg of ordered) {
-        if (msg?.type === 'm.room.message') {
-          return msg?.replacementEventId || msg?.event_id || null;
-        }
-      }
-      return null;
-    },
-    markRoomAsRead(roomId) {
+    async markRoomAsRead(roomId) {
       if (this.messages?.length) {
-        const eventId = this.getLatestMessageEventId();
+        const eventId = await this.$matrixService.getRoomLastMessageEventId(roomId);
         if (eventId === this.lastMarkedReadEventId) {
           return;
         }
