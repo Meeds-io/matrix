@@ -595,6 +595,30 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
+  @PostMapping("/muteRoom")
+  @Secured("users")
+  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
+      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<String> muteRoom(HttpServletRequest request,
+                                         @Parameter(description = "ID of the room to mute")
+                                         @RequestParam(name = "roomId")
+                                         String roomId) {
+
+    String userName = request.getRemoteUser();
+    if (StringUtils.isBlank(roomId)) {
+      return ResponseEntity.badRequest().body("roomId parameter is required");
+    }
+    try {
+      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
+      return ResponseEntity.ok("Room muted successfully");
+    } catch (Exception e) {
+      LOG.error("Error muting room {} for user {}", roomId, userName, e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
+    }
+  }
+
   @GetMapping("/isPushNotificationsEnabled/{userName}")
   @Secured("users")
   @Operation(summary = "Get the status of push notifications enabled/disabled", method = "GET", description = "Get the status of push notifications enabled/disabled")
@@ -643,31 +667,6 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
-  @PostMapping("/muteRoom")
-  @Secured("users")
-  @Operation(summary = "Mute a private room for the current user", description = "Adds a private room to the user's muted list")
-  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Room muted successfully"),
-      @ApiResponse(responseCode = "400", description = "Missing or invalid parameters"),
-      @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public ResponseEntity<String> muteRoom(HttpServletRequest request,
-                                         @Parameter(description = "ID of the room to mute")
-                                         @RequestParam(name = "roomId")
-                                         String roomId) {
-
-    String userName = request.getRemoteUser();
-    if (StringUtils.isBlank(roomId)) {
-      return ResponseEntity.badRequest().body("roomId parameter is required");
-    }
-    try {
-      chatNotificationService.toggleMutePrivateRoom(userName, roomId);
-      return ResponseEntity.ok("Room muted successfully");
-    } catch (Exception e) {
-      LOG.error("Error muting room {} for user {}", roomId, userName, e);
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to mute room");
-    }
-  }
-  
-  
   @GetMapping("findId/{userId}")
   @Secured("users")
   @Operation(summary = "Get the matrix ID of a user", method = "GET", description = "Get the matrix ID of a user")

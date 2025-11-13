@@ -50,7 +50,6 @@ export default {
     },
   },
   created() {
-    this.getAndBuildRoomLastMessage();
     document.addEventListener('matrix-message-reaction-removed', this.reactionRemoved);
   },
   beforeDestroy() {
@@ -99,7 +98,7 @@ export default {
         if (!message) {
           return;
         }
-        if (!this.room.updated || this.room.updated <= message.origin_server_ts) {
+        if (!this.room.updated || this.room.updated < message.origin_server_ts) {
           this.$set(this.room, 'updated', message.origin_server_ts);
         }
         const lastMessage = await this.$matrixService.buildRoomLastMessage(message, message.type, this.room);
@@ -125,7 +124,9 @@ export default {
         formattedContent = await this.formatReactionLastMessageContent(this.room.lastMessage);
       } else {
         const senderLabel = await this.resolveLastMessageSenderLabel();
-        formattedContent = this.$t('matrix.chat.lastMessage.pattern', {
+        // use this.$root.$t instead of this.$t
+        // workaround for https://github.com/intlify/vue-i18n/issues/990
+        formattedContent = this.$root.$t('matrix.chat.lastMessage.pattern', {
           0: senderLabel,
           1: content
         });
@@ -151,7 +152,7 @@ export default {
     },
     async resolveLastMessageSenderLabel() {
       if (this.isLastMessageSenderCurrentUser) {
-        return this.$t('matrix.words.you');
+        return this.$root.$t('matrix.words.you');
       }
 
       const user = await this.$matrixService.getUserByMatrixId(this.lastMessageSender, this.room);
