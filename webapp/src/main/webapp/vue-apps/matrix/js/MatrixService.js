@@ -246,6 +246,7 @@ export async function processEvents(response, isInitialSync) {
                 content: e.content['m.new_content'],
                 edited: true,
                 updatedAt: e.origin_server_ts,
+                replacementEventId: e.event_id,
                 event_id: e.content['m.relates_to'].event_id
               }
               : e;
@@ -256,7 +257,6 @@ export async function processEvents(response, isInitialSync) {
               }
             }));
             lastMessagesByRoom.set(roomId, message);
-            messageTimestampsMap.set(message.event_id, message.origin_server_ts);
           }
         } else if (e.type === 'm.room.redaction') {
           const redactedEventId = e.redacts;
@@ -393,7 +393,7 @@ async function handleReadReceiptEvent(event, roomId) {
       // Only update if eventId is newer
       const prevEventId = lastReads?.[userId]?.eventId;
       const prevTimestamp = lastReads?.[userId]?.ts || 0;
-      const newTimestamp = messageTimestampsMap?.get(eventId) ?? readData.ts ?? Date.now();
+      const newTimestamp = readData.ts ?? Date.now();
 
       if (!prevEventId || (newTimestamp >= prevTimestamp)) {
         lastReads[userId] = {
@@ -425,12 +425,15 @@ async function handleReadReceiptEvent(event, roomId) {
   }
 }
 
-export function loadReadReceiptsForMessage(lastReads, eventId) {
+export function loadReadReceiptsForMessage(lastReads, message, isLast) {
+  const messageTs = message.updatedAt || message.origin_server_ts;
+  const eventId = message.event_id;
   if (!lastReads) {
     return [];
   }
   return Object.entries(lastReads)
-    .filter(([userId, lastReadEvent]) => userId !== matrixUserId && lastReadEvent.eventId === eventId)
+    .filter(([userId, lastReadEvent]) => userId !== matrixUserId &&
+        ((lastReadEvent.eventId === eventId) || (isLast && messageTs < lastReadEvent.ts)))
     .map(([userId]) => userId);
 }
 
@@ -455,13 +458,13 @@ export function toRoomObject(rooms, currentMemberId) {
   for (const roomId in rooms) {
     const roomData = rooms[roomId];
     const events = [...roomData.timeline.events, ...roomData.state.events];
-
+    const notificationCount = roomData.unread_notifications.notification_count;
     const roomItem = {
       id: roomId,
       enabledUser: true,
       external: false,
       favorite: false,
-      unreadMessages: roomData.unread_notifications.notification_count,
+      unreadMessages: notificationCount,
       members: [],
     };
 
@@ -1023,34 +1026,71 @@ export function sendMessage(payload, roomId) {
   });
 }
 
-export function markRoomAsFullyRead(roomId, eventId) {
-  if (!roomId) {
-    console.warn('No roomId provided, Mark as read call will be canceled');
-    return Promise.resolve(false);
+export async function markRoomAsFullyRead(roomId, eventId) {
+  if (!roomId || !eventId) {
+    return false;
   }
-  if (!eventId) {
-    console.warn('No event Id provided, Mark as read call will be canceled');
-    return Promise.resolve(false);
-  }
+
   if (!roomId.includes(':')) {
     roomId = `${roomId}:${matrixServerName}`;
   }
-  const payload = {
-    'thread_id': 'main'
-  };
-  return fetch(`/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`, {
+
+  const accessToken = localStorage.getItem('matrix_access_token');
+  if (!accessToken) {
+    console.warn('No Matrix access token found');
+    return false;
+  }
+
+  const readReceiptUrl = `/_matrix/client/v3/rooms/${roomId}/receipt/m.read/${eventId}`;
+  const receiptPayload = { thread_id: 'main' };
+
+  const receiptResp = await fetch(readReceiptUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
-  }).then(resp => {
-    if (!resp?.ok) {
-      throw new Error('Mark room as fully read : Response code indicates a server error', resp);
-    } else {
-      return Promise.resolve(true);
-    }
+    body: JSON.stringify(receiptPayload)
   });
+
+  if (!receiptResp.ok) {
+    console.error('Failed to send m.read receipt', await receiptResp.text());
+    return false;
+  }
+}
+
+export async function getRoomLastMessageEventId(roomId) {
+  const filter = {
+    types: ['m.room.message']
+  };
+
+  const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
+  const params = new URLSearchParams({
+    dir: 'b',
+    limit: '1',
+    filter: JSON.stringify(filter)
+  });
+
+  try {
+    const response = await fetch(`${baseUrl}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch latest message:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const lastMessage = data?.chunk?.[0];
+    return lastMessage?.event_id || null;
+
+  } catch (err) {
+    console.error('Error fetching latest message:', err);
+    return null;
+  }
 }
 
 export async function formatMessage(message, room) {
@@ -1105,12 +1145,15 @@ export async function processMessages(room, messageItems) {
 
     const relatesTo = item.content['m.relates_to'];
     const newContent = item.content['m.new_content'];
-    messageTimestampsMap.set(item.event_id, item.origin_server_ts);
-
     if (relatesTo?.rel_type === 'm.replace' && newContent) {
       const targetEventId = relatesTo.event_id;
       const originalMessage = messagesMap.get(targetEventId) || getMessageById(targetEventId, messageItems);
-      if (originalMessage && !isRedacted(originalMessage)) {
+      if (originalMessage) {
+        if (isRedacted(originalMessage)) {
+          originalMessage.updatedAt = item.origin_server_ts;
+          originalMessage.replacementEventId = item.event_id;
+          continue;
+        }  
         const applied = applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTsMap, targetEventId);
         if (!applied) {
           continue;
@@ -1184,6 +1227,7 @@ function applyEditToMessage(originalMessage, newContent, item, lastAppliedEditTs
 
   originalMessage.edited = true;
   originalMessage.updatedAt = item.origin_server_ts;
+  originalMessage.replacementEventId = item.event_id;
 
   lastAppliedEditTsMap.set(targetEventId, item.origin_server_ts);
   return true;

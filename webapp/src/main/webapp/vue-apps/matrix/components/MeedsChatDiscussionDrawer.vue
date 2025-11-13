@@ -183,7 +183,7 @@ export default {
       }
       await this.$nextTick();
       if (this.wasExpanded || !this.fullPageMode) {
-        await this.$refs?.chatBody?.openDiscussion?.();
+        await this.$refs?.chatBody?.openDiscussion?.(room);
       }
       this.$root.$emit('room-discussion-opened', room?.id);
 

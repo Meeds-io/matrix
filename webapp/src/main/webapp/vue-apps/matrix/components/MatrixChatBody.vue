@@ -110,12 +110,12 @@ export default {
     }
   },
   methods: {
-    async openDiscussion() {
+    async openDiscussion(room) {
       setTimeout(() => {
         this.$refs?.messageComposer?.setInputFocus?.();
       }, 200);
 
-      await this.$refs?.roomMessages?.initDiscussion();
+      await this.$refs?.roomMessages?.initDiscussion(room);
       await this.$refs?.roomMessages?.loadAndProcessMessages();
       await this.$refs?.roomMessages?.loadUnseenMessagesData();
     },
