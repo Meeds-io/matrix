@@ -45,10 +45,12 @@
         :message="message"
         :previous-message="messages?.[i - 1]"
         :next-message="messages?.[i + 1]"
+        :is-last-message="i === messages?.length - 1"
         :room="room"
         :unseen-messages-data="unSeenMessagesData"
         :is-input-focused="isInputFocused"
         :unseen-messages-count="unseenMessagesCount"
+        :room-last-read-receipts="roomLastReadReceipts"
         class="transition-2s"
         @reply="replyToMessage"
         @reaction="reactToMessage"
@@ -239,12 +241,11 @@ export default {
         requestAnimationFrame(applyScroll);
       }
     },
-    async initDiscussion() {
+    async initDiscussion(room) {
       this.reset();
       this.resetData();
 
-      this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(this.room?.id);
-      this.room.lastReadReceipts = this.roomLastReadReceipts;
+      this.roomLastReadReceipts = await this.$matrixService.loadLastReadReceipts(room?.id || this.room?.id);
     },
     async loadAndProcessMessages() {
       if (!this.room?.id) {
@@ -391,10 +392,9 @@ export default {
       this.$set(this.messages, index, redacted);
       this.updateUnseenOnMessageDelete(redactedEventId, index);
     },
-    markRoomAsRead(roomId) {
+    async markRoomAsRead(roomId) {
       if (this.messages?.length) {
-        const lastMessageIndex = this.messages.length - 1;
-        const eventId = this.messages[lastMessageIndex]?.event_id;
+        const eventId = await this.$matrixService.getRoomLastMessageEventId(roomId);
         if (eventId === this.lastMarkedReadEventId) {
           return;
         }
