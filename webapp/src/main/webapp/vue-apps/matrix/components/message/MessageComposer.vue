@@ -123,7 +123,8 @@ export default {
       messageContent: null,
       typingTimeout: null,
       mentioningInProgress: false,
-      isSending: false
+      isSending: false,
+      sendingTypingTimeout: null
     };
   },
   props: {
@@ -268,6 +269,7 @@ export default {
         const eventId = await this.$matrixService.sendMessage(message, this.room.id);
         this.$matrixService.markMessageAsRead(this.room.id, eventId);
         this.$matrixService.sendTyping(this.room.id, false);
+        clearTimeout(this.sendingTypingTimeout);
         if (!this.messageToEdit) {
           this.$root.$emit('message-sent-statistics', message, this.room);
         }
@@ -512,10 +514,16 @@ export default {
 
       this.mentioningInProgress = lastChild?.classList.contains('atwho-query') && !lastText.trim();
     },
-    async onComposerInput(event) {
+    onComposerInput(event) {
       this.messageContent = event.target?.innerText;
       this.resizeComposerArea(event);
-      await this.$matrixService.sendTyping(this.room.id, true);
+      if (this.sendingTypingTimeout) {
+        clearTimeout(this.sendingTypingTimeout);
+      }
+      this.sendingTypingTimeout = setTimeout( () => {
+        this.$matrixService.sendTyping(this.room.id, true);
+      }, 400);
+
       if (this.typingTimeout) {
         clearTimeout(this.typingTimeout);
       }
