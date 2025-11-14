@@ -442,7 +442,10 @@ export default {
       }
       this.readReceipts = this.$matrixService.loadReadReceiptsForMessage(roomLastReadReceipts, this.message, this.isLastMessage);
     },
-    handleMessageRead({detail: {eventId, userId, readData}}) {
+    handleMessageRead({detail: {roomId, eventId, userId, readData}}) {
+      if (this.room?.id !== roomId) {
+        return;
+      }
       const messageTs = this.message?.updated || this.message?.origin_server_ts;
       if (this.message.event_id !== eventId && this.readReceipts.includes(userId)
           && !this.isLastMessage) {
