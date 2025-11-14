@@ -49,7 +49,7 @@ export default {
     return {
       receiptsToDisplay: 3,
       hover: false
-    }
+    };
   },
   props: {
     room: {
@@ -63,10 +63,10 @@ export default {
   },
   computed: {
     filteredReadReceipts() {
-      return this.readReceipts.filter(user => user !== matrixUserId);
+      return this.readReceipts.filter(user => user && user !== matrixUserId);
     },
     showMore() {
-      return this.filteredReadReceipts.length > this.receiptsToDisplay
+      return this.filteredReadReceipts.length > this.receiptsToDisplay;
     }
   },
   methods: {
