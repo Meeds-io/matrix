@@ -24,6 +24,7 @@ import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.MediaInfo;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
@@ -873,8 +874,40 @@ public class MatrixService {
   public String[] getRestrictedGroups() {
     String groupNames = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if (StringUtils.isBlank(groupNames)) {
-      return new String[] {};
+      return new String[]{};
     }
     return Arrays.stream(groupNames.split(",")).map(String::trim).toArray(String[]::new);
+  }
+
+  /**
+   * Returns synapse media info by its ID
+   * 
+   * @param mediaId synapse media id
+   * @return {@link MediaInfo} wrapped in {@link Optional}, or {@link Optional#empty()} if mediaId is null or blank
+   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @throws IOException if a network or I/O error occurs during the request
+   * @throws InterruptedException if the thread executing the request is interrupted
+   */
+  public Optional<MediaInfo> getMediaInfo(String mediaId) throws JsonException, IOException, InterruptedException {
+    if (mediaId == null || mediaId.isBlank()) {
+      return Optional.empty();
+    }
+    return matrixHttpClient.getMediaInfo(mediaId, getMatrixAccessToken());
+  }
+
+  /**
+   * Deletes synapse media by its ID
+   * 
+   * @param mediaId synapse media id
+   * @throws IllegalArgumentException if mediaId is null or blank
+   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @throws IOException if a network or I/O error occurs during the request
+   * @throws InterruptedException if the thread executing the request is interrupted
+   */
+  public void deleteMedia(String mediaId) throws JsonException, IOException, InterruptedException {
+    if (mediaId == null || mediaId.isBlank()) {
+      throw new IllegalArgumentException("mediaId must not be null or empty");
+    }
+    matrixHttpClient.deleteMedia(mediaId, getMatrixAccessToken());
   }
 }
