@@ -19,10 +19,12 @@
 package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.MatrixMessage;
+import io.meeds.chat.rest.model.MediaInfo;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
+import org.apache.ecs.html.S;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -31,16 +33,16 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -1197,5 +1199,36 @@ public class MatrixHttpClient {
       throw new RuntimeException("Error invalidating access token ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
                                                                                                                       response.body()));
     }
+  }
+
+  public Optional<MediaInfo> getMediaInfo(String mediaId, String accessToken) throws IOException, InterruptedException {
+    String serverUrl = PropertyManager.getProperty(MATRIX_SERVER_URL);
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = String.format("%s/_synapse/admin/v1/media/%s/%s", serverUrl, serverName, mediaId);
+    HttpResponse<String> response = HTTPHelper.sendHttpGetRequest(url, accessToken);
+
+    if (response.statusCode() == 200) {
+        JSONObject json = new JSONObject(response.body());
+        JSONObject mediaInfoJson = json.getJSONObject("media_info");
+
+        MediaInfo info = new MediaInfo();
+        info.setMediaId(mediaInfoJson.getString("media_id"));
+        info.setServerName(serverName);
+        info.setOwner(mediaInfoJson.optString("user_id", null));
+        info.setFilename(mediaInfoJson.optString("upload_name", mediaId));
+        info.setContentType(mediaInfoJson.optString("media_type", null));
+        info.setContentLength(mediaInfoJson.has("media_length") ? mediaInfoJson.getLong("media_length") : null);
+        info.setCreatedTs(mediaInfoJson.has("created_ts") ? mediaInfoJson.getLong("created_ts") : null);
+
+        return Optional.of(info);
+    }
+    return Optional.empty();
+  }
+
+  public HttpResponse<String> deleteMedia(String mediaId, String accessToken) throws IOException, InterruptedException {
+    String serverUrl = PropertyManager.getProperty(MATRIX_SERVER_URL);
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = String.format("%s/_synapse/admin/v1/media/%s/%s", serverUrl, serverName, mediaId);
+    return HTTPHelper.sendHttpDeleteRequest(url, accessToken, "");
   }
 }
