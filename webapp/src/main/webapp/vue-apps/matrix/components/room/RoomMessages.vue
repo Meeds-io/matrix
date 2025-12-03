@@ -321,6 +321,7 @@ export default {
       const relatesTo = receivedMessage.content['m.relates_to'];
       const inReplyTo = relatesTo?.['m.in_reply_to']?.event_id;
       await this.$matrixService.processMessageMentions(receivedMessage, this.room);
+      await this.$matrixService.processMediaExistence(receivedMessage);
       if (receivedMessage.edited) {
         const index = this.messages.findIndex(msg => msg.event_id === receivedMessage.event_id);
         if (index !== -1) {

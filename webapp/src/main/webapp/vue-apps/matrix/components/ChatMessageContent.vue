@@ -83,29 +83,9 @@
         </v-chip>
       </div>
     </div>
-    <div
+    <matrix-file-message
       v-if="isFile"
-      :id="`message-content-${message.event_id}`"
-      :key="message.event_id"
-      class="text-no-wrap max-width-fit">
-      <a
-        :href="fileDownloadLink"
-        :alt="message.content.body"
-        class="d-flex text-decoration-none"
-        download>
-        <div class="size-7 white rounded-circle d-flex justify-center me-3 text-decoration-none">
-          <v-icon
-            :size="16"
-            :color="fileIcon.color">
-            {{ fileIcon.class }}
-          </v-icon>
-        </div>
-        <div
-          class="message-file-name align-self-center text-truncate">
-          {{ message.content.body }}
-        </div>
-      </a>
-    </div>
+      :message="message" />
     <matrix-audio-message
       v-if="isAudioMessage"
       :id="`message-content-${message.event_id}`"
@@ -223,18 +203,9 @@ export default {
       },
     };
   },
-  created() {
-    if (this.isFile) {
-      this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
-    }
-  },
   watch: {
     hover() {
-      if (this.hover && this.isAnimatedImage) {
-        this.defaultSize = true;
-      } else {
-        this.defaultSize = false;
-      }
+      this.defaultSize = !!(this.hover && this.isAnimatedImage);
     },
   },
   computed: {
@@ -265,11 +236,11 @@ export default {
     isText() {
       return this.message.content.msgtype === 'm.text';
     },
-    isAudio() {
-      return this.message?.content?.msgtype === 'm.audio';
-    },
     isVideo() {
       return this.message?.content?.msgtype === 'm.video';
+    },
+    isAudio() {
+      return this.message?.content?.msgtype === 'm.audio';
     },
     isAudioMessage() {
       return this.isAudio && !this.isUploadedAudioFile;
@@ -279,18 +250,13 @@ export default {
                             && !this.message?.content?.['org.matrix.msc2516.voice']);
     },
     isFile() {
-      return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile
-                                                         || this.isVideo;
+      return this.message.content.msgtype === 'm.file' || this.isUploadedAudioFile || this.isVideo;
     },
     isAnimatedImage() {
       return this.message.content?.info?.mimetype === 'image/gif' || this.message.content?.info?.mimetype === 'image/webp';
     },
     isGifImage() {
       return this.message.content?.info?.mimetype === 'image/gif';
-    },
-    fileDownloadLink() {
-      const url = this.message.content.url.replace('mxc://', '');
-      return `/_matrix/media/v3/download/${url}`;
     },
     formattedMessage() {
       return this.message?.formattedMessage;
@@ -385,14 +351,6 @@ export default {
           detail: { attachments: images, id: imageId },
         })
       );
-    },
-    getFileIcon(mimeType) {
-      const extensions = Vue.prototype.$filesIconsExtension;
-      let extension = extensions[0].get(mimeType);
-      if (!extension) {
-        extension = extensions[0].get('file');
-      }
-      return extension;
     }
   }
 };
