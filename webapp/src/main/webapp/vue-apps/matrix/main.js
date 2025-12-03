@@ -32,6 +32,7 @@ import RoomHeaderActions from './components/room/RoomHeaderActions.vue';
 import MatrixChatBody from './components/MatrixChatBody.vue';
 import FilterRoomListInput from './components/room/FilterRoomListInput.vue';
 import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
+import FileMessage from './components/message/FileMessage.vue';
 
 import {chatConstants} from './js/Constants.js';
 import * as matrixService from './js/MatrixService.js';
@@ -75,7 +76,8 @@ const components = {
   'matrix-room-header-actions': RoomHeaderActions,
   'matrix-chat-body': MatrixChatBody,
   'matrix-filter-room-list-input': FilterRoomListInput,
-  'matrix-chat-header-user-avatar': ChatHeaderUserAvatar
+  'matrix-chat-header-user-avatar': ChatHeaderUserAvatar,
+  'matrix-file-message': FileMessage,
 };
 
 for (const key in components) {
