@@ -1139,6 +1139,7 @@ export async function processMessages(room, messageItems) {
   const reactionPromises = [];
   const replyPromises = [];
   const formatPromises = [];
+  const filesPromises = [];
   const lastAppliedEditTsMap = new Map();
 
   for (const item of messageItems) {
@@ -1196,9 +1197,10 @@ export async function processMessages(room, messageItems) {
       reactionPromises.push(fetchAndProcessReactions(item, roomId));
     }
     formatPromises.push(processMessageMentions(item, room));
+    filesPromises.push(processMediaExistence(item));
   }
 
-  await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises]);
+  await Promise.allSettled([...formatPromises, ...replyPromises, ...reactionPromises, ...filesPromises]);
   return {
     roomId,
     messages: Array.from(messagesMap.values()),
@@ -1252,6 +1254,13 @@ function getMessageById(id, messages) {
     }
   }
   return null;
+}
+
+export async function processMediaExistence(item) {
+  if (item.content.msgtype === 'm.file') {
+    const mxcUrl = item.content.url;
+    item.mediaDeleted = !(await mediaExists(mxcUrl));
+  }
 }
 
 export async function processMessageMentions(item, room) {
@@ -1929,4 +1938,55 @@ export async function sendCustomEvent(roomId, eventType, content) {
   }
 
   return await resp.json();
+}
+
+export async function mediaExists(mxcUrl) {
+  const url = parseDownloadUrl(mxcUrl);
+
+  try {
+    const accessToken = localStorage.getItem('matrix_access_token');
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      },
+      redirect: 'manual'
+    });
+
+    return response.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function getMediaBlobUrl(mxcUrl) {
+  const downloadUrl = parseDownloadUrl(mxcUrl);
+  try {
+    const accessToken = localStorage.getItem('matrix_access_token');
+    const response = await fetch(downloadUrl, {
+      headers: { 
+        Authorization: `Bearer ${accessToken}`
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.error('Failed to fetch media', e);
+    return null;
+  }
+}
+
+function parseDownloadUrl(mxcUrl) {
+  if (!mxcUrl || !mxcUrl.startsWith('mxc://')) {
+    console.error('Invalid MXC URL:', mxcUrl);
+    return null;
+  }
+  const path = mxcUrl.replace('mxc://', '');
+  return `/_matrix/client/v1/media/download/${path}?allow_redirect=true`;
 }
