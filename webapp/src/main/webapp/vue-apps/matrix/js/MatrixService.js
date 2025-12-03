@@ -1930,3 +1930,22 @@ export async function sendCustomEvent(roomId, eventType, content) {
 
   return await resp.json();
 }
+
+export async function getMediaBlobUrl(url) {
+  try {
+    const accessToken = localStorage.getItem('matrix_access_token');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.error('Failed to fetch media', e);
+    return null;
+  }
+}
