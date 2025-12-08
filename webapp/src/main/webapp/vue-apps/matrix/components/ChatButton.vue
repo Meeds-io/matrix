@@ -619,6 +619,7 @@ export default {
       this.openDrawer();
       setTimeout(() => {
         this.$root.$emit('open-chat-discussion', room, fromRoomList);
+        localStorage.setItem('lastOpenedRoomId', room.id);
       }, 100);
     },
     sendMessageStatistics(message, room) {
