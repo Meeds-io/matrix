@@ -352,7 +352,9 @@ public class MatrixService {
 
     String matrixUserId = user.getRemoteId();
     if (isNumeric(user.getRemoteId())) {
-      String prefix = StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)) ? PropertyManager.getProperty(MATRIX_USERNAME_PREFIX) : "u";
+      String prefix =
+                    StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)) ? PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)
+                                                                                                : "u";
       matrixUserId = prefix + user.getRemoteId();
     }
     matrixUserId = cleanMatrixUsername(matrixUserId);
@@ -540,6 +542,7 @@ public class MatrixService {
 
   /**
    * Checks if the user is a member of a group defined by its name
+   * 
    * @param userName the user name
    * @param groupId the user group ID
    * @return true if the user is a member of the group
@@ -549,7 +552,7 @@ public class MatrixService {
     RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
     try {
       Collection<Membership> userMemberships = this.organizationService.getMembershipHandler()
-              .findMembershipsByUserAndGroup(userName, groupId);
+                                                                       .findMembershipsByUserAndGroup(userName, groupId);
       return !userMemberships.isEmpty();
     } finally {
       RequestLifeCycle.end();
@@ -558,6 +561,7 @@ public class MatrixService {
 
   /**
    * Checks if the user is a member of a group defined by its name
+   * 
    * @param userName the userName
    * @param groups the list of groups
    * @return true if the user is a member of the group
@@ -863,6 +867,7 @@ public class MatrixService {
 
   /**
    * Returns the restricted group of users if it is configured
+   * 
    * @return Array of group names
    */
   public String[] getRestrictedGroups() {
@@ -870,6 +875,6 @@ public class MatrixService {
     if (StringUtils.isBlank(groupNames)) {
       return new String[] {};
     }
-    return groupNames.split(",");
+    return (String[]) Arrays.stream(groupNames.split(",")).map(String::trim).toArray();
   }
 }
