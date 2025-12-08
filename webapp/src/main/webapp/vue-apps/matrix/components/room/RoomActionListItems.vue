@@ -71,7 +71,7 @@ export default {
             roomId: this.room.id,
             muted: !this.isMuted
           });
-        }, 100)
+        }, 100);
       });
     }
   }
