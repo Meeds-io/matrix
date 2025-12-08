@@ -7,13 +7,12 @@
 <%@page import="org.exoplatform.services.security.ConversationState"%>
 <%@page import="org.exoplatform.services.security.Identity"%>
 <%
-UserACL userACL = CommonsUtils.getService(UserACL.class);
 MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
 Identity userIdentity = ConversationState.getCurrent().getIdentity();
 String[] restrictedGroups = matrixService.getRestrictedGroups();
 
-if (matrixService.isServiceAvailable() && (restrictedGroups == null || restrictedGroups.isEmpty()
-    || (restrictedGroups != null && restrictedGroups.length > 0 && this.matrixService.isUserMemberOfGroups(userIdentity.getRemoteId(), restrictedGroups)))) {
+if (matrixService.isServiceAvailable() && (restrictedGroups == null || restrictedGroups.length == 0
+    || (restrictedGroups != null && restrictedGroups.length > 0 && matrixService.isUserMemberOfGroups(userIdentity.getUserId(), restrictedGroups)))) {
 %>
 <div class="VuetifyApp">
   <div data-app="true"
