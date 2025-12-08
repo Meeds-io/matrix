@@ -43,19 +43,19 @@ import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USER
 @Component
 public class MatrixUserLoginListener extends Listener<ConversationRegistry, ConversationState> {
 
-  private static final Log    LOG = ExoLogger.getLogger(MatrixUserLoginListener.class);
+  private static final Log LOG = ExoLogger.getLogger(MatrixUserLoginListener.class);
 
   @Autowired
-  private IdentityManager     identityManager;
+  private IdentityManager  identityManager;
 
   @Autowired
-  private MatrixService       matrixService;
+  private MatrixService    matrixService;
 
   @Autowired
-  private ListenerService     listenerService;
+  private ListenerService  listenerService;
 
   @Autowired
-  private UserACL             userACL;
+  private UserACL          userACL;
 
   @PostConstruct
   public void init() {
@@ -63,21 +63,22 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {
-    if(!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceAvailable()) {
       return;
     }
     String userId = event.getData().getIdentity().getUserId();
     Identity connectedUserIdentity = event.getData().getIdentity();
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    if(matrixUserAdmin.equals(userId)) {
+    if (matrixUserAdmin.equals(userId)) {
       return;
     }
     RequestLifeCycle.begin(PortalContainer.getInstance());
-    String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
-    if (StringUtils.isNotBlank(matrixRestrictedGroup) && !userACL.isUserInGroup(connectedUserIdentity, matrixRestrictedGroup)) {
-      return;
-    }
     try {
+      String[] matrixRestrictedGroups = matrixService.getRestrictedGroups();
+      if (matrixRestrictedGroups != null && matrixRestrictedGroups.length > 0
+          && !matrixService.isUserMemberOfGroups(connectedUserIdentity.getUserId(), matrixRestrictedGroups)) {
+        return;
+      }
       String matrixUserId = matrixService.getMatrixIdForUser(userId);
       if (StringUtils.isBlank(matrixUserId)) {
         org.exoplatform.social.core.identity.model.Identity userIdentity = identityManager.getOrCreateUserIdentity(userId);
