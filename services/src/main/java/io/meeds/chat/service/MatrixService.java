@@ -875,6 +875,6 @@ public class MatrixService {
     if (StringUtils.isBlank(groupNames)) {
       return new String[] {};
     }
-    return (String[]) Arrays.stream(groupNames.split(",")).map(String::trim).toArray();
+    return Arrays.stream(groupNames.split(",")).map(String::trim).toArray(String[]::new);
   }
 }
