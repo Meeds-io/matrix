@@ -1143,10 +1143,14 @@ public class MatrixHttpClient {
       message.setTimeStamp(Long.parseLong(jsonMessage.getElement("origin_server_ts").getStringValue()));
       if (jsonMessage.getElement("content") != null) {
         JsonValue content = jsonMessage.getElement("content");
-        message.setMessageContent(content.getElement("body").getStringValue());
-        message.setMessageType(content.getElement("msgtype").getStringValue());
-        if ("m.text".equals(message.getMessageType()) && content.getElement("org.matrix.custom.html") != null) {
-          message.setMessageContent(jsonMessage.getElement("formatted_body").getStringValue());
+        if(content.getElement("body") != null) {
+          message.setMessageContent(content.getElement("body").getStringValue());
+        }
+        if (content.getElement("msgtype") != null) {
+          message.setMessageType(content.getElement("msgtype").getStringValue());
+          if ("m.text".equals(message.getMessageType()) && content.getElement("org.matrix.custom.html") != null) {
+            message.setMessageContent(jsonMessage.getElement("formatted_body").getStringValue());
+          }
         }
         JsonValue mentionsElement = content.getElement("m.mentions");
         if (mentionsElement != null) {

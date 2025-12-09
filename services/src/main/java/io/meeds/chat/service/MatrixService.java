@@ -352,7 +352,9 @@ public class MatrixService {
 
     String matrixUserId = user.getRemoteId();
     if (isNumeric(user.getRemoteId())) {
-      String prefix = StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)) ? PropertyManager.getProperty(MATRIX_USERNAME_PREFIX) : "u";
+      String prefix =
+                    StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)) ? PropertyManager.getProperty(MATRIX_USERNAME_PREFIX)
+                                                                                                : "u";
       matrixUserId = prefix + user.getRemoteId();
     }
     matrixUserId = cleanMatrixUsername(matrixUserId);
@@ -538,11 +540,40 @@ public class MatrixService {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
 
-  public boolean isUserMemberOfGroup(String userName, String groupId) throws Exception {
-    this.organizationService = CommonsUtils.getOrganizationService();
-    Collection<Membership> userMemberships = this.organizationService.getMembershipHandler()
-                                                                     .findMembershipsByUserAndGroup(userName, groupId);
-    return !userMemberships.isEmpty();
+  /**
+   * Checks if the user is a member of a group defined by its name
+   * 
+   * @param userName the user name
+   * @param groupId the user group ID
+   * @return true if the user is a member of the group
+   * @throws Exception
+   */
+  private boolean isUserMemberOfGroup(String userName, String groupId) throws Exception {
+    RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
+    try {
+      Collection<Membership> userMemberships = this.organizationService.getMembershipHandler()
+                                                                       .findMembershipsByUserAndGroup(userName, groupId);
+      return !userMemberships.isEmpty();
+    } finally {
+      RequestLifeCycle.end();
+    }
+  }
+
+  /**
+   * Checks if the user is a member of a group defined by its name
+   * 
+   * @param userName the userName
+   * @param groups the list of groups
+   * @return true if the user is a member of the group
+   * @throws Exception
+   */
+  public boolean isUserMemberOfGroups(String userName, String... groups) throws Exception {
+    for (String group : groups) {
+      if (this.isUserMemberOfGroup(userName, group)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -832,5 +863,18 @@ public class MatrixService {
    */
   public String cleanMatrixUsername(String userName) {
     return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
+  }
+
+  /**
+   * Returns the restricted group of users if it is configured
+   * 
+   * @return Array of group names
+   */
+  public String[] getRestrictedGroups() {
+    String groupNames = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    if (StringUtils.isBlank(groupNames)) {
+      return new String[] {};
+    }
+    return Arrays.stream(groupNames.split(",")).map(String::trim).toArray(String[]::new);
   }
 }

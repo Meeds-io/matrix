@@ -70,9 +70,9 @@ public class MatrixUserListener extends UserEventListener {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    String matrixRestrictedGroup = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
-    if ((StringUtils.isNotBlank(matrixRestrictedGroup)
-        && !this.matrixService.isUserMemberOfGroup(user.getUserName(), matrixRestrictedGroup))
+    String[] matrixRestrictedGroups = matrixService.getRestrictedGroups();
+    if ((matrixRestrictedGroups != null && matrixRestrictedGroups.length > 0
+        && !this.matrixService.isUserMemberOfGroups(user.getUserName(), matrixRestrictedGroups))
         || matrixUserAdmin.equals(user.getUserName())) {
       return;
     }
