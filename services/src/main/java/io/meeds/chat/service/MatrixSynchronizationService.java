@@ -26,6 +26,8 @@ import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
+import org.exoplatform.services.organization.OrganizationService;
+import org.exoplatform.services.organization.User;
 import org.exoplatform.social.core.identity.SpaceMemberFilterListAccess;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
@@ -37,27 +39,35 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Service
 public class MatrixSynchronizationService {
 
-  private static final Log LOG                = ExoLogger.getExoLogger(MatrixSynchronizationService.class);
+  private static final Log    LOG                = ExoLogger.getExoLogger(MatrixSynchronizationService.class);
 
-  private MatrixService    matrixService;
+  private MatrixService       matrixService;
 
-  private SpaceService     spaceService;
+  private SpaceService        spaceService;
 
-  private IdentityManager  identityManager;
+  private OrganizationService organizationService;
 
-  private static final int SPACES_THRESHOLD   = 20;
+  private IdentityManager     identityManager;
 
-  private static final int LOADED_USERS_COUNT = 50;
+  private static final int    SPACES_THRESHOLD   = 20;
 
-  public MatrixSynchronizationService(MatrixService matrixService, SpaceService spaceService, IdentityManager identityManager) {
+  private static final int    LOADED_USERS_COUNT = 50;
+
+  public MatrixSynchronizationService(MatrixService matrixService,
+                                      SpaceService spaceService,
+                                      IdentityManager identityManager,
+                                      OrganizationService organizationService) {
     this.matrixService = matrixService;
     this.spaceService = spaceService;
     this.identityManager = identityManager;
+    this.organizationService = organizationService;
   }
 
   public void synchronizeSpaces() {
@@ -132,83 +142,79 @@ public class MatrixSynchronizationService {
     LOG.info("Start:: create Matrix accounts for users");
     long startupTime = System.currentTimeMillis();
 
-    int checkedUsers = 0;
-    int usersCount = 0;
+    int totalCheckedUsers = 0;
+    int totalUserCount = 0;
 
-    ListAccess<Identity> users = null;
-    try {
-      if (StringUtils.isNotBlank(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP))) {
-        Space restrictedSpace = spaceService.getSpaceByGroupId(PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP));
-        if (restrictedSpace != null) {
-          users = identityManager.getSpaceIdentityByProfileFilter(restrictedSpace,
-                                                                  new ProfileFilter(),
-                                                                  SpaceMemberFilterListAccess.Type.MEMBER,
-                                                                  false);
+    ListAccess<User> users = null;
+    String[] restrictedGroups = matrixService.getRestrictedGroups();
+    if (restrictedGroups == null || restrictedGroups.length == 0) {
+      restrictedGroups = new String[] { "/platform/users", "/platform/externals" };
+    }
+
+    for (String group : restrictedGroups) {
+      RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
+      try {
+        users = this.organizationService.getUserHandler().findUsersByGroupId(group);
+        int checkedUsers = 0;
+        int usersCount = users == null ? 0 : users.getSize();
+        if (usersCount == 0) {
+          LOG.warn("No users to migrate in group " + group
+              + ", check that the group has already users, or that its name is wrong in the property matrix.restricted.users.groupId .");
         }
-      } else {
-        users = identityManager.getIdentitiesByProfileFilter(OrganizationIdentityProvider.NAME, new ProfileFilter(), false);
-      }
-      usersCount = users == null ? 0 : users.getSize();
-    } catch (Exception e) {
-      throw new RuntimeException("Error while checking users", e);
-    }
 
-    if (usersCount == 0) {
-      throw new IllegalStateException("No users to migrate, please check the value of the property matrix.restricted.users.groupId or remove it to select all users.");
-    }
-
-    RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
-    try {
-      while (checkedUsers < usersCount) {
-        int usersToCheck = usersCount > checkedUsers + LOADED_USERS_COUNT ? LOADED_USERS_COUNT : (usersCount - checkedUsers);
-        Identity[] usersArray = users.load(checkedUsers, usersToCheck);
-        for (Identity user : usersArray) {
-          Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getRemoteId());
-          Profile userProfile = userIdentity.getProfile();
-          String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
-          String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-          if (StringUtils.isBlank(userMatrixId)) {
-            try {
-              boolean isNew = !user.getRemoteId().equals(adminOfMatrix);
-              userMatrixId = matrixService.saveUserAccount(user, isNew);
-            } catch (InterruptedException ie) {
-              Thread.currentThread().interrupt();
-              LOG.warn("Can not create the user {} on Matrix", user.getRemoteId(), ie.getCause());
-            } catch (Exception e) {
-              LOG.warn("Can not create the user {} on Matrix", user.getRemoteId(), e.getCause());
+        while (checkedUsers < usersCount) {
+          int usersToCheck = usersCount > checkedUsers + LOADED_USERS_COUNT ? LOADED_USERS_COUNT : (usersCount - checkedUsers);
+          User[] usersArray = users.load(checkedUsers, usersToCheck);
+          for (User user : usersArray) {
+            Identity userIdentity = identityManager.getOrCreateUserIdentity(user.getUserName());
+            Profile userProfile = userIdentity.getProfile();
+            String userMatrixId = (String) userProfile.getProperty(USER_MATRIX_ID);
+            String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+            if (StringUtils.isBlank(userMatrixId)) {
+              try {
+                boolean isNew = !userIdentity.getRemoteId().equals(adminOfMatrix);
+                userMatrixId = matrixService.saveUserAccount(userIdentity, isNew);
+              } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                LOG.warn("Can not create the user {} on Matrix", userIdentity.getRemoteId(), ie.getCause());
+              } catch (Exception e) {
+                LOG.warn("Can not create the user {} on Matrix", userIdentity.getRemoteId(), e.getCause());
+              }
             }
-          }
-          if (StringUtils.isNotBlank(userMatrixId)) {
-            // Update user avatar
-            matrixService.updateUserAvatar(userProfile, userMatrixId);
+            if (StringUtils.isNotBlank(userMatrixId)) {
+              // Update user avatar
+              matrixService.updateUserAvatar(userProfile, userMatrixId);
 
-            // Add user to spaces already sync with Matrix
-            ListAccess<Space> userSpaces = spaceService.getMemberSpaces(user.getRemoteId());
-            Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
-            for (Space space : spaceArray) {
-              Room room = matrixService.getRoomBySpace(space);
-              if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
-                matrixService.joinUserToRoom(room.getRoomId(), userMatrixId);
+              // Add user to spaces already sync with Matrix
+              ListAccess<Space> userSpaces = spaceService.getMemberSpaces(userIdentity.getRemoteId());
+              Space[] spaceArray = userSpaces.load(0, userSpaces.getSize());
+              for (Space space : spaceArray) {
+                Room room = matrixService.getRoomBySpace(space);
+                if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
+                  matrixService.joinUserToRoom(room.getRoomId(), userMatrixId);
+                }
               }
             }
           }
+          checkedUsers += usersArray.length;
+          LOG.info("Checked Matrix account for {} of {} users", checkedUsers, usersCount);
         }
-        checkedUsers += usersArray.length;
-        LOG.info("Checked Matrix account for {} of {} users", checkedUsers, usersCount);
+        totalCheckedUsers += checkedUsers;
+        totalUserCount += usersCount;
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException("Error while creating accounts for users on Matrix", ie);
+      } catch (Exception e) {
+        throw new RuntimeException("Error while creating accounts for users on Matrix", e);
+      } finally {
+        RequestLifeCycle.end();
       }
-    } catch (InterruptedException ie) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Error while creating accounts for users on Matrix", ie);
-    } catch (Exception e) {
-      throw new RuntimeException("Error while creating accounts for users on Matrix", e);
-    } finally {
-      RequestLifeCycle.end();
     }
     LOG.info("Summary :: create Matrix accounts for {} users, {} users were checked with their Matrix accounts, {} accounts failed to be created !",
-             checkedUsers,
-             usersCount,
-             usersCount - checkedUsers);
-    if (usersCount - checkedUsers > 0) {
+             totalCheckedUsers,
+             totalUserCount,
+             totalUserCount - totalCheckedUsers);
+    if (totalUserCount - totalCheckedUsers > 0) {
       throw new RuntimeException("Some user accounts were not synchronized with Matrix!");
     }
     LOG.info("End:: create Matrix accounts for users took {}", System.currentTimeMillis() - startupTime);
