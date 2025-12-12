@@ -842,8 +842,10 @@ export async function loadAllMessagesWithOriginalCount(roomId, from = null, to =
   return {
     chunk: allMessages,
     start: lastResponse?.start || from || null,
-    end: lastResponse?.end || to || null,
-  };}
+    end: lastResponse?.end || to || lastResponse.start || null,
+    hasMore: allMessages?.length > desiredOriginalCount || !!lastResponse?.end
+  };
+}
 
 export function loadRoomMessages(roomId, from, to) {
   const filter = {'lazy_load_members': true, types: ['m.room.message']};
