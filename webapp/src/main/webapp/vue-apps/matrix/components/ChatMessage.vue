@@ -65,7 +65,7 @@
             :open-on-click="!isMobile"
             :attach="`#message${message.origin_server_ts}`"
             :nudge-top="-10"
-            content-class="no-min-width border-radius"
+            content-class="no-min-width width-fit-content border-radius"
             offset-y
             right
             top>
