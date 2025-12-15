@@ -260,6 +260,7 @@ export default {
         const resp = await this.$matrixService.loadAllMessagesWithOriginalCount(roomId);
         this.from = resp.start;
         this.to = resp.end;
+        this.hasMoreMessages = resp.hasMore;
 
         if (this.currentLoadToken !== loadToken || this.room?.id !== roomId) {
           this.loading = false;
