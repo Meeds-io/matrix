@@ -90,7 +90,7 @@ export default {
     activeRoomId: null,
     cacheRoomsTimeout: null,
     cacheRoomsLock: false,
-    pendingCache: false,
+    pendingCache: false
   }),
   created() {
     this.tryBecomePresencePollingOwner();
@@ -137,6 +137,7 @@ export default {
     this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
     this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
     this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
+    this.$root.$on('show-room-members', this.showRoomMembers);
     document.addEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
     document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
@@ -163,6 +164,7 @@ export default {
     this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
     this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
     this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
+    this.$root.$off('show-room-members', this.showRoomMembers);
     document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
@@ -222,6 +224,14 @@ export default {
     }
   },
   methods: {
+    showRoomMembers(space) {
+      window.require(['SHARED/spaceMembersDrawer'], drawer => {
+        drawer.openSpaceMembers({
+          space: space,
+          isManager: space?.canEdit
+        });
+      });
+    },
     cacheRoomsHandler() {
       clearTimeout(this.cacheRoomsTimeout);
       this.cacheRoomsTimeout = setTimeout(async () => {
@@ -618,6 +628,7 @@ export default {
       this.openDrawer();
       setTimeout(() => {
         this.$root.$emit('open-chat-discussion', room, fromRoomList);
+        document.dispatchEvent(new CustomEvent('space-members-drawer-close'));
         localStorage.setItem('lastOpenedRoomId', room.id);
       }, 100);
     },
