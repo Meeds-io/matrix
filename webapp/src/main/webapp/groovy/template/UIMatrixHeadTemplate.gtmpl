@@ -1,22 +1,18 @@
 <%
   import org.exoplatform.commons.utils.PropertyManager;
   import org.exoplatform.commons.utils.CommonsUtils;
-  import org.exoplatform.social.core.manager.IdentityManager;
-  import org.exoplatform.social.core.identity.model.Identity;
-  import org.exoplatform.social.core.identity.model.Profile;
   import io.meeds.chat.service.utils.MatrixConstants;
+  import io.meeds.chat.service.MatrixService;
 
-  IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
+  MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
-  Identity userIdentity = identityManager.getOrCreateUserIdentity(userName);
-  String userMatrixId = "";
-  if(userIdentity != null) {
-    Profile userProfile = userIdentity.getProfile();
-    userMatrixId = "@" + userProfile.getProperty(MatrixConstants.USER_MATRIX_ID) + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
+  String userMatrixId = matrixService.getMatrixIdForUser(userName);
+  if(userMatrixId != null) {
+    userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
   }
 %>
-<script type="text/javascript">
-  matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
-  matrixUserId = '<%= userMatrixId %>';
-</script>
+  <script type="text/javascript">
+    matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
+    matrixUserId = '<%= userMatrixId %>';
+  </script>
