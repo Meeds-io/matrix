@@ -93,10 +93,27 @@
             {{ $t('matrix.room.unmute.label') }}
           </span>
         </v-list-item>
+        <v-list-item
+          v-if="!!spaceId"
+          class="ps-2 pe-3 height-auto"
+          @click.stop="showMembers">
+          <v-sheet
+            class="d-flex"
+            width="28"
+            height="36">
+            <v-icon
+              class="icon-default-color mx-auto"
+              size="16">
+              fas fa-users
+            </v-icon>
+          </v-sheet>
+          <span>
+            {{ $t('matrix.room.members.label') }}
+          </span>
+        </v-list-item>
       </v-list>
     </v-menu>
   </div>
-
 </template>
 
 <script>
@@ -130,7 +147,7 @@ export default {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
     }
   },
-  watch:{
+  watch: {
     room() {
       this.roomActionComponents = [];
       this.initializedActions = [];
@@ -167,17 +184,17 @@ export default {
         this.menu = false;
         setTimeout(() => {
           this.room.muted = !this.isMuted;
-        }, 100)
+        }, 100);
       });
     },
     initRoomActionComponents() {
       this.roomActionComponents = extensionRegistry ? extensionRegistry.loadExtensions('chat', 'chat-drawer-title-action-component') : [];
       this.$nextTick().then(() => {
-        let chat = {
+        const chat = {
           currentUser: eXo.env.portal.userName,
           fullname: this.room.name,
           type: this.room.directChat && 'u' || 's',
-          prettyName : this.room.prettyName,
+          prettyName: this.room.prettyName,
           user: this.room.dmMemberId,
           spaceId: this.room.spaceId,
           participants: []
@@ -197,6 +214,10 @@ export default {
     },
     editSpace() {
       window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));
+    },
+    showMembers() {
+      this.$root.$emit('show-room-members', this.space);
+      this.$nextTick(() => this.menu = false);
     }
   }
 };

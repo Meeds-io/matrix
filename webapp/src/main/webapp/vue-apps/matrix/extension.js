@@ -13,7 +13,7 @@ export function registerChatExtensions(chatTitle) {
       if (userIdentifier) {
         const matrixUserId = await matrixService.getMatrixIdOfUser(userIdentifier);
         return identity?.enabled && identity.username !== eXo.env.portal.userName
-               && localStorage.getItem("matrix_user_id")
+               && localStorage.getItem('matrix_user_id')
                && matrixUserId;
       } else {
         const room = await matrixService.getSpaceRoom(identity.id);
@@ -22,7 +22,7 @@ export function registerChatExtensions(chatTitle) {
     },
     click: (profile) => {
       const userName = profile.userName || profile.username;
-      if(userName) {
+      if (userName) {
         matrixService.getMatrixIdOfUser(userName).then(invitedUserMatrixId => {
           if (invitedUserMatrixId) {
             matrixService.openDMRoom(eXo.env.portal.userName, userName, matrixServerName, matrixUserId, invitedUserMatrixId);
