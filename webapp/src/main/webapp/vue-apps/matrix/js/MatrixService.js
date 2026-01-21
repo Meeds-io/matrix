@@ -792,9 +792,11 @@ export function getUserByMatrixId(userIdOnMatrix, room) {
     return Promise.resolve(null);
   }
 
-  const matrixId = userIdOnMatrix.startsWith('@')
+  let matrixId = userIdOnMatrix.startsWith('@')
     ? userIdOnMatrix.slice(1, userIdOnMatrix.indexOf(':'))
     : userIdOnMatrix;
+
+  matrixId = matrixId.replace('@', '-');
 
   const cachedUser = userCache.get(matrixId);
   if (cachedUser) {
@@ -1108,12 +1110,14 @@ export async function formatMessage(message, room) {
 
   const replacements = await Promise.all(
     mentions.map(async ([fullMatch, matrixId, displayName]) => {
-      const user = await getUserByMatrixId(matrixId, room);
+      let matrixIdWithoutSpecialChar = matrixId.substring(1).replaceAll('@', '-');
+      matrixIdWithoutSpecialChar = '@' + matrixIdWithoutSpecialChar;
+      const user = await getUserByMatrixId(matrixIdWithoutSpecialChar, room);
       const userId = user?.remoteId;
       if (!userId) {
         return fullMatch;
       }
-      const mentionedDisplayName = user?.profile?.fullname || displayName || matrixId;
+      const mentionedDisplayName = user?.profile?.fullname || displayName || matrixIdWithoutSpecialChar;
       const profileUrl = `${eXo.env.portal.context}/${eXo.env.portal.metaPortalName}/profile/${userId}`;
       const formatted = `<a href="${profileUrl}" class="font-weight-bold text-decoration-none" target="_blank">@${mentionedDisplayName}</a>`;
       return { fullMatch, formatted };
@@ -1669,7 +1673,8 @@ export async function getUserIdentity(userId) {
 
 function extractUserIdFromRoomMembers(room, matrixId) {
   if (room.spaceId) {
-    return room.members.find(member => member.matrixId === matrixId || matrixId === `@${  member.matrixId  }:${  matrixServerName}`)?.userId;
+    return room.members.find(member => member.matrixId === matrixId
+                                       || matrixId === `@${  member.matrixId }:${  matrixServerName}`)?.userId;
   }
   return matrixId === matrixUserId ? eXo.env.portal.userName : room.userId;
 }
