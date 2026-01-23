@@ -64,7 +64,8 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static io.meeds.pwa.service.PwaNotificationService.*;
 
 /**
- * This service creates and manages all different notifications related to the chat application
+ * This service creates and manages all different notifications related to the
+ * chat application
  */
 @Service
 public class ChatNotificationService {
@@ -253,8 +254,7 @@ public class ChatNotificationService {
     String roomName = "";
     String senderFullName = "";
     String roomAvatarUrl = "";
-    if (message != null && message.getMentionedUsers() != null && !message.getMentionedUsers().isEmpty()
-        && message.getMentionedUsers().contains(matrixReceiverId)) {
+    if (message != null && isUserIncludedInMentions(message, matrixReceiverId)) {
       Identity senderIdentity = identityManager.getOrCreateUserIdentity(matrixService.findUserByMatrixId(message.getSender()));
       if (senderIdentity != null) {
         senderFullName = senderIdentity.getProfile().getFullName();
@@ -288,6 +288,38 @@ public class ChatNotificationService {
     return false;
   }
 
+  private String getMessageLink(MatrixMessage message) {
+    String urlFormat = "%s?roomId=%s&message=%s";
+    Room room = matrixService.getById(message.getRoomId());
+    String link = "";
+    try {
+      if (StringUtils.isNotBlank(room.getSpaceId())) {
+        link = permanentLinkService.getLink(new PermanentLinkObject(SpacePermanentLinkPlugin.OBJECT_TYPE, room.getSpaceId()));
+        return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+      } else {
+        String sender;
+        sender = matrixService.findUserByMatrixId(message.getSender());
+        link = String.format("/portal/%s/profile/%s", this.portalConfigService.getMetaPortal(), sender);
+      }
+    } catch (Exception e) {
+      link = String.format("/portal/%s", portalConfigService.getMetaPortal());
+    }
+      return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
+  }
+  
+  private boolean isUserIncludedInMentions(MatrixMessage message, String matrixReceiverId) {
+      if (message.getMentionedUsers() == null || message.getMentionedUsers().isEmpty()) {
+        return false;
+      }
+
+      boolean isUserMentioned = false;
+      for (String mentionedMatrixId : message.getMentionedUsers()) {
+        mentionedMatrixId = "@" + mentionedMatrixId.substring(1).replace("@", "-");// In case the username is the user email
+        isUserMentioned = mentionedMatrixId.equals(matrixReceiverId);
+      }
+      return isUserMentioned;
+    }
+
   public boolean isPrivateRoomMutedForUser(String userName, String roomId) {
     return getMutedRooms(userName).contains(roomId);
   }
@@ -319,26 +351,6 @@ public class ChatNotificationService {
       LOG.error("Error reading muted rooms setting value for user {}", userName, e);
       return Collections.emptySet();
     }
-  }
-
-  private String getMessageLink(MatrixMessage message) {
-    String urlFormat = "%s?roomId=%s&message=%s";
-    Room room = matrixService.getById(message.getRoomId());
-    String link = "";
-    try {
-      if (StringUtils.isNotBlank(room.getSpaceId())) {
-        link = permanentLinkService.getLink(new PermanentLinkObject(SpacePermanentLinkPlugin.OBJECT_TYPE, room.getSpaceId()));
-        return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
-      } else {
-        String sender;
-        sender = matrixService.findUserByMatrixId(message.getSender());
-        link = String.format("/portal/%s/profile/%s", this.portalConfigService.getMetaPortal(), sender);
-      }
-    } catch (Exception e) {
-      link = String.format("/portal/%s", portalConfigService.getMetaPortal());
-    }
-
-    return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
   }
 
   /**
