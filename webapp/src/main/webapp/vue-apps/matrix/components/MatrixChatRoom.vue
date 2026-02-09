@@ -139,7 +139,8 @@ export default {
   },
   computed: {
     roomItemTagId() {
-      return `room${this.room.spaceId || this.room.dmMemberId}${this.fromRoomList ? 'fromRoomList' : ''}`;
+      const rawId = `room${this.room.spaceId || this.room.dmMemberId}${this.fromRoomList ? 'fromRoomList' : ''}`;
+      return rawId.replaceAll(/[^A-Za-z0-9\-_:.]/g, '_');
     },
     isSelected() {
       return this.selectedRoom?.id === this.room?.id;
