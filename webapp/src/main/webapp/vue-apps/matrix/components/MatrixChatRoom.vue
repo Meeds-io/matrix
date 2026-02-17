@@ -140,7 +140,7 @@ export default {
   computed: {
     roomItemTagId() {
       const rawId = `room${this.room.spaceId || this.room.dmMemberId}${this.fromRoomList ? 'fromRoomList' : ''}`;
-      return rawId.replaceAll(/[^A-Za-z0-9\-_:.]/g, '_');
+      return rawId.replaceAll(/[^A-Za-z0-9_-]/g, '_');
     },
     isSelected() {
       return this.selectedRoom?.id === this.room?.id;
