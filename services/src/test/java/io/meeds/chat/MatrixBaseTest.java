@@ -18,13 +18,34 @@
  */
 package io.meeds.chat;
 
-import io.meeds.chat.model.MatrixRoomPermissions;
-import io.meeds.chat.model.MatrixUserPermission;
-import io.meeds.chat.service.MatrixService;
-import io.meeds.chat.service.utils.MatrixHttpClient;
-import io.meeds.kernel.test.AbstractSpringTest;
-import io.meeds.kernel.test.KernelExtension;
-import io.meeds.spring.AvailableIntegration;
+import static io.meeds.chat.service.utils.MatrixConstants.MANAGER_ROLE;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ADMIN_USERNAME;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_JWT_SECRET;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_URL;
+import static io.meeds.chat.service.utils.MatrixConstants.SIMPLE_USER_ROLE;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.component.test.ConfigurationUnit;
 import org.exoplatform.component.test.ConfiguredBy;
@@ -39,38 +60,39 @@ import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
-import org.exoplatform.social.core.storage.cache.CachedIdentityStorage;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.exoplatform.social.core.storage.api.IdentityStorage;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.MatrixService;
+import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.kernel.test.AbstractSpringTest;
+import io.meeds.kernel.test.KernelExtension;
+import io.meeds.spring.AvailableIntegration;
 
-import static io.meeds.chat.service.utils.MatrixConstants.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
-
-@ExtendWith({ SpringExtension.class, KernelExtension.class })
-@SpringBootApplication(scanBasePackages = { MatrixBaseTest.MODULE_NAME, AvailableIntegration.KERNEL_TEST_MODULE,
-    AvailableIntegration.JPA_MODULE, AvailableIntegration.LIQUIBASE_MODULE, AvailableIntegration.WEB_MODULE, "io.meeds.pwa" })
+@ExtendWith({
+  SpringExtension.class,
+  KernelExtension.class,
+  MockitoExtension.class
+})
+@SpringBootApplication(scanBasePackages = {
+  MatrixBaseTest.MODULE_NAME,
+  "io.meeds.pwa",
+  AvailableIntegration.KERNEL_TEST_MODULE,
+  AvailableIntegration.JPA_MODULE,
+  AvailableIntegration.LIQUIBASE_MODULE,
+  AvailableIntegration.WEB_MODULE,
+})
 @EnableJpaRepositories(basePackages = MatrixBaseTest.MODULE_NAME)
-@TestPropertySource(properties = { "spring.liquibase.change-log=" + MatrixBaseTest.CHANGELOG_PATH,
-    "spring.profiles.active=matrix", })
-@ConfiguredBy({ @ConfigurationUnit(scope = ContainerScope.ROOT, path = "conf/configuration.xml"),
-    @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/configuration.xml"),
-    @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/matrix-test-configuration.xml"), })
+@TestPropertySource(properties = {
+  "spring.liquibase.change-log=" + MatrixBaseTest.CHANGELOG_PATH,
+  "spring.profiles.active=matrix",
+})
+@ConfiguredBy({
+  @ConfigurationUnit(scope = ContainerScope.ROOT, path = "conf/configuration.xml"),
+  @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/configuration.xml"),
+  @ConfigurationUnit(scope = ContainerScope.PORTAL, path = "conf/portal/matrix-test-configuration.xml"),
+})
 public class MatrixBaseTest extends AbstractSpringTest {
 
   public static final String     MODULE_NAME    = "io.meeds.chat";
@@ -85,15 +107,15 @@ public class MatrixBaseTest extends AbstractSpringTest {
   public SpaceService            spaceService;
 
   @Autowired
-  public CachedIdentityStorage   identityStorage;
+  public IdentityStorage         identityStorage;
 
   @Autowired
   public MatrixService           matrixService;
 
-  @MockBean
+  @MockitoBean
   public ProfileSearchConnector  profileSearchConnector;
 
-  @MockBean
+  @MockitoBean
   public MatrixHttpClient        matrixHttpClient;
 
   private static KernelBootstrap bootstrap;
@@ -124,7 +146,9 @@ public class MatrixBaseTest extends AbstractSpringTest {
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
-    ((RDBMSIdentityStorageImpl) identityStorage.getStorage()).setProfileSearchConnector(profileSearchConnector);
+    if (identityStorage instanceof RDBMSIdentityStorageImpl rdbmsIdentityStorageImpl) {
+      rdbmsIdentityStorageImpl.setProfileSearchConnector(profileSearchConnector);
+    }
     when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
 
     when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn(matrixRoomId);
