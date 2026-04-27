@@ -79,5 +79,13 @@
       <groupId>io.meeds.pwa</groupId>
       <artifactId>pwa-service</artifactId>
     </dependency>
+
+    <!-- Test scope -->
+    <dependency>
+      <groupId>io.meeds.social</groupId>
+      <artifactId>social-component-core</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>

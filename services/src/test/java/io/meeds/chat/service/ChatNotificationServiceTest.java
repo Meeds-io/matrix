@@ -95,8 +95,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     commonsUtils.when(() -> CommonsUtils.getService(UserStateService.class)).thenReturn(userStateService);
     commonsUtils.when(() -> CommonsUtils.getService(UserSettingService.class)).thenReturn(userSettingService);
     commonsUtils.when(() -> CommonsUtils.getService(ContinuationService.class)).thenReturn(continuationService);
-    when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
-    when(userSettingService.get(anyString())).thenReturn(userSetting);
+    lenient().when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
+    lenient().when(userSettingService.get(anyString())).thenReturn(userSetting);
     ReflectionTestUtils.setField(chatNotificationService, "settingService", settingService);
   }
 
@@ -178,8 +178,8 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Test
   void createNotification() throws Exception {
-    when(userStateModel.getStatus()).thenReturn("available");
-    when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    lenient().when(userStateModel.getStatus()).thenReturn("available");
+    lenient().when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
     String eventId = "eventIDOnMatrix";
     Space space = getSpaceInstance(1);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
