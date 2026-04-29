@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
@@ -46,7 +45,6 @@ import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVE
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@SpringJUnitConfig(MatrixBaseTest.class)
 class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Autowired

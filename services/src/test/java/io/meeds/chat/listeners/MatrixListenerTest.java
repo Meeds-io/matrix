@@ -11,12 +11,10 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.*;
 
-@SpringJUnitConfig(MatrixBaseTest.class)
 class MatrixListenerTest extends MatrixBaseTest {
   @Autowired
   private OrganizationService organizationService;
