@@ -35,7 +35,6 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +46,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-@SpringJUnitConfig(MatrixBaseTest.class)
 class MatrixServiceTest extends MatrixBaseTest {
 
   @Autowired
