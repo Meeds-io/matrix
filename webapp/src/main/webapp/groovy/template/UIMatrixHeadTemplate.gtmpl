@@ -7,12 +7,14 @@
   MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
-  String userMatrixId = matrixService.getMatrixIdForUser(userName);
-  if(userMatrixId != null) {
-    userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
-  }
+  if (userName != null) {
+    String userMatrixId = matrixService.getMatrixIdForUser(userName);
+    if(userMatrixId != null) {
+      userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
+    }
 %>
   <script type="text/javascript">
     matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
     matrixUserId = '<%= userMatrixId %>';
   </script>
+<%}%>

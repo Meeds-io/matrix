@@ -26,7 +26,7 @@ public class Room {
 
   private String  roomId;
 
-  private String  spaceId;
+  private Long  spaceId;
 
   private String  firstParticipant;
 

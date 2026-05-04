@@ -41,7 +41,7 @@ public class RoomEntity implements Serializable {
   public String             roomId;
 
   @Column(name = "SPACE_ID")
-  public String             spaceId;
+  public Long             spaceId;
 
   @Column(name = "FIRST_PARTICIPANT")
   public String             firstParticipant;
@@ -61,11 +61,11 @@ public class RoomEntity implements Serializable {
     this.id = id;
   }
 
-  public String getSpaceId() {
+  public Long getSpaceId() {
     return spaceId;
   }
 
-  public void setSpaceId(String spaceId) {
+  public void setSpaceId(Long spaceId) {
     this.spaceId = spaceId;
   }
 
