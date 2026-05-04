@@ -95,7 +95,7 @@ class UpdateRoomPermissionsUpgradePluginTest {
     int randomInt = random.nextInt(100);
     Room spaceRoom = new Room();
     spaceRoom.setRoomId("RandomRoomId" + randomInt);
-    spaceRoom.setSpaceId(String.valueOf(randomInt));
+    spaceRoom.setSpaceId((long) randomInt);
     return spaceRoom;
   }
 

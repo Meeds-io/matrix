@@ -9,14 +9,14 @@
   IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
-  Identity userIdentity = identityManager.getOrCreateUserIdentity(userName);
-  String userMatrixId = "";
-  if(userIdentity != null) {
-    Profile userProfile = userIdentity.getProfile();
-    userMatrixId = "@" + userProfile.getProperty(MatrixConstants.USER_MATRIX_ID) + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
-  }
+  if (userName != null) {
+    String userMatrixId = matrixService.getMatrixIdForUser(userName);
+    if(userMatrixId != null) {
+      userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
+    }
 %>
-<script type="text/javascript">
-  matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
-  matrixUserId = '<%= userMatrixId %>';
-</script>
+  <script type="text/javascript">
+    matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
+    matrixUserId = '<%= userMatrixId %>';
+  </script>
+<%}%>
