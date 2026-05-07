@@ -6,6 +6,7 @@ import MeedsChatMessage from './components/ChatMessage.vue';
 import MeedsChatMessageContent from './components/ChatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
+import MeedsChatParentSpaceSelector from './components/MeedsChatParentSpaceSelector.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
 import MessageReplyQuote from './components/message/MessageReplyQuote.vue';
@@ -52,6 +53,7 @@ const components = {
   'matrix-popover-chat-button': PopoverChatButton,
   'matrix-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
   'matrix-chat-discussion-drawer': MeedsChatDiscussionDrawer,
+  'matrix-chat-parent-space-selector': MeedsChatParentSpaceSelector,
   'matrix-audio-message': AudioMessage,
   'matrix-message-reply-quote': MessageReplyQuote,
   'matrix-message-edit-banner': MessageEditBanner,
