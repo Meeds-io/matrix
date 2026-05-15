@@ -338,7 +338,7 @@ public class MatrixRest implements ResourceContainer {
     if (room == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no room with ID " + roomId);
     } else {
-      if (StringUtils.isNotBlank(room.getSpaceId())) {
+      if (room.getSpaceId() != null) {
         Space space = spaceService.getSpaceById(room.getSpaceId());
         if (space != null) {
           return identityManager.getOrCreateSpaceIdentity(space.getPrettyName()).getId();
@@ -709,7 +709,7 @@ public class MatrixRest implements ResourceContainer {
     }
     roomEntity.setId(roomId);
     roomEntity.setStatus(room.getStatus());
-    if (StringUtils.isNotBlank(room.getSpaceId())) {
+    if (room.getSpaceId() != null) {
       roomEntity.setSpaceId(room.getSpaceId());
       roomEntity.setDirectChat(false);
       roomEntity.setSpaceId(room.getSpaceId());
@@ -754,7 +754,7 @@ public class MatrixRest implements ResourceContainer {
         roomList.setTotalUnreadMessages(Math.max(0, roomList.getTotalUnreadMessages() - room.getUnreadMessages()));
       }
       if (!room.isDirectChat()) {
-        spaceIds.remove(room.getSpaceId());
+        spaceIds.remove(String.valueOf(room.getSpaceId()));
       }
       if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
         processedRooms.add(room);
@@ -763,7 +763,7 @@ public class MatrixRest implements ResourceContainer {
     }
     if (!spaceIds.isEmpty()) {
       for (String spaceId : spaceIds) {
-        Room missingRoom = matrixService.getRoomBySpaceId(spaceId);
+        Room missingRoom = matrixService.getRoomBySpaceId(Long.valueOf(spaceId));
         if (missingRoom != null) {
           RoomEntity missingRoomEntity = buildRoomEntityFromRoom(missingRoom, currentUserName);
           if (missingRoomEntity != null) {
@@ -785,7 +785,7 @@ public class MatrixRest implements ResourceContainer {
     }
     Room matrixRoom = matrixService.getById(roomId, true);
     if (matrixRoom != null) {
-      if (StringUtils.isNotBlank(matrixRoom.getSpaceId())) {
+      if (matrixRoom.getSpaceId() != null) {
         Space space = spaceService.getSpaceById(matrixRoom.getSpaceId());
         UserSettingService userSettingService = CommonsUtils.getService(UserSettingService.class);
         UserSetting userSetting = userSettingService.get(currentUserName);

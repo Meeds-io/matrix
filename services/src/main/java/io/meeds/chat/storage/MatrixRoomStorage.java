@@ -43,7 +43,7 @@ public class MatrixRoomStorage {
   @Autowired
   private SpaceService     spaceService;
 
-  public Room getMatrixRoomBySpaceId(String spaceId, boolean includeDisabled) {
+  public Room getMatrixRoomBySpaceId(Long spaceId, boolean includeDisabled) {
     RoomEntity roomEntity = matrixRoomDAO.findBySpaceId(spaceId);
     if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
         || includeDisabled)) {
@@ -54,7 +54,7 @@ public class MatrixRoomStorage {
     }
   }
 
-  public Room saveRoomForSpace(String spaceId, String roomId) {
+  public Room saveRoomForSpace(Long spaceId, String roomId) {
     RoomEntity roomEntity = new RoomEntity();
     roomEntity.setSpaceId(spaceId);
     roomEntity.setRoomId(roomId);

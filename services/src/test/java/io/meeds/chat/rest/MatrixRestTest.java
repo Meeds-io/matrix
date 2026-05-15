@@ -166,22 +166,22 @@ class MatrixRestTest {
   @Test
   public void testProcessRooms() throws Exception {
     RoomEntity roomEntity1 = createRoomEntity(1);
-    roomEntity1.setSpaceId("1");
+    roomEntity1.setSpaceId(1L);
     RoomEntity roomEntity2 = createRoomEntity(2);
-    roomEntity2.setSpaceId("2");
+    roomEntity2.setSpaceId(2L);
     RoomEntity roomEntity3 = createRoomEntity(3);
-    roomEntity3.setSpaceId("3");
+    roomEntity3.setSpaceId(3L);
     Room room1 = new Room();
     room1.setRoomId("!testRoom1:matrix.meeds.tn");
-    room1.setSpaceId("1");
+    room1.setSpaceId(1L);
     room1.setStatus(RoomStatus.ENABLED.name());
     Room room2 = new Room();
     room2.setRoomId("!testRoom2:matrix.meeds.tn");
-    room2.setSpaceId("2");
+    room2.setSpaceId(2L);
     room2.setStatus(RoomStatus.ENABLED.name());
     Room room3 = new Room();
     room3.setRoomId("!testRoom3:matrix.meeds.tn");
-    room3.setSpaceId("3");
+    room3.setSpaceId(3L);
     room3.setStatus(RoomStatus.ENABLED.name());
 
     when(matrixService.getById("!testRoom1", true)).thenReturn(room1);
@@ -195,19 +195,19 @@ class MatrixRestTest {
     space1.setAvatarUrl("/Url/Of/Avatar.png");
     space1.setMembers(new String[] { "user1", "user2" });
     when(spaceService.getSpaceById("1")).thenReturn(space1);
-    when(matrixService.getRoomBySpaceId("1")).thenReturn(room1);
+    when(matrixService.getRoomBySpaceId(1L)).thenReturn(room1);
     Space space2 = new Space();
     space2.setDisplayName("Space of Heroes 2");
     space2.setAvatarUrl("/Url/Of/Avatar.png");
     space2.setMembers(new String[] { "user1", "user2" });
     when(spaceService.getSpaceById("2")).thenReturn(space2);
-    when(matrixService.getRoomBySpaceId("2")).thenReturn(room2);
+    when(matrixService.getRoomBySpaceId(2L)).thenReturn(room2);
     Space space3 = new Space();
     space3.setDisplayName("Space of Heroes 3");
     space3.setAvatarUrl("/Url/Of/Avatar.png");
     space3.setMembers(new String[] { "user1", "user2" });
     when(spaceService.getSpaceById("3")).thenReturn(space3);
-    when(matrixService.getRoomBySpaceId("3")).thenReturn(room3);
+    when(matrixService.getRoomBySpaceId(3L)).thenReturn(room3);
 
     RoomEntity privateRoomEntity1 = createRoomEntity(4);
     privateRoomEntity1.setDirectChat(true);
@@ -323,7 +323,7 @@ class MatrixRestTest {
 
     Room room = new Room();
     room.setRoomId(roomId);
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
 
     Space space = new Space();
     space.setAvatarUrl("/avatar/of/the/space");
@@ -381,7 +381,7 @@ class MatrixRestTest {
     when(spaceService.isMember(space, SIMPLE_USER)).thenReturn(true);
     Room room = new Room();
     room.setRoomId("!testRoom:matrix.meeds.tn");
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
     when(matrixService.getRoomBySpace(space)).thenReturn(room);
     response = mockMvc.perform(get(REST_PATH).with(simpleUser()).param("spaceId", "1").contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
@@ -421,7 +421,7 @@ class MatrixRestTest {
 
     Room room = new Room();
     room.setRoomId("!testRoom:matrix.meeds.tn");
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
     when(matrixService.getById("!testRoom:matrix.meeds.tn")).thenReturn(room);
     when(matrixService.canAccess(room, SIMPLE_USER)).thenReturn(true);
     response = mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser())
@@ -485,7 +485,7 @@ class MatrixRestTest {
     space1.setMembers(new String[] { "user1", "user2" });
     Room room = new Room();
     room.setRoomId("!testRoom:matrix.meeds.tn");
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
     when(matrixService.enableSpaceChat(space1, true)).thenReturn(room);
     when(matrixService.getRoomBySpace(space1, true)).thenReturn(room);
 
@@ -509,7 +509,7 @@ class MatrixRestTest {
     space1.setMembers(new String[] { "user1", "user2" });
     Room room = new Room();
     room.setRoomId("!testRoom:matrix.meeds.tn");
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
     when(matrixService.enableSpaceChat(space1, false)).thenReturn(room);
     when(matrixService.getRoomBySpace(space1, true)).thenReturn(room);
 
