@@ -155,7 +155,7 @@ public class ChatNotificationService {
       String sender = message.getSender();
 
       if (room != null) {
-        if (StringUtils.isBlank(room.getSpaceId())) {
+        if (room.getSpaceId() == null) {
           String senderUserName = room.getFirstParticipant().equals(userName) ? room.getSecondParticipant()
                                                                               : room.getFirstParticipant();
           Identity senderIdentity = identityManager.getOrCreateUserIdentity(senderUserName);
@@ -224,7 +224,7 @@ public class ChatNotificationService {
     if (room == null) {
       return false;
     }
-    if (StringUtils.isNotBlank(room.getSpaceId())) {
+    if (room.getSpaceId() != null) {
       message = matrixService.getRoomEvent(eventId, roomId, null);
     } else {
       String accessToken = null;
@@ -259,7 +259,7 @@ public class ChatNotificationService {
       if (senderIdentity != null) {
         senderFullName = senderIdentity.getProfile().getFullName();
       }
-      if (StringUtils.isNotBlank(room.getSpaceId())) {
+      if (room.getSpaceId() != null) {
         Space space = spaceService.getSpaceById(room.getSpaceId());
         roomName = space.getDisplayName();
         roomAvatarUrl = space.getAvatarUrl();
@@ -274,7 +274,7 @@ public class ChatNotificationService {
       ctx.append(MATRIX_ROOM_ID, message.getRoomId());
       ctx.append(MATRIX_MESSAGE_SENDER, matrixService.findUserByMatrixId(message.getSender()));
       ctx.append(MATRIX_ROOM_NAME, roomName);
-      ctx.append(MATRIX_ROOM_TYPE, StringUtils.isNotBlank(room.getSpaceId()) ? "SPACE" : "ONE_TO_ONE");
+      ctx.append(MATRIX_ROOM_TYPE, room.getSpaceId() != null ? "SPACE" : "ONE_TO_ONE");
       ctx.append(MATRIX_ROOM_AVATAR, roomAvatarUrl);
       ctx.append(MATRIX_MESSAGE_CONTENT, message.getMessageContent());
       ctx.append(MATRIX_ROOM_MEMBER, userName);
@@ -293,8 +293,8 @@ public class ChatNotificationService {
     Room room = matrixService.getById(message.getRoomId());
     String link = "";
     try {
-      if (StringUtils.isNotBlank(room.getSpaceId())) {
-        link = permanentLinkService.getLink(new PermanentLinkObject(SpacePermanentLinkPlugin.OBJECT_TYPE, room.getSpaceId()));
+      if (room.getSpaceId() != null) {
+        link = permanentLinkService.getLink(new PermanentLinkObject(SpacePermanentLinkPlugin.OBJECT_TYPE, String.valueOf(room.getSpaceId())));
         return urlFormat.formatted(link, room.getRoomId(), message.getEventId());
       } else {
         String sender;
@@ -388,9 +388,9 @@ public class ChatNotificationService {
       return false;
     }
     boolean roomMuted;
-    if (StringUtils.isNotBlank(room.getSpaceId())) {
+    if (room.getSpaceId() != null) {
       UserSetting userSetting = getUserSettingService().get(userName);
-      roomMuted = userSetting != null && userSetting.isSpaceMuted(Long.parseLong(room.getSpaceId()));
+      roomMuted = userSetting != null && userSetting.isSpaceMuted(room.getSpaceId());
     } else {
       roomMuted = isPrivateRoomMutedForUser(userName, roomId);
     }

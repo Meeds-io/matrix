@@ -209,7 +209,7 @@ public class MatrixService {
    * @return the roomId linked to the space
    */
   public Room getRoomBySpace(Space space) {
-    return getRoomBySpaceId(space.getId());
+    return getRoomBySpaceId(Long.valueOf(space.getId()));
   }
 
   /**
@@ -219,7 +219,7 @@ public class MatrixService {
    * @return the roomId linked to the space
    */
   public Room getRoomBySpace(Space space, boolean includeDisabled) {
-    return getRoomBySpaceId(space.getId(), includeDisabled);
+    return getRoomBySpaceId(Long.valueOf(space.getId()), includeDisabled);
   }
 
   /**
@@ -228,7 +228,7 @@ public class MatrixService {
    * @param spaceId the space Id
    * @return the roomId linked to the space
    */
-  public Room getRoomBySpaceId(String spaceId) {
+  public Room getRoomBySpaceId(Long spaceId) {
     return this.getRoomBySpaceId(spaceId, false);
   }
 
@@ -238,7 +238,7 @@ public class MatrixService {
    * @param spaceId the space Id
    * @return the roomId linked to the space
    */
-  public Room getRoomBySpaceId(String spaceId, boolean includeDisabled) {
+  public Room getRoomBySpaceId(Long spaceId, boolean includeDisabled) {
     return matrixRoomStorage.getMatrixRoomBySpaceId(spaceId, includeDisabled);
   }
 
@@ -275,7 +275,7 @@ public class MatrixService {
    * @return the room ID
    */
   public Room linkSpaceToMatrixRoom(Space space, String roomId) {
-    return matrixRoomStorage.saveRoomForSpace(space.getId(), roomId);
+    return matrixRoomStorage.saveRoomForSpace(Long.valueOf(space.getId()), roomId);
   }
 
   /**
@@ -283,9 +283,7 @@ public class MatrixService {
    * 
    * @param space the space
    * @return String representing the room id
-   * @throws JsonException
-   * @throws IOException
-   * @throws InterruptedException
+   * @throws Exception when creating the room fails on Matrix
    */
   public String createRoomForSpaceOnMatrix(Space space) throws Exception {
     String teamDisplayName = space.getDisplayName();
@@ -638,7 +636,7 @@ public class MatrixService {
    * @return true if he has access, false otherwise
    */
   public boolean canAccess(Room room, String userName) {
-    if (StringUtils.isBlank(room.getSpaceId())) {
+    if (room.getSpaceId() == null) {
       return userName.equals(room.getFirstParticipant()) || userName.equals(room.getSecondParticipant());
     } else {
       Space space = spaceService.getSpaceById(room.getSpaceId());

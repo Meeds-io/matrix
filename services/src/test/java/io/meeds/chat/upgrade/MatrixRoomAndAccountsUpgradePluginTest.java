@@ -97,7 +97,7 @@ class MatrixRoomAndAccountsUpgradePluginTest {
     when(spaceService.getMemberSpaces(anyString())).thenReturn(spaces);
     Room room = new Room();
     room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
-    room.setSpaceId("1");
+    room.setSpaceId(1L);
     when(matrixService.getRoomBySpace(eq(space))).thenReturn(room);
 
     // spaces data

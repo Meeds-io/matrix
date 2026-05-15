@@ -29,7 +29,7 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
 
   public RoomEntity findByRoomId(String roomId);
 
-  public RoomEntity findBySpaceId(String spaceId);
+  public RoomEntity findBySpaceId(Long spaceId);
 
   @Query("""
           SELECT m from MatrixRoom m
@@ -49,5 +49,5 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
 
   public List<RoomEntity> findBySpaceIdIsNotNullAndStatusIs(RoomStatus status);
 
-  public List<RoomEntity> findBySpaceIdIn(List<String> spaceIds);
+  public List<RoomEntity> findBySpaceIdIn(List<Long> spaceIds);
 }
