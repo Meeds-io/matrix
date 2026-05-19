@@ -1,12 +1,10 @@
 <%
   import org.exoplatform.commons.utils.PropertyManager;
   import org.exoplatform.commons.utils.CommonsUtils;
-  import org.exoplatform.social.core.manager.IdentityManager;
-  import org.exoplatform.social.core.identity.model.Identity;
-  import org.exoplatform.social.core.identity.model.Profile;
   import io.meeds.chat.service.utils.MatrixConstants;
+  import io.meeds.chat.service.MatrixService;
 
-  IdentityManager identityManager = CommonsUtils.getService(IdentityManager.class);
+  MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
   if (userName != null) {
