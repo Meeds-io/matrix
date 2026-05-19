@@ -62,7 +62,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceCreated(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -99,7 +99,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRenamed(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -119,7 +119,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void joined(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -150,7 +150,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void left(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -173,7 +173,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void grantedLead(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -186,7 +186,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void revokedLead(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -240,7 +240,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceAvatarEdited(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -257,7 +257,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceDescriptionEdited(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -276,7 +276,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRemoved(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
