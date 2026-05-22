@@ -7,7 +7,7 @@
   MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
-  if (userName != null) {
+  if (userName != null && matrixService.isServiceEnabled()) {
     String userMatrixId = matrixService.getMatrixIdForUser(userName);
     if(userMatrixId != null) {
       userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
