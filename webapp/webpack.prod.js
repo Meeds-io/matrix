@@ -1,6 +1,6 @@
 const path = require('path');
 const ESLintPlugin = require('eslint-webpack-plugin');
-const { VueLoaderPlugin } = require('vue-loader')
+const { VueLoaderPlugin } = require('vue-loader');
 
 const config = {
   mode: 'production',
@@ -38,6 +38,7 @@ const config = {
     matrixChatNotificationsExtension: './src/main/webapp/vue-apps/notification/main.js',
     analyticsExtensionMatrix: './src/main/webapp/vue-apps/analytics-extension/main.js',
     userSettingsNotificationsExtension: './src/main/webapp/vue-apps/user-settings-notifications-extension/main.js',
+    matrixAdministration: './src/main/webapp/vue-apps/administration/main.js',
   },
   output: {
     path: path.join(__dirname, 'target/matrix/'),
