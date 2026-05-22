@@ -63,7 +63,7 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
   }
 
   public void onEvent(Event<ConversationRegistry, ConversationState> event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     String userId = event.getData().getIdentity().getUserId();

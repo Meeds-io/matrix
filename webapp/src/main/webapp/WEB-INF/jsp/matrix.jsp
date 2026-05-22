@@ -11,7 +11,7 @@ MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
 Identity userIdentity = ConversationState.getCurrent().getIdentity();
 String[] restrictedGroups = matrixService.getRestrictedGroups();
 
-if (matrixService.isServiceAvailable() && (restrictedGroups == null || restrictedGroups.length == 0
+if (matrixService.isServiceEnabled() && (restrictedGroups == null || restrictedGroups.length == 0
     || (restrictedGroups != null && restrictedGroups.length > 0 && matrixService.isUserMemberOfGroups(userIdentity.getUserId(), restrictedGroups)))) {
 %>
 <div class="VuetifyApp">
