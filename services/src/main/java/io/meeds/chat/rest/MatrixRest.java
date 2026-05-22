@@ -102,7 +102,7 @@ public class MatrixRest implements ResourceContainer {
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
-  @ApiResponses(value = { @ApiResponse(responseCode = "2rest00", description = "Request fulfilled"),
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public RoomEntity getMatrixRoomBySpaceId(HttpServletRequest request,
