@@ -24,15 +24,29 @@ import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.notification.MentionReceivedNotificationPlugin;
 import io.meeds.chat.rest.model.MediaInfo;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
+import io.meeds.portal.navigation.model.NavigationConfiguration;
+import io.meeds.portal.navigation.model.TopbarApplication;
+import io.meeds.portal.navigation.model.TopbarConfiguration;
+import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.api.notification.service.setting.PluginSettingService;
+import org.exoplatform.commons.api.notification.service.storage.NotificationService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.file.model.FileItem;
+import org.exoplatform.commons.notification.channel.MailChannel;
+import org.exoplatform.commons.notification.channel.WebChannel;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 
@@ -71,6 +85,8 @@ public class MatrixService {
 
   private static final Log               LOG                       = ExoLogger.getLogger(MatrixService.class);
 
+  public static final String             CHAT_APPLICATION_ID       = "chat";
+
   @Autowired
   private MatrixRoomStorage              matrixRoomStorage;
 
@@ -97,6 +113,8 @@ public class MatrixService {
 
   private String                         matrixAccessToken;
 
+  private SettingService                 settingService;
+
   private final ExoCache<String, String> userMatrixIdsCache;
 
   public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
@@ -106,13 +124,15 @@ public class MatrixService {
                        IdentityStorage identityStorage,
                        OrganizationService organizationService,
                        MatrixHttpClient matrixHttpClient,
-                       CacheService cacheService) {
+                       CacheService cacheService,
+                       SettingService settingService) {
     this.matrixRoomStorage = matrixRoomStorage;
     this.identityManager = identityManager;
     this.identityStorage = identityStorage;
     this.organizationService = organizationService;
     this.matrixHttpClient = matrixHttpClient;
     this.userMatrixIdsCache = cacheService.getCacheInstance(USER_MATRIX_ID_CACHE_NAME);
+    this.settingService = settingService;
   }
 
   @PostConstruct
@@ -134,9 +154,19 @@ public class MatrixService {
   }
 
   /**
-   * Convert the user id into the full Matrx ID format
+   * Checks if the Chat feature is enabled and that the Matrix service is
+   * available
    * 
-   * @param userName
+   * @return the status fo the chat service and feature
+   */
+  public boolean isServiceEnabled() {
+    return this.serviceAvailable && this.isChatFeatureEnabled();
+  }
+
+  /**
+   * Convert the user id into the full Matrix ID format
+   * 
+   * @param userName the username
    * @return formatted username
    */
   public String getUserFullMatrixID(String userName) {
@@ -162,7 +192,7 @@ public class MatrixService {
   /**
    * Retrieves an access token for a user using a JWT token
    * 
-   * @param jwtToken
+   * @param jwtToken the Json Web Token
    * @return String the access token
    */
   public String getAccessToken(String jwtToken) throws JsonException, IOException, InterruptedException {
@@ -872,7 +902,7 @@ public class MatrixService {
   public String[] getRestrictedGroups() {
     String groupNames = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if (StringUtils.isBlank(groupNames)) {
-      return new String[]{};
+      return new String[] {};
     }
     return Arrays.stream(groupNames.split(",")).map(String::trim).toArray(String[]::new);
   }
@@ -881,10 +911,13 @@ public class MatrixService {
    * Returns synapse media info by its ID
    * 
    * @param mediaId synapse media id
-   * @return {@link MediaInfo} wrapped in {@link Optional}, or {@link Optional#empty()} if mediaId is null or blank
-   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @return {@link MediaInfo} wrapped in {@link Optional}, or
+   *         {@link Optional#empty()} if mediaId is null or blank
+   * @throws JsonException if there is an error parsing the JSON response from the
+   *           server
    * @throws IOException if a network or I/O error occurs during the request
-   * @throws InterruptedException if the thread executing the request is interrupted
+   * @throws InterruptedException if the thread executing the request is
+   *           interrupted
    */
   public Optional<MediaInfo> getMediaInfo(String mediaId) throws JsonException, IOException, InterruptedException {
     if (mediaId == null || mediaId.isBlank()) {
@@ -898,14 +931,59 @@ public class MatrixService {
    * 
    * @param mediaId synapse media id
    * @throws IllegalArgumentException if mediaId is null or blank
-   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @throws JsonException if there is an error parsing the JSON response from the
+   *           server
    * @throws IOException if a network or I/O error occurs during the request
-   * @throws InterruptedException if the thread executing the request is interrupted
+   * @throws InterruptedException if the thread executing the request is
+   *           interrupted
    */
   public void deleteMedia(String mediaId) throws JsonException, IOException, InterruptedException {
     if (mediaId == null || mediaId.isBlank()) {
       throw new IllegalArgumentException("mediaId must not be null or empty");
     }
     matrixHttpClient.deleteMedia(mediaId, getMatrixAccessToken());
+  }
+
+  /**
+   * Check if the Chat feature is enabled
+   * 
+   * @return the status of the chat feature
+   */
+  public boolean isChatFeatureEnabled() {
+    SettingValue<?> chatFeatureStatus = settingService.get(Context.GLOBAL, Scope.APPLICATION, CHAT_FEATURE_ENABLED);
+    return chatFeatureStatus == null || "true".equals(chatFeatureStatus.getValue());
+  }
+
+  /**
+   * Sets the status of teh chat feature
+   * 
+   * @param chatFeatureEnabled the new status fo the chat enabled/disabled
+   */
+  public void setChatFeatureEnabled(boolean chatFeatureEnabled) {
+    settingService.set(Context.GLOBAL,
+                       Scope.APPLICATION,
+                       CHAT_FEATURE_ENABLED,
+                       new SettingValue<>(String.valueOf(chatFeatureEnabled)));
+
+    // Enable/Disable notifications
+    PluginSettingService pluginSettingService = CommonsUtils.getService(PluginSettingService.class);
+    pluginSettingService.saveActivePlugin(WebChannel.ID, MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN, chatFeatureEnabled);
+    pluginSettingService.saveActivePlugin(MailChannel.ID, MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN, chatFeatureEnabled);
+
+    // Disable chat application in Topbar configuration
+    NavigationConfigurationService navigationConfigurationService = CommonsUtils.getService(NavigationConfigurationService.class);
+    io.meeds.portal.navigation.model.NavigationConfiguration navigationConfiguration =
+                                                                                     navigationConfigurationService.getConfiguration();
+    List<TopbarApplication> applications = navigationConfiguration.getTopbar().getApplications();
+    for (int i = 0; i < applications.size(); i++) {
+      TopbarApplication topbarApplication = applications.get(i);
+      if (CHAT_APPLICATION_ID.equals(topbarApplication.getId())) {
+        topbarApplication.setEnabled(chatFeatureEnabled);
+        applications.set(i, topbarApplication);
+        navigationConfiguration.getTopbar().setApplications(applications);
+        navigationConfigurationService.updateConfiguration(navigationConfiguration);
+        break;
+      }
+    }
   }
 }
