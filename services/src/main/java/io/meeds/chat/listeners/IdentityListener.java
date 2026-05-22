@@ -52,7 +52,7 @@ public class IdentityListener extends ProfileListenerPlugin {
 
   @Override
   public void avatarUpdated(ProfileLifeCycleEvent event) {
-    if(!matrixService.isServiceAvailable()) {
+    if(!matrixService.isServiceEnabled()) {
       return;
     }
     Profile profile = event.getProfile();
