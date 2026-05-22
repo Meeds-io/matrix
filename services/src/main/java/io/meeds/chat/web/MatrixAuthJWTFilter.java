@@ -55,7 +55,7 @@ public class MatrixAuthJWTFilter implements Filter {
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     HttpServletResponse httpResponse = (HttpServletResponse) response;
     MatrixService matrixService = ExoContainerContext.getCurrentContainer().getComponentInstanceOfType(MatrixService.class);
-    if (matrixService.isServiceAvailable()) {
+    if (matrixService.isServiceEnabled()) {
       Cookie[] cookies = httpRequest.getCookies();
       if (cookies != null) {
         if (httpRequest.getRemoteUser() != null
