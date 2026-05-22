@@ -66,7 +66,7 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSave(User user, boolean isNew) throws Exception {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
@@ -89,7 +89,7 @@ public class MatrixUserListener extends UserEventListener {
 
   @Override
   public void postSetEnabled(User user) throws Exception {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
