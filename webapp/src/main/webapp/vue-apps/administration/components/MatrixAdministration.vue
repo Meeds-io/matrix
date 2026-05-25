@@ -29,6 +29,10 @@
           hide-details
           @change="enableChat"/>
       </div>
+      <div v-if="!chatEnabled" class="d-flex justify-center align-center my-16">
+        <v-icon large>fa-comment-slash</v-icon>
+        <span class="ms-2">{{ $t('meeds.chat.deactivated') }}</span>
+      </div>
     </v-main>
   </v-app>
 </template>
