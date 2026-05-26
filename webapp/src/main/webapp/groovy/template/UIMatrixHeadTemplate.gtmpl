@@ -8,13 +8,16 @@
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
   if (userName != null && matrixService.isServiceEnabled()) {
+    def chatSettings = matrixService.loadChatSettings();
     String userMatrixId = matrixService.getMatrixIdForUser(userName);
     if(userMatrixId != null) {
       userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
     }
 %>
   <script type="text/javascript">
+    const meedsChat = {};
     matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
     matrixUserId = '<%= userMatrixId %>';
+    meedsChat.privateRoomsEnabled = <%= chatSettings != null ? chatSettings.privateRoomsEnabled : false %>;
   </script>
 <%}%>

@@ -168,6 +168,7 @@ public class MatrixRest implements ResourceContainer {
   @Operation(summary = "Gets or creates the Matrix room for the direct messaging", method = "POST", description = "Gets or creates the Matrix room for the direct messaging")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "403", description = "Private rooms are deactivated"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public RoomEntity createDirectMessagingRoom(HttpServletRequest request,
                                               @RequestBody(description = "Matrix object to create", required = true)
@@ -175,6 +176,9 @@ public class MatrixRest implements ResourceContainer {
                                               Room room) {
     if (StringUtils.isBlank(room.getFirstParticipant()) || StringUtils.isBlank(room.getSecondParticipant())) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the ids of the participants should not be null");
+    }
+    if (!this.matrixService.loadChatSettings().isPrivateRoomsEnabled()) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chat private rooms are deactivated in the system");
     }
     try {
       String currentUserName = request.getRemoteUser();
@@ -188,8 +192,9 @@ public class MatrixRest implements ResourceContainer {
    * This API is used by Matrix server to notify the Meeds server that a user has
    * a new notification This API is used as a Push Gateway for Matrix server
    * 
-   * @param notification
-   * @return
+   * @param notification the content of the notification received from Matrix
+   *          server
+   * @return String representing the list of rejected pushKeys on Matrix
    */
   @PostMapping("notify")
   @Operation(summary = "Receives push notification from Matrix", method = "POST", description = "Receives push notification from Matrix")
@@ -644,9 +649,9 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<String> updatePushNotificationsSettings(HttpServletRequest request,
-                                                           @RequestBody(description = "Notification received from Matrix", required = true)
-                                                           @org.springframework.web.bind.annotation.RequestBody
-                                                           String pushNotificationSetting) {
+                                                                @RequestBody(description = "Notification received from Matrix", required = true)
+                                                                @org.springframework.web.bind.annotation.RequestBody
+                                                                String pushNotificationSetting) {
     try {
       JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
       JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(pushNotificationSetting);
@@ -755,7 +760,9 @@ public class MatrixRest implements ResourceContainer {
       if (!room.isDirectChat()) {
         spaceIds.remove(String.valueOf(room.getSpaceId()));
       }
-      if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
+      ChatSettings chatSettings = matrixService.loadChatSettings();
+      if (RoomStatus.ENABLED.name().equals(room.getStatus())
+          && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled()) || !room.isDirectChat())) {
         processedRooms.add(room);
       }
 
