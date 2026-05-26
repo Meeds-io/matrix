@@ -20,7 +20,7 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
 
 <template>
   <v-app role="main" flat>
-    <v-main class="application-body pa-5">
+    <v-main v-if="!loading" class="application-body pa-5">
       <div class="mb-5 text-title d-flex">
         <span class="">{{ $t('meeds.chat.enabled.title') }}</span>
         <v-switch
@@ -51,10 +51,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
         <v-icon large>fa-comment-slash</v-icon>
         <span class="ms-2">{{ $t('meeds.chat.deactivated') }}</span>
       </div>
-      <div v-if="!chatEnabled" class="d-flex justify-center align-center my-16">
-        <v-icon large>fa-comment-slash</v-icon>
-        <span class="ms-2">{{ $t('meeds.chat.deactivated') }}</span>
-      </div>
     </v-main>
   </v-app>
 </template>
@@ -67,13 +63,15 @@ export default {
         'chatFeatureEnabled': true,
         'enablePrivateRooms': true,
       },
+    loading : false,
   }),
   created() {
+    this.loading = true;
     this.$matrixAdministrationService.loadSettings().then(respJson => {
       if (respJson) {
         this.chatSettings = respJson;
       }
-    });
+    }).finally(() => this.loading = false);
   },
   methods: {
     updateChatFeature() {
