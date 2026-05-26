@@ -1,5 +1,6 @@
 package io.meeds.chat.rest;
 
+import io.meeds.chat.rest.model.ChatSettings;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.service.MatrixService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,38 +24,36 @@ public class ChatAdministrationRest implements ResourceContainer {
   @Autowired
   private MatrixService matrixService;
 
-  @GetMapping(value = "isChatEnabled", produces = MediaType.APPLICATION_JSON_VALUE)
+  @GetMapping(value = "settings", produces = MediaType.APPLICATION_JSON_VALUE)
   @Secured("administrators")
-  @Operation(summary = "Check if the Chat feature is enabled or not", method = "GET", description = "Check if the Chat feature is enabled or not")
+  @Operation(summary = "Check the Chat settings", method = "GET", description = "Check the Chat settings")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-      @ApiResponse(responseCode = "503", description = "Service unavailable"), })
-  public String isChatFeatureEnabled(HttpServletRequest request) {
+      @ApiResponse(responseCode = "503", description = "Service unavailable"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ChatSettings loadChatSettings() {
     if (!matrixService.isServiceAvailable()) {
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chat service is unavailable");
     }
-    return """
-        {
-          "enabled" : %s
-        }
-        """.formatted(matrixService.isChatFeatureEnabled());
+    ChatSettings chatSettings = matrixService.loadChatSettings();
+    if(chatSettings == null) {
+      return new ChatSettings(true, true, true);
+    }
+    return chatSettings;
   }
 
-  @PostMapping(value = "enableChat", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+  @PostMapping(value = "settings", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
   @Secured("administrators")
   @Operation(summary = "Enable the Chat feature", method = "GET", description = "Enable the Chat feature")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
-      @ApiResponse(responseCode = "503", description = "Service unavailable"), })
-  public String enableChatFeature(@Parameter(description = "Status of the Chat")
-                                  @RequestParam("enabled")
-                                  boolean enabled) {
+      @ApiResponse(responseCode = "503", description = "Service unavailable"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ChatSettings updateChatSettings(@Parameter(description = "Settings of the Chat")
+                                         @RequestBody
+                                         ChatSettings chatSettings) {
     if (!matrixService.isServiceAvailable()) {
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chat service is unavailable");
     }
-    this.matrixService.setChatFeatureEnabled(enabled);
-    return """
-        {
-          "enabled" : %s
-        }
-        """.formatted(matrixService.isChatFeatureEnabled());
+    this.matrixService.setChatSettings(chatSettings);
+    return this.matrixService.loadChatSettings();
   }
 }
