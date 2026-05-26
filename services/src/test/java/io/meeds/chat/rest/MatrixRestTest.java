@@ -18,23 +18,58 @@
  */
 package io.meeds.chat.rest;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_JWT_SECRET;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureWebMvc;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.meeds.chat.entity.RoomStatus;
-import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.*;
-import io.meeds.chat.service.ChatNotificationService;
-import io.meeds.chat.service.MatrixService;
-import io.meeds.chat.service.MatrixSynchronizationService;
-import io.meeds.pwa.service.PwaNotificationService;
-import io.meeds.spring.web.security.PortalAuthenticationManager;
-import io.meeds.spring.web.security.WebSecurityConfiguration;
-import jakarta.servlet.Filter;
-import lombok.SneakyThrows;
-import org.apache.commons.lang3.StringUtils;
+
 import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.resources.ResourceBundleService;
@@ -47,39 +82,23 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.rest.api.EntityBuilder;
 import org.exoplatform.social.rest.api.RestUtils;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
-import java.util.*;
+import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.LastMessage;
+import io.meeds.chat.rest.model.Member;
+import io.meeds.chat.rest.model.Presence;
+import io.meeds.chat.rest.model.RoomEntity;
+import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.service.ChatNotificationService;
+import io.meeds.chat.service.MatrixService;
+import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.pwa.service.PwaNotificationService;
+import io.meeds.spring.web.security.PortalAuthenticationManager;
+import io.meeds.spring.web.security.WebSecurityConfiguration;
 
-import static io.meeds.chat.service.utils.MatrixConstants.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import jakarta.servlet.Filter;
+import lombok.SneakyThrows;
 
 @SpringBootTest(classes = { MatrixRest.class, PortalAuthenticationManager.class })
 @ContextConfiguration(classes = { WebSecurityConfiguration.class })
