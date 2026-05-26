@@ -72,6 +72,12 @@
                 {{ $t('matrix.chat.quick.create.subspace.discussion.info') }}.
               </span>
             </div>
+            <div
+              v-else-if="!privateRoomsEnabled">
+              <span class="text-subtitle">
+                {{ $t('matrix.chat.quick.create.private.room.disabled') }}.
+              </span>
+            </div>
           </div>
         </div>
       </v-form>
@@ -130,6 +136,9 @@ export default {
     shouldJoinParentSpace() {
       return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length === 0;
     },
+    privateRoomsEnabled() {
+      return meedsChat.privateRoomsEnabled;
+    },
     hasMoreParentSpaces() {
       return this.parentSpaceList.length < this.parentSpacesSize;
     },
@@ -142,7 +151,7 @@ export default {
       };
     },
     disabledSaveButton(){
-      return !this.participant || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
+      return !this.participant || (this.participant.length <= 1 && !meedsChat.privateRoomsEnabled) || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
     },
   },
   async created() {
