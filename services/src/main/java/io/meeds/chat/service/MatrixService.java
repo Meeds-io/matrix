@@ -24,21 +24,17 @@ import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.notification.MentionReceivedNotificationPlugin;
+import io.meeds.chat.rest.model.ChatSettings;
 import io.meeds.chat.rest.model.MediaInfo;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
-import io.meeds.portal.navigation.model.NavigationConfiguration;
 import io.meeds.portal.navigation.model.TopbarApplication;
-import io.meeds.portal.navigation.model.TopbarConfiguration;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.api.notification.service.setting.PluginSettingService;
-import org.exoplatform.commons.api.notification.service.storage.NotificationService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.api.settings.SettingValue;
 import org.exoplatform.commons.api.settings.data.Context;
@@ -162,6 +158,16 @@ public class MatrixService {
   public boolean isServiceEnabled() {
     return this.serviceAvailable && this.isChatFeatureEnabled();
   }
+
+  /**
+   * Checks if the chat feature if enabled or not
+   * @return boolean : chat status
+   */
+  private boolean isChatFeatureEnabled() {
+    ChatSettings settings = loadChatSettings();
+    return settings == null || settings.isChatEnabled();
+  }
+
 
   /**
    * Convert the user id into the full Matrix ID format
@@ -945,25 +951,27 @@ public class MatrixService {
   }
 
   /**
-   * Check if the Chat feature is enabled
+   * retrieves the chat settings
    * 
    * @return the status of the chat feature
    */
-  public boolean isChatFeatureEnabled() {
-    SettingValue<?> chatFeatureStatus = settingService.get(Context.GLOBAL, Scope.APPLICATION, CHAT_FEATURE_ENABLED);
-    return chatFeatureStatus == null || "true".equals(chatFeatureStatus.getValue());
+  public ChatSettings loadChatSettings() {
+    SettingValue<?> settings = settingService.get(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS);
+    return settings == null ? null : ChatSettings.fromString((String) settings.getValue());
   }
 
   /**
-   * Sets the status of teh chat feature
+   * Sets the settings of the chat feature
    * 
-   * @param chatFeatureEnabled the new status fo the chat enabled/disabled
+   * @param chatSettings the new status fo the chat enabled/disabled
    */
-  public void setChatFeatureEnabled(boolean chatFeatureEnabled) {
+  public void setChatSettings(ChatSettings chatSettings) {
     settingService.set(Context.GLOBAL,
                        Scope.APPLICATION,
-                       CHAT_FEATURE_ENABLED,
-                       new SettingValue<>(String.valueOf(chatFeatureEnabled)));
+        CHAT_SETTINGS,
+                       new SettingValue<>(chatSettings.toString()));
+
+    boolean chatFeatureEnabled = chatSettings.isChatEnabled();
 
     // Enable/Disable notifications
     PluginSettingService pluginSettingService = CommonsUtils.getService(PluginSettingService.class);
