@@ -785,7 +785,7 @@ public class MatrixRest implements ResourceContainer {
 
   private String checkAndParseUserFromToken(String token) {
     byte[] secret = PropertyManager.getProperty(MATRIX_JWT_SECRET).getBytes();
-    Jws<Claims> jws = Jwts.parserBuilder().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
+    Jws<Claims> jws = Jwts.parser().setSigningKey(Keys.hmacShaKeyFor(secret)).build().parseClaimsJws(token);
     String usernameOnMatrix = String.valueOf(jws.getBody().getSubject());
     if (StringUtils.isNotBlank(usernameOnMatrix)) {
       String fullUserName = matrixService.getUserFullMatrixID(usernameOnMatrix);
