@@ -16,18 +16,40 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+import {updateChatSettings} from '../js/matrixAdministrationService';
+
 <template>
   <v-app role="main" flat>
     <v-main class="application-body pa-5">
       <div class="mb-5 text-title d-flex">
         <span class="">{{ $t('meeds.chat.enabled.title') }}</span>
         <v-switch
-          v-model="chatEnabled"
+          v-model="chatSettings.chatEnabled"
           :ripple="false"
           color="primary"
           class="pa-0 my-auto ml-auto"
           hide-details
-          @change="enableChat"/>
+          @change="updateChatFeature"/>
+      </div>
+      <div v-if="chatSettings.chatEnabled">
+        <div class="mb-5 text-title d-flex">
+          <span class="text-header">{{ $t('meeds.chat.rooms.authorized') }}</span>
+        </div>
+        <div>
+          <v-switch
+            v-model="chatSettings.privateRoomsEnabled"
+            :ripple="false"
+            :disabled="!chatSettings.chatEnabled"
+            :label="$t('meeds.chat.enable.private.rooms')"
+            color="primary"
+            class="pa-0 my-auto ml-auto"
+            hide-details
+            @change="updateChatFeature"/>
+        </div>
+      </div>
+      <div v-else class="d-flex justify-center align-center my-16">
+        <v-icon large>fa-comment-slash</v-icon>
+        <span class="ms-2">{{ $t('meeds.chat.deactivated') }}</span>
       </div>
       <div v-if="!chatEnabled" class="d-flex justify-center align-center my-16">
         <v-icon large>fa-comment-slash</v-icon>
@@ -41,17 +63,22 @@ export default {
   props: {
   },
   data: () => ({
-    chatEnabled: true,
+    chatSettings: {
+        'chatFeatureEnabled': true,
+        'enablePrivateRooms': true,
+      },
   }),
   created() {
-    this.$matrixAdministrationService.isChatEnabled().then(respJson => {
-      this.chatEnabled = respJson.enabled;
+    this.$matrixAdministrationService.loadSettings().then(respJson => {
+      if (respJson) {
+        this.chatSettings = respJson;
+      }
     });
   },
   methods: {
-    enableChat() {
-      this.$matrixAdministrationService.enableChatFeature(this.chatEnabled);
-    }
+    updateChatFeature() {
+      this.$matrixAdministrationService.updateChatSettings(this.chatSettings);
+    },
   },
 };
 </script>

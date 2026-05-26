@@ -35,15 +35,11 @@ export function registerChatExtensions(chatTitle) {
   };
 
   if (extensionRegistry) {
-    extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
-
     extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
       id: 'matrix-chat-space-settings',
       vueComponent: Vue.options.components['matrix-chat-space-settings'],
       rank: 10,
     });
-
-    document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
 
     extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
       id: 'matrix-chat-space-popover',
@@ -55,10 +51,14 @@ export function registerChatExtensions(chatTitle) {
       rank: 40,
     });
 
-    extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
-      id: 'matrix-chat-user-popover',
-      vueComponent: Vue.options.components['matrix-popover-chat-button'],
-      rank: 40,
-    });
+    if (meedsChat.privateRoomsEnabled) {
+      extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
+      document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
+      extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
+        id: 'matrix-chat-user-popover',
+        vueComponent: Vue.options.components['matrix-popover-chat-button'],
+        rank: 40,
+      });
+    }
   }
 }
