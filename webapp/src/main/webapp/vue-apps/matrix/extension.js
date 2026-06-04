@@ -35,23 +35,24 @@ export function registerChatExtensions(chatTitle) {
   };
 
   if (extensionRegistry) {
-    extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
-      id: 'meeds-chat-space-settings',
-      vueComponent: Vue.options.components['matrix-chat-space-settings'],
-      rank: 10,
-    });
+    if (meedsChat?.spaceRoomsEnabled) {
+      extensionRegistry.registerComponent('SpaceSettings', 'space-settings-components', {
+        id: 'meeds-chat-space-settings',
+        vueComponent: Vue.options.components['matrix-chat-space-settings'],
+        rank: 10,
+      });
 
-    extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
-      id: 'matrix-chat-space-popover',
-      isEnabled: async function (params) {
-        const room = await matrixService.getSpaceRoom(params.identityId);
-        return room.status === 'ENABLED';
-      },
-      vueComponent: Vue.options.components['matrix-popover-chat-button'],
-      rank: 40,
-    });
-
-    if (meedsChat.privateRoomsEnabled) {
+      extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
+        id: 'matrix-chat-space-popover',
+        isEnabled: async function (params) {
+          const room = await matrixService.getSpaceRoom(params.identityId);
+          return room.status === 'ENABLED';
+        },
+        vueComponent: Vue.options.components['matrix-popover-chat-button'],
+        rank: 40,
+      });
+    }
+    if (meedsChat?.privateRoomsEnabled) {
       extensionRegistry.registerExtension('profile-extension', 'action', profileExtensionAction);
       document.dispatchEvent(new CustomEvent('profile-extension-updated', { detail: profileExtensionAction}));
       extensionRegistry.registerComponent('UserPopover', 'user-popover-action', {
