@@ -25,16 +25,20 @@ import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.ws.frameworks.json.impl.*;
 
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatSettings {
-  private boolean chatEnabled;
+  private boolean                    chatEnabled;
 
-  private boolean privateRoomsEnabled;
+  private boolean                    privateRoomsEnabled;
 
-  private boolean spaceRoomsEnabled;
+  private boolean                    spaceRoomsEnabled;
+
+  private List<SpaceTemplateSetting> spaceTemplateSetting = new ArrayList<>();
 
   @Override
   public String toString() {

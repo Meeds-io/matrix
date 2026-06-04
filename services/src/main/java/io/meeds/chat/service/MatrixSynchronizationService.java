@@ -28,18 +28,13 @@ import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
-import org.exoplatform.social.core.identity.SpaceMemberFilterListAccess;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
-import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
-import org.exoplatform.social.core.profile.ProfileFilter;
 import org.exoplatform.social.core.space.SpaceFilter;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.stereotype.Service;
-
-import java.util.Arrays;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
@@ -90,7 +85,7 @@ public class MatrixSynchronizationService {
         Space[] spacesToMigrate = spaces.load(loadedSpaces, actualSpacesToLoadCount);
         for (Space space : spacesToMigrate) {
           Room room = matrixService.getRoomBySpace(space);
-          if (room == null || StringUtils.isBlank(room.getRoomId())) {
+          if (room == null || StringUtils.isBlank(room.getRoomId()) && matrixService.isChatAuthorizedForSpace(space)) {
             try {
               String roomId = this.matrixService.createRoom(space);
               for (String member : space.getMembers()) {
