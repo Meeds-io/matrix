@@ -41,7 +41,6 @@ const lang = eXo?.env?.portal?.language || 'en';
 const url = `${eXo.env.portal.context}/${eXo.env.portal.rest}/i18n/bundle/locale.portlet.matrixAdministration-${lang}.json`;
 
 export function init() {
-  console.log('initiation of the application !');
   exoi18n.loadLanguageAsync(lang, url).then(i18n => {
     // init Vue app when locale resources are ready
     Vue.createApp({

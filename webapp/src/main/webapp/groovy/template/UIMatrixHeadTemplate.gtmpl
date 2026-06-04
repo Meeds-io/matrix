@@ -14,10 +14,13 @@
       userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
     }
 %>
-  <script type="text/javascript">
-    const meedsChat = {};
-    matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
-    matrixUserId = '<%= userMatrixId %>';
-    meedsChat.privateRoomsEnabled = <%= chatSettings != null ? chatSettings.privateRoomsEnabled : false %>;
-  </script>
+    <script type="text/javascript">
+      const meedsChat = {};
+      matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
+      matrixUserId = '<%= userMatrixId %>';
+      <% if (chatSettings != null && (chatSettings.privateRoomsEnabled || chatSettings.spaceRoomsEnabled)) {%>
+      meedsChat.privateRoomsEnabled = <%= chatSettings != null ? chatSettings.privateRoomsEnabled : false %>;
+      meedsChat.spaceRoomsEnabled = <%= chatSettings != null ? chatSettings.spaceRoomsEnabled : false %>;
+      <%}%>
+    </script>
 <%}%>
