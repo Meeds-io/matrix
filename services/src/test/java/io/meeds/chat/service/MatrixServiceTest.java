@@ -22,10 +22,16 @@ import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.rest.model.ChatSettings;
 import io.meeds.chat.rest.model.LastMessage;
 import io.meeds.chat.rest.model.RoomEntity;
 import io.meeds.chat.rest.model.RoomList;
+import io.meeds.portal.navigation.model.NavigationConfiguration;
+import io.meeds.portal.navigation.model.TopbarApplication;
+import io.meeds.portal.navigation.model.TopbarConfiguration;
+import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -339,4 +345,30 @@ class MatrixServiceTest extends MatrixBaseTest {
     verify(matrixHttpClient, times(1)).updateRoomDescription(anyString(), anyString(), anyString());
   }
 
+  @Test
+  void loadChatSettings() {
+    NavigationConfigurationService navigationConfigurationService = mock(NavigationConfigurationService.class);
+    ExoContainerContext.getCurrentContainer().registerComponentInstance(navigationConfigurationService);
+    NavigationConfiguration navigationConfiguration = new NavigationConfiguration();
+    List<TopbarApplication> applications = new ArrayList<>();
+    TopbarApplication chatApp = new TopbarApplication();
+    chatApp.setId("chat");
+    applications.add(chatApp);
+    navigationConfiguration.setTopbar(new TopbarConfiguration());
+    navigationConfiguration.getTopbar().setApplications(applications);
+    when(navigationConfigurationService.getConfiguration()).thenReturn(navigationConfiguration);
+    matrixService.setChatSettings(new ChatSettings(false, false, false, new ArrayList<>()));
+
+    ChatSettings chatSettings = matrixService.loadChatSettings();
+    assertFalse(chatSettings.isChatEnabled());
+    assertFalse(chatSettings.isSpaceRoomsEnabled());
+    assertFalse(chatSettings.isPrivateRoomsEnabled());
+
+    matrixService.setChatSettings(new ChatSettings(true, true, true, new ArrayList<>()));
+
+    chatSettings = matrixService.loadChatSettings();
+    assertTrue(chatSettings.isChatEnabled());
+    assertTrue(chatSettings.isSpaceRoomsEnabled());
+    assertTrue(chatSettings.isPrivateRoomsEnabled());
+  }
 }

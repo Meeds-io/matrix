@@ -763,7 +763,8 @@ public class MatrixRest implements ResourceContainer {
       }
       ChatSettings chatSettings = matrixService.loadChatSettings();
       if (RoomStatus.ENABLED.name().equals(room.getStatus())
-          && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled()) || !room.isDirectChat())) {
+          && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled())
+              || (!room.isDirectChat() && chatSettings.isSpaceRoomsEnabled()))) {
         processedRooms.add(room);
       }
 
