@@ -90,7 +90,9 @@ export default {
     activeRoomId: null,
     cacheRoomsTimeout: null,
     cacheRoomsLock: false,
-    pendingCache: false
+    pendingCache: false,
+    spaceCircleTemplate: null,
+    isSubspaceTemplate: null
   }),
   created() {
     this.tryBecomePresencePollingOwner();
@@ -158,6 +160,7 @@ export default {
     }
     this.$nextTick().then(() => {
       this.$matrixService.registerUserToken();
+      this.isCircleTemplateEnabled();
     });
   },
   beforeDestroy() {
@@ -463,6 +466,7 @@ export default {
     },
     openDrawer() {
       this.open = true;
+      this.isCircleTemplateEnabled();
       this.$refs.meedsChatDrawer?.open();
     },
     async handleMessageReceivedEvent(event) {
@@ -749,6 +753,15 @@ export default {
         });
       }
     },
+    async isCircleTemplateEnabled() {
+      const templates = await this.$spaceTemplateService.getSpaceTemplates(false);
+      const circleTemplate = templates?.find(template => template.system && template.layout === 'circle' && !template.deleted);
+      this.$root.spaceCircleTemplate = circleTemplate || null;
+      if (circleTemplate) {
+        const subspaceTemplateIds = await this.$spaceTemplateService.getSubspaceTemplateIds() || [];
+        this.$root.isSubspaceTemplate = subspaceTemplateIds.includes(circleTemplate.id);
+      }
+    }
   }
 };
 </script>

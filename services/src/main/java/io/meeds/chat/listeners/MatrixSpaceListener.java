@@ -24,6 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.service.MatrixService;
+import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -36,7 +37,6 @@ import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -55,6 +55,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   @Autowired
   IdentityManager          identityManager;
 
+  @Autowired
+  private SettingService   settingService;
+
   @PostConstruct
   public void init() {
     spaceService.registerSpaceListenerPlugin(this);
@@ -66,6 +69,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
+    if (!matrixService.isChatAuthorizedForSpace(space)) {
+      return;
+    }
     try {
       String matrixRoomId = matrixService.createRoom(space);
       String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
