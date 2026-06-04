@@ -26,6 +26,7 @@ import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.ChatSettings;
 import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.rest.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
@@ -67,6 +68,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -79,9 +81,9 @@ import static org.apache.commons.lang3.StringUtils.isNumeric;
 @Service
 public class MatrixService {
 
-  private static final Log               LOG                       = ExoLogger.getLogger(MatrixService.class);
+  private static final Log               LOG                          = ExoLogger.getLogger(MatrixService.class);
 
-  public static final String             CHAT_APPLICATION_ID       = "chat";
+  public static final String             CHAT_APPLICATION_ID          = "chat";
 
   @Autowired
   private MatrixRoomStorage              matrixRoomStorage;
@@ -113,7 +115,11 @@ public class MatrixService {
 
   private final ExoCache<String, String> userMatrixIdsCache;
 
-  public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
+  public static final String             USER_MATRIX_ID_CACHE_NAME    = "chat.UserMatrixId";
+
+  @Getter
+  @Value("#{'${meeds.chat.authorized.space.templates:project,circle}'.split(',')}")
+  public List<String>             defaultAuthorizedSpaceTemplates;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
@@ -161,13 +167,13 @@ public class MatrixService {
 
   /**
    * Checks if the chat feature if enabled or not
+   * 
    * @return boolean : chat status
    */
   private boolean isChatFeatureEnabled() {
     ChatSettings settings = loadChatSettings();
     return settings == null || settings.isChatEnabled();
   }
-
 
   /**
    * Convert the user id into the full Matrix ID format
@@ -208,7 +214,7 @@ public class MatrixService {
   /**
    * Invalidate a specific access token
    * 
-   * @param accessToken
+   * @param accessToken the access token to be invalidated
    * @return true if success
    */
   public boolean invalidateAccessToken(String accessToken) {
@@ -966,10 +972,7 @@ public class MatrixService {
    * @param chatSettings the new status fo the chat enabled/disabled
    */
   public void setChatSettings(ChatSettings chatSettings) {
-    settingService.set(Context.GLOBAL,
-                       Scope.APPLICATION,
-        CHAT_SETTINGS,
-                       new SettingValue<>(chatSettings.toString()));
+    settingService.set(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS, new SettingValue<>(chatSettings.toString()));
 
     boolean chatFeatureEnabled = chatSettings.isChatEnabled();
 
@@ -994,4 +997,24 @@ public class MatrixService {
       }
     }
   }
+
+  /**
+   * Check if Chat application is authorized for the space based on its template
+   * 
+   * @param space The space
+   * @return boolean : true if the chat is authorized
+   */
+  public boolean isChatAuthorizedForSpace(Space space) {
+    ChatSettings settings = loadChatSettings();
+    if (settings == null) {
+      return true;
+    }
+    SpaceTemplateSetting spaceTemplateSetting = loadChatSettings().getSpaceTemplateSetting()
+                                                                  .stream()
+                                                                  .filter(template -> template.getId() == space.getTemplateId())
+                                                                  .findAny()
+                                                                  .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
+  }
+
 }
