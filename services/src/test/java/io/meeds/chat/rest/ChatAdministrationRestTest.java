@@ -6,17 +6,16 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.meeds.chat.rest.model.ChatSettings;
-import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.rest.model.SpaceTemplateSetting;
 import io.meeds.chat.service.MatrixService;
+import io.meeds.social.space.template.model.SpaceTemplate;
+import io.meeds.social.space.template.service.SpaceTemplateService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
 import jakarta.servlet.Filter;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.utils.PropertyManager;
-import org.exoplatform.social.core.service.LinkProvider;
-import org.exoplatform.social.rest.api.EntityBuilder;
-import org.exoplatform.social.rest.api.RestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,8 +35,13 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -73,6 +77,9 @@ class ChatAdministrationRestTest {
 
   @MockitoBean
   private MatrixService         matrixService;
+
+  @MockitoBean
+  private SpaceTemplateService  spaceTemplateService;
 
   static {
     // Workaround when Jackson is defined in shared library with different
@@ -110,7 +117,7 @@ class ChatAdministrationRestTest {
     assertTrue(chatSettings.isPrivateRoomsEnabled());
     assertTrue(chatSettings.isSpaceRoomsEnabled());
 
-    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, false, true));
+    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, false, true, new ArrayList<>()));
     response = mockMvc.perform(get(REST_PATH + "/settings").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
     response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
@@ -118,6 +125,35 @@ class ChatAdministrationRestTest {
     assertNotNull(chatSettings);
     assertTrue(chatSettings.isChatEnabled());
     assertFalse(chatSettings.isPrivateRoomsEnabled());
+    assertTrue(chatSettings.isSpaceRoomsEnabled());
+
+    SpaceTemplate spaceTemplate1 = new SpaceTemplate();
+    spaceTemplate1.setId(1l);
+    spaceTemplate1.setName("Circle");
+    spaceTemplate1.setLayout("circle");
+    spaceTemplate1.setIcon("circle-icon");
+    SpaceTemplate spaceTemplate2 = new SpaceTemplate();
+    spaceTemplate2.setId(2l);
+    spaceTemplate2.setName("Team");
+    spaceTemplate2.setLayout("team");
+    spaceTemplate2.setIcon("team-icon");
+    List<SpaceTemplate> spaceTemplates = List.of(spaceTemplate1, spaceTemplate2);
+
+    when(spaceTemplateService.getSpaceTemplates(any(), any(), anyBoolean())).thenReturn(spaceTemplates);
+
+    SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1l, "circle", "icon", true, false);
+    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true,
+                                                                       true,
+                                                                       true,
+                                                                       new ArrayList<>(List.of(spaceTemplateSetting))));
+
+    response = mockMvc.perform(get(REST_PATH + "/settings").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+    response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettings.class);
+    assertNotNull(chatSettings);
+    assertTrue(chatSettings.isChatEnabled());
+    assertTrue(chatSettings.isPrivateRoomsEnabled());
     assertTrue(chatSettings.isSpaceRoomsEnabled());
 
   }
@@ -135,7 +171,7 @@ class ChatAdministrationRestTest {
     response.andExpect(status().isServiceUnavailable());
 
     when(matrixService.isServiceAvailable()).thenReturn(true);
-    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, true, true));
+    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, true, true, new ArrayList<>()));
 
     response = mockMvc.perform(post(REST_PATH + "/settings").with(adminUser())
                                                             .contentType(MediaType.APPLICATION_JSON)
