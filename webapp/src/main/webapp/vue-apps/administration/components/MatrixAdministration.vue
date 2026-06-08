@@ -58,9 +58,9 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
             @change="updateChatFeature"/>
         </div>
       </div>
-      <div v-else class="d-flex justify-center align-center my-16">
-        <v-icon large>fa-comment-slash</v-icon>
-        <span class="ms-2">{{ $t('meeds.chat.deactivated') }}</span>
+      <div v-else class="d-flex flex-column align-center my-16">
+        <v-icon size="60px">fa-comment-slash</v-icon>
+        <span class="ms-2 mt-5">{{ $t('meeds.chat.deactivated') }}</span>
       </div>
       <div class="mt-5 d-flex" v-if="chatSettings.chatEnabled && chatSettings.spaceRoomsEnabled">
         <v-data-table
