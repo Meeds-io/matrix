@@ -26,7 +26,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = {
         MatrixApplication.MODULE_NAME,
-        "io.meeds.pwa",
         AvailableIntegration.KERNEL_MODULE,
         AvailableIntegration.JPA_MODULE,
         AvailableIntegration.LIQUIBASE_MODULE,
