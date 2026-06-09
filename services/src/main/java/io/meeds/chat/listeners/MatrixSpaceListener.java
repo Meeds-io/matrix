@@ -69,7 +69,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    if (!matrixService.isChatAuthorizedForSpace(space)) {
+    if (!matrixService.isChatAuthorizedForSpace(space) || !matrixService.isChatEnabledByDefault(space)) {
       return;
     }
     try {
