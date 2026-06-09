@@ -518,8 +518,10 @@ public class MatrixService {
   }
 
   /**
-   * This function do : - Create a room on Matrix - Links the room to the space on
-   * Meeds - Update room permissions
+   * This function do :
+   * - Create a room on Matrix
+   * - Links the room to the space on Meeds
+   * - Update room permissions
    * 
    * @param space The space
    * @return The room ID
@@ -556,6 +558,12 @@ public class MatrixService {
     }
   }
 
+  /**
+   * Creates a one to one room
+   * @param directMessagingRoom the Object representation of a one to one room
+   * @return the created Room
+   * @throws ObjectAlreadyExistsException in case a room between the same users is already created
+   */
   public Room createDirectMessagingRoom(Room directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();
@@ -577,6 +585,11 @@ public class MatrixService {
     }
   }
 
+  /**
+   * Loads all the one to one rooms of a defined user
+   * @param user the username of the user
+   * @return List of Room
+   */
   public List<Room> getMatrixDMRoomsOfUser(String user) {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
@@ -1017,4 +1030,16 @@ public class MatrixService {
     return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
   }
 
+  public boolean isChatEnabledByDefault(Space space) {
+    ChatSettings settings = loadChatSettings();
+    if (settings == null) {
+      return true;
+    }
+    SpaceTemplateSetting spaceTemplateSetting = loadChatSettings().getSpaceTemplateSetting()
+                                                                  .stream()
+                                                                  .filter(template -> template.getId() == space.getTemplateId())
+                                                                  .findAny()
+                                                                  .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isChatEnabledByDefault();
+  }
 }

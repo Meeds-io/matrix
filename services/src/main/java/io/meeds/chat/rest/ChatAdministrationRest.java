@@ -58,8 +58,16 @@ public class ChatAdministrationRest implements ResourceContainer {
                                                               .findAny()
                                                               .orElse(null);
       if (spaceTemplateSetting == null) {
-        boolean isSpaceTemplateAuthorized = matrixService.getDefaultAuthorizedSpaceTemplates().contains(spaceTemplate.getLayout()); // we use layout because the space template name is Localized
-        chatSettings.getSpaceTemplateSetting().add(new SpaceTemplateSetting(spaceTemplate.getId(), spaceTemplate.getName(), spaceTemplate.getIcon(),  isSpaceTemplateAuthorized, false));
+        boolean isSpaceTemplateAuthorizedByDefault = matrixService.getDefaultAuthorizedSpaceTemplates()
+                                                                  .contains(spaceTemplate.getLayout()); // we use layout because
+                                                                                                        // the space template name
+                                                                                                        // is Localized
+        chatSettings.getSpaceTemplateSetting()
+                    .add(new SpaceTemplateSetting(spaceTemplate.getId(),
+                                                  spaceTemplate.getName(),
+                                                  spaceTemplate.getIcon(),
+                                                  isSpaceTemplateAuthorizedByDefault,
+                                                  isSpaceTemplateAuthorizedByDefault));
       } else {
         spaceTemplateSetting.setName(spaceTemplate.getName());
         spaceTemplateSetting.setIcon(spaceTemplate.getIcon());

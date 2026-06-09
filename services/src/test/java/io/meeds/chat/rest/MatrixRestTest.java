@@ -41,6 +41,7 @@ import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
+import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.service.LinkProvider;
 import org.exoplatform.social.core.space.model.Space;
@@ -57,7 +58,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
@@ -431,6 +431,54 @@ class MatrixRestTest {
   }
 
   @Test
+  void getByRoom() throws Exception {
+    ResultActions response =
+                           mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser()).contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isBadRequest());
+
+    response = mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser())
+                                                         .param("roomId", "!roomIdentifier:matrix.exo.tn")
+                                                         .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isNotFound());
+
+    Room room = new Room();
+    room.setRoomId("!testRoom:matrix.meeds.tn");
+    room.setSpaceId(1L);
+    when(matrixService.getById("!testRoom")).thenReturn(room);
+    when(matrixService.canAccess(room, SIMPLE_USER)).thenReturn(true);
+    response = mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser())
+                                                         .param("roomId", "!testRoom:matrix.meeds.tn")
+                                                         .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isNotFound());
+
+    Space space1 = new Space();
+    space1.setId(1);
+    space1.setDisplayName("Space of Heroes");
+    space1.setAvatarUrl("/Url/Of/Avatar.png");
+    space1.setMembers(new String[] { "user1", "user2" });
+    when(spaceService.getSpaceById(1)).thenReturn(space1);
+    Identity spaceIdentity = new Identity("spaceOne", SpaceIdentityProvider.NAME);
+    when(identityManager.getOrCreateSpaceIdentity(space1.getPrettyName())).thenReturn(spaceIdentity);
+
+    response = mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser())
+                                                         .param("roomId", "!testRoom:matrix.meeds.tn")
+                                                         .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+
+    room.setSpaceId(null);
+    room.setFirstParticipant(SIMPLE_USER);
+    room.setSecondParticipant(ADMIN_USER);
+
+    Identity userIdentity = new Identity(OrganizationIdentityProvider.NAME, ADMIN_USER);
+    when(identityManager.getOrCreateUserIdentity(ADMIN_USER)).thenReturn(userIdentity);
+
+    response = mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser())
+                                                         .param("roomId", "!testRoom:matrix.meeds.tn")
+                                                         .contentType(MediaType.APPLICATION_JSON));
+    response.andExpect(status().isOk());
+  }
+
+  @Test
   void getUserDirectMessagingRooms() throws Exception {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/dmRooms").with(simpleUser())
                                                                         .contentType(MediaType.APPLICATION_JSON));
@@ -578,6 +626,9 @@ class MatrixRestTest {
     response.andExpect(status().isInternalServerError());
 
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "ThisIsASampleJWTTokenFoeTestingPurposes");
+    when(matrixService.getUserFullMatrixID(SIMPLE_USER)).thenReturn("@user:matrix.meeds.tn");
+    when(matrixService.findUserByMatrixId("@user:matrix.meeds.tn")).thenReturn(SIMPLE_USER);
+
     when(identityManager.identityExisted(OrganizationIdentityProvider.NAME, "user")).thenReturn(true);
     response = mockMvc.perform(post(REST_PATH + "/notify").with(simpleUser())
                                                           .content(jsonNotification)
@@ -650,15 +701,44 @@ class MatrixRestTest {
   @Test
   void getMatrixId() throws Exception {
     ResultActions response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
-        .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+                                                                            .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
     response.andExpect(status().isNotFound());
 
     when(matrixService.getMatrixIdForUser("demo")).thenReturn("@demo:matrix.exo.tn");
     response = mockMvc.perform(get(REST_PATH + "/findId/demo").with(simpleUser())
-        .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+                                                              .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
     response.andExpect(status().isOk());
     response.andExpect(content().string("@demo:matrix.exo.tn"));
+  }
+
+  @Test
+  void getChatAuthorizationStatus() throws Exception {
+    ResultActions response = mockMvc.perform(get(REST_PATH
+        + "/spaceChatSetting/0").with(simpleUser()).contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isBadRequest());
+
+    when(spaceService.getSpaceById(1)).thenReturn(null);
+    response = mockMvc.perform(get(REST_PATH + "/spaceChatSetting/1").with(simpleUser())
+                                                                     .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isBadRequest());
+
+    Space space = new Space();
+    space.setId(1);
+    space.setTemplateId(1);
+    space.setDisplayName("Test space");
+    when(spaceService.getSpaceById(1)).thenReturn(space);
+
+    SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1, "Template One", "/icon.png", true, true);
+    ChatSettings chatSettings = new ChatSettings(true, true, true, List.of(spaceTemplateSetting));
+    when(matrixService.loadChatSettings()).thenReturn(chatSettings);
+    response = mockMvc.perform(get(REST_PATH + "/spaceChatSetting/1").with(simpleUser())
+                                                                     .contentType(MediaType.APPLICATION_FORM_URLENCODED));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().string("{\"id\":1,\"name\":\"Template One\",\"icon\":\"/icon.png\",\"authorized\":true,\"chatEnabledByDefault\":true}"));
   }
 }

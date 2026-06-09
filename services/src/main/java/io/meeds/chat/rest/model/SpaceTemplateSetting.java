@@ -16,5 +16,5 @@ public class SpaceTemplateSetting {
 
   private boolean authorized;
 
-  private boolean defaultStatus;
+  private boolean chatEnabledByDefault;
 }
