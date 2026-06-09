@@ -23,7 +23,7 @@
         id="chatSpaceSetting"
         class="card-border-radius"
         flat
-        v-if="displayed">
+        v-if="displayed & !loading">
         <v-list class="pa-0">
           <v-list-item class="pa-0">
             <v-list-item-content>
@@ -71,18 +71,38 @@ export default {
     displayed: true,
     progress: true,
     updateInterval: 0,
+    loading: false
   }),
   created() {
+    this.loading = true;
     //check if space's chat is enabled
-    this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
-      this.spaceChatStatus = room.status;
-      if(room.status === 'ENABLED' || room.status === 'DISABLED') {
+    this.$matrixService.getChatAuthorizationStatus(this.spaceId).then(spaceChatStatus => {
+      if (spaceChatStatus.authorized) {
+        this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
+          if (room) {
+            this.spaceChatStatus = room.status;
+            if (room.status === 'ENABLED' || room.status === 'DISABLED') {
+              this.progress = false;
+            } else {
+              this.progress = true;
+              this.startCheckingStatus();
+            }
+          } else {
+            this.spaceChatStatus = 'DISABLED';
+            this.progress = false;
+          }
+        }).catch(error => {
+          if (error) {
+            this.spaceChatStatus = 'DISABLED';
+            this.displayed = false;
+            this.progress = false;
+          }
+        });
+      } else if (!spaceChatStatus.authorized) {
+        this.displayed = false;
         this.progress = false;
-      } else {
-        this.progress = true;
-        this.startCheckingStatus();
       }
-    });
+    }).finally(() => this.loading = false);
 
     document.addEventListener('hideSettingsApps', (event) => {
       if (event?.detail && this.id !== event.detail) {
