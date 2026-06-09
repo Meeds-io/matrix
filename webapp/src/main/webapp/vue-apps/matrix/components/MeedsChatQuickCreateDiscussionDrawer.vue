@@ -67,7 +67,7 @@
               </span>
             </div>
             <div 
-              v-else-if="invitedSpaceMembers && !canCreateSubspacePrivateRoom">
+              v-else-if="shouldJoinParentSpace">
               <span class="text-subtitle">
                 {{ $t('matrix.chat.quick.create.subspace.discussion.info') }}.
               </span>
@@ -76,7 +76,7 @@
         </div>
       </v-form>
       <matrix-chat-parent-space-selector
-        v-if="invitedSpaceMembers && canCreateSubspacePrivateRoom"
+        v-if="canSelectParentSpace"
         v-model="selectedSpace"
         :parent-spaces="parentSpaceList"
         :can-edit="parentSpaceList.length > 1"
@@ -124,8 +124,11 @@ export default {
     canCreatePrivateRooms() {
       return !!this.spaceCircleTemplate;
     },
-    canCreateSubspacePrivateRoom() {
-      return this.isSubspaceTemplate && this.parentSpaceList.length > 0;
+    canSelectParentSpace() {
+      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length > 0;
+    },
+    shouldJoinParentSpace() {
+      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length === 0;
     },
     hasMoreParentSpaces() {
       return this.parentSpaceList.length < this.parentSpacesSize;
@@ -139,7 +142,7 @@ export default {
       };
     },
     disabledSaveButton(){
-      return !this.participant || this.invitedSpaceMembers && (!this.canCreateSubspacePrivateRoom || !this.selectedSpace);
+      return !this.participant || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
     },
   },
   async created() {
