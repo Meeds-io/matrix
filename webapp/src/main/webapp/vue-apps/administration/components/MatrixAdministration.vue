@@ -95,7 +95,7 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
               <td>
                 <div class="d-flex flex-column align-center">
                   <v-switch
-                    v-model="props.item.defaultStatus"
+                    v-model="props.item.chatEnabledByDefault"
                     :ripple="false"
                     :disabled="!props.item.authorized"
                     color="primary"
@@ -112,21 +112,19 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
 </template>
 <script>
 export default {
-  props: {
-  },
   data: () => ({
     chatSettings: {
-        'chatEnabled': true,
-        'privateRoomsEnabled': true,
-        'spaceRoomsEnabled': true,
-        'spaceTemplateSetting': []
-      },
-    loading : false,
+      'chatEnabled': true,
+      'privateRoomsEnabled': true,
+      'spaceRoomsEnabled': true,
+      'spaceTemplateSetting': []
+    },
+    loading: false,
     itemsPerPage: 10,
     spaceTemplates: [],
     headers: []
   }),
-  async created() {
+  created() {
     this.loading = true;
     this.headers = [
       { text: this.$t('meeds.chat.rooms.space.template'),},
@@ -152,9 +150,12 @@ export default {
     updateSpaceTemplate(item) {
       const indexOfTemplate = this.chatSettings.spaceTemplateSetting.findIndex(template => template.id === item.id);
       if(indexOfTemplate > -1) {
-        this.chatSettings.spaceTemplateSetting.splice(indexOfTemplate, 1, {'id': item.id, 'authorized': !!item.authorized, 'defaultStatus': !!item.defaultStatus});
+        const spaceTemplate = this.chatSettings.spaceTemplateSetting[indexOfTemplate];
+        spaceTemplate.authorized = !!item.authorized;
+        spaceTemplate.chatEnabledByDefault = item.authorized ? !!item.chatEnabledByDefault : false;
+        this.chatSettings.spaceTemplateSetting.splice(indexOfTemplate, 1, spaceTemplate);
       } else {
-        this.chatSettings.spaceTemplateSetting.push({'id': item.id, 'authorized': !!item.authorized, 'defaultStatus': !!item.defaultStatus});
+        this.chatSettings.spaceTemplateSetting.push({'id': item.id, name: item.name, icon: item.icon, 'authorized': !!item.authorized, 'chatEnabledByDefault': !!item.chatEnabledByDefault});
       }
       this.updateChatFeature();
     },
