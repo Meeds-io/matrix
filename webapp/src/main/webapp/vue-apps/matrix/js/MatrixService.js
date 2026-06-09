@@ -558,7 +558,11 @@ export function getSpaceRoom(spaceId) {
     method: 'GET',
   }).then(resp => {
     if (!resp?.ok) {
-      throw new Error('Get room by space : Response code indicates a server error', resp);
+      if(resp.status === 404) {
+        return null;
+      } else {
+        throw new Error('Get room by space : Response code indicates a server error', resp);
+      }
     } else {
       return resp.json();
     }
@@ -2001,4 +2005,17 @@ function parseDownloadUrl(mxcUrl) {
   }
   const path = mxcUrl.replace('mxc://', '');
   return `/_matrix/client/v1/media/download/${path}?allow_redirect=true`;
+}
+
+export function getChatAuthorizationStatus(spaceId) {
+  return fetch(`/matrix/rest/matrix/spaceChatSetting/${spaceId}`, {
+    method: 'GET',
+    credentials: 'include',
+  }).then(resp => {
+    if (resp?.ok) {
+      return resp.json();
+    } else {
+      throw new Error('Get the status of the space room : Response code indicates a server error', resp);
+    }
+  });
 }
