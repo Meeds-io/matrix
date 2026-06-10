@@ -19,7 +19,7 @@
 package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.MatrixMessage;
-import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.service.model.MediaInfo;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;

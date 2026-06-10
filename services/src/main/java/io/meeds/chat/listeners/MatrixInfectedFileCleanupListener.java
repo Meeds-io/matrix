@@ -18,7 +18,7 @@
  */
 package io.meeds.chat.listeners;
 
-import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.service.model.MediaInfo;
 import io.meeds.chat.service.MatrixService;
 import jakarta.annotation.PostConstruct;
 import org.exoplatform.services.listener.Asynchronous;
