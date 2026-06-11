@@ -374,4 +374,17 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertTrue(chatSettings.isSpaceRoomsEnabled());
     assertTrue(chatSettings.isPrivateRoomsEnabled());
   }
+
+  @Test
+  void changeChatRoomReadability() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room room = matrixService.getRoomBySpace(space);
+    verify(matrixHttpClient, times(3)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+    matrixService.changeChatRoomReadability(room.getRoomId(), true);
+    // 4 times including
+    verify(matrixHttpClient, times(4)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+    matrixService.changeChatRoomReadability(room.getRoomId(), false);
+    // 5 times including
+    verify(matrixHttpClient, times(5)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+  }
 }
