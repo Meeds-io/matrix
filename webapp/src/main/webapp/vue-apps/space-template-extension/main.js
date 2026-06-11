@@ -18,6 +18,13 @@
 */
 import './initComponents.js';
 import {initExtensions} from './extensions.js';
+import * as matrixAdministrationService from '../administration/js/matrixAdministrationService.js';
+
+
+
+window.Object.defineProperty(Vue.prototype, '$matrixAdministrationService', {
+  value: matrixAdministrationService,
+});
 
 const lang = eXo?.env?.portal?.language || 'en';
 
