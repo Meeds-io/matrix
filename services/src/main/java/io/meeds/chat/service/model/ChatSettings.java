@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,8 +25,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.ws.frameworks.json.impl.*;
 
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -37,8 +35,6 @@ public class ChatSettings {
   private boolean                    privateRoomsEnabled;
 
   private boolean                    spaceRoomsEnabled;
-
-  private List<SpaceTemplateSetting> spaceTemplateSetting = new ArrayList<>();
 
   @Override
   public String toString() {

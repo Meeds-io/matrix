@@ -24,11 +24,12 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixService;
 import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.chat.service.model.*;
 import io.meeds.pwa.service.PwaNotificationService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
@@ -733,8 +734,8 @@ class MatrixRestTest {
     when(spaceService.getSpaceById(1)).thenReturn(space);
 
     SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1, "Template One", "/icon.png", true, true);
-    ChatSettings chatSettings = new ChatSettings(true, true, true, List.of(spaceTemplateSetting));
-    when(matrixService.loadChatSettings()).thenReturn(chatSettings);
+    ChatSettingsEntity chatSettings = new ChatSettingsEntity(true, true, true, List.of(spaceTemplateSetting));
+    when(matrixService.loadChatSettings(anyString(), any())).thenReturn(chatSettings);
     response = mockMvc.perform(get(REST_PATH + "/spaceChatSetting/1").with(simpleUser())
                                                                      .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
