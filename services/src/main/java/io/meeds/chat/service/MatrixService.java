@@ -24,13 +24,17 @@ import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.ChatSettings;
-import io.meeds.chat.rest.model.MediaInfo;
-import io.meeds.chat.rest.model.SpaceTemplateSetting;
+import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.service.model.ChatSettings;
+import io.meeds.chat.service.model.MediaInfo;
+import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
+import io.meeds.social.space.template.model.SpaceTemplate;
+import io.meeds.social.space.template.model.SpaceTemplateFilter;
+import io.meeds.social.space.template.service.SpaceTemplateService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
@@ -69,6 +73,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -81,9 +86,9 @@ import static org.apache.commons.lang3.StringUtils.isNumeric;
 @Service
 public class MatrixService {
 
-  private static final Log               LOG                          = ExoLogger.getLogger(MatrixService.class);
+  private static final Log               LOG                       = ExoLogger.getLogger(MatrixService.class);
 
-  public static final String             CHAT_APPLICATION_ID          = "chat";
+  public static final String             CHAT_APPLICATION_ID       = "chat";
 
   @Autowired
   private MatrixRoomStorage              matrixRoomStorage;
@@ -103,6 +108,9 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient               matrixHttpClient;
 
+  @Autowired
+  private SpaceTemplateService           spaceTemplateService;
+
   /**
    * -- GETTER -- Checks if the Matrix service is available
    */
@@ -115,11 +123,11 @@ public class MatrixService {
 
   private final ExoCache<String, String> userMatrixIdsCache;
 
-  public static final String             USER_MATRIX_ID_CACHE_NAME    = "chat.UserMatrixId";
+  public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
 
   @Getter
   @Value("#{'${meeds.chat.authorized.space.templates:project,circle}'.split(',')}")
-  public List<String>             defaultAuthorizedSpaceTemplates;
+  public List<String>                    defaultAuthorizedSpaceTemplates;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
@@ -127,7 +135,8 @@ public class MatrixService {
                        OrganizationService organizationService,
                        MatrixHttpClient matrixHttpClient,
                        CacheService cacheService,
-                       SettingService settingService) {
+                       SettingService settingService,
+                       SpaceTemplateService spaceTemplateService) {
     this.matrixRoomStorage = matrixRoomStorage;
     this.identityManager = identityManager;
     this.identityStorage = identityStorage;
@@ -135,6 +144,7 @@ public class MatrixService {
     this.matrixHttpClient = matrixHttpClient;
     this.userMatrixIdsCache = cacheService.getCacheInstance(USER_MATRIX_ID_CACHE_NAME);
     this.settingService = settingService;
+    this.spaceTemplateService = spaceTemplateService;
   }
 
   @PostConstruct
@@ -171,7 +181,7 @@ public class MatrixService {
    * @return boolean : chat status
    */
   private boolean isChatFeatureEnabled() {
-    ChatSettings settings = loadChatSettings();
+    ChatSettingsEntity settings = loadChatSettings();
     return settings == null || settings.isChatEnabled();
   }
 
@@ -518,10 +528,8 @@ public class MatrixService {
   }
 
   /**
-   * This function do :
-   * - Create a room on Matrix
-   * - Links the room to the space on Meeds
-   * - Update room permissions
+   * This function do : - Create a room on Matrix - Links the room to the space on
+   * Meeds - Update room permissions
    * 
    * @param space The space
    * @return The room ID
@@ -560,9 +568,11 @@ public class MatrixService {
 
   /**
    * Creates a one to one room
+   * 
    * @param directMessagingRoom the Object representation of a one to one room
    * @return the created Room
-   * @throws ObjectAlreadyExistsException in case a room between the same users is already created
+   * @throws ObjectAlreadyExistsException in case a room between the same users is
+   *           already created
    */
   public Room createDirectMessagingRoom(Room directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
@@ -587,6 +597,7 @@ public class MatrixService {
 
   /**
    * Loads all the one to one rooms of a defined user
+   * 
    * @param user the username of the user
    * @return List of Room
    */
@@ -619,7 +630,7 @@ public class MatrixService {
    * @param userName the userName
    * @param groups the list of groups
    * @return true if the user is a member of the group
-   * @throws Exception
+   * @throws Exception error finding the user
    */
   public boolean isUserMemberOfGroups(String userName, String... groups) throws Exception {
     for (String group : groups) {
@@ -830,9 +841,9 @@ public class MatrixService {
    * Finds the identity of a user based on its Matrix ID and a space where he is a
    * member
    * 
-   * @param matrixId
-   * @param space
-   * @return
+   * @param matrixId the Matrix identifier of the user
+   * @param space the space
+   * @return the identity of the space member
    */
   public Identity findSpaceMemberByMatrixId(String matrixId, Space space) {
     matrixId = extractUserId(matrixId);
@@ -974,9 +985,64 @@ public class MatrixService {
    * 
    * @return the status of the chat feature
    */
-  public ChatSettings loadChatSettings() {
+  public ChatSettingsEntity loadChatSettings() {
+    return this.loadChatSettings(null, Locale.getDefault());
+  }
+
+  /**
+   * retrieves the chat settings
+   * 
+   * @param userName the caller username
+   * @param locale the caller Locale
+   * @return the Chat settings
+   */
+  public ChatSettingsEntity loadChatSettings(String userName, Locale locale) {
     SettingValue<?> settings = settingService.get(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS);
-    return settings == null ? null : ChatSettings.fromString((String) settings.getValue());
+    ChatSettings chatSettings = settings == null ? null : ChatSettings.fromString((String) settings.getValue());
+    ChatSettingsEntity chatSettingsEntity;
+    if (chatSettings == null) {
+      chatSettingsEntity = new ChatSettingsEntity(true, true, true, new ArrayList<>());
+    } else {
+      chatSettingsEntity = new ChatSettingsEntity(chatSettings.isChatEnabled(),
+                                                  chatSettings.isPrivateRoomsEnabled(),
+                                                  chatSettings.isSpaceRoomsEnabled(),
+                                                  new ArrayList<>());
+    }
+    if (StringUtils.isBlank(userName)) {
+      return chatSettingsEntity;
+    }
+    SpaceTemplateFilter spaceTemplateFilter = new SpaceTemplateFilter(userName, locale, false);
+    List<SpaceTemplate> spaceTemplates = spaceTemplateService.getSpaceTemplates(spaceTemplateFilter, Pageable.unpaged(), true);
+    for (SpaceTemplate spaceTemplate : spaceTemplates) {
+      SpaceTemplateSetting spaceTemplateSetting;
+      if (spaceTemplate.getExtendedProperties() == null || spaceTemplate.getExtendedProperties().isEmpty()) {
+        boolean isSpaceTemplateAuthorizedByDefault = getDefaultAuthorizedSpaceTemplates().contains(spaceTemplate.getLayout()); // we
+                                                                                                                               // use
+                                                                                                                               // layout
+                                                                                                                               // because
+                                                                                                                               // the
+                                                                                                                               // space
+                                                                                                                               // template
+                                                                                                                               // name
+                                                                                                                               // is
+                                                                                                                               // Localized
+        spaceTemplateSetting = new SpaceTemplateSetting(spaceTemplate.getId(),
+                                                        spaceTemplate.getName(),
+                                                        spaceTemplate.getIcon(),
+                                                        isSpaceTemplateAuthorizedByDefault,
+                                                        isSpaceTemplateAuthorizedByDefault);
+      } else {
+        spaceTemplateSetting = new SpaceTemplateSetting();
+        spaceTemplateSetting.setName(spaceTemplate.getName());
+        spaceTemplateSetting.setIcon(spaceTemplate.getIcon());
+        spaceTemplateSetting.setId(spaceTemplate.getId());
+        spaceTemplateSetting.setAuthorized("true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED)));
+        spaceTemplateSetting.setChatEnabledByDefault("true".equals(spaceTemplate.getExtendedProperties()
+                                                                                .get(SPACE_CHAT_ENABLED_BY_DEFAULT)));
+      }
+      chatSettingsEntity.getSpaceTemplateSetting().add(spaceTemplateSetting);
+    }
+    return chatSettingsEntity;
   }
 
   /**
@@ -984,7 +1050,7 @@ public class MatrixService {
    * 
    * @param chatSettings the new status fo the chat enabled/disabled
    */
-  public void setChatSettings(ChatSettings chatSettings) {
+  public void saveChatSettings(ChatSettings chatSettings) {
     settingService.set(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS, new SettingValue<>(chatSettings.toString()));
 
     boolean chatFeatureEnabled = chatSettings.isChatEnabled();
@@ -1018,28 +1084,28 @@ public class MatrixService {
    * @return boolean : true if the chat is authorized
    */
   public boolean isChatAuthorizedForSpace(Space space) {
-    ChatSettings settings = loadChatSettings();
+    ChatSettingsEntity settings = loadChatSettings();
     if (settings == null) {
       return true;
     }
-    SpaceTemplateSetting spaceTemplateSetting = loadChatSettings().getSpaceTemplateSetting()
-                                                                  .stream()
-                                                                  .filter(template -> template.getId() == space.getTemplateId())
-                                                                  .findAny()
-                                                                  .orElse(null);
-    return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
+    SpaceTemplate spaceTemplate = spaceTemplateService.getSpaceTemplate(space.getTemplateId());
+    return spaceTemplate == null || spaceTemplate.getExtendedProperties() == null
+        || spaceTemplate.getExtendedProperties().isEmpty()
+        || !spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_AUTHORIZED)
+        || (spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_AUTHORIZED)
+            && "true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED)));
   }
 
   public boolean isChatEnabledByDefault(Space space) {
-    ChatSettings settings = loadChatSettings();
+    ChatSettingsEntity settings = loadChatSettings();
     if (settings == null) {
       return true;
     }
-    SpaceTemplateSetting spaceTemplateSetting = loadChatSettings().getSpaceTemplateSetting()
-                                                                  .stream()
-                                                                  .filter(template -> template.getId() == space.getTemplateId())
-                                                                  .findAny()
-                                                                  .orElse(null);
-    return spaceTemplateSetting == null || spaceTemplateSetting.isChatEnabledByDefault();
+    SpaceTemplate spaceTemplate = spaceTemplateService.getSpaceTemplate(space.getTemplateId());
+    return spaceTemplate == null || spaceTemplate.getExtendedProperties() == null
+        || spaceTemplate.getExtendedProperties().isEmpty()
+        || !spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_ENABLED_BY_DEFAULT)
+        || (spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_ENABLED_BY_DEFAULT)
+            && "true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_ENABLED_BY_DEFAULT)));
   }
 }

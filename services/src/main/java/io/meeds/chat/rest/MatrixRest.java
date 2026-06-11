@@ -24,10 +24,11 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.chat.service.model.*;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -64,7 +65,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
@@ -588,13 +588,10 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public PwaNotificationMessage getNotification(HttpServletRequest request,
-                                                @PathVariable("roomId")
-                                                String roomId,
-                                                @PathVariable("eventId")
-                                                String eventId,
-                                                @PathVariable("ts")
-                                                String timeStamp,
+  public PwaNotificationMessage getNotification(HttpServletRequest request, @PathVariable("roomId")
+  String roomId, @PathVariable("eventId")
+  String eventId, @PathVariable("ts")
+  String timeStamp,
                                                 @RequestBody(description = "Access token of the user", required = false)
                                                 @org.springframework.web.bind.annotation.RequestBody(required = false)
                                                 String accessToken) {
@@ -717,12 +714,12 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "No space found or the space Id is missing"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public SpaceTemplateSetting getChatAuthorizationStatus(@PathVariable("spaceId")
+  public SpaceTemplateSetting getChatAuthorizationStatus(HttpServletRequest request, @PathVariable("spaceId")
   long spaceId) {
     if (spaceId == 0) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space id is mandatory");
     }
-    ChatSettings chatSettings = matrixService.loadChatSettings();
+    ChatSettingsEntity chatSettings = matrixService.loadChatSettings(request.getRemoteUser(), request.getLocale());
     Space space = spaceService.getSpaceById(spaceId);
     if (space == null) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space was not found");
@@ -805,7 +802,7 @@ public class MatrixRest implements ResourceContainer {
       if (!room.isDirectChat()) {
         spaceIds.remove(String.valueOf(room.getSpaceId()));
       }
-      ChatSettings chatSettings = matrixService.loadChatSettings();
+      ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
       if (RoomStatus.ENABLED.name().equals(room.getStatus())
           && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled())
               || (!room.isDirectChat() && chatSettings.isSpaceRoomsEnabled()))) {

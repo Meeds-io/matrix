@@ -1,4 +1,4 @@
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

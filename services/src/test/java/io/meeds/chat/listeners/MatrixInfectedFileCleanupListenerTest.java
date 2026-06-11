@@ -19,7 +19,7 @@
 
 package io.meeds.chat.listeners;
 
-import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.service.model.MediaInfo;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.services.listener.Event;
 import org.exoplatform.services.listener.ListenerService;
