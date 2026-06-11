@@ -1082,6 +1082,15 @@ public class MatrixService {
    * @return boolean : true if the chat is authorized
    */
   public boolean isChatAuthorizedForSpace(Space space) {
+    return isChatAuthorizedByAdministration(space) && isChatAuthorizedForSpaceTemplate(space);
+  }
+
+  /**
+   * Checks if the Chat is authorized for the template used to create the space
+   * @param space The given space
+   * @return True if the chat was authorized for this space template
+   */
+  public boolean isChatAuthorizedForSpaceTemplate(Space space) {
     ChatSettingsEntity settings = loadChatSettings();
     if (settings == null) {
       return true;
@@ -1092,7 +1101,16 @@ public class MatrixService {
                                                         .findAny()
                                                         .orElse(null);
     return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
+  }
 
+  /**
+   * Checks if the Chat is authorized from the administration for the space
+   * @param space The given space
+   * @return True if the chat was authorized for this space
+   */
+  public boolean isChatAuthorizedByAdministration(Space space) {
+    return (space.getExtendedPermissions() == null || space.getExtendedPermissions().get(SPACE_CHAT_AUTHORIZED) == null
+        || space.getExtendedPermissions().get(SPACE_CHAT_AUTHORIZED).equals("true"));
   }
 
   /**
