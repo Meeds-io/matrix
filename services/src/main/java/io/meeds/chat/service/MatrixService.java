@@ -728,33 +728,23 @@ public class MatrixService {
     String matrixAdminUsername = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
 
     RoomStatus currentRoomStatus = RoomStatus.valueOf(spaceRoom.getStatus());
-    this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLE_IN_PROGRESS : RoomStatus.DISABLED_IN_PROGRESS);
     try {
-      for (String member : space.getMembers()) {
-        String matrixIdOfMember = getMatrixIdForUser(member);
-        if (!matrixAdminUsername.equals(matrixIdOfMember)) {
-          try {
-            if (enable) {
-              joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
-            } else {
-              kickUserFromRoom(spaceRoom.getRoomId(),
-                               matrixIdOfMember,
-                               "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
-                                                                                                                                     member));
-            }
-          } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-              Thread.currentThread().interrupt();
-            }
-            LOG.error("couldn't invite / remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+      this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLE_IN_PROGRESS : RoomStatus.DISABLED_IN_PROGRESS);
+      this.changeChatRoomReadability(spaceRoom.getRoomId(), !enable);
+      if (enable) {
+        for (String member : space.getMembers()) {
+          String matrixIdOfMember = getMatrixIdForUser(member);
+          if (!matrixAdminUsername.equals(matrixIdOfMember)) {
+            joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
           }
         }
       }
       spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLED : RoomStatus.DISABLED);
     } catch (Exception e) {
-      // reset room to original status
+      // revert room to the original status
       spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), currentRoomStatus);
-      LOG.error("An error occurred when enabling/disabling the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+      this.changeChatRoomReadability(spaceRoom.getRoomId(), enable);
+      LOG.error("An error occurred when enabling/disabling the room {}", spaceRoom.getRoomId(), e);
     }
     return spaceRoom;
   }
@@ -899,6 +889,12 @@ public class MatrixService {
     return userMatrixId;
   }
 
+  /**
+   * Find a user in Meeds DB using his email
+   * 
+   * @param email The user email
+   * @return the User if he is found, otherwise null
+   */
   private User getUserByEmail(String email) {
     if (email == null) {
       return null;
@@ -1008,11 +1004,13 @@ public class MatrixService {
                                                   chatSettings.isSpaceRoomsEnabled(),
                                                   new ArrayList<>());
     }
-    if (StringUtils.isBlank(userName)) {
-      return chatSettingsEntity;
+    List<SpaceTemplate> spaceTemplates;
+    if (StringUtils.isNotBlank(userName)) {
+      SpaceTemplateFilter spaceTemplateFilter = new SpaceTemplateFilter(userName, locale, false);
+      spaceTemplates = spaceTemplateService.getSpaceTemplates(spaceTemplateFilter, Pageable.unpaged(), true);
+    } else {
+      spaceTemplates = spaceTemplateService.getSpaceTemplates();
     }
-    SpaceTemplateFilter spaceTemplateFilter = new SpaceTemplateFilter(userName, locale, false);
-    List<SpaceTemplate> spaceTemplates = spaceTemplateService.getSpaceTemplates(spaceTemplateFilter, Pageable.unpaged(), true);
     for (SpaceTemplate spaceTemplate : spaceTemplates) {
       SpaceTemplateSetting spaceTemplateSetting;
       if (spaceTemplate.getExtendedProperties() == null || spaceTemplate.getExtendedProperties().isEmpty()) {
@@ -1088,24 +1086,51 @@ public class MatrixService {
     if (settings == null) {
       return true;
     }
-    SpaceTemplate spaceTemplate = spaceTemplateService.getSpaceTemplate(space.getTemplateId());
-    return spaceTemplate == null || spaceTemplate.getExtendedProperties() == null
-        || spaceTemplate.getExtendedProperties().isEmpty()
-        || !spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_AUTHORIZED)
-        || (spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_AUTHORIZED)
-            && "true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED)));
+    SpaceTemplateSetting spaceTemplateSetting = settings.getSpaceTemplateSetting()
+                                                        .stream()
+                                                        .filter(template -> space.getTemplateId() == template.getId())
+                                                        .findAny()
+                                                        .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
+
   }
 
+  /**
+   * Check if the chat is enabled and synched be default for the provided space
+   * 
+   * @param space the related space
+   * @return boolean True if the chat is enabled by default
+   */
   public boolean isChatEnabledByDefault(Space space) {
     ChatSettingsEntity settings = loadChatSettings();
     if (settings == null) {
       return true;
     }
-    SpaceTemplate spaceTemplate = spaceTemplateService.getSpaceTemplate(space.getTemplateId());
-    return spaceTemplate == null || spaceTemplate.getExtendedProperties() == null
-        || spaceTemplate.getExtendedProperties().isEmpty()
-        || !spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_ENABLED_BY_DEFAULT)
-        || (spaceTemplate.getExtendedProperties().containsKey(SPACE_CHAT_ENABLED_BY_DEFAULT)
-            && "true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_ENABLED_BY_DEFAULT)));
+    SpaceTemplateSetting spaceTemplateSetting = settings.getSpaceTemplateSetting()
+                                                        .stream()
+                                                        .filter(template -> space.getTemplateId() == template.getId())
+                                                        .findAny()
+                                                        .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isChatEnabledByDefault();
+  }
+
+  /**
+   * Sets the room to readOnly
+   *
+   * @param roomId the room identifier
+   * @param readOnly true if the room will be set readonly
+   */
+  public void changeChatRoomReadability(String roomId, boolean readOnly) {
+    MatrixRoomPermissions roomPermissions;
+    try {
+      roomPermissions = getRoomSettings(roomId);
+      roomPermissions.setEventsDefault(readOnly ? ADMIN_ROLE : SIMPLE_USER_ROLE);
+      updateRoomSettings(roomId, roomPermissions);
+    } catch (JsonException | InterruptedException | IOException e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      throw new RuntimeException(e);
+    }
   }
 }
