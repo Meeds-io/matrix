@@ -16,28 +16,26 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
-
 @Data
-public class Member implements Serializable {
-  private String id;
+public class LastMessage extends Message implements Serializable {
 
-  private String userId;
+  private String  eventId;
 
-  private String matrixId;
+  private boolean redacted;
 
-  private String name;
+  private boolean reaction;
 
-  private String avatarUrl;
-
-  private long   lastUpdated;
+  private String reactionKey;
 }

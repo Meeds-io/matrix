@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the Meeds project (https://meeds.io/).
  *
  * Copyright (C) 2020 - 2025 Meeds Association contact@meeds.io
@@ -16,15 +16,25 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-public class Presence {
-  private String userIdOnMatrix;
+@NoArgsConstructor
+public class MediaInfo {
+  private String mediaId;
 
-  private String presence;
+  private String serverName;
 
-  private String statusMessage;
+  private String filename;
+
+  private String owner;
+
+  private long createdTs;
+
+  private String contentType;
+
+  private Long   contentLength;
 }
