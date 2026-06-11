@@ -22,10 +22,11 @@ import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.ChatSettings;
-import io.meeds.chat.rest.model.LastMessage;
-import io.meeds.chat.rest.model.RoomEntity;
-import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.service.model.ChatSettings;
+import io.meeds.chat.service.model.LastMessage;
+import io.meeds.chat.service.model.RoomEntity;
+import io.meeds.chat.service.model.RoomList;
 import io.meeds.portal.navigation.model.NavigationConfiguration;
 import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.model.TopbarConfiguration;
@@ -59,6 +60,8 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   @Autowired
   IdentityManager identityManager;
+
+
 
   @Test
   void init() {
@@ -357,14 +360,14 @@ class MatrixServiceTest extends MatrixBaseTest {
     navigationConfiguration.setTopbar(new TopbarConfiguration());
     navigationConfiguration.getTopbar().setApplications(applications);
     when(navigationConfigurationService.getConfiguration()).thenReturn(navigationConfiguration);
-    matrixService.setChatSettings(new ChatSettings(false, false, false, new ArrayList<>()));
+    matrixService.saveChatSettings(new ChatSettings(false, false, false));
 
-    ChatSettings chatSettings = matrixService.loadChatSettings();
+    ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
     assertFalse(chatSettings.isChatEnabled());
     assertFalse(chatSettings.isSpaceRoomsEnabled());
     assertFalse(chatSettings.isPrivateRoomsEnabled());
 
-    matrixService.setChatSettings(new ChatSettings(true, true, true, new ArrayList<>()));
+    matrixService.saveChatSettings(new ChatSettings(true, true, true));
 
     chatSettings = matrixService.loadChatSettings();
     assertTrue(chatSettings.isChatEnabled());

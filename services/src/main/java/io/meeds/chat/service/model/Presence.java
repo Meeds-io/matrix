@@ -16,16 +16,15 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.Data;
 
-import java.io.Serializable;
-import java.util.List;
-
 @Data
-public class RoomList implements Serializable {
-  private List<RoomEntity> rooms;
+public class Presence {
+  private String userIdOnMatrix;
 
-  private long             totalUnreadMessages;
+  private String presence;
+
+  private String statusMessage;
 }

@@ -16,17 +16,28 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
+
 @AllArgsConstructor
 @NoArgsConstructor
-@Data
-public class Message {
-    private String content;
 
-    private String sender;
+@Data
+public class Member implements Serializable {
+  private String id;
+
+  private String userId;
+
+  private String matrixId;
+
+  private String name;
+
+  private String avatarUrl;
+
+  private long   lastUpdated;
 }
