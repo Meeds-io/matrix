@@ -62,6 +62,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
@@ -707,28 +708,28 @@ public class MatrixRest implements ResourceContainer {
     }
   }
 
-  @GetMapping("spaceChatSetting/{spaceId}")
+  @GetMapping(value = "spaceChatSetting/{spaceId}", produces = MediaType.APPLICATION_JSON_VALUE)
   @Secured("users")
   @Operation(summary = "Get the status of the Chat on this space", method = "GET", description = "Get the status of the Chat on this space")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "No space found or the space Id is missing"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public SpaceTemplateSetting getChatAuthorizationStatus(HttpServletRequest request, @PathVariable("spaceId")
+  public String getChatAuthorizationStatus(HttpServletRequest request, @PathVariable("spaceId")
   long spaceId) {
     if (spaceId == 0) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space id is mandatory");
     }
-    ChatSettingsEntity chatSettings = matrixService.loadChatSettings(request.getRemoteUser(), request.getLocale());
     Space space = spaceService.getSpaceById(spaceId);
     if (space == null) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space was not found");
     }
 
-    return chatSettings.getSpaceTemplateSetting()
-                       .stream()
-                       .filter(setting -> setting.getId() == space.getTemplateId())
-                       .findAny()
-                       .orElseGet(() -> new SpaceTemplateSetting(0, null, null, true, true));
+    return """
+        {
+          "chatAuthorizedForSpace": %s,
+          "chatAuthorizedForSpaceTemplate": %s
+        }""".formatted(matrixService.isChatAuthorizedByAdministration(space),
+                       matrixService.isChatAuthorizedForSpaceTemplate(space));
   }
 
   private String checkAndParseUserFromToken(String token) {
