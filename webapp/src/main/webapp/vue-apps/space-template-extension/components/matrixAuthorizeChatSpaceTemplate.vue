@@ -18,7 +18,7 @@
 -->
 
 <template>
-  <div>
+  <div v-if="!loading">
     <div class="d-flex">
       <div class="flex-grow-1">
         <div class="d-flex flex-column">
@@ -74,30 +74,36 @@ export default {
     isChatEnabledByDefault: true,
     chatAuthorizedLabel: 'meeds.chat.authorized',
     chatEnabledByDefaultLabel: 'meeds.chat.enabledByDefault',
+    loading: false,
   }),
-  created() {
-    this.initializeProperties();
-    console.log('Initiation of space template settings !', this.spaceTemplate);
+  async created() {
+    await this.initializeProperties();
   },
   methods: {
     initializeProperties() {
-      if (!this.spaceTemplate.extendedProperties) {
-        this.spaceTemplate.extendedProperties = {};
-        this.spaceTemplate.extendedProperties[this.chatAuthorizedLabel] = true;
-        this.spaceTemplate.extendedProperties[this.chatEnabledByDefaultLabel] = true;
-      } else {
-        this.isChatAuthorized = !this.spaceTemplate.extendedProperties[this.chatAuthorizedLabel] || this.spaceTemplate.extendedProperties[this.chatAuthorizedLabel] === 'true';
-        this.isChatEnabledByDefault = !this.spaceTemplate.extendedProperties[this.chatEnabledByDefaultLabel] || this.spaceTemplate.extendedProperties[this.chatEnabledByDefaultLabel] === 'true';
-        this.spaceTemplate.extendedProperties[this.chatAuthorizedLabel] = this.isChatAuthorized;
-        this.spaceTemplate.extendedProperties[this.chatEnabledByDefaultLabel] = this.isChatEnabledByDefault;
-      }
+      this.loading = true;
+      this.$matrixAdministrationService.loadSettings().then(respJson => {
+        if (respJson) {
+          this.chatSettings = respJson;
+          this.spaceTemplates = this.chatSettings.spaceTemplateSetting;
+          const spaceTemplateIndex = this.chatSettings.spaceTemplateSetting.findIndex(st=> st.id === this.spaceTemplate.id);
+          if (spaceTemplateIndex > -1) {
+            this.isChatAuthorized = this.chatSettings.spaceTemplateSetting[spaceTemplateIndex].authorized;
+            this.isChatEnabledByDefault = this.chatSettings.spaceTemplateSetting[spaceTemplateIndex].chatEnabledByDefault;
+          }
+        }
+      }).finally(() => this.loading = false);
     },
     authorizeChat() {
-      console.log('authorize chat', this.isChatAuthorized);
+      if (!this.spaceTemplate.extendedProperties) {
+        this.spaceTemplate.extendedProperties = {};
+      }
       this.spaceTemplate.extendedProperties[this.chatAuthorizedLabel] = this.isChatAuthorized;
     },
     enableChatByDefault() {
-      console.log('Enable chat by default', this.isChatEnabledByDefault);
+      if (!this.spaceTemplate.extendedProperties) {
+        this.spaceTemplate.extendedProperties = {};
+      }
       this.spaceTemplate.extendedProperties[this.chatEnabledByDefaultLabel] = this.isChatEnabledByDefault;
     },
   }
