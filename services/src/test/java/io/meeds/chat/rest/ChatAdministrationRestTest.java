@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.meeds.chat.rest.model.ChatSettings;
-import io.meeds.chat.rest.model.SpaceTemplateSetting;
+import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.MatrixService;
 import io.meeds.social.space.template.model.SpaceTemplate;
 import io.meeds.social.space.template.service.SpaceTemplateService;
@@ -40,8 +40,7 @@ import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -108,20 +107,11 @@ class ChatAdministrationRestTest {
 
     when(matrixService.isServiceAvailable()).thenReturn(true);
 
+    when(matrixService.loadChatSettings(anyString(), any())).thenReturn(new ChatSettingsEntity(true, false, true, new ArrayList<>()));
     response = mockMvc.perform(get(REST_PATH + "/settings").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
     response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    ChatSettings chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettings.class);
-    assertNotNull(chatSettings);
-    assertTrue(chatSettings.isChatEnabled());
-    assertTrue(chatSettings.isPrivateRoomsEnabled());
-    assertTrue(chatSettings.isSpaceRoomsEnabled());
-
-    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, false, true, new ArrayList<>()));
-    response = mockMvc.perform(get(REST_PATH + "/settings").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
-    response.andExpect(status().isOk());
-    response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettings.class);
+    ChatSettingsEntity chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettingsEntity.class);
     assertNotNull(chatSettings);
     assertTrue(chatSettings.isChatEnabled());
     assertFalse(chatSettings.isPrivateRoomsEnabled());
@@ -142,7 +132,7 @@ class ChatAdministrationRestTest {
     when(spaceTemplateService.getSpaceTemplates(any(), any(), anyBoolean())).thenReturn(spaceTemplates);
 
     SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1l, "circle", "icon", true, false);
-    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true,
+    when(matrixService.loadChatSettings(anyString(), any())).thenReturn(new ChatSettingsEntity(true,
                                                                        true,
                                                                        true,
                                                                        new ArrayList<>(List.of(spaceTemplateSetting))));
@@ -150,7 +140,7 @@ class ChatAdministrationRestTest {
     response = mockMvc.perform(get(REST_PATH + "/settings").with(adminUser()).contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
     response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettings.class);
+    chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettingsEntity.class);
     assertNotNull(chatSettings);
     assertTrue(chatSettings.isChatEnabled());
     assertTrue(chatSettings.isPrivateRoomsEnabled());
@@ -162,23 +152,23 @@ class ChatAdministrationRestTest {
   void updateChatSettings() throws Exception {
     ResultActions response = mockMvc.perform(post(REST_PATH + "/settings").with(simpleUser())
                                                                           .contentType(MediaType.APPLICATION_JSON)
-                                                                          .content(asJsonString(new ChatSettings())));
+                                                                          .content(asJsonString(new ChatSettingsEntity())));
     response.andExpect(status().isForbidden());
 
     response = mockMvc.perform(post(REST_PATH + "/settings").with(adminUser())
                                                             .contentType(MediaType.APPLICATION_JSON)
-                                                            .content(asJsonString(new ChatSettings())));
+                                                            .content(asJsonString(new ChatSettingsEntity())));
     response.andExpect(status().isServiceUnavailable());
 
     when(matrixService.isServiceAvailable()).thenReturn(true);
-    when(matrixService.loadChatSettings()).thenReturn(new ChatSettings(true, true, true, new ArrayList<>()));
+    when(matrixService.loadChatSettings(anyString(), any())).thenReturn(new ChatSettingsEntity(true, true, true, new ArrayList<>()));
 
     response = mockMvc.perform(post(REST_PATH + "/settings").with(adminUser())
                                                             .contentType(MediaType.APPLICATION_JSON)
-                                                            .content(asJsonString(new ChatSettings())));
+                                                            .content(asJsonString(new ChatSettingsEntity())));
     response.andExpect(status().isOk());
     response.andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    ChatSettings chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettings.class);
+    ChatSettingsEntity chatSettings = fromJsonString(response.andReturn().getResponse().getContentAsString(), ChatSettingsEntity.class);
     assertNotNull(chatSettings);
     assertTrue(chatSettings.isChatEnabled());
     assertTrue(chatSettings.isPrivateRoomsEnabled());

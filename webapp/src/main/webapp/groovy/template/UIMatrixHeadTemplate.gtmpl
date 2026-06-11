@@ -3,12 +3,13 @@
   import org.exoplatform.commons.utils.CommonsUtils;
   import io.meeds.chat.service.utils.MatrixConstants;
   import io.meeds.chat.service.MatrixService;
+  import io.meeds.chat.service.model.ChatSettingsEntity;
 
   MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
   def requestContext = _ctx.getRequestContext();
   def userName = requestContext.getRemoteUser();
   if (userName != null && matrixService.isServiceEnabled()) {
-    def chatSettings = matrixService.loadChatSettings();
+    ChatSettingsEntity chatSettingsEntity = matrixService.loadChatSettings();
     String userMatrixId = matrixService.getMatrixIdForUser(userName);
     if(userMatrixId != null) {
       userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
@@ -18,9 +19,9 @@
       const meedsChat = {};
       matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
       matrixUserId = '<%= userMatrixId %>';
-      <% if (chatSettings != null && (chatSettings.privateRoomsEnabled || chatSettings.spaceRoomsEnabled)) {%>
-      meedsChat.privateRoomsEnabled = <%= chatSettings != null ? chatSettings.privateRoomsEnabled : false %>;
-      meedsChat.spaceRoomsEnabled = <%= chatSettings != null ? chatSettings.spaceRoomsEnabled : false %>;
+      <% if (chatSettingsEntity != null && (chatSettingsEntity.privateRoomsEnabled || chatSettingsEntity.spaceRoomsEnabled)) {%>
+      meedsChat.privateRoomsEnabled = <%= chatSettingsEntity != null ? chatSettingsEntity.privateRoomsEnabled : false %>;
+      meedsChat.spaceRoomsEnabled = <%= chatSettingsEntity != null ? chatSettingsEntity.spaceRoomsEnabled : false %>;
       <%}%>
     </script>
 <%}%>
