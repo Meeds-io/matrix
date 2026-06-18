@@ -77,7 +77,7 @@ export default {
     this.loading = true;
     //check if space's chat is enabled
     this.$matrixService.getChatAuthorizationStatus(this.spaceId).then(spaceChatStatus => {
-      if (spaceChatStatus.authorized) {
+      if (spaceChatStatus.chatAuthorizedForSpace && spaceChatStatus.chatAuthorizedForSpaceTemplate) {
         this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
           if (room) {
             this.spaceChatStatus = room.status;
@@ -98,7 +98,7 @@ export default {
             this.progress = false;
           }
         });
-      } else if (!spaceChatStatus.authorized) {
+      } else {
         this.displayed = false;
         this.progress = false;
       }
