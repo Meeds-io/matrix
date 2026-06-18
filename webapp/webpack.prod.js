@@ -40,6 +40,7 @@ const config = {
     userSettingsNotificationsExtension: './src/main/webapp/vue-apps/user-settings-notifications-extension/main.js',
     matrixAdministration: './src/main/webapp/vue-apps/administration/main.js',
     matrixSpaceTemplateExtension: './src/main/webapp/vue-apps/space-template-extension/main.js',
+    matrixSpacesAdministrationExtension: './src/main/webapp/vue-apps/spaces-administration-extension/main.js',
   },
   output: {
     path: path.join(__dirname, 'target/matrix/'),

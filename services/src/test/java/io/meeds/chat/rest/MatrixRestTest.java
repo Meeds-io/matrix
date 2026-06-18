@@ -736,10 +736,16 @@ class MatrixRestTest {
     SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1, "Template One", "/icon.png", true, true);
     ChatSettingsEntity chatSettings = new ChatSettingsEntity(true, true, true, List.of(spaceTemplateSetting));
     when(matrixService.loadChatSettings(anyString(), any())).thenReturn(chatSettings);
+    when(matrixService.isChatAuthorizedByAdministration(space)).thenReturn(true);
+    when(matrixService.isChatAuthorizedForSpaceTemplate(space)).thenReturn(true);
     response = mockMvc.perform(get(REST_PATH + "/spaceChatSetting/1").with(simpleUser())
                                                                      .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
     response.andExpect(status().isOk());
-    response.andExpect(content().string("{\"id\":1,\"name\":\"Template One\",\"icon\":\"/icon.png\",\"authorized\":true,\"chatEnabledByDefault\":true}"));
+    response.andExpect(content().string("""
+        {
+          "chatAuthorizedForSpace": true,
+          "chatAuthorizedForSpaceTemplate": true
+        }"""));
   }
 }
