@@ -327,7 +327,18 @@ public class MatrixService {
    * @return the room ID
    */
   public Room linkSpaceToMatrixRoom(Space space, String roomId) {
-    return matrixRoomStorage.saveRoomForSpace(Long.valueOf(space.getId()), roomId);
+    return linkSpaceToMatrixRoom(Long.parseLong(space.getId()), roomId, RoomStatus.ENABLED);
+  }
+
+  /**
+   * records the matrix ID of the room linked to the space
+   *
+   * @param spaceId the Space identifier
+   * @param roomId the ID of the matrix room
+   * @return the room ID
+   */
+  public Room linkSpaceToMatrixRoom(long spaceId, String roomId, RoomStatus roomStatus) {
+    return matrixRoomStorage.saveRoomForSpace(spaceId, roomId, roomStatus);
   }
 
   /**
@@ -1078,11 +1089,22 @@ public class MatrixService {
   /**
    * Check if Chat application is authorized for the space based on its template
    * 
+   * @param spaceId The space identifier
+   * @return boolean : true if the chat is authorized
+   */
+  public boolean isChatAuthorizedForSpace(Long spaceId) {
+    Space space = spaceService.getSpaceById(spaceId);
+    return isChatAuthorizedForSpace(space);
+  }
+
+  /**
+   * Check if Chat application is authorized for the space based on its template
+   *
    * @param space The space
    * @return boolean : true if the chat is authorized
    */
   public boolean isChatAuthorizedForSpace(Space space) {
-    return isChatAuthorizedByAdministration(space) && isChatAuthorizedForSpaceTemplate(space);
+    return isChatAuthorizedByAdministration(space);
   }
 
   /**
