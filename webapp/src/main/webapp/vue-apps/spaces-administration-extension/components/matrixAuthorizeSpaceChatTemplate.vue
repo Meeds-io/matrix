@@ -56,19 +56,22 @@ export default {
   },
   data: () => ({
     isChatAuthorized: true,
-    loading: false,
     initialChatState: false,
     chatAuthorizedLabel: 'meeds.chat.authorized',
   }),
   created() {
-    this.loading = true;
-    this.isChatAuthorized = !this.space.extendedPermissions || this.space.extendedPermissions[this.chatAuthorizedLabel] === 'true';
-    this.loading = false;
+    if (this.space) {
+      this.isChatAuthorized = !this.space.extendedPermissions || this.space.extendedPermissions[this.chatAuthorizedLabel] === 'true';
+    }
     this.initialChatState = this.isChatAuthorized;
+    // in case of multiple selection, we need to set a default value that will be used if the switch button is not updated
+    if (this.spaces) {
+      this.$root.$emit('space-administration-permissions-drawer-extended-field-updated', {'key': this.chatAuthorizedLabel, 'value': {[this.chatAuthorizedLabel]: this.isChatAuthorized}});
+    }
   },
   methods: {
     authorizeChat() {
-      if (this.isChatAuthorized === this.initialChatState) {
+      if (this.space && this.isChatAuthorized === this.initialChatState) {
         this.$root.$emit('space-administration-permissions-drawer-extended-field-restored', {'key': this.chatAuthorizedLabel, 'value': {[this.chatAuthorizedLabel]: this.isChatAuthorized}});
       } else {
         this.$root.$emit('space-administration-permissions-drawer-extended-field-updated', {'key': this.chatAuthorizedLabel, 'value': {[this.chatAuthorizedLabel]: this.isChatAuthorized}});
