@@ -1078,6 +1078,17 @@ public class MatrixService {
   /**
    * Check if Chat application is authorized for the space based on its template
    * 
+   * @param spaceId The space identifier
+   * @return boolean : true if the chat is authorized
+   */
+  public boolean isChatAuthorizedForSpace(Long spaceId) {
+    Space space = spaceService.getSpaceById(spaceId);
+    return isChatAuthorizedForSpace(space);
+  }
+
+  /**
+   * Check if Chat application is authorized for the space based on its template
+   *
    * @param space The space
    * @return boolean : true if the chat is authorized
    */

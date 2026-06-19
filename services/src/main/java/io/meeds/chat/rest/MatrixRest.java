@@ -804,9 +804,9 @@ public class MatrixRest implements ResourceContainer {
         spaceIds.remove(String.valueOf(room.getSpaceId()));
       }
       ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
-      if (RoomStatus.ENABLED.name().equals(room.getStatus())
-          && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled())
-              || (!room.isDirectChat() && chatSettings.isSpaceRoomsEnabled()))) {
+      if (RoomStatus.ENABLED.name().equals(room.getStatus()) && (chatSettings == null
+          || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled())
+          || (!room.isDirectChat() && chatSettings.isSpaceRoomsEnabled() && matrixService.isChatAuthorizedForSpace(room.getSpaceId())))) {
         processedRooms.add(room);
       }
 
