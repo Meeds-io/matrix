@@ -18,6 +18,7 @@
  */
 package io.meeds.chat.listeners;
 
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
@@ -69,37 +70,42 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    if (!matrixService.isChatAuthorizedForSpace(space) || !matrixService.isChatEnabledByDefault(space)) {
+    if (!matrixService.isChatAuthorizedForSpaceTemplate(space)) {
       return;
     }
-    try {
-      String matrixRoomId = matrixService.createRoom(space);
-      String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
 
-      if (StringUtils.isNotBlank(matrixRoomId)) {
-        List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
-        for (String manager : space.getManagers()) {
-          String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
-          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
-              && StringUtils.isNotBlank(matrixRoomId)) {
-            matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
-            updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
-            members.remove(manager);
+    if (matrixService.isChatEnabledByDefault(space)) {
+      try {
+        String matrixRoomId = matrixService.createRoom(space);
+        String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+
+        if (StringUtils.isNotBlank(matrixRoomId)) {
+          List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
+          for (String manager : space.getManagers()) {
+            String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
+            if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+                && StringUtils.isNotBlank(matrixRoomId)) {
+              matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
+              updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
+              members.remove(manager);
+            }
+          }
+          for (String member : members) {
+            String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
+            if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+                && StringUtils.isNotBlank(matrixRoomId)) {
+              matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
+            }
           }
         }
-        for (String member : members) {
-          String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
-          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
-              && StringUtils.isNotBlank(matrixRoomId)) {
-            matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
-          }
+      } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
         }
+        LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);
       }
-    } catch (Exception e) {
-      if (e instanceof InterruptedException) {
-        Thread.currentThread().interrupt();
-      }
-      LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);
+    } else {
+      matrixService.linkSpaceToMatrixRoom(space.getSpaceId(), null, RoomStatus.DISABLED);
     }
   }
 
