@@ -53,6 +53,10 @@ export default {
       type: Object,
       default: null
     },
+    extendedPermissions: {
+      type: Object,
+      default: null
+    },
   },
   data: () => ({
     isChatAuthorized: true,
@@ -61,7 +65,7 @@ export default {
   }),
   created() {
     if (this.space) {
-      this.isChatAuthorized = !this.space.extendedPermissions || this.space.extendedPermissions[this.chatAuthorizedLabel] === 'true';
+      this.isChatAuthorized = !this.extendedPermissions || this.extendedPermissions[this.chatAuthorizedLabel] === 'true';
     }
     this.initialChatState = this.isChatAuthorized;
     // in case of multiple selection, we need to set a default value that will be used if the switch button is not updated
