@@ -49,15 +49,32 @@ public class MatrixRoomStorage {
         || includeDisabled)) {
       return toRoomModel(roomEntity);
     } else {
-      LOG.warn("Can not find an associated matrix room for the space with ID {}", spaceId);
+      LOG.debug("Can not find an associated matrix room for the space with ID {}", spaceId);
       return null;
     }
   }
 
+  /**
+   * Stores a RoomEntity in database with ENABLED status
+   * @param spaceId the space identifier
+   * @param roomId the room identifier
+   * @return the created Room
+   */
   public Room saveRoomForSpace(Long spaceId, String roomId) {
+    return this.saveRoomForSpace(spaceId, roomId, RoomStatus.ENABLED);
+  }
+  /**
+   * Stores a RoomEntity in database
+   * @param spaceId the space Identifier
+   * @param roomId the room identifier
+   * @param status the room status
+   * @return the created Room model based on Room entity
+   */
+  public Room saveRoomForSpace(Long spaceId, String roomId, RoomStatus status) {
     RoomEntity roomEntity = new RoomEntity();
     roomEntity.setSpaceId(spaceId);
     roomEntity.setRoomId(roomId);
+    roomEntity.setStatus(status);
     return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 

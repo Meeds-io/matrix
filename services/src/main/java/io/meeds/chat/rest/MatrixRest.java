@@ -295,8 +295,8 @@ public class MatrixRest implements ResourceContainer {
       }
     }
 
-    matrixService.linkSpaceToMatrixRoom(space, roomId);
-    return true;
+    room = matrixService.linkSpaceToMatrixRoom(space, roomId);
+    return room != null;
   }
 
   @GetMapping("dmRooms")
@@ -727,10 +727,9 @@ public class MatrixRest implements ResourceContainer {
 
     return """
         {
-          "chatAuthorizedForSpace": %s,
-          "chatAuthorizedForSpaceTemplate": %s
-        }""".formatted(matrixService.isChatAuthorizedByAdministration(space),
-                       matrixService.isChatAuthorizedForSpaceTemplate(space));
+          "chatAuthorizedForSpace": %s
+        }
+        """.formatted(matrixService.isChatAuthorizedByAdministration(space));
   }
 
   private String checkAndParseUserFromToken(String token) {
@@ -808,6 +807,9 @@ public class MatrixRest implements ResourceContainer {
           || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled())
           || (!room.isDirectChat() && chatSettings.isSpaceRoomsEnabled() && matrixService.isChatAuthorizedForSpace(room.getSpaceId())))) {
         processedRooms.add(room);
+      } else {
+        // Substract the unread messages from disabled chat rooms
+        roomList.setTotalUnreadMessages(Math.max(0, roomList.getTotalUnreadMessages() - room.getUnreadMessages()));
       }
 
     }
