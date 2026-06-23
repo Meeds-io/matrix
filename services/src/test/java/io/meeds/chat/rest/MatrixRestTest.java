@@ -732,11 +732,16 @@ class MatrixRestTest {
     space.setTemplateId(1);
     space.setDisplayName("Test space");
     when(spaceService.getSpaceById(1)).thenReturn(space);
+    Room spaceRoom = new Room();
+    spaceRoom.setId(1);
+    spaceRoom.setSpaceId(1L);
+    spaceRoom.setStatus(RoomStatus.ENABLED.name());
 
     SpaceTemplateSetting spaceTemplateSetting = new SpaceTemplateSetting(1, "Template One", "/icon.png", true, true);
     ChatSettingsEntity chatSettings = new ChatSettingsEntity(true, true, true, List.of(spaceTemplateSetting));
     when(matrixService.loadChatSettings(anyString(), any())).thenReturn(chatSettings);
     when(matrixService.isChatAuthorizedByAdministration(space)).thenReturn(true);
+    when(matrixService.getRoomBySpace(space)).thenReturn(spaceRoom);
     response = mockMvc.perform(get(REST_PATH + "/spaceChatSetting/1").with(simpleUser())
                                                                      .contentType(MediaType.APPLICATION_FORM_URLENCODED));
 
