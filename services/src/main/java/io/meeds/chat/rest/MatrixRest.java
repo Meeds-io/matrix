@@ -725,11 +725,16 @@ public class MatrixRest implements ResourceContainer {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space was not found");
     }
 
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+
+    boolean chatAuthorizedForSpace = matrixService.isChatAuthorizedByAdministration(space)
+        && (spaceRoom != null || matrixService.isChatAuthorizedForSpaceTemplate(space));
+
     return """
         {
           "chatAuthorizedForSpace": %s
         }
-        """.formatted(matrixService.isChatAuthorizedByAdministration(space));
+        """.formatted(chatAuthorizedForSpace);
   }
 
   private String checkAndParseUserFromToken(String token) {
