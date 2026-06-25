@@ -347,6 +347,38 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   @Test
+  void getRoomMessagesNormalizesFullDirectMessageRoomId() throws Exception {
+    // DM rooms are stored with the FULL id ("!id:server"), unlike space rooms (local part).
+    // The participant guard must normalize BOTH the incoming id and the stored id; otherwise
+    // DM conversations are denied. The room suffix here matches MATRIX_SERVER_NAME so
+    // extractRoomId actually strips (the other fixtures use a non-matching suffix, which is
+    // exactly why the asymmetry slipped through).
+    String fullDmRoomId = "!normalizedDmRoom:matrix.exo.tn";
+    Room dm = new Room();
+    dm.setRoomId(fullDmRoomId);
+    dm.setFirstParticipant("dragon");
+    dm.setSecondParticipant("tom");
+    matrixService.createDirectMessagingRoom(dm);
+
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage message = new MatrixMessage();
+    message.setSender("@tom:matrix.exo.tn");
+    message.setMessageContent("hi from a DM");
+    message.setTimeStamp(1000L);
+    // The HTTP layer is always called with the normalized local part, never the full id
+    when(matrixHttpClient.getRoomMessages(eq("!normalizedDmRoom"), anyInt(), anyString())).thenReturn(List.of(message));
+
+    // The agent passes the full id, exactly as list_chat_conversations returns it for a DM
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", fullDmRoomId, 50);
+    assertEquals(1, messages.size());
+    assertEquals("hi from a DM", messages.get(0).getText());
+    assertEquals("tom", messages.get(0).getSender());
+  }
+
+  @Test
   void getById() throws Exception {
     Space space = getSpaceInstance(1);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();

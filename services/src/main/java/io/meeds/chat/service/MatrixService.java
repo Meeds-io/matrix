@@ -1064,7 +1064,7 @@ public class MatrixService {
     }
     String normalizedRoomId = extractRoomId(roomId);
     boolean isParticipant = getUserConversations(userName).stream()
-                                                          .anyMatch(conversation -> normalizedRoomId.equals(conversation.getRoomId()));
+                                                          .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
     if (!isParticipant) {
       LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
       return Collections.emptyList();
@@ -1101,7 +1101,9 @@ public class MatrixService {
     return callAsUser(userName, Collections.<ChatUnread> emptyList(), accessToken -> {
       Map<String, String> titlesByRoomId = new HashMap<>();
       for (ChatConversation conversation : getUserConversations(userName)) {
-        titlesByRoomId.put(conversation.getRoomId(), conversation.getTitle());
+        // Key by the normalized (local-part) id: getUnreadRooms returns local-part ids,
+        // while a conversation's stored id can be full (DM rooms) — extractRoomId both.
+        titlesByRoomId.put(extractRoomId(conversation.getRoomId()), conversation.getTitle());
       }
       List<ChatUnread> unread = new ArrayList<>();
       for (MatrixUnreadRoom unreadRoom : matrixHttpClient.getUnreadRooms(accessToken, 20)) {
@@ -1138,7 +1140,7 @@ public class MatrixService {
     }
     String normalizedRoomId = extractRoomId(roomId);
     List<ChatConversation> conversations = getUserConversations(userName);
-    boolean isParticipant = conversations.stream().anyMatch(conversation -> normalizedRoomId.equals(conversation.getRoomId()));
+    boolean isParticipant = conversations.stream().anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
     if (!isParticipant) {
       LOG.warn("User {} is not a participant of conversation {}, refusing to send a message. Known conversations: {}",
                userName,
