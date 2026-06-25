@@ -84,7 +84,7 @@ public class MatrixSynchronizationService {
                                     loadedSpaces + SPACES_THRESHOLD < spacesCount ? SPACES_THRESHOLD : spacesCount - loadedSpaces;
         Space[] spacesToMigrate = spaces.load(loadedSpaces, actualSpacesToLoadCount);
         for (Space space : spacesToMigrate) {
-          Room room = matrixService.getRoomBySpace(space);
+          Room room = matrixService.getRoomBySpace(space, true);
           if (room == null || StringUtils.isBlank(room.getRoomId()) && matrixService.isChatAuthorizedForSpace(space)) {
             try {
               String roomId = this.matrixService.createRoom(space);
