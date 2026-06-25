@@ -18,7 +18,7 @@
 -->
 
 <template>
-  <div>
+  <div v-if="!loading">
     <div class="d-flex">
       <div class="flex-grow-1">
         <div class="d-flex flex-column">
@@ -62,12 +62,20 @@ export default {
     isChatAuthorized: true,
     initialChatState: false,
     chatAuthorizedLabel: 'meeds.chat.authorized',
+    loading: true,
   }),
   created() {
     if (this.space) {
-      this.isChatAuthorized = !this.extendedPermissions || this.extendedPermissions[this.chatAuthorizedLabel] === 'true';
+      this.loading = true;
+      this.$matrixService.getSpaceRoom(this.space.id).then(room => {
+        if (room) {
+          this.isChatAuthorized = !this.extendedPermissions || this.extendedPermissions[this.chatAuthorizedLabel] === 'true';
+        } else {
+          this.isChatAuthorized = false;
+        }
+        this.initialChatState = this.isChatAuthorized;
+      }).finally(() => this.loading = false);
     }
-    this.initialChatState = this.isChatAuthorized;
     // in case of multiple selection, we need to set a default value that will be used if the switch button is not updated
     if (this.spaces) {
       this.$root.$emit('space-administration-permissions-drawer-extended-field-updated', {'key': this.chatAuthorizedLabel, 'value': {[this.chatAuthorizedLabel]: this.isChatAuthorized}});

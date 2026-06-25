@@ -20,13 +20,18 @@ package io.meeds.chat.listeners;
 
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
+import io.meeds.social.space.plugin.SpaceExtendedPermissionsLifeCycleEvent;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.PropertyManager;
+import org.exoplatform.container.ExoContainerContext;
+import org.exoplatform.container.PortalContainer;
+import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.identity.model.Identity;
@@ -36,7 +41,9 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -303,5 +310,43 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName());
       }
     }
+  }
+
+  @Override
+  public void extendedPermissionsUpdated(SpaceExtendedPermissionsLifeCycleEvent event) {
+    if (!event.getChangedpermissions().contains(SPACE_CHAT_AUTHORIZED)) {
+      return;
+    }
+    Space space = event.getSpace();
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+    if (spaceRoom == null) {
+      try {
+        // Administrators could force create rooms from the space administration
+        matrixService.createRoom(space);
+      } catch (Exception e) {
+        LOG.error("Could not create room for space {}", space.getDisplayName(), e);
+      }
+    }
+    Map<String, String> extendedPermissions = space.getExtendedPermissions();
+    if (extendedPermissions != null && !extendedPermissions.isEmpty()) {
+      boolean enableChat = "true".equals(extendedPermissions.get(SPACE_CHAT_AUTHORIZED));
+      class EnableChatRunnable implements Runnable {
+        @Override
+        public void run() {
+          ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
+          RequestLifeCycle.begin(PortalContainer.getInstance());
+          try {
+            matrixService.enableSpaceChat(space, enableChat);
+          } catch (ObjectNotFoundException e) {
+            LOG.error("Could not {} the room of the space {}", enableChat ? "enable" : "disable", space.getDisplayName(), e);
+          } finally {
+            RequestLifeCycle.end();
+          }
+        }
+      }
+      Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
+      enableThread.start();
+    }
+
   }
 }
