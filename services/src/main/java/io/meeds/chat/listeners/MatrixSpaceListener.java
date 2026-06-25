@@ -318,7 +318,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    Room spaceRoom = matrixService.getRoomBySpace(space);
+    Room spaceRoom = matrixService.getRoomBySpace(space, true);
     if (spaceRoom == null) {
       try {
         // Administrators could force create rooms from the space administration
