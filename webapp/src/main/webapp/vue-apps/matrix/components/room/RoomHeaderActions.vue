@@ -35,6 +35,9 @@
         </div>
       </div>
     </div>
+    <matrix-ask-ai-room-action
+      v-if="aiConciergeEnabled"
+      :room="room" />
     <v-menu
       v-model="menu"
       content-class="border-radius overflow-hidden"
@@ -142,6 +145,9 @@ export default {
     },
     canEditSpace() {
       return this.spaceId && this.space?.canEdit;
+    },
+    aiConciergeEnabled() {
+      return eXo.env.portal.aiConciergeEnabled;
     },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
