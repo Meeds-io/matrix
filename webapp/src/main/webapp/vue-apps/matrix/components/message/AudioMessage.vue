@@ -17,49 +17,55 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <div
-    class="d-flex text-truncate text-no-wrap overflow-hidden align-center mb-1 full-width">
-    <v-tooltip bottom>
-      <template #activator="{ on, attrs }">
-        <v-btn
-          v-bind="attrs"
-          :loading="pendingPlay"
-          :aria-label="!isPlaying && $t('matrix.chat.audio.play.label') 
-            || $t('matrix.chat.audio.pause.label')"
-          class="white"
-          width="28"
-          height="28"
-          min-width="28"
-          icon
-          v-on="on"
-          @click="toggleAudio">
-          <v-icon
-            class="icon-default-color"
-            size="12">
-            {{ !isPlaying && 'fas fa-play' || 'fas fa-pause' }}
-          </v-icon>
-        </v-btn>
-      </template>
-      <span v-if="!isPlaying">{{ $t('matrix.chat.audio.play.label') }}</span>
-      <span v-else>{{ $t('matrix.chat.audio.pause.label') }}</span>
-    </v-tooltip>
-    <span
-      :class="{'text-sub-title': !isSelfMessage, 'white--text': isSelfMessage}"
-      class="mx-2 text-caption flex-grow-1">
-      {{ formattedDuration }}
-    </span>
-    <canvas 
-      ref="waveform" 
-      class="my-auto flex-shrink-1 d-flex no-min-width full-width"
-      style="height: 30px;"
-      height="30" />
-    <audio
-      ref="audio"
-      :src="audioSource"
-      preload="metadata"
-      @ended="onAudioEnded"
-      @loadedmetadata="onLoadedMetadata"
-      @canplay="onCanPlay" />
+  <div class="full-width">
+    <div
+      class="d-flex text-truncate text-no-wrap overflow-hidden align-center mb-1 full-width">
+      <v-tooltip bottom>
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            :loading="pendingPlay"
+            :aria-label="!isPlaying && $t('matrix.chat.audio.play.label')
+              || $t('matrix.chat.audio.pause.label')"
+            class="white"
+            width="28"
+            height="28"
+            min-width="28"
+            icon
+            v-on="on"
+            @click="toggleAudio">
+            <v-icon
+              class="icon-default-color"
+              size="12">
+              {{ !isPlaying && 'fas fa-play' || 'fas fa-pause' }}
+            </v-icon>
+          </v-btn>
+        </template>
+        <span v-if="!isPlaying">{{ $t('matrix.chat.audio.play.label') }}</span>
+        <span v-else>{{ $t('matrix.chat.audio.pause.label') }}</span>
+      </v-tooltip>
+      <span
+        :class="{'text-sub-title': !isSelfMessage, 'white--text': isSelfMessage}"
+        class="mx-2 text-caption flex-grow-1">
+        {{ formattedDuration }}
+      </span>
+      <canvas
+        ref="waveform"
+        class="my-auto flex-shrink-1 d-flex no-min-width full-width"
+        style="height: 30px;"
+        height="30" />
+      <audio
+        ref="audio"
+        :src="audioSource"
+        preload="metadata"
+        @ended="onAudioEnded"
+        @loadedmetadata="onLoadedMetadata"
+        @canplay="onCanPlay" />
+    </div>
+    <matrix-audio-message-transcription
+      :message="message"
+      :audio-src="audioSource"
+      :is-self-message="isSelfMessage" />
   </div>
 </template>
 

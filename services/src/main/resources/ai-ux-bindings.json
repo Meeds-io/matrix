@@ -1,0 +1,76 @@
+{
+  "bindings": [
+    {
+      "nameId": "Chat-Summarize-Conversations",
+      "version": "3",
+      "applicationId": "chat",
+      "extensionId": "chatList",
+      "agentNameId": "COMPLETION",
+      "enabled": true,
+      "icon": "fas fa-comments",
+      "permissions": [
+        "*:/platform/users"
+      ],
+      "toolNames": [
+        "get_unread_chat_messages",
+        "list_chat_conversations"
+      ],
+      "order": 0
+    },
+    {
+      "nameId": "Chat-Summarize-Room",
+      "version": "3",
+      "applicationId": "chat",
+      "extensionId": "chatRoom",
+      "agentNameId": "COMPLETION",
+      "enabled": true,
+      "icon": "fas fa-list-ul",
+      "permissions": [
+        "*:/platform/users"
+      ],
+      "toolNames": [
+        "get_chat_messages"
+      ],
+      "order": 0
+    },
+    {
+      "nameId": "Chat-Summarize-Message",
+      "version": "2",
+      "applicationId": "chat",
+      "extensionId": "chatMessage",
+      "agentNameId": "COMPLETION",
+      "enabled": true,
+      "icon": "fas fa-list-ul",
+      "permissions": [
+        "*:/platform/users"
+      ],
+      "order": 0
+    },
+    {
+      "nameId": "Chat-Translate-Message",
+      "version": "2",
+      "applicationId": "chat",
+      "extensionId": "chatMessage",
+      "agentNameId": "COMPLETION",
+      "enabled": true,
+      "icon": "fas fa-language",
+      "permissions": [
+        "*:/platform/users"
+      ],
+      "order": 1
+    },
+    {
+      "nameId": "Chat-Draft-Reply",
+      "version": "2",
+      "applicationId": "chat",
+      "extensionId": "chatMessage",
+      "agentNameId": "COMPLETION",
+      "enabled": true,
+      "icon": "fas fa-reply",
+      "permissions": [
+        "*:/platform/users"
+      ],
+      "order": 2
+    }
+  ]
+}
