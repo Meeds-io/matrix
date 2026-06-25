@@ -147,7 +147,7 @@ class MatrixSynchronizationServiceTest {
     Room room = new Room();
     room.setRoomId("!ThisIsAnIdentifierOfARoom:matrix.exo.tn");
     room.setSpaceId(1L);
-    when(matrixService.getRoomBySpace(any())).thenReturn(room);
+    when(matrixService.getRoomBySpace(any(), anyBoolean())).thenReturn(room);
 
     matrixSynchronizationService.synchronizeSpaces();
     verify(matrixService, times(1)).createRoom(any());
