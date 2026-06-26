@@ -39,23 +39,21 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
           <v-switch
             v-model="chatSettings.privateRoomsEnabled"
             :ripple="false"
-            :disabled="!chatSettings.chatEnabled"
             :label="$t('meeds.chat.enable.private.rooms')"
             color="primary"
             class="pa-0 mb-5 my-auto ml-auto"
             hide-details
-            @change="updateChatFeature"/>
+            @change="updateChatSubFeature"/>
         </div>
         <div>
           <v-switch
             v-model="chatSettings.spaceRoomsEnabled"
             :ripple="false"
-            :disabled="!chatSettings.chatEnabled"
             :label="$t('meeds.chat.enable.space.rooms')"
             color="primary"
             class="pa-0 my-auto ml-auto"
             hide-details
-            @change="updateChatFeature"/>
+            @change="updateChatSubFeature"/>
         </div>
       </div>
       <div v-else class="d-flex flex-column align-center my-16">
@@ -145,6 +143,12 @@ export default {
   },
   methods: {
     updateChatFeature() {
+      this.$matrixAdministrationService.updateChatSettings(this.chatSettings);
+    },
+    updateChatSubFeature() {
+      if (!this.chatSettings.privateRoomsEnabled && !this.chatSettings.spaceRoomsEnabled) {
+        this.chatSettings.chatEnabled = false;
+      }
       this.$matrixAdministrationService.updateChatSettings(this.chatSettings);
     },
     updateSpaceTemplate(item) {
