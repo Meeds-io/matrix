@@ -25,7 +25,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
         <span class="">{{ $t('meeds.chat.enabled.title') }}</span>
         <v-switch
           v-model="chatSettings.chatEnabled"
-          :ripple="false"
           color="primary"
           class="pa-0 mb-5 my-auto ml-auto"
           hide-details
@@ -38,7 +37,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
         <div>
           <v-switch
             v-model="chatSettings.privateRoomsEnabled"
-            :ripple="false"
             :label="$t('meeds.chat.enable.private.rooms')"
             color="primary"
             class="pa-0 mb-5 my-auto ml-auto"
@@ -48,7 +46,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
         <div>
           <v-switch
             v-model="chatSettings.spaceRoomsEnabled"
-            :ripple="false"
             :label="$t('meeds.chat.enable.space.rooms')"
             color="primary"
             class="pa-0 my-auto ml-auto"
@@ -84,7 +81,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
                 <div class="d-flex flex-column align-center">
                   <v-switch
                     v-model="props.item.authorized"
-                    :ripple="false"
                     color="primary"
                     class="my-auto"
                     @change="updateSpaceTemplate(props.item)" />
@@ -94,7 +90,6 @@ import {updateChatSettings} from '../js/matrixAdministrationService';
                 <div class="d-flex flex-column align-center">
                   <v-switch
                     v-model="props.item.chatEnabledByDefault"
-                    :ripple="false"
                     :disabled="!props.item.authorized"
                     color="primary"
                     class="my-auto"
@@ -125,9 +120,9 @@ export default {
   created() {
     this.loading = true;
     this.headers = [
-      { text: this.$t('meeds.chat.rooms.space.template'),},
-      { text: this.$t('meeds.chat.rooms.space.template.authorized'), align: 'center', width:'130px' },
-      { text: this.$t('meeds.chat.rooms.space.template.default'), align: 'center', width:'130px' },
+      { text: this.$t('meeds.chat.rooms.space.template'), sortable: false},
+      { text: this.$t('meeds.chat.rooms.space.template.authorized'), align: 'center', width:'130px', sortable: false},
+      { text: this.$t('meeds.chat.rooms.space.template.default'), align: 'center', width:'130px', sortable: false},
     ];
     this.$matrixAdministrationService.loadSettings().then(respJson => {
       if (respJson) {
