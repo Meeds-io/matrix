@@ -85,6 +85,26 @@
   </portlet>
 
   <module>
+    <name>MatrixFavoriteDrawerExtension</name>
+    <load-group>FavoriteDrawerGRP</load-group>
+    <script>
+      <path>/js/matrixFavoritesExtension.bundle.js</path>
+    </script>
+    <depends>
+      <module>vue</module>
+    </depends>
+    <depends>
+      <module>vuetify</module>
+    </depends>
+    <depends>
+      <module>eXoVueI18n</module>
+    </depends>
+    <depends>
+      <module>extensionRegistry</module>
+    </depends>
+  </module>
+
+  <module>
     <name>MatrixChatNotificationExtension</name>
     <load-group>notificationGRP</load-group>
     <script>

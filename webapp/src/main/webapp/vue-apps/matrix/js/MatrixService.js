@@ -459,11 +459,14 @@ export function toRoomObject(rooms, currentMemberId) {
     const roomData = rooms[roomId];
     const events = [...roomData.timeline.events, ...roomData.state.events];
     const notificationCount = roomData.unread_notifications.notification_count;
+    // Matrix-native favorite: the `m.favourite` room tag (also set by Element & co.)
+    const tagEvent = (roomData.account_data?.events || []).find(e => e.type === 'm.tag');
+    const isFavorite = !!tagEvent?.content?.tags?.['m.favourite'];
     const roomItem = {
       id: roomId,
       enabledUser: true,
       external: false,
-      favorite: false,
+      favorite: isFavorite,
       unreadMessages: notificationCount,
       members: [],
     };
@@ -1801,6 +1804,99 @@ export async function muteRoom(roomId, spaceId, isMuted) {
     console.error('Error muting private room:', error);
     throw error;
   }
+}
+
+// Favorites are kept in sync two ways:
+//  - Matrix-native: the `m.favourite` room tag, so third-party clients (Element,
+//    Element X) see/filter the same favorites and a favorite set there flows back
+//    into the chat list (read in toRoomObject from the /sync account_data m.tag).
+//  - Meeds Favorites framework (generic /v1/social/favorites REST), so chat rooms
+//    appear in the platform Favorites drawer alongside notes, AI prompts, etc.
+// The Matrix tag is the source of truth for the chat UI; objectId is the room id.
+export const FAVORITE_OBJECT_TYPE = 'chatRoom';
+
+function favoritesBaseUrl() {
+  return `${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/social/favorites`;
+}
+
+function matrixFavoriteTagUrl(roomId) {
+  const matrixUserId = localStorage.getItem('matrix_user_id');
+  return `/_matrix/client/v3/user/${encodeURIComponent(matrixUserId)}/rooms/${encodeURIComponent(roomId)}/tags/m.favourite`;
+}
+
+async function setMatrixFavoriteTag(roomId, favorite) {
+  const options = {
+    method: favorite ? 'PUT' : 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`,
+      'Content-Type': 'application/json',
+    },
+  };
+  if (favorite) {
+    options.body = JSON.stringify({order: 0.5});
+  }
+  const response = await fetch(matrixFavoriteTagUrl(roomId), options);
+  if (!response?.ok) {
+    throw new Error('Error updating the Matrix favorite tag');
+  }
+}
+
+function setMeedsFavorite(roomId, spaceId, favorite) {
+  const url = favorite
+    ? `${favoritesBaseUrl()}/${FAVORITE_OBJECT_TYPE}/${encodeURIComponent(roomId)}${spaceId ? `?parentObjectId=${encodeURIComponent(spaceId)}` : ''}`
+    : `${favoritesBaseUrl()}/${FAVORITE_OBJECT_TYPE}/${encodeURIComponent(roomId)}?ignoreNotExisting=true`;
+  return fetch(url, {
+    method: favorite ? 'POST' : 'DELETE',
+    credentials: 'include',
+  });
+}
+
+export async function favoriteRoom(roomId, spaceId) {
+  // Matrix tag drives the chat UI and third-party clients; fail hard if it fails.
+  await setMatrixFavoriteTag(roomId, true);
+  // Meeds favorite powers the global Favorites drawer; best-effort, don't block the UI.
+  await setMeedsFavorite(roomId, spaceId, true).catch(e => console.error('Meeds favorite sync failed:', e));
+  return true;
+}
+
+export async function unfavoriteRoom(roomId) {
+  await setMatrixFavoriteTag(roomId, false);
+  await setMeedsFavorite(roomId, null, false).catch(e => console.error('Meeds favorite sync failed:', e));
+  return true;
+}
+
+// Returns the room ids currently favorited in the Meeds Favorites framework.
+async function getMeedsFavoriteRoomIds() {
+  const url = `${favoritesBaseUrl()}?type=${FAVORITE_OBJECT_TYPE}&returnSize=true&offset=0&limit=500`;
+  const response = await fetch(url, {method: 'GET', credentials: 'include'});
+  if (!response?.ok) {
+    return [];
+  }
+  const data = await response.json();
+  return (data?.favoritesItem || []).map(item => item.objectId);
+}
+
+/**
+ * Reconciles the Meeds Favorites (which power the global Favorites drawer) with the
+ * Matrix `m.favourite` tags (the source of truth, shared with Element & co.).
+ * This is what makes a favorite set from a third-party Matrix client show up in the
+ * platform Favorites drawer — and a favorite removed there disappear from it.
+ *
+ * @param favoriteRoomIds room ids tagged m.favourite (from the sync), as read into the room list
+ */
+export async function reconcileMeedsFavorites(favoriteRoomIds) {
+  const tagSet = new Set(favoriteRoomIds || []);
+  const meedsIds = await getMeedsFavoriteRoomIds();
+  const meedsSet = new Set(meedsIds);
+  const toAdd = [...tagSet].filter(id => !meedsSet.has(id));
+  const toRemove = meedsIds.filter(id => !tagSet.has(id));
+  if (!toAdd.length && !toRemove.length) {
+    return;
+  }
+  await Promise.all([
+    ...toAdd.map(id => setMeedsFavorite(id, null, true)),
+    ...toRemove.map(id => setMeedsFavorite(id, null, false)),
+  ]);
 }
 
 export async function sendTyping(roomId, isTyping, timeoutMs = 30000) {
