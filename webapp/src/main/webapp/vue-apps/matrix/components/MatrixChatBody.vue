@@ -28,6 +28,7 @@
         'background-grey-primary ': fullPageMode
       }"
       class="fill-height overflow-y-auto flex-shrink-1 flex-grow-1 overflow-x-hidden specific-scrollbar">
+      <matrix-room-filter-chips />
       <matrix-chat-rooms
         :rooms="rooms"
         :selected-room="selectedRoom"

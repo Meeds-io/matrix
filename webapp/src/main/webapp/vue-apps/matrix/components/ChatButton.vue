@@ -87,6 +87,7 @@ export default {
     targetRoomId: null,
     searchTimer: null,
     searchTerm: null,
+    activeFilters: [],
     activeRoomId: null,
     cacheRoomsTimeout: null,
     cacheRoomsLock: false,
@@ -137,6 +138,9 @@ export default {
     this.$root.$on('chat-event-total-unread-updated', this.handleTotalUnreadUpdate);
     this.$root.$on('message-sent-statistics', this.sendMessageStatistics);
     this.$root.$on('room-muted-updated', this.handleRoomMuteUpdate);
+    this.$root.$on('room-favorite-updated', this.handleRoomFavoriteUpdate);
+    this.$root.$on('chat-rooms-filter-changed', this.handleRoomsFilterChanged);
+    this.$root.$on('chat-mark-all-read', this.markAllRoomsRead);
     this.$root.$on('show-room-members', this.showRoomMembers);
     document.addEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
     document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
@@ -164,6 +168,9 @@ export default {
     this.$root.$off('chat-event-total-unread-updated',this.handleTotalUnreadUpdate);
     this.$root.$off('message-sent-statistics', this.sendMessageStatistics);
     this.$root.$off('room-muted-updated', this.handleRoomMuteUpdate);
+    this.$root.$off('room-favorite-updated', this.handleRoomFavoriteUpdate);
+    this.$root.$off('chat-rooms-filter-changed', this.handleRoomsFilterChanged);
+    this.$root.$off('chat-mark-all-read', this.markAllRoomsRead);
     this.$root.$off('show-room-members', this.showRoomMembers);
     document.removeEventListener('matrix-message-received', this.enqueueMessageReceivedEvent);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
@@ -200,15 +207,20 @@ export default {
       return this.presence === 'available';
     },
     filteredRooms() {
+      let rooms = this.rooms || [];
+      // Chip filters are OR-ed within themselves and AND-ed with the text filter.
+      if (this.activeFilters?.length) {
+        rooms = rooms.filter(room => this.activeFilters.some(filter => this.matchesFilter(room, filter)));
+      }
       if (!this.searchTerm) {
-        return this.rooms;
+        return rooms;
       }
       const normalize = str =>
         str?.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase() || '';
 
       const normalizedSearch = normalize(this.searchTerm);
 
-      return this.rooms.filter(room =>
+      return rooms.filter(room =>
         normalize(room.name).includes(normalizedSearch)
       );
     },
@@ -588,6 +600,12 @@ export default {
         const loadedRooms = matrixRoomsObject.rooms || [];
         this.rooms = this.mergeRoomsWithCache(loadedRooms, this.rooms);
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
+        // Mirror the Matrix m.favourite tags into the Meeds Favorites framework so
+        // favorites set from a third-party Matrix client (Element) also appear in the
+        // platform's global Favorites drawer. Best-effort, never blocks the room list.
+        const favoriteRoomIds = (this.rooms || []).filter(room => room.favorite).map(room => room.id);
+        this.$matrixService.reconcileMeedsFavorites(favoriteRoomIds)
+          .catch(e => console.error('Favorite reconciliation failed:', e));
       })
         .finally(() => {
           this.loading = false;
@@ -691,6 +709,46 @@ export default {
       if (wasMuted !== room.muted) {
         const delta = updatedRoom.unreadMessages || 0;
         this.updateTotalUnread(delta, room.muted, true);
+      }
+    },
+    handleRoomFavoriteUpdate(payload) {
+      const updatedRoom = this.getLocalRoomById(payload?.roomId);
+      if (updatedRoom) {
+        updatedRoom.favorite = payload.favorite;
+      }
+    },
+    handleRoomsFilterChanged(filters) {
+      this.activeFilters = filters || [];
+    },
+    markAllRoomsRead() {
+      const unreadRooms = (this.rooms || []).filter(room => (room.unreadMessages || 0) > 0);
+      if (!unreadRooms.length) {
+        return;
+      }
+      Promise.all(unreadRooms.map(room =>
+        this.$matrixService.getRoomLastMessageEventId(room.id).then(eventId =>
+          eventId && this.$matrixService.markRoomAsFullyRead(room.id, eventId).then(() => {
+            document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+              detail: {roomId: room.id}
+            }));
+          })
+        ).catch(e => console.error('Failed to mark room as read:', room.id, e))
+      )).then(() => {
+        this.$root.$emit('alert-message', this.$t('matrix.chat.markAllRead.success'), 'success');
+      });
+    },
+    matchesFilter(room, filter) {
+      switch (filter) {
+      case 'favorite':
+        return !!room.favorite;
+      case 'dm':
+        return !!room.directChat;
+      case 'space':
+        return !!room.spaceId;
+      case 'unread':
+        return (room.unreadMessages || 0) > 0;
+      default:
+        return true;
       }
     },
     handleSpaceMute({detail: {spaceId}}) {
