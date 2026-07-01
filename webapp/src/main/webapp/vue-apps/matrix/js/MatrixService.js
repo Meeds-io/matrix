@@ -1108,7 +1108,7 @@ export async function formatMessage(message, room) {
   const replacements = await Promise.all(
     mentions.map(async ([fullMatch, matrixId, displayName]) => {
       let matrixIdWithoutSpecialChar = matrixId.substring(1).replaceAll('@', '-');
-      matrixIdWithoutSpecialChar = '@' + matrixIdWithoutSpecialChar;
+      matrixIdWithoutSpecialChar = `@${  matrixIdWithoutSpecialChar}`;
       const user = await getUserByMatrixId(matrixIdWithoutSpecialChar, room);
       const userId = user?.remoteId;
       if (!userId) {
@@ -1269,7 +1269,10 @@ export async function processMediaExistence(item) {
 export async function processMessageMentions(item, room) {
   const rawMessage =
         (item.content.format === 'org.matrix.custom.html' && item.content.formatted_body) ||
-        item.content.body?.replace(/\n/g, '<br />') || '';
+      item.content.body?.replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('\n', '<br />') || '';
 
   if (!rawMessage) {
     return;
