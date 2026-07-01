@@ -64,6 +64,7 @@
     </div>
     <floating-arrow-button
       v-if="!loading && hasUnseenMessages"
+      ref="unseenScrollArrow"
       :show-badge="hasUnseenMessages"
       :closeable-tooltip="$t('matrix.messages.mark.as.read')"
       :button-tooltip="$t('matrix.messages.check.new')"
@@ -72,6 +73,7 @@
       top-position
       closeable
       up-arrow
+      @click="scrollToUnseenSectionSeparator"
       @closed="clearUnseenData" />
     <floating-arrow-button
       v-if="!loading && !isAtBottomMessages"
@@ -554,7 +556,7 @@ export default {
       });
     },
     loadMoreMessages() {
-      const messagesDOMEl = document.getElementById('chatMessagesContainer');
+      const messagesDOMEl = this.getMessagesContainerElement();
       const scrollTop = messagesDOMEl.scrollTop;
       if (scrollTop < this.lastScrollTop) {
         const composerDOMEl = document.getElementById('messageComposerArea');
@@ -565,24 +567,12 @@ export default {
         return;
       }
       this.loadingNewMessages = true;
-      const lastMessageId = this.messages[0].event_id;
-      setTimeout(() => {
-        this.$matrixService.loadRoomMessages(this.room.id, this.to).then(async resp => {
-          // check if there is no more messages
-          if (!resp.chunk || !resp.chunk.length || resp.chunk.length < this.$chatConstants.MESSAGES_LOAD_LIMIT) {
-            this.hasMoreMessages = false;
-          }
-          const messagesToProcess = [...resp.chunk.reverse()];
-          const processedMessages = await this.$matrixService.processMessages(this.room?.id, messagesToProcess);
-          this.messages = [...processedMessages.messages, ...this.messages];
-          this.from = resp.start;
-          this.to = resp.end;
-        }).finally(() => {
-          document.getElementById(`message-content-${lastMessageId}`).scrollIntoView({
-            behavior: 'instant'
-          });
+      setTimeout(async () => {
+        try {
+          await this.fetchAndAppendOlderMessages(true);
+        } finally {
           this.loadingNewMessages = false;
-        });
+        }
       }, 1000);
     },
     reset() {

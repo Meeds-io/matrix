@@ -1889,13 +1889,8 @@ export async function resetUnseenOnFirstMessageSeen(roomId, userId) {
   if (!unseenData || !unseenData?.firstUnseenEventId) {
     return false;
   }
-  const viewPortInfo = matrixUtils.getMessageViewportInfo(unseenData.firstUnseenEventId);
-  const firstMessageSeen = viewPortInfo.visibleTop;
-  if (firstMessageSeen) {
-    await clearUnseenMessages(roomId, userId);
-    return true;
-  }
-  return false;
+  await clearUnseenMessages(roomId, userId);
+  return true;
 }
 
 export function getMatrixIdOfUser(userId) {

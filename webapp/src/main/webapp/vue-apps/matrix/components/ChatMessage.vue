@@ -36,9 +36,13 @@
     </div>
     <v-divider
       v-if="showUnSeenMessageSeparator && showUnseen"
-      v-intersect="onIntersect"
       id="unseenSeparator"
-      class="mx-4 mb-n2px primary-border-color primary" />
+      :class="{
+        'mt-n2px': displaySender && !isPreviousMessageHasDifferentSender,
+        'mb-n2px': !displaySender || isPreviousMessageHasDifferentSender
+      }"
+      class="mx-4 primary-border-color primary"
+      v-intersect="onIntersect" />
     <div
       :id="message.event_id"
       class="px-4"
@@ -212,9 +216,6 @@ export default {
     this.$root.$off('message-child-menu-closed', this.closeChildMenu);
     this.clearHideUnseenSeparatorTimer();
   },
-  mounted() {
-    this.scrollToUnseenSection();
-  },
   watch: {
     isInputFocused() {
       if (this.isInputFocused && this.isUnseenInViewPort && this.showUnSeenMessageSeparator) {
@@ -253,6 +254,9 @@ export default {
     },
     isMyMessage() {
       return localStorage.getItem('matrix_user_id') === this.message.sender;
+    },
+    isPreviousMessageHasDifferentSender() {
+      return this.previousMessage?.sender !== this.message?.sender;
     },
     isMobile() {
       return this.$root.isMobile;
@@ -461,8 +465,6 @@ export default {
           return;
         }
         this.startHideUnseenSeparatorTimer();
-      } else {
-        this.clearHideUnseenSeparatorTimer();
       }
     },
     startHideUnseenSeparatorTimer() {
