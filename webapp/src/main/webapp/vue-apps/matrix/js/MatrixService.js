@@ -879,6 +879,44 @@ export function loadRoomMessages(roomId, from, to) {
   });
 }
 
+// Attachment message types found in a Matrix room timeline.
+const ATTACHMENT_MSG_TYPES = ['m.file', 'm.image', 'm.video', 'm.audio'];
+
+// Lists the attachments (files, images, audio, video) shared in a room by paging
+// back through its timeline. Returned newest-first.
+export async function loadRoomAttachments(roomId, maxPages = 10) {
+  const attachments = [];
+  const seen = new Set();
+  let from = null;
+  for (let page = 0; page < maxPages; page++) {
+    const resp = await loadRoomMessages(roomId, from);
+    const chunk = resp?.chunk || [];
+    for (const e of chunk) {
+      if (e.type === 'm.room.message'
+          && ATTACHMENT_MSG_TYPES.includes(e.content?.msgtype)
+          && e.content?.url
+          && !seen.has(e.event_id)) {
+        seen.add(e.event_id);
+        attachments.push({
+          eventId: e.event_id,
+          name: e.content.body,
+          msgtype: e.content.msgtype,
+          mimetype: e.content.info?.mimetype,
+          size: e.content.info?.size,
+          sender: e.sender,
+          timestamp: e.origin_server_ts,
+          mxcUrl: e.content.url,
+        });
+      }
+    }
+    if (!resp?.end || resp.end === from || chunk.length === 0) {
+      break;
+    }
+    from = resp.end;
+  }
+  return attachments;
+}
+
 export async function loadMessageReactions(roomId, eventId) {
   const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction?limit=100`;
   try {

@@ -20,6 +20,7 @@ import RoomLastMessage from './components/room/RoomLastMessage.vue';
 import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
 import RoomActionMenu from './components/room/RoomActionMenu.vue';
 import RoomActionMenuDrawer from './components/room/RoomActionMenuDrawer.vue';
+import RoomAttachmentsDrawer from './components/room/RoomAttachmentsDrawer.vue';
 import RoomActionListItems from './components/room/RoomActionListItems.vue';
 import MessageReceiptList from './components/message/receipt/MessageReceiptList.vue';
 import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
@@ -66,6 +67,7 @@ const components = {
   'matrix-chat-space-settings': SpaceSettingsAdministration,
   'matrix-room-action-menu': RoomActionMenu,
   'matrix-room-action-menu-drawer': RoomActionMenuDrawer,
+  'matrix-room-attachments-drawer': RoomAttachmentsDrawer,
   'matrix-room-action-list-items': RoomActionListItems,
   'matrix-message-receipt-list': MessageReceiptList,
   'matrix-message-receipt': MessageReceipt,
