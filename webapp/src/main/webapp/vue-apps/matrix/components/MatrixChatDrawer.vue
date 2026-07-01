@@ -53,6 +53,18 @@
           </v-btn>
           <v-btn
             v-if="fullPageMode"
+            :title="$t('matrix.chat.markAllRead.label')"
+            :disabled="!hasUnread"
+            icon
+            @click="markAllAsRead">
+            <v-icon
+              class="icon-default-color"
+              size="20">
+              fa-envelope-open-text
+            </v-icon>
+          </v-btn>
+          <v-btn
+            v-if="fullPageMode"
             icon
             @click="openFilter">
             <v-icon
@@ -78,6 +90,18 @@
           class="icon-default-color"
           size="20">
           fa-plus
+        </v-icon>
+      </v-btn>
+      <v-btn
+        v-if="!fullPageMode && !selectedRoom"
+        :title="$t('matrix.chat.markAllRead.label')"
+        :disabled="!hasUnread"
+        icon
+        @click="markAllAsRead">
+        <v-icon
+          class="icon-default-color"
+          size="20">
+          fa-envelope-open-text
         </v-icon>
       </v-btn>
       <div 
@@ -148,6 +172,9 @@ export default {
     },
     defaultRoomListContainerWidth() {
       return this.$root.defaultRoomListContainerWidth;
+    },
+    hasUnread() {
+      return (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
     }
   },
   watch: {
@@ -221,6 +248,9 @@ export default {
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);
+    },
+    markAllAsRead() {
+      this.$root.$emit('chat-mark-all-read');
     },
   },
 };
