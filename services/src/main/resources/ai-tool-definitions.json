@@ -1,0 +1,90 @@
+{
+  "tools": [
+    {
+      "name": "list_chat_conversations",
+      "title": "List Chat Conversations",
+      "description": "List the chat conversations the current user participates in, including direct messages and space rooms. Returns each conversation's Matrix room id, type ('dm' or 'space'), title and, for space rooms, the Meeds space id. Use this to discover which conversations exist before reading or summarizing their messages.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_chat_messages",
+      "title": "Get Chat Messages",
+      "description": "Retrieve the most recent messages of one of the current user's chat conversations, in chronological order. Use the conversation id ('roomId') returned by list_chat_conversations. Useful to summarize a conversation or answer questions about what was discussed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Matrix room id of the conversation, as returned by list_chat_conversations"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of messages to return (1-200, e.g. 50)"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_unread_chat_messages",
+      "title": "Get Unread Chat Messages",
+      "description": "List the current user's chat conversations that have unread messages, with the unread count and the recent messages of each. Use this to summarize what the user missed across their conversations (a 'catch me up' digest).",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "send_chat_message",
+      "title": "Send Chat Message",
+      "description": "Send a text message to one of the current user's chat conversations, on the user's behalf. Use the conversation id ('roomId') returned by list_chat_conversations. Returns the created message event id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Matrix room id of the conversation, as returned by list_chat_conversations"
+          },
+          "text": {
+            "type": "string",
+            "description": "Plain text message to send"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "text"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "require_approval": true
+    }
+  ]
+}

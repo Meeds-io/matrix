@@ -9,6 +9,7 @@ import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vu
 import MeedsChatParentSpaceSelector from './components/MeedsChatParentSpaceSelector.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
 import AudioMessage from './components/message/AudioMessage.vue';
+import AudioMessageTranscription from './components/message/AudioMessageTranscription.vue';
 import MessageReplyQuote from './components/message/MessageReplyQuote.vue';
 import MessageEditBanner from './components/message/MessageEditBanner.vue';
 import MessageUploadFileInput from './components/message/MessageUploadFileInput.vue';
@@ -30,6 +31,9 @@ import RoomMessages from './components/room/RoomMessages.vue';
 import MessageComposer from './components/message/MessageComposer.vue';
 import RoomAvatar from './components/room/RoomAvatar.vue';
 import RoomHeaderActions from './components/room/RoomHeaderActions.vue';
+import AskAIChatRoomAction from './components/room/AskAIChatRoomAction.vue';
+import AskAIChatListAction from './components/room/AskAIChatListAction.vue';
+import AskAIChatMessageAction from './components/message/action/AskAIChatMessageAction.vue';
 import MatrixChatBody from './components/MatrixChatBody.vue';
 import FilterRoomListInput from './components/room/FilterRoomListInput.vue';
 import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
@@ -55,6 +59,7 @@ const components = {
   'matrix-chat-discussion-drawer': MeedsChatDiscussionDrawer,
   'matrix-chat-parent-space-selector': MeedsChatParentSpaceSelector,
   'matrix-audio-message': AudioMessage,
+  'matrix-audio-message-transcription': AudioMessageTranscription,
   'matrix-message-reply-quote': MessageReplyQuote,
   'matrix-message-edit-banner': MessageEditBanner,
   'matrix-message-upload-file-input': MessageUploadFileInput,
@@ -76,6 +81,9 @@ const components = {
   'matrix-message-composer': MessageComposer,
   'matrix-room-avatar': RoomAvatar,
   'matrix-room-header-actions': RoomHeaderActions,
+  'matrix-ask-ai-room-action': AskAIChatRoomAction,
+  'matrix-ask-ai-list-action': AskAIChatListAction,
+  'matrix-ask-ai-message-action': AskAIChatMessageAction,
   'matrix-chat-body': MatrixChatBody,
   'matrix-filter-room-list-input': FilterRoomListInput,
   'matrix-chat-header-user-avatar': ChatHeaderUserAvatar,

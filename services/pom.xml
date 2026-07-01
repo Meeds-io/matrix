@@ -31,6 +31,19 @@
   <name>Meeds Add-on :: Matrix integration Services</name>
   <build>
     <finalName>matrix-services</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- Preserve method parameter names so the mcp-server can bind named tool
+               arguments (e.g. conversation_id) to ChatMcpTool method parameters. -->
+          <compilerArgs>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 
   <properties>
@@ -78,6 +91,19 @@
     <dependency>
       <groupId>io.meeds.pwa</groupId>
       <artifactId>pwa-service</artifactId>
+    </dependency>
+    <!-- MCP server tool plugin API (provided by the platform's mcp-server) -->
+    <dependency>
+      <groupId>io.meeds.mcp-server</groupId>
+      <artifactId>mcp-server-service</artifactId>
+      <version>7.2.x-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springaicommunity</groupId>
+      <artifactId>mcp-annotations</artifactId>
+      <version>0.9.0</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- Test scope -->

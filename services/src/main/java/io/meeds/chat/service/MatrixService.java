@@ -21,11 +21,16 @@ package io.meeds.chat.service;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.model.ChatConversation;
+import io.meeds.chat.model.ChatMessage;
+import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.model.MatrixMessage;
+import io.meeds.chat.model.MatrixUnreadRoom;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.rest.model.MediaInfo;
 import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.utils.MatrixUnauthorizedException;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -33,7 +38,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.file.model.FileItem;
-import org.exoplatform.commons.utils.CommonsUtils;
+import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
 
 import org.exoplatform.container.ExoContainerContext;
@@ -99,7 +104,11 @@ public class MatrixService {
 
   private final ExoCache<String, String> userMatrixIdsCache;
 
+  private final ExoCache<String, String> userAccessTokensCache;
+
   public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
+
+  public static final String             USER_ACCESS_TOKEN_CACHE_NAME = "chat.UserAccessToken";
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
@@ -113,6 +122,7 @@ public class MatrixService {
     this.organizationService = organizationService;
     this.matrixHttpClient = matrixHttpClient;
     this.userMatrixIdsCache = cacheService.getCacheInstance(USER_MATRIX_ID_CACHE_NAME);
+    this.userAccessTokensCache = cacheService.getCacheInstance(USER_ACCESS_TOKEN_CACHE_NAME);
   }
 
   @PostConstruct
@@ -907,5 +917,239 @@ public class MatrixService {
       throw new IllegalArgumentException("mediaId must not be null or empty");
     }
     matrixHttpClient.deleteMedia(mediaId, getMatrixAccessToken());
+  }
+
+  /**
+   * Lists the conversations the given user participates in: their direct
+   * messaging rooms and the rooms of the spaces they are a member of. Used by the
+   * {@code list_chat_conversations} MCP tool to give AI agents the user's chat
+   * context.
+   *
+   * @param userName the Meeds username
+   * @return the user's conversations, never {@code null}
+   */
+  public List<ChatConversation> getUserConversations(String userName) {
+    if (StringUtils.isBlank(userName)) {
+      return Collections.emptyList();
+    }
+    List<ChatConversation> conversations = new ArrayList<>();
+
+    // Direct messaging rooms of the user
+    for (Room room : getMatrixDMRoomsOfUser(userName)) {
+      if (StringUtils.isBlank(room.getRoomId())) {
+        continue;
+      }
+      String other = userName.equals(room.getFirstParticipant()) ? room.getSecondParticipant()
+                                                                 : room.getFirstParticipant();
+      conversations.add(new ChatConversation(room.getRoomId(), "dm", getUserDisplayName(other), null));
+    }
+
+    // Space rooms the user is a member of
+    try {
+      ListAccess<Space> memberSpaces = spaceService.getMemberSpaces(userName);
+      int size = memberSpaces.getSize();
+      if (size > 0) {
+        for (Space space : memberSpaces.load(0, size)) {
+          Room room = getRoomBySpaceId(Long.valueOf(space.getId()));
+          if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
+            conversations.add(new ChatConversation(room.getRoomId(),
+                                                   "space",
+                                                   space.getDisplayName(),
+                                                   Long.valueOf(space.getId())));
+          }
+        }
+      }
+    } catch (Exception e) {
+      LOG.warn("Could not list space conversations for user {}", userName, e);
+    }
+    return conversations;
+  }
+
+  private String getUserDisplayName(String userName) {
+    if (StringUtils.isBlank(userName)) {
+      return userName;
+    }
+    Identity identity = identityManager.getOrCreateUserIdentity(userName);
+    if (identity != null && identity.getProfile() != null && StringUtils.isNotBlank(identity.getProfile().getFullName())) {
+      return identity.getProfile().getFullName();
+    }
+    return userName;
+  }
+
+  /**
+   * Returns a Matrix access token for the given Meeds user, minted with the same
+   * JWT login the browser uses so server-side reads/writes happen with the user's
+   * own identity and permissions. Tokens are cached per user to avoid creating a
+   * new Synapse device on every call; pass {@code forceRefresh} to mint a fresh one
+   * (e.g. after a 401). Returns {@code null} when the user has no Matrix account.
+   *
+   * @param userName the Meeds username
+   * @param forceRefresh whether to bypass the cache and mint a new token
+   * @return the user's Matrix access token, or {@code null}
+   */
+  private String getUserAccessToken(String userName, boolean forceRefresh) throws JsonException, IOException, InterruptedException {
+    if (!forceRefresh) {
+      String cachedToken = userAccessTokensCache.get(userName);
+      if (StringUtils.isNotBlank(cachedToken)) {
+        return cachedToken;
+      }
+    }
+    String matrixId = getMatrixIdForUser(userName);
+    if (StringUtils.isBlank(matrixId)) {
+      return null;
+    }
+    String matrixLocalPart = extractUserId(matrixId);
+    String jwtToken = getJWTSessionToken(matrixLocalPart);
+    String accessToken = matrixHttpClient.getAccessToken(jwtToken);
+    if (StringUtils.isNotBlank(accessToken)) {
+      userAccessTokensCache.put(userName, accessToken);
+    }
+    return accessToken;
+  }
+
+  /**
+   * Executes a Matrix operation on behalf of the given user with their cached
+   * access token. If the token has been rejected (HTTP 401), the token is
+   * refreshed once and the operation retried. Any other failure, or a missing
+   * Matrix account, yields the provided fallback value.
+   *
+   * @param userName the Meeds username acting
+   * @param fallback the value to return when the operation cannot be performed
+   * @param operation the operation to run with a valid access token
+   * @return the operation result, or {@code fallback}
+   */
+  private <T> T callAsUser(String userName, T fallback, UserMatrixCall<T> operation) {
+    try {
+      String accessToken = getUserAccessToken(userName, false);
+      if (StringUtils.isBlank(accessToken)) {
+        LOG.warn("User {} has no Matrix account, skipping chat operation", userName);
+        return fallback;
+      }
+      try {
+        return operation.call(accessToken);
+      } catch (MatrixUnauthorizedException unauthorized) {
+        LOG.info("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
+        String refreshedToken = getUserAccessToken(userName, true);
+        if (StringUtils.isBlank(refreshedToken)) {
+          return fallback;
+        }
+        return operation.call(refreshedToken);
+      }
+    } catch (Exception e) {
+      LOG.error("Matrix chat operation failed for user {}", userName, e);
+      return fallback;
+    }
+  }
+
+  @FunctionalInterface
+  private interface UserMatrixCall<T> {
+    T call(String accessToken) throws Exception; // NOSONAR
+  }
+
+  /**
+   * Returns the most recent messages of a conversation, in chronological order,
+   * read <strong>as the given user</strong> so that Synapse enforces exactly what
+   * that user is allowed to see (membership, history visibility, redactions). A
+   * cheap participant pre-check avoids reading conversations the user is obviously
+   * not part of. Used by the {@code get_chat_messages} MCP tool.
+   *
+   * @param userName the Meeds username acting
+   * @param roomId the Matrix room id of the conversation
+   * @param limit the maximum number of messages to return (clamped to [1, 200])
+   * @return the conversation messages, oldest first, never {@code null}
+   */
+  public List<ChatMessage> getRoomMessages(String userName, String roomId, int limit) {
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId)) {
+      return Collections.emptyList();
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    boolean isParticipant = getUserConversations(userName).stream()
+                                                          .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
+    if (!isParticipant) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
+      return Collections.emptyList();
+    }
+    int effectiveLimit = Math.min(Math.max(limit, 1), 200);
+    return callAsUser(userName, Collections.<ChatMessage> emptyList(), accessToken -> {
+      List<MatrixMessage> matrixMessages = matrixHttpClient.getRoomMessages(normalizedRoomId, effectiveLimit, accessToken);
+      List<ChatMessage> messages = new ArrayList<>();
+      for (MatrixMessage matrixMessage : matrixMessages) {
+        messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
+                                     matrixMessage.getMessageContent(),
+                                     matrixMessage.getTimeStamp()));
+      }
+      // The client API returns events newest-first (dir=b); flip to chronological.
+      Collections.reverse(messages);
+      return messages;
+    });
+  }
+
+  /**
+   * Returns the unread conversations of the given user, read <strong>as that
+   * user</strong> via a Matrix {@code /sync}, so only the rooms the user has
+   * joined are considered. Each entry carries the unread count and the recent
+   * messages, with a human readable title resolved from the user's conversations.
+   * Used by the {@code get_unread_chat_messages} MCP tool.
+   *
+   * @param userName the Meeds username acting
+   * @return the user's unread conversations, never {@code null}
+   */
+  public List<ChatUnread> getUnreadConversations(String userName) {
+    if (StringUtils.isBlank(userName)) {
+      return Collections.emptyList();
+    }
+    return callAsUser(userName, Collections.<ChatUnread> emptyList(), accessToken -> {
+      Map<String, String> titlesByRoomId = new HashMap<>();
+      for (ChatConversation conversation : getUserConversations(userName)) {
+        // Key by the normalized (local-part) id: getUnreadRooms returns local-part ids,
+        // while a conversation's stored id can be full (DM rooms) — extractRoomId both.
+        titlesByRoomId.put(extractRoomId(conversation.getRoomId()), conversation.getTitle());
+      }
+      List<ChatUnread> unread = new ArrayList<>();
+      for (MatrixUnreadRoom unreadRoom : matrixHttpClient.getUnreadRooms(accessToken, 20)) {
+        List<ChatMessage> messages = new ArrayList<>();
+        // The /sync timeline is already in chronological order (oldest first).
+        for (MatrixMessage matrixMessage : unreadRoom.getMessages()) {
+          messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
+                                       matrixMessage.getMessageContent(),
+                                       matrixMessage.getTimeStamp()));
+        }
+        unread.add(new ChatUnread(unreadRoom.getRoomId(),
+                                  titlesByRoomId.get(unreadRoom.getRoomId()),
+                                  unreadRoom.getUnreadCount(),
+                                  messages));
+      }
+      return unread;
+    });
+  }
+
+  /**
+   * Sends a textual message to a conversation <strong>as the given user</strong>,
+   * after checking that the user participates in it. Synapse additionally enforces
+   * that the user is allowed to post. Used by the {@code send_chat_message} MCP
+   * tool, e.g. to let an AI agent post a real-time reply on the user's behalf.
+   *
+   * @param userName the Meeds username acting
+   * @param roomId the Matrix room id of the conversation
+   * @param text the plain text message to send
+   * @return the created event id, or {@code null} when the message could not be sent
+   */
+  public String sendMessage(String userName, String roomId, String text) {
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId) || StringUtils.isBlank(text)) {
+      return null;
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    List<ChatConversation> conversations = getUserConversations(userName);
+    boolean isParticipant = conversations.stream().anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
+    if (!isParticipant) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to send a message. Known conversations: {}",
+               userName,
+               normalizedRoomId,
+               conversations.stream().map(ChatConversation::getRoomId).toList());
+      return null;
+    }
+    return callAsUser(userName,
+                      null,
+                      accessToken -> matrixHttpClient.sendMessage(normalizedRoomId, text, UUID.randomUUID().toString(), accessToken));
   }
 }
