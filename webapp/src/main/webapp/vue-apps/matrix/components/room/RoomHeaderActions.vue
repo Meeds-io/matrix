@@ -16,52 +16,7 @@
 -->
 
 <template>
-  <div
-    class="d-flex align-center"
-    :class="{'flex-grow-1': findOpen}">
-    <v-text-field
-      v-if="findOpen"
-      ref="findInput"
-      v-model="findText"
-      :placeholder="$t('matrix.chat.search.placeholder')"
-      class="my-0 ms-0 me-2 pa-0 filter"
-      :style="findFieldStyle"
-      hide-details
-      @input="onFindInput"
-      @keydown.esc.prevent="closeFind">
-      <template #prepend>
-        <v-btn
-          icon
-          class="pa-0 mb-n1 mx-0 mt-0"
-          @click="closeFind">
-          <v-icon
-            class="icon-default-color"
-            size="20">
-            fa-arrow-left
-          </v-icon>
-        </v-btn>
-      </template>
-      <template #prepend-inner>
-        <v-icon
-          :class="{'primary--text': !!findText}"
-          class="mt-1"
-          size="16">
-          fa-filter
-        </v-icon>
-      </template>
-      <template
-        v-if="findText"
-        #append>
-        <v-btn
-          icon
-          x-small
-          class="mt-1"
-          @click="resetFindText">
-          <v-icon size="16" class="primary--text">fa-times</v-icon>
-        </v-btn>
-      </template>
-    </v-text-field>
-    <template v-else>
+  <div class="d-flex">
     <div class="room-action-components">
       <div
         v-for="action in enabledRoomActionComponents"
@@ -178,7 +133,6 @@
         </v-list-item>
       </v-list>
     </v-menu>
-    </template>
   </div>
 </template>
 
@@ -190,10 +144,7 @@ export default {
       space: null,
       menu: false,
       roomActionComponents: [],
-      initializedActions: [],
-      findOpen: false,
-      findText: '',
-      findDebounce: null
+      initializedActions: []
     };
   },
   props: {
@@ -218,15 +169,6 @@ export default {
     fullPageMode() {
       return this.$root?.fullPageMode;
     },
-    findFieldStyle() {
-      // In full page, the conversation header shares one row with the room-list header.
-      // Overlay the find field across the whole right side (room-list is 420px wide),
-      // covering the avatar/name and the collapse/close buttons.
-      if (this.fullPageMode && this.findOpen) {
-        return 'position:fixed;top:0;inset-inline-end:0;inset-inline-start:420px;height:60px !important;max-height:none !important;z-index:6;display:flex;align-items:center;padding-inline:16px;background-color:var(--allPagesBaseBackground, #ffffff);';
-      }
-      return '';
-    },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
     }
@@ -236,9 +178,6 @@ export default {
       this.roomActionComponents = [];
       this.initializedActions = [];
       this.getSpaceById(this.spaceId);
-      if (this.findOpen) {
-        this.closeFind();
-      }
     },
   },
   created() {
@@ -302,28 +241,13 @@ export default {
     toggleFind() {
       this.menu = false;
       if (this.fullPageMode) {
-        // In full page, the drawer header is the room-list side; open the find field here
-        // (the conversation's own header, on the right) instead of the drawer-wide filter.
-        this.findOpen = true;
-        this.$nextTick(() => this.$refs.findInput?.focus?.());
+        // Full page: the header is shared with the room list, so open the find field
+        // inside the floating search bar over the conversation instead of the header.
+        this.$root.$emit('open-conversation-find');
       } else {
-        // In the discussion drawer, reuse exo-drawer's full-width header filter.
+        // Discussion drawer: reuse exo-drawer's full-width header filter.
         this.$root.$emit('toggle-conversation-search', this.room);
       }
-    },
-    onFindInput() {
-      clearTimeout(this.findDebounce);
-      this.findDebounce = setTimeout(() => this.$root.$emit('conversation-search', this.findText), 250);
-    },
-    resetFindText() {
-      this.findText = '';
-      this.$root.$emit('conversation-search', '');
-      this.$nextTick(() => this.$refs.findInput?.focus?.());
-    },
-    closeFind() {
-      this.findOpen = false;
-      this.findText = '';
-      this.$root.$emit('conversation-search-close');
     },
     editSpace() {
       window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));

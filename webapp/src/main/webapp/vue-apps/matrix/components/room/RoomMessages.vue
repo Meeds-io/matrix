@@ -23,10 +23,23 @@
     v-touch="{down: () => loadMoreMessages()}"
     @scroll="onMessagesContainerScroll">
     <div
-      v-if="searchActive"
+      v-if="searchActive || findBarOpen"
       class="d-flex align-center px-2 py-1 elevation-2 border-radius"
-      style="position:sticky;top:8px;z-index:1000;width:fit-content;margin-inline-start:auto;margin-inline-end:16px;background-color:var(--allPagesBaseBackground, #fff);">
-      <span class="text-caption text-sub-title me-1" style="white-space:nowrap;">{{ matchLabel }}</span>
+      style="position:sticky;top:8px;z-index:1000;width:fit-content;max-width:calc(100% - 32px);margin-inline-start:auto;margin-inline-end:16px;background-color:var(--allPagesBaseBackground, #fff);">
+      <template v-if="findBarOpen">
+        <v-icon size="16" class="icon-default-color me-1 d-flex align-center" style="height:24px;">fa-filter</v-icon>
+        <input
+          ref="findBarInput"
+          v-model="findBarText"
+          type="text"
+          :placeholder="$t('matrix.chat.search.placeholder')"
+          class="me-1"
+          style="outline:none;border:none;background:transparent;min-width:160px;height:24px;line-height:24px;font-size:14px;"
+          @input="onFindBarInput"
+          @keydown.enter.prevent="searchNav('next')"
+          @keydown.esc.prevent="closeFindBar">
+      </template>
+      <span class="text-caption text-sub-title me-1 d-flex align-center" style="white-space:nowrap;height:24px;">{{ matchLabel }}</span>
       <v-btn
         icon
         x-small
@@ -42,6 +55,14 @@
         :title="$t('matrix.chat.search.next')"
         @click="searchNav('next')">
         <v-icon size="16" class="icon-default-color">fa-chevron-down</v-icon>
+      </v-btn>
+      <v-btn
+        v-if="findBarOpen"
+        icon
+        x-small
+        :title="$t('matrix.chat.cancel')"
+        @click="closeFindBar">
+        <v-icon size="16" class="icon-default-color">fa-times</v-icon>
       </v-btn>
     </div>
     <div
@@ -144,7 +165,10 @@ export default {
       currentTerm: '',
       highlightEls: [],
       searchActive: false,
-      searchToken: 0
+      searchToken: 0,
+      findBarOpen: false,
+      findBarText: '',
+      findBarDebounce: null
     };
   },
   props: {
@@ -169,6 +193,7 @@ export default {
     this.$root.$on('move-to-message',  this.moveToMessage);
     this.$root.$on('conversation-search', this.runSearch);
     this.$root.$on('conversation-search-close', this.clearSearch);
+    this.$root.$on('open-conversation-find', this.openFindBar);
   },
   beforeDestroy() {
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
@@ -182,6 +207,7 @@ export default {
     this.$root.$off('move-to-message',  this.moveToMessage);
     this.$root.$off('conversation-search', this.runSearch);
     this.$root.$off('conversation-search-close', this.clearSearch);
+    this.$root.$off('open-conversation-find', this.openFindBar);
   },
   computed: {
     fullPageMode() {
@@ -663,6 +689,19 @@ export default {
       this.currentMatch = -1;
       this.currentTerm = '';
       this.searchActive = false;
+    },
+    openFindBar() {
+      this.findBarOpen = true;
+      this.$nextTick(() => this.$refs.findBarInput?.focus?.());
+    },
+    onFindBarInput() {
+      clearTimeout(this.findBarDebounce);
+      this.findBarDebounce = setTimeout(() => this.runSearch(this.findBarText), 250);
+    },
+    closeFindBar() {
+      this.findBarOpen = false;
+      this.findBarText = '';
+      this.clearSearch();
     },
     async scrollToMatch() {
       const eventId = this.matchEventIds[this.currentMatch];
