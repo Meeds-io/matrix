@@ -30,6 +30,14 @@
         <span class="text-truncate text-title text-subtitle-1">
           {{ conversationTitle }}
         </span>
+        <v-chip
+          v-if="matchCount > 1"
+          x-small
+          outlined
+          color="primary"
+          class="ms-2 flex-shrink-0">
+          {{ matchCount }}
+        </v-chip>
         <span
           v-if="formattedDate"
           class="text-caption text-sub-title ms-auto ps-2 flex-shrink-0">
@@ -62,6 +70,9 @@ export default {
   computed: {
     conversationTitle() {
       return this.result.conversationTitle || this.result.conversationId;
+    },
+    matchCount() {
+      return this.result.matchCount || 1;
     },
     formattedDate() {
       if (!this.result.timestamp) {

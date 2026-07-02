@@ -21,13 +21,31 @@ Vue.component('chat-search-card', ChatSearchCard);
 
 // The unified-search app calls this (if the jsModule exports it) to turn the raw
 // /matrix/rest/matrix/search response (ChatSearchResult[]) into the results array.
-// We just give each hit a stable `id` (its Matrix event id).
+// We collapse the per-message hits to one card per conversation (keeping the most
+// recent match as the displayed snippet) with a match count — so the grouped "Chat"
+// section shows each conversation once, like the in-drawer WhatsApp-style filter.
 export function formatSearchResult(results) {
   if (!Array.isArray(results)) {
     return [];
   }
-  return results.map(result => ({
-    ...result,
-    id: result.eventId,
-  }));
+  const byConversation = new Map();
+  for (const result of results) {
+    const existing = byConversation.get(result.conversationId);
+    if (!existing) {
+      byConversation.set(result.conversationId, {
+        ...result,
+        id: result.conversationId,
+        matchCount: 1,
+      });
+    } else {
+      existing.matchCount++;
+      if ((result.timestamp || 0) > (existing.timestamp || 0)) {
+        existing.text = result.text;
+        existing.sender = result.sender;
+        existing.eventId = result.eventId;
+        existing.timestamp = result.timestamp;
+      }
+    }
+  }
+  return [...byConversation.values()];
 }

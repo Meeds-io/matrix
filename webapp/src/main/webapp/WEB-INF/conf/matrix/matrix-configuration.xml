@@ -360,6 +360,9 @@
             <field name="icon">
               <string>fas fa-comments</string>
             </field>
+            <field name="groupingEnabled">
+              <boolean>true</boolean>
+            </field>
             <field name="spaceFilterEnabled">
               <boolean>false</boolean>
             </field>
