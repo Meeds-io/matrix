@@ -158,6 +158,17 @@ export default {
       return this.fullPageMode ? this.room ? 'fullPageHeader' : 'fullPageHeader_no_room' : '';
     },
   },
+  watch: {
+    searchTerm(term) {
+      // The list filter was cleared elsewhere (e.g. a conversation was opened) —
+      // reset this drawer's filter input so it matches the now-unfiltered list.
+      if (!term) {
+        this.filterText = '';
+        this.showFilter = false;
+        this.$refs.ChatDiscussionDrawer?.resetFilter?.();
+      }
+    },
+  },
   methods: {
     handleRoomActiveState(id, isActive) {
       this.$emit('room-active-changed', id, isActive);
@@ -194,15 +205,8 @@ export default {
         this.expanded = expanded;
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
-        // Keep the conversation-list filter visible after expanding: the term stays
-        // applied (shared searchTerm) but this drawer's filter input starts hidden.
-        if (expanded && this.searchTerm) {
-          this.filterText = this.searchTerm;
-          this.showFilter = true;
-        }
         // Stay in the conversation the user already opened; only fall back to the
-        // last opened / first room when there is none (avoids an empty pane, e.g.
-        // when the list is filtered).
+        // last opened / first room when there is none (avoids an empty pane).
         const targetRoom = this.room?.id ? this.room : (this.getLastOpenedRoom() || this.rooms?.[0]);
         await this.openDiscussion(targetRoom);
         this.wasExpanded = this.expanded;

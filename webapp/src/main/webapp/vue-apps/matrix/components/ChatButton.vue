@@ -673,12 +673,22 @@ export default {
       const room = event?.detail?.room || event;
       const fromRoomList = event?.detail?.fromRoomList || false;
       this.addRoomIfNotExists(room);
+      // Opening a conversation exits the list search (WhatsApp-style): clear the
+      // filter so the full list shows with the opened conversation highlighted —
+      // important for message-search results that aren't in the name-filtered list.
+      this.clearListFilter();
       this.openDrawer();
       setTimeout(() => {
         this.$root.$emit('open-chat-discussion', room, fromRoomList);
         document.dispatchEvent(new CustomEvent('space-members-drawer-close'));
         localStorage.setItem('lastOpenedRoomId', room.id);
       }, 100);
+    },
+    clearListFilter() {
+      clearTimeout(this.searchTimer);
+      this.searchTerm = null;
+      this.messageSearchTerm = null;
+      this.messageResults = [];
     },
     sendMessageStatistics(message, room) {
       document.dispatchEvent(new CustomEvent('exo-statistic-message', {

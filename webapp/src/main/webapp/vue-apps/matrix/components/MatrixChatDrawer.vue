@@ -174,6 +174,15 @@ export default {
     },
     loadingRooms() {
       this.checkLoading();
+    },
+    searchTerm(term) {
+      // The list filter was cleared elsewhere (e.g. a conversation was opened) —
+      // reset this drawer's filter input so it matches the now-unfiltered list.
+      if (!term) {
+        this.filterText = '';
+        this.showFilter = false;
+        this.$refs.meedsChatDrawer?.resetFilter?.();
+      }
     }
   },
   mounted() {
@@ -201,12 +210,6 @@ export default {
         this.expanded = expanded;
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
-        // Keep the conversation-list filter visible after expanding: the term stays
-        // applied (shared searchTerm) but the fullpage filter input starts hidden.
-        if (expanded && this.searchTerm) {
-          this.filterText = this.searchTerm;
-          this.showFilter = true;
-        }
         this.selectedRoom = this.selectedRoom || this.getLastOpenedRoom();
         await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
       }, 300);
