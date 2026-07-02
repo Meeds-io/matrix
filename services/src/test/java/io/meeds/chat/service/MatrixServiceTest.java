@@ -344,6 +344,7 @@ class MatrixServiceTest extends MatrixBaseTest {
 
     MatrixMessage hit = new MatrixMessage();
     hit.setRoomId(roomId);
+    hit.setEventId("$hitEvent1");
     hit.setSender("@ghost:matrix.exo.tn");
     hit.setMessageContent("the release date is friday");
     hit.setTimeStamp(4000L);
@@ -353,6 +354,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     List<ChatSearchResult> results = matrixService.searchChatMessages("dragon", "release", null, 20);
     assertEquals(1, results.size());
     ChatSearchResult result = results.get(0);
+    assertEquals("$hitEvent1", result.getEventId());
     assertEquals("the release date is friday", result.getText());
     assertEquals("ghost", result.getSender());
     assertEquals(4000L, result.getTimestamp());

@@ -16,7 +16,51 @@
 -->
 
 <template>
-  <div class="d-flex">
+  <div
+    class="d-flex align-center"
+    :class="{'flex-grow-1': findOpen}">
+    <v-text-field
+      v-if="findOpen"
+      ref="findInput"
+      v-model="findText"
+      :placeholder="$t('matrix.chat.search.placeholder')"
+      class="my-0 ms-0 me-2 pa-0 filter"
+      hide-details
+      @input="onFindInput"
+      @keydown.esc.prevent="closeFind">
+      <template #prepend>
+        <v-btn
+          icon
+          class="pa-0 mb-n1 mx-0 mt-0"
+          @click="closeFind">
+          <v-icon
+            class="icon-default-color"
+            size="20">
+            fa-arrow-left
+          </v-icon>
+        </v-btn>
+      </template>
+      <template #prepend-inner>
+        <v-icon
+          :class="{'primary--text': !!findText}"
+          class="mt-1"
+          size="16">
+          fa-filter
+        </v-icon>
+      </template>
+      <template
+        v-if="findText"
+        #append>
+        <v-btn
+          icon
+          x-small
+          class="mt-1"
+          @click="resetFindText">
+          <v-icon size="16" class="primary--text">fa-times</v-icon>
+        </v-btn>
+      </template>
+    </v-text-field>
+    <template v-else>
     <div class="room-action-components">
       <div
         v-for="action in enabledRoomActionComponents"
@@ -35,9 +79,6 @@
         </div>
       </div>
     </div>
-    <matrix-ask-ai-room-action
-      v-if="aiConciergeEnabled"
-      :room="room" />
     <v-menu
       v-model="menu"
       content-class="border-radius overflow-hidden"
@@ -60,6 +101,26 @@
         </v-btn>
       </template>
       <v-list class="pa-0">
+        <matrix-ask-ai-room-action
+          v-if="aiConciergeEnabled"
+          :room="room" />
+        <v-list-item
+          class="ps-2 pe-3 height-auto"
+          @click.stop="toggleFind">
+          <v-sheet
+            class="d-flex"
+            width="28"
+            height="36">
+            <v-icon
+              class="icon-default-color mx-auto"
+              size="16">
+              fa-filter
+            </v-icon>
+          </v-sheet>
+          <span>
+            {{ $t('matrix.chat.search.find') }}
+          </span>
+        </v-list-item>
         <v-list-item
           v-if="canEditSpace"
           class="ps-2 pe-3 height-auto"
@@ -116,6 +177,7 @@
         </v-list-item>
       </v-list>
     </v-menu>
+    </template>
   </div>
 </template>
 
@@ -127,7 +189,10 @@ export default {
       space: null,
       menu: false,
       roomActionComponents: [],
-      initializedActions: []
+      initializedActions: [],
+      findOpen: false,
+      findText: '',
+      findDebounce: null
     };
   },
   props: {
@@ -149,6 +214,9 @@ export default {
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
     },
+    fullPageMode() {
+      return this.$root?.fullPageMode;
+    },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
     }
@@ -158,6 +226,9 @@ export default {
       this.roomActionComponents = [];
       this.initializedActions = [];
       this.getSpaceById(this.spaceId);
+      if (this.findOpen) {
+        this.closeFind();
+      }
     },
   },
   created() {
@@ -217,6 +288,32 @@ export default {
           }
         }
       });
+    },
+    toggleFind() {
+      this.menu = false;
+      if (this.fullPageMode) {
+        // In full page, the drawer header is the room-list side; open the find field here
+        // (the conversation's own header, on the right) instead of the drawer-wide filter.
+        this.findOpen = true;
+        this.$nextTick(() => this.$refs.findInput?.focus?.());
+      } else {
+        // In the discussion drawer, reuse exo-drawer's full-width header filter.
+        this.$root.$emit('toggle-conversation-search', this.room);
+      }
+    },
+    onFindInput() {
+      clearTimeout(this.findDebounce);
+      this.findDebounce = setTimeout(() => this.$root.$emit('conversation-search', this.findText), 250);
+    },
+    resetFindText() {
+      this.findText = '';
+      this.$root.$emit('conversation-search', '');
+      this.$nextTick(() => this.$refs.findInput?.focus?.());
+    },
+    closeFind() {
+      this.findOpen = false;
+      this.findText = '';
+      this.$root.$emit('conversation-search-close');
     },
     editSpace() {
       window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));

@@ -1491,6 +1491,7 @@ public class MatrixService {
       for (MatrixMessage match : matches) {
         String roomLocalId = extractRoomId(match.getRoomId());
         results.add(new ChatSearchResult(roomLocalId,
+                                         match.getEventId(),
                                          titlesByRoomId.get(roomLocalId),
                                          extractUserId(match.getSender()),
                                          match.getMessageContent(),

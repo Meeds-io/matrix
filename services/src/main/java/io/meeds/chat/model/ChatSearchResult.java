@@ -36,6 +36,9 @@ public class ChatSearchResult {
   /** Matrix room id (local part) of the conversation the match belongs to. */
   private String conversationId;
 
+  /** Matrix event id of the matching message (used to jump to it). */
+  private String eventId;
+
   /** Human readable conversation title, when it can be resolved. */
   private String conversationTitle;
 

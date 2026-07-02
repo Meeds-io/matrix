@@ -347,3 +347,18 @@
     }
   }
 }
+
+/* The exo-drawer filter field (room-list filter and "Find in conversation") renders ~2px
+   taller than the header title row, growing the header from 60px to 62px and shifting the
+   content down when it opens. Cap the field to its control height so the header stays 60px. */
+#ChatDiscussionDrawer,
+#meedsChatDrawer {
+  .drawerHeader .v-text-field {
+    max-height: 36px !important;
+    align-self: center !important;
+
+    .v-input__slot {
+      margin-bottom: 0 !important;
+    }
+  }
+}
