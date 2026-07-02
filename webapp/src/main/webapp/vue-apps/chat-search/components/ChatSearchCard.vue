@@ -17,8 +17,11 @@
 <template>
   <div
     class="chat-search-card d-flex align-center clickable text-start pa-3"
-    style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px;"
-    @click="open">
+    :class="hover ? 'elevation-2' : 'elevation-0'"
+    style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px; min-width: 360px; transition: box-shadow .2s ease;"
+    @click="open"
+    @mouseenter="hover = true"
+    @mouseleave="hover = false">
     <v-avatar
       :tile="!result.directChat"
       :class="{'rounded-lg': !result.directChat}"
@@ -34,7 +37,7 @@
     </v-avatar>
     <div class="flex-grow-1 overflow-hidden text-start">
       <div class="d-flex align-center">
-        <span class="text-truncate text-title text-subtitle-1 flex-grow-1">
+        <span class="text-truncate text-title text-subtitle-1 flex-grow-1 text-start">
           {{ conversationTitle }}
         </span>
         <span
@@ -45,7 +48,7 @@
       </div>
       <div class="d-flex align-center">
         <div
-          class="text-truncate text-sub-title text-body-2 flex-grow-1"
+          class="text-truncate text-sub-title text-body-2 flex-grow-1 text-start"
           v-html="highlightedSnippet">
         </div>
         <v-avatar
@@ -60,6 +63,11 @@
 </template>
 <script>
 export default {
+  data() {
+    return {
+      hover: false,
+    };
+  },
   props: {
     id: {
       type: String,
