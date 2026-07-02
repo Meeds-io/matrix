@@ -24,22 +24,21 @@
     @scroll="onMessagesContainerScroll">
     <div
       v-if="searchActive || findBarOpen"
-      class="d-flex align-center px-2 py-1 elevation-2 border-radius"
+      class="chat-find-bar d-flex align-center px-2 py-1 elevation-2 border-radius"
       style="position:sticky;top:8px;z-index:1000;width:fit-content;max-width:calc(100% - 32px);margin-inline-start:auto;margin-inline-end:16px;background-color:var(--allPagesBaseBackground, #fff);">
       <template v-if="findBarOpen">
-        <v-icon size="16" class="icon-default-color me-1 d-flex align-center" style="height:24px;">fa-filter</v-icon>
+        <v-icon size="16" class="icon-default-color me-2">fa-filter</v-icon>
         <input
           ref="findBarInput"
           v-model="findBarText"
           type="text"
           :placeholder="$t('matrix.chat.search.placeholder')"
-          class="me-1"
-          style="outline:none;border:none;background:transparent;min-width:160px;height:24px;line-height:24px;font-size:14px;"
+          class="chat-find-input me-2"
           @input="onFindBarInput"
           @keydown.enter.prevent="searchNav('next')"
           @keydown.esc.prevent="closeFindBar">
       </template>
-      <span class="text-caption text-sub-title me-1 d-flex align-center" style="white-space:nowrap;height:24px;">{{ matchLabel }}</span>
+      <span class="text-caption text-sub-title me-1" style="white-space:nowrap;">{{ matchLabel }}</span>
       <v-btn
         icon
         x-small
