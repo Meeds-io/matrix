@@ -16,38 +16,43 @@
 -->
 <template>
   <div
-    class="chat-search-card d-flex align-center py-3 px-4 clickable"
+    class="chat-search-card d-flex align-center clickable text-start pa-3"
+    style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px;"
     @click="open">
     <v-avatar
-      tile
-      class="rounded-lg me-3 primary"
-      size="40"
-      min-width="40">
-      <v-icon color="white" size="20">fa-comments</v-icon>
+      :tile="!result.directChat"
+      :class="{'rounded-lg': !result.directChat}"
+      size="44"
+      min-width="44"
+      class="me-3">
+      <img
+        v-if="result.avatarUrl"
+        :src="result.avatarUrl"
+        loading="lazy"
+        alt="">
+      <v-icon v-else color="primary" size="22">fa-comment-dots</v-icon>
     </v-avatar>
-    <div class="flex-grow-1 overflow-hidden">
-      <div class="d-flex align-center">
-        <span class="text-truncate text-title text-subtitle-1">
-          {{ conversationTitle }}
-        </span>
-        <v-chip
-          v-if="matchCount > 1"
-          x-small
-          outlined
-          color="primary"
-          class="ms-2 flex-shrink-0">
-          {{ matchCount }}
-        </v-chip>
-        <span
-          v-if="formattedDate"
-          class="text-caption text-sub-title ms-auto ps-2 flex-shrink-0">
-          {{ formattedDate }}
-        </span>
+    <div class="flex-grow-1 overflow-hidden text-start">
+      <div class="text-truncate text-title text-subtitle-1">
+        {{ conversationTitle }}
       </div>
       <div
         class="text-truncate text-sub-title text-body-2"
         v-html="highlightedSnippet">
       </div>
+    </div>
+    <div class="ps-3 d-flex flex-column align-end justify-center flex-shrink-0">
+      <span
+        v-if="formattedDate"
+        class="text-caption text-sub-title text-no-wrap">
+        {{ formattedDate }}
+      </span>
+      <v-avatar
+        v-if="matchCount > 1"
+        size="22"
+        class="mt-2 align-center align-content-center grey-lighten1-background white--text text-font-small-size">
+        {{ matchCount }}
+      </v-avatar>
     </div>
   </div>
 </template>
