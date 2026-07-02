@@ -32,6 +32,8 @@
         :rooms="rooms"
         :selected-room="selectedRoom"
         :from-room-list="fromRoomList"
+        :search-term="searchTerm"
+        :message-results="messageResults"
         :loading="loading" />
     </v-sheet>
     <div
@@ -87,6 +89,14 @@ export default {
     parentExpanded: {
       type: Boolean,
       default: false
+    },
+    searchTerm: {
+      type: String,
+      default: null
+    },
+    messageResults: {
+      type: Array,
+      default: () => []
     }
   },
   computed: {
