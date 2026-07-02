@@ -41,7 +41,7 @@
         v-html="highlightedSnippet">
       </div>
     </div>
-    <div class="ps-3 d-flex flex-column align-end justify-center flex-shrink-0">
+    <div class="ps-3 d-flex flex-column align-end justify-start flex-shrink-0 align-self-stretch">
       <span
         v-if="formattedDate"
         class="text-caption text-sub-title text-no-wrap">
