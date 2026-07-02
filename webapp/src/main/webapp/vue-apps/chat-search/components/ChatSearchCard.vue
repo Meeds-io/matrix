@@ -33,26 +33,28 @@
       <v-icon v-else color="primary" size="22">fa-comment-dots</v-icon>
     </v-avatar>
     <div class="flex-grow-1 overflow-hidden text-start">
-      <div class="text-truncate text-title text-subtitle-1">
-        {{ conversationTitle }}
+      <div class="d-flex align-center">
+        <span class="text-truncate text-title text-subtitle-1 flex-grow-1">
+          {{ conversationTitle }}
+        </span>
+        <span
+          v-if="formattedDate"
+          class="text-caption text-sub-title text-no-wrap ms-2 flex-shrink-0">
+          {{ formattedDate }}
+        </span>
       </div>
-      <div
-        class="text-truncate text-sub-title text-body-2"
-        v-html="highlightedSnippet">
+      <div class="d-flex align-center">
+        <div
+          class="text-truncate text-sub-title text-body-2 flex-grow-1"
+          v-html="highlightedSnippet">
+        </div>
+        <v-avatar
+          v-if="matchCount > 1"
+          size="20"
+          class="ms-2 flex-shrink-0 align-center align-content-center grey-lighten1-background white--text text-font-small-size">
+          {{ matchCount }}
+        </v-avatar>
       </div>
-    </div>
-    <div class="ps-3 d-flex flex-column align-end justify-start flex-shrink-0 align-self-stretch">
-      <span
-        v-if="formattedDate"
-        class="text-caption text-sub-title text-no-wrap">
-        {{ formattedDate }}
-      </span>
-      <v-avatar
-        v-if="matchCount > 1"
-        size="22"
-        class="mt-2 align-center align-content-center grey-lighten1-background white--text text-font-small-size">
-        {{ matchCount }}
-      </v-avatar>
     </div>
   </div>
 </template>
