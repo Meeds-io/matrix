@@ -24,7 +24,6 @@
       :max-width="420"
       :min-width="fullPageMode ? 420 : undefined"
       :class="{
-        'disabled-background': !rooms?.length,
         'background-grey-primary ': fullPageMode
       }"
       class="fill-height overflow-y-auto flex-shrink-1 flex-grow-1 overflow-x-hidden specific-scrollbar">
