@@ -201,7 +201,13 @@ export default {
         this.expanded = expanded;
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
-        this.selectedRoom = this.getLastOpenedRoom();
+        // Keep the conversation-list filter visible after expanding: the term stays
+        // applied (shared searchTerm) but the fullpage filter input starts hidden.
+        if (expanded && this.searchTerm) {
+          this.filterText = this.searchTerm;
+          this.showFilter = true;
+        }
+        this.selectedRoom = this.selectedRoom || this.getLastOpenedRoom();
         await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
       }, 300);
     },

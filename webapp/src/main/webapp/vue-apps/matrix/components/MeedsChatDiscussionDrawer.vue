@@ -194,8 +194,17 @@ export default {
         this.expanded = expanded;
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
-        this.selectedRoom = this.getLastOpenedRoom();
-        await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
+        // Keep the conversation-list filter visible after expanding: the term stays
+        // applied (shared searchTerm) but this drawer's filter input starts hidden.
+        if (expanded && this.searchTerm) {
+          this.filterText = this.searchTerm;
+          this.showFilter = true;
+        }
+        // Stay in the conversation the user already opened; only fall back to the
+        // last opened / first room when there is none (avoids an empty pane, e.g.
+        // when the list is filtered).
+        const targetRoom = this.room?.id ? this.room : (this.getLastOpenedRoom() || this.rooms?.[0]);
+        await this.openDiscussion(targetRoom);
         this.wasExpanded = this.expanded;
       }, 300);
     },
