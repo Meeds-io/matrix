@@ -25,6 +25,7 @@
       v-model="findText"
       :placeholder="$t('matrix.chat.search.placeholder')"
       class="my-0 ms-0 me-2 pa-0 filter"
+      :style="findFieldStyle"
       hide-details
       @input="onFindInput"
       @keydown.esc.prevent="closeFind">
@@ -216,6 +217,15 @@ export default {
     },
     fullPageMode() {
       return this.$root?.fullPageMode;
+    },
+    findFieldStyle() {
+      // In full page, the conversation header shares one row with the room-list header.
+      // Overlay the find field across the whole right side (room-list is 420px wide),
+      // covering the avatar/name and the collapse/close buttons.
+      if (this.fullPageMode && this.findOpen) {
+        return 'position:fixed;top:0;inset-inline-end:0;inset-inline-start:420px;height:60px !important;max-height:none !important;z-index:6;display:flex;align-items:center;padding-inline:16px;background-color:var(--allPagesBaseBackground, #ffffff);';
+      }
+      return '';
     },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
