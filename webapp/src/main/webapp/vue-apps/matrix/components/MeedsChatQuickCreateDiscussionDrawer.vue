@@ -66,7 +66,7 @@
                 {{ $t('matrix.chat.quick.create.space.room.disabled') }}.
               </span>
             </div>
-            <div 
+            <div
               v-else-if="shouldJoinParentSpace">
               <span class="text-subtitle ps-1">
                 <v-icon small>info</v-icon>
@@ -135,16 +135,16 @@ export default {
   },
   computed: {
     canCreateSpaceRooms() {
-      return !!this.$root.spaceCircleTemplate && meedsChat.spaceRoomsEnabled;
-    },
-    canSelectParentSpace() {
-      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length > 0;
-    },
-    shouldJoinParentSpace() {
-      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length === 0;
+      return this.$root.canCreateSpaceRooms;
     },
     canCreatePrivateRooms() {
-      return meedsChat.privateRoomsEnabled;
+      return this.$root.canCreatePrivateRooms;
+    },
+    canSelectParentSpace() {
+      return this.invitedSpaceMembers && this.$root.isSubspaceTemplate && this.parentSpaceList.length > 0;
+    },
+    shouldJoinParentSpace() {
+      return this.invitedSpaceMembers && this.$root.isSubspaceTemplate && this.parentSpaceList.length === 0;
     },
     hasMoreParentSpaces() {
       return this.parentSpaceList.length < this.parentSpacesSize;
@@ -158,7 +158,7 @@ export default {
       };
     },
     disabledSaveButton(){
-      return !this.participant || (this.participant.length <= 1 && !meedsChat.privateRoomsEnabled) || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
+      return !this.participant || (this.participant.length <= 1 && !this.canCreatePrivateRooms) || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
     },
   },
   created() {
@@ -167,6 +167,7 @@ export default {
   beforeDestroy() {
     this.$root.$off(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
   },
+
   methods: {
     openDrawer() {
       this.getParentSpaces().then(() => {

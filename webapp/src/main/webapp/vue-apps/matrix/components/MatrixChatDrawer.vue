@@ -114,8 +114,7 @@ export default {
       expanded: false,
       selectedRoom: null,
       componentKey: 0,
-      previousRoomId: null,
-      canCreateRooms: true
+      previousRoomId: null
     };
   },
   props: {
@@ -149,6 +148,9 @@ export default {
     },
     defaultRoomListContainerWidth() {
       return this.$root.defaultRoomListContainerWidth;
+    },
+    canCreateRooms() {
+      return this.$root.canCreateRooms;
     }
   },
   watch: {
@@ -216,7 +218,6 @@ export default {
       }
     },
     open() {
-      this.canCreateRooms = (!!this.$root.spaceCircleTemplate && meedsChat.spaceRoomsEnabled) || meedsChat.privateRoomsEnabled;
       if (!this.$refs.meedsChatDrawer.drawer) {
         this.$refs.meedsChatDrawer.open();
       }

@@ -123,6 +123,8 @@ export function init(serverName) {
           fullPageMode: false,
           fullPageMessagesContainerWidth: 420,
           defaultRoomListContainerWidth: 404,
+          spaceCircleTemplate: null,
+          isSubspaceTemplate: false,
           statusMap: {
             available: '#2eb58c',
             donotdisturb: '#bc4343',
@@ -134,6 +136,33 @@ export function init(serverName) {
       computed: {
         isMobile() {
           return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
+        },
+        canCreateSpaceRooms() {
+          return !!this.spaceCircleTemplate && meedsChat.spaceRoomsEnabled;
+        },
+        canCreatePrivateRooms() {
+          return meedsChat.privateRoomsEnabled;
+        },
+        canCreateRooms() {
+          return this.canCreateSpaceRooms || this.canCreatePrivateRooms;
+        },
+      },
+      created() {
+        this.checkCanCreateSpaceRooms();
+      },
+      methods: {
+        async checkCanCreateSpaceRooms() {
+          const templates = await this.$spaceTemplateService.getSpaceTemplates(false);
+          const circleTemplate = templates?.find(template => template.system && template.layout === 'circle' && !template.deleted);
+          this.spaceCircleTemplate = ((circleTemplate && !circleTemplate.extendedProperties)
+            || (circleTemplate.extendedProperties
+              && circleTemplate.extendedProperties['meeds.chat.authorized'] === 'true'
+              && circleTemplate.extendedProperties['meeds.chat.enabledByDefault'] === 'true'))
+            && circleTemplate || null;
+          if (this.spaceCircleTemplate) {
+            const subspaceTemplateIds = await this.$spaceTemplateService.getSubspaceTemplateIds() || [];
+            this.isSubspaceTemplate = subspaceTemplateIds.includes(this.spaceCircleTemplate.id);
+          }
         },
       },
       i18n
