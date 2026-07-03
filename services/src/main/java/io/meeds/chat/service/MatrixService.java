@@ -780,9 +780,10 @@ public class MatrixService {
   public void overrideAdminRateLimit(String adminUserId) {
     try {
       String currentRateLimits = matrixHttpClient.getOverriddenRateLimitForUser(adminUserId, getMatrixAccessToken());
-      JsonValue currentLimits = new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
-      JsonValue messagePerSecond = currentLimits.getElement("messages_per_second");
-      JsonValue burstCount = currentLimits.getElement("burst_count");
+      JsonValue currentLimits = StringUtils.isBlank(currentRateLimits) ? null
+                                                                        : new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
+      JsonValue messagePerSecond = currentLimits == null ? null : currentLimits.getElement("messages_per_second");
+      JsonValue burstCount = currentLimits == null ? null : currentLimits.getElement("burst_count");
       if (messagePerSecond == null || burstCount == null || messagePerSecond.getIntValue() > 0 || burstCount.getIntValue() > 0) {
         // set the messages per second to zero -> unlimited
         // set the burst count to 0 : No burst count
