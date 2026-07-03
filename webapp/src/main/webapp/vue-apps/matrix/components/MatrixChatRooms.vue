@@ -102,7 +102,9 @@ export default {
       } else if (this.rooms[roomExistsIndex]) {
         this.rooms[roomExistsIndex].name = event.detail.name || this.rooms[roomExistsIndex].name;
         this.rooms[roomExistsIndex].avatarUrl = event.detail.avatarUrl || this.rooms[roomExistsIndex].avatarUrl;
-        this.rooms[roomExistsIndex].members.unshift(event.detail.members);
+        if (!this.rooms[roomExistsIndex].directChat) {
+          this.rooms[roomExistsIndex].members?.unshift(event.detail.members);
+        }
       }
     },
     onIntersect(entries) {

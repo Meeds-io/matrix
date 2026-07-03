@@ -17,7 +17,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-if (matrixUserId) {
+if (typeof matrixUserId !== 'undefined' && matrixUserId) {
   extensionRegistry.registerComponent('UserSettingsNotifications', 'user-settings-notifications-extension', {
     id: 'PushNotificationsSettingsExtension',
     rank: 10,
