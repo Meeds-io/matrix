@@ -20,7 +20,7 @@ package io.meeds.chat.listeners;
 
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
-import io.meeds.social.space.plugin.SpaceExtendedPermissionsLifeCycleEvent;
+import io.meeds.social.space.plugin.SpaceExtendedPropertiesLifeCycleEvent;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
@@ -41,9 +41,7 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceLifeCycleEvent;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -313,8 +311,8 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   }
 
   @Override
-  public void extendedPermissionsUpdated(SpaceExtendedPermissionsLifeCycleEvent event) {
-    if (!event.getChangedpermissions().contains(SPACE_CHAT_AUTHORIZED)) {
+  public void extendedPropertiesUpdated(SpaceExtendedPropertiesLifeCycleEvent event) {
+    if (!event.getChangedProperties().contains(SPACE_CHAT_AUTHORIZED)) {
       return;
     }
     Space space = event.getSpace();
@@ -327,9 +325,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         LOG.error("Could not create room for space {}", space.getDisplayName(), e);
       }
     }
-    Map<String, String> extendedPermissions = space.getExtendedPermissions();
-    if (extendedPermissions != null && !extendedPermissions.isEmpty()) {
-      boolean enableChat = "true".equals(extendedPermissions.get(SPACE_CHAT_AUTHORIZED));
+    Map<String, String> extendedProperties = space.getExtendedProperties();
+    if (extendedProperties != null && !extendedProperties.isEmpty()) {
+      boolean enableChat = "true".equals(extendedProperties.get(SPACE_CHAT_AUTHORIZED));
       class EnableChatRunnable implements Runnable {
         @Override
         public void run() {

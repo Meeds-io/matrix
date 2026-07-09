@@ -529,6 +529,17 @@ public class MatrixService {
     matrixHttpClient.joinUserToRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
+  /**
+   * Checks if the user is a member of the room
+   *
+   * @param roomId the room ID
+   * @param matrixIdOfUser the ID of the user on Matrix
+   * @return true if the user is a member of the room, false otherwise
+   */
+  public boolean isUserMemberOfRoom(String roomId, String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
+    return matrixHttpClient.isUserMemberOfRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
+  }
+
   public void renameRoom(String roomId, String spaceDisplayName) throws JsonException, IOException, InterruptedException {
     matrixHttpClient.renameRoom(roomId, spaceDisplayName, this.getMatrixAccessToken());
   }
@@ -1132,8 +1143,8 @@ public class MatrixService {
    * @return True if the chat was authorized for this space
    */
   public boolean isChatAuthorizedByAdministration(Space space) {
-    return (space.getExtendedPermissions() == null || space.getExtendedPermissions().get(SPACE_CHAT_AUTHORIZED) == null
-        || space.getExtendedPermissions().get(SPACE_CHAT_AUTHORIZED).equals("true"));
+    return (space.getExtendedProperties() == null || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED) == null
+        || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED).equals("true"));
   }
 
   /**

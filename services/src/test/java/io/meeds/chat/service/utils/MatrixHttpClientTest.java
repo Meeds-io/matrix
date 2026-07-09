@@ -363,6 +363,32 @@ class MatrixHttpClientTest {
   }
 
   @Test
+  void isUserMemberOfRoom() throws IOException, InterruptedException {
+    String matrixUserId = "user";
+    String roomId = "matrixRoomId";
+
+    when(responseOK.body()).thenReturn("""
+        {
+          "joined": {
+            "@user:matrix.exo.com": {
+              "display_name": "User",
+              "avatar_url": null
+            }
+          }
+        }""");
+    boolean result = matrixHttpClient.isUserMemberOfRoom(roomId, matrixUserId, accessToken);
+    assertTrue(result);
+
+    result = matrixHttpClient.isUserMemberOfRoom(roomId, "otherUser", accessToken);
+    assertFalse(result);
+
+    // Error HTTP 500
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(responseNotOK);
+    result = matrixHttpClient.isUserMemberOfRoom(roomId, matrixUserId, accessToken);
+    assertFalse(result);
+  }
+
+  @Test
   void makeUserAdminInRoom() {
   }
 
