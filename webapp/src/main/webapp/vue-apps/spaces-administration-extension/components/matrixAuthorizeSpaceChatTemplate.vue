@@ -53,7 +53,7 @@ export default {
       type: Object,
       default: null
     },
-    extendedPermissions: {
+    extendedProperties: {
       type: Object,
       default: null
     },
@@ -69,7 +69,7 @@ export default {
       this.loading = true;
       this.$matrixService.getSpaceRoom(this.space.id).then(room => {
         if (room) {
-          this.isChatAuthorized = !this.extendedPermissions || this.extendedPermissions[this.chatAuthorizedLabel] === 'true';
+          this.isChatAuthorized = !this.extendedProperties || !Object.hasOwn(this.extendedProperties, this.chatAuthorizedLabel) || this.extendedProperties[this.chatAuthorizedLabel] === 'true';
         } else {
           this.isChatAuthorized = false;
         }
@@ -79,6 +79,7 @@ export default {
     // in case of multiple selection, we need to set a default value that will be used if the switch button is not updated
     if (this.spaces) {
       this.$root.$emit('space-administration-permissions-drawer-extended-field-updated', {'key': this.chatAuthorizedLabel, 'value': {[this.chatAuthorizedLabel]: this.isChatAuthorized}});
+      this.loading = false;
     }
   },
   methods: {

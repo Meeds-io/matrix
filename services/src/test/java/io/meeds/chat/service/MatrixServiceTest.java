@@ -47,7 +47,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -216,11 +219,33 @@ class MatrixServiceTest extends MatrixBaseTest {
     Space space = getSpaceInstance(1);
     Room room = matrixService.getById(matrixRoomId);
     assertEquals(room.getStatus(), RoomStatus.ENABLED.name());
+
+    String raulMatrixId = "@raul:matrix.exo.tn";
+    Profile raulProfile = identityManager.getOrCreateUserIdentity("raul").getProfile();
+    raulProfile.setProperty(USER_MATRIX_ID, raulMatrixId);
+    identityManager.updateProfile(raulProfile);
+
+    clearInvocations(matrixHttpClient);
     matrixService.enableSpaceChat(space, false);
-    // FIXME Test disabled due to execution order test fail
-    //verify(matrixHttpClient, times(1)).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
+    verify(matrixHttpClient, times(1)).updateRoomSettings(eq(matrixRoomId), any(), eq(accessToken));
+    verify(matrixHttpClient, never()).joinUserToRoom(anyString(), anyString(), anyString());
+    assertEquals(RoomStatus.DISABLED.name(), matrixService.getById(matrixRoomId, true).getStatus());
+
+    clearInvocations(matrixHttpClient);
     matrixService.enableSpaceChat(space, true);
-    //verify(matrixHttpClient, times(2)).joinUserToRoom(anyString(), anyString(), anyString());
+    verify(matrixHttpClient, times(1)).joinUserToRoom(eq(matrixRoomId), eq(raulMatrixId), eq(accessToken));
+    assertEquals(RoomStatus.ENABLED.name(), matrixService.getById(matrixRoomId).getStatus());
+  }
+
+  @Test
+  void isUserMemberOfRoom() throws JsonException, IOException, InterruptedException {
+    when(matrixHttpClient.isUserMemberOfRoom("roomId", "userId", accessToken)).thenReturn(true);
+    assertTrue(matrixService.isUserMemberOfRoom("roomId", "userId"));
+
+    when(matrixHttpClient.isUserMemberOfRoom("roomId", "userId", accessToken)).thenReturn(false);
+    assertFalse(matrixService.isUserMemberOfRoom("roomId", "userId"));
+
+    verify(matrixHttpClient, times(2)).isUserMemberOfRoom("roomId", "userId", accessToken);
   }
 
   @Test
@@ -241,6 +266,25 @@ class MatrixServiceTest extends MatrixBaseTest {
         }""");
     matrixService.overrideAdminRateLimit(admin);
     verify(matrixHttpClient, times(1)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+
+    when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("");
+    matrixService.overrideAdminRateLimit(admin);
+    verify(matrixHttpClient, times(2)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+  }
+
+  @Test
+  void isChatAuthorizedByAdministration() {
+    Space space = new Space();
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of());
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of(SPACE_CHAT_AUTHORIZED, "true"));
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of(SPACE_CHAT_AUTHORIZED, "false"));
+    assertFalse(matrixService.isChatAuthorizedByAdministration(space));
   }
 
   @Test
