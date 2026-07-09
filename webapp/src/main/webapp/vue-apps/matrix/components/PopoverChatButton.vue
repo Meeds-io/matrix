@@ -38,9 +38,9 @@ export default {
   }),
   async created() {
     if (this.identityType === 'space') {
-      const space = await this.$spaceService.getSpaceById(this.identityId, 'extendedPermissions');
-      if (!space?.extendedPermissions || (space?.extendedPermissions['meeds.chat.authorized']
-                                       && space?.extendedPermissions['meeds.chat.authorized'] === 'true')) {
+      const space = await this.$spaceService.getSpaceById(this.identityId, 'extendedProperties');
+      if (!space?.extendedProperties || (space?.extendedProperties['meeds.chat.authorized']
+                                       && space?.extendedProperties['meeds.chat.authorized'] === 'true')) {
         const room = await this.$matrixService.getSpaceRoom(this.identityId);
         this.displayed = room.status === 'ENABLED';
       }

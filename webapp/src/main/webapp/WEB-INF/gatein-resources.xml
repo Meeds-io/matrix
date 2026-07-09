@@ -100,33 +100,10 @@
         <module>commonVueComponents</module>
       </depends>
       <depends>
-        <module>suggester</module>
-      </depends>
-      <depends>
         <module>eXoVueI18n</module>
       </depends>
       <depends>
         <module>extensionRegistry</module>
-      </depends>
-      <depends>
-        <module>vueDraggable</module>
-      </depends>
-      <depends>
-        <module>emojiPicker</module>
-      </depends>
-      <depends>
-        <module>spaceForm</module>
-      </depends>
-      <depends>
-        <module>spaceMembersDrawer</module>
-      </depends>
-      <depends>
-        <module>commons-cometd3</module>
-        <as>cCometd</as>
-      </depends>
-      <depends>
-        <module>jquery</module>
-        <as>$</as>
       </depends>
     </module>
   </portlet>
