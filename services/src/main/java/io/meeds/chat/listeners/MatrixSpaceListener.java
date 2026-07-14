@@ -18,13 +18,20 @@
  */
 package io.meeds.chat.listeners;
 
+import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.Room;
+import io.meeds.social.space.plugin.SpaceExtendedPropertiesLifeCycleEvent;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
 import io.meeds.chat.service.MatrixService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.PropertyManager;
+import org.exoplatform.container.ExoContainerContext;
+import org.exoplatform.container.PortalContainer;
+import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.social.core.identity.model.Identity;
@@ -36,7 +43,6 @@ import org.exoplatform.social.core.space.spi.SpaceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -55,6 +61,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
   @Autowired
   IdentityManager          identityManager;
 
+  @Autowired
+  private SettingService   settingService;
+
   @PostConstruct
   public void init() {
     spaceService.registerSpaceListenerPlugin(this);
@@ -62,44 +71,52 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceCreated(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
-    try {
-      String matrixRoomId = matrixService.createRoom(space);
-      String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+    if (!matrixService.isChatAuthorizedForSpaceTemplate(space)) {
+      return;
+    }
 
-      if (StringUtils.isNotBlank(matrixRoomId)) {
-        List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
-        for (String manager : space.getManagers()) {
-          String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
-          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
-              && StringUtils.isNotBlank(matrixRoomId)) {
-            matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
-            updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
-            members.remove(manager);
+    if (matrixService.isChatEnabledByDefault(space)) {
+      try {
+        String matrixRoomId = matrixService.createRoom(space);
+        String adminOfMatrix = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
+
+        if (StringUtils.isNotBlank(matrixRoomId)) {
+          List<String> members = new ArrayList<>(Arrays.asList(space.getMembers()));
+          for (String manager : space.getManagers()) {
+            String matrixIdOfUser = matrixService.getMatrixIdForUser(manager);
+            if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+                && StringUtils.isNotBlank(matrixRoomId)) {
+              matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
+              updateMemberRoleInSpace(space, matrixIdOfUser, MANAGER_ROLE);
+              members.remove(manager);
+            }
+          }
+          for (String member : members) {
+            String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
+            if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
+                && StringUtils.isNotBlank(matrixRoomId)) {
+              matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
+            }
           }
         }
-        for (String member : members) {
-          String matrixIdOfUser = matrixService.getMatrixIdForUser(member);
-          if (StringUtils.isNotBlank(matrixIdOfUser) && !matrixIdOfUser.equals(adminOfMatrix)
-              && StringUtils.isNotBlank(matrixRoomId)) {
-            matrixService.joinUserToRoom(matrixRoomId, matrixIdOfUser);
-          }
+      } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
         }
+        LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);
       }
-    } catch (Exception e) {
-      if (e instanceof InterruptedException) {
-        Thread.currentThread().interrupt();
-      }
-      LOG.error("Matrix integration: Could not create a room for space {}", space.getDisplayName(), e);
+    } else {
+      matrixService.linkSpaceToMatrixRoom(space.getSpaceId(), null, RoomStatus.DISABLED);
     }
   }
 
   @Override
   public void spaceRenamed(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -119,7 +136,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void joined(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -150,7 +167,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void left(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -173,7 +190,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void grantedLead(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -186,7 +203,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void revokedLead(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -240,7 +257,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceAvatarEdited(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -257,7 +274,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceDescriptionEdited(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -276,7 +293,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Override
   public void spaceRemoved(SpaceLifeCycleEvent event) {
-    if (!matrixService.isServiceAvailable()) {
+    if (!matrixService.isServiceEnabled()) {
       return;
     }
     Space space = event.getSpace();
@@ -291,5 +308,43 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName());
       }
     }
+  }
+
+  @Override
+  public void extendedPropertiesUpdated(SpaceExtendedPropertiesLifeCycleEvent event) {
+    if (!event.getChangedProperties().contains(SPACE_CHAT_AUTHORIZED)) {
+      return;
+    }
+    Space space = event.getSpace();
+    Room spaceRoom = matrixService.getRoomBySpace(space, true);
+    if (spaceRoom == null) {
+      try {
+        // Administrators could force create rooms from the space administration
+        matrixService.createRoom(space);
+      } catch (Exception e) {
+        LOG.error("Could not create room for space {}", space.getDisplayName(), e);
+      }
+    }
+    Map<String, String> extendedProperties = space.getExtendedProperties();
+    if (extendedProperties != null && !extendedProperties.isEmpty()) {
+      boolean enableChat = "true".equals(extendedProperties.get(SPACE_CHAT_AUTHORIZED));
+      class EnableChatRunnable implements Runnable {
+        @Override
+        public void run() {
+          ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
+          RequestLifeCycle.begin(PortalContainer.getInstance());
+          try {
+            matrixService.enableSpaceChat(space, enableChat);
+          } catch (ObjectNotFoundException e) {
+            LOG.error("Could not {} the room of the space {}", enableChat ? "enable" : "disable", space.getDisplayName(), e);
+          } finally {
+            RequestLifeCycle.end();
+          }
+        }
+      }
+      Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
+      enableThread.start();
+    }
+
   }
 }

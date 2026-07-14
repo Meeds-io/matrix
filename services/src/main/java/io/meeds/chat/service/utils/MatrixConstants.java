@@ -119,4 +119,10 @@ public class MatrixConstants {
   public static final PluginKey                UNREAD_MESSAGE_KEY                          =
                                                                   PluginKey.key(MATRIX_MESSAGE_RECEIVED_NOTIFICATION_PLUGIN);
 
+  public static final String                   CHAT_SETTINGS                               = "meeds.chat.settings";
+
+  public static final String                   SPACE_CHAT_AUTHORIZED                       = "meeds.chat.authorized";
+
+  public static final String                   SPACE_CHAT_ENABLED_BY_DEFAULT               = "meeds.chat.enabledByDefault";
+
 }

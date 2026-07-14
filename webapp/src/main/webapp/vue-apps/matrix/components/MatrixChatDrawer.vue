@@ -41,7 +41,7 @@
         <matrix-chat-header-user-avatar :presence="presence" />
         <div class="ms-auto me-5">
           <v-btn
-            v-if="fullPageMode"
+            v-if="fullPageMode && canCreateRooms"
             :title="$t('matrix.chat.quick.create.discussion')"
             icon
             @click="openQuickCreateChatDiscussionDrawer">
@@ -70,7 +70,7 @@
     <template
       slot="titleIcons">
       <v-btn
-        v-if="!fullPageMode"
+        v-if="!fullPageMode && canCreateRooms"
         :title="$t('matrix.chat.quick.create.discussion')"
         icon
         @click="openQuickCreateChatDiscussionDrawer">
@@ -148,6 +148,9 @@ export default {
     },
     defaultRoomListContainerWidth() {
       return this.$root.defaultRoomListContainerWidth;
+    },
+    canCreateRooms() {
+      return this.$root.canCreateRooms;
     }
   },
   watch: {

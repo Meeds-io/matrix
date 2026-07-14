@@ -22,10 +22,17 @@ import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.LastMessage;
-import io.meeds.chat.rest.model.RoomEntity;
-import io.meeds.chat.rest.model.RoomList;
+import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.service.model.ChatSettings;
+import io.meeds.chat.service.model.LastMessage;
+import io.meeds.chat.service.model.RoomEntity;
+import io.meeds.chat.service.model.RoomList;
+import io.meeds.portal.navigation.model.NavigationConfiguration;
+import io.meeds.portal.navigation.model.TopbarApplication;
+import io.meeds.portal.navigation.model.TopbarConfiguration;
+import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -40,7 +47,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,6 +63,8 @@ class MatrixServiceTest extends MatrixBaseTest {
 
   @Autowired
   IdentityManager identityManager;
+
+
 
   @Test
   void init() {
@@ -207,11 +219,33 @@ class MatrixServiceTest extends MatrixBaseTest {
     Space space = getSpaceInstance(1);
     Room room = matrixService.getById(matrixRoomId);
     assertEquals(room.getStatus(), RoomStatus.ENABLED.name());
+
+    String raulMatrixId = "@raul:matrix.exo.tn";
+    Profile raulProfile = identityManager.getOrCreateUserIdentity("raul").getProfile();
+    raulProfile.setProperty(USER_MATRIX_ID, raulMatrixId);
+    identityManager.updateProfile(raulProfile);
+
+    clearInvocations(matrixHttpClient);
     matrixService.enableSpaceChat(space, false);
-    // FIXME Test disabled due to execution order test fail
-    //verify(matrixHttpClient, times(1)).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
+    verify(matrixHttpClient, times(1)).updateRoomSettings(eq(matrixRoomId), any(), eq(accessToken));
+    verify(matrixHttpClient, never()).joinUserToRoom(anyString(), anyString(), anyString());
+    assertEquals(RoomStatus.DISABLED.name(), matrixService.getById(matrixRoomId, true).getStatus());
+
+    clearInvocations(matrixHttpClient);
     matrixService.enableSpaceChat(space, true);
-    //verify(matrixHttpClient, times(2)).joinUserToRoom(anyString(), anyString(), anyString());
+    verify(matrixHttpClient, times(1)).joinUserToRoom(eq(matrixRoomId), eq(raulMatrixId), eq(accessToken));
+    assertEquals(RoomStatus.ENABLED.name(), matrixService.getById(matrixRoomId).getStatus());
+  }
+
+  @Test
+  void isUserMemberOfRoom() throws JsonException, IOException, InterruptedException {
+    when(matrixHttpClient.isUserMemberOfRoom("roomId", "userId", accessToken)).thenReturn(true);
+    assertTrue(matrixService.isUserMemberOfRoom("roomId", "userId"));
+
+    when(matrixHttpClient.isUserMemberOfRoom("roomId", "userId", accessToken)).thenReturn(false);
+    assertFalse(matrixService.isUserMemberOfRoom("roomId", "userId"));
+
+    verify(matrixHttpClient, times(2)).isUserMemberOfRoom("roomId", "userId", accessToken);
   }
 
   @Test
@@ -232,6 +266,25 @@ class MatrixServiceTest extends MatrixBaseTest {
         }""");
     matrixService.overrideAdminRateLimit(admin);
     verify(matrixHttpClient, times(1)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+
+    when(matrixHttpClient.getOverriddenRateLimitForUser(admin, accessToken)).thenReturn("");
+    matrixService.overrideAdminRateLimit(admin);
+    verify(matrixHttpClient, times(2)).overrideRateLimitForUser(admin, 0, 0, accessToken);
+  }
+
+  @Test
+  void isChatAuthorizedByAdministration() {
+    Space space = new Space();
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of());
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of(SPACE_CHAT_AUTHORIZED, "true"));
+    assertTrue(matrixService.isChatAuthorizedByAdministration(space));
+
+    space.setExtendedProperties(Map.of(SPACE_CHAT_AUTHORIZED, "false"));
+    assertFalse(matrixService.isChatAuthorizedByAdministration(space));
   }
 
   @Test
@@ -339,4 +392,43 @@ class MatrixServiceTest extends MatrixBaseTest {
     verify(matrixHttpClient, times(1)).updateRoomDescription(anyString(), anyString(), anyString());
   }
 
+  @Test
+  void loadChatSettings() {
+    NavigationConfigurationService navigationConfigurationService = mock(NavigationConfigurationService.class);
+    ExoContainerContext.getCurrentContainer().registerComponentInstance(navigationConfigurationService);
+    NavigationConfiguration navigationConfiguration = new NavigationConfiguration();
+    List<TopbarApplication> applications = new ArrayList<>();
+    TopbarApplication chatApp = new TopbarApplication();
+    chatApp.setId("chat");
+    applications.add(chatApp);
+    navigationConfiguration.setTopbar(new TopbarConfiguration());
+    navigationConfiguration.getTopbar().setApplications(applications);
+    when(navigationConfigurationService.getConfiguration()).thenReturn(navigationConfiguration);
+    matrixService.saveChatSettings(new ChatSettings(false, false, false));
+
+    ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
+    assertFalse(chatSettings.isChatEnabled());
+    assertFalse(chatSettings.isSpaceRoomsEnabled());
+    assertFalse(chatSettings.isPrivateRoomsEnabled());
+
+    matrixService.saveChatSettings(new ChatSettings(true, true, true));
+
+    chatSettings = matrixService.loadChatSettings();
+    assertTrue(chatSettings.isChatEnabled());
+    assertTrue(chatSettings.isSpaceRoomsEnabled());
+    assertTrue(chatSettings.isPrivateRoomsEnabled());
+  }
+
+  @Test
+  void changeChatRoomReadability() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room room = matrixService.getRoomBySpace(space);
+    verify(matrixHttpClient, times(3)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+    matrixService.changeChatRoomReadability(room.getRoomId(), true);
+    // 4 times including
+    verify(matrixHttpClient, times(4)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+    matrixService.changeChatRoomReadability(room.getRoomId(), false);
+    // 5 times including
+    verify(matrixHttpClient, times(5)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+  }
 }

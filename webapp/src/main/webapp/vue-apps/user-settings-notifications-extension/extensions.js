@@ -17,8 +17,10 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-extensionRegistry.registerComponent('UserSettingsNotifications', 'user-settings-notifications-extension', {
-  id: 'PushNotificationsSettingsExtension',
-  rank: 10,
-  vueComponent: Vue.options.components['matrix-push-notifications-settings'],
-});
+if (typeof matrixUserId !== 'undefined' && matrixUserId) {
+  extensionRegistry.registerComponent('UserSettingsNotifications', 'user-settings-notifications-extension', {
+    id: 'PushNotificationsSettingsExtension',
+    rank: 10,
+    vueComponent: Vue.options.components['matrix-push-notifications-settings'],
+  });
+}

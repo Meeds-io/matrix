@@ -16,16 +16,26 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-package io.meeds.chat.rest.model;
+package io.meeds.chat.service.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.List;
 
+@EqualsAndHashCode(callSuper = true)
+@AllArgsConstructor
+@NoArgsConstructor
 @Data
-public class RoomList implements Serializable {
-  private List<RoomEntity> rooms;
+public class LastMessage extends Message implements Serializable {
 
-  private long             totalUnreadMessages;
+  private String  eventId;
+
+  private boolean redacted;
+
+  private boolean reaction;
+
+  private String reactionKey;
 }

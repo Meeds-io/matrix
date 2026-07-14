@@ -83,6 +83,30 @@
       </depends>
     </module>
   </portlet>
+  <portlet>
+    <name>MatrixAdministration</name>
+    <module>
+      <script>
+        <minify>false</minify>
+        <path>/js/matrixAdministration.bundle.js</path>
+      </script>
+      <depends>
+        <module>vue</module>
+      </depends>
+      <depends>
+        <module>vuetify</module>
+      </depends>
+      <depends>
+        <module>commonVueComponents</module>
+      </depends>
+      <depends>
+        <module>eXoVueI18n</module>
+      </depends>
+      <depends>
+        <module>extensionRegistry</module>
+      </depends>
+    </module>
+  </portlet>
 
   <module>
     <name>MatrixChatNotificationExtension</name>
@@ -132,6 +156,52 @@
     <load-group>UserSettingNotificationsGRP</load-group>
     <script>
       <path>/js/userSettingsNotificationsExtension.bundle.js</path>
+    </script>
+    <depends>
+      <module>vue</module>
+    </depends>
+    <depends>
+      <module>vuetify</module>
+    </depends>
+    <depends>
+      <module>eXoVueI18n</module>
+    </depends>
+    <depends>
+      <module>extensionRegistry</module>
+    </depends>
+    <depends>
+      <module>commonVueComponents</module>
+    </depends>
+  </module>
+
+  <module>
+    <name>MatrixSpaceTemplateManagementExtension</name>
+    <load-group>SpaceTemplateManagement</load-group>
+    <script>
+      <path>/js/matrixSpaceTemplateExtension.bundle.js</path>
+    </script>
+    <depends>
+      <module>vue</module>
+    </depends>
+    <depends>
+      <module>vuetify</module>
+    </depends>
+    <depends>
+      <module>eXoVueI18n</module>
+    </depends>
+    <depends>
+      <module>extensionRegistry</module>
+    </depends>
+    <depends>
+      <module>commonVueComponents</module>
+    </depends>
+  </module>
+
+  <module>
+    <name>matrixManageSpacesExtension</name>
+    <load-group>SpacesAdministration</load-group>
+    <script>
+      <path>/js/matrixSpacesAdministrationExtension.bundle.js</path>
     </script>
     <depends>
       <module>vue</module>

@@ -24,10 +24,11 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.*;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.chat.service.model.*;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,7 +53,6 @@ import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.rest.resource.ResourceContainer;
-import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -62,10 +62,10 @@ import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
@@ -102,7 +102,7 @@ public class MatrixRest implements ResourceContainer {
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
-  @ApiResponses(value = { @ApiResponse(responseCode = "2rest00", description = "Request fulfilled"),
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public RoomEntity getMatrixRoomBySpaceId(HttpServletRequest request,
@@ -167,6 +167,7 @@ public class MatrixRest implements ResourceContainer {
   @Operation(summary = "Gets or creates the Matrix room for the direct messaging", method = "POST", description = "Gets or creates the Matrix room for the direct messaging")
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "400", description = "Invalid query input"),
+      @ApiResponse(responseCode = "403", description = "Private rooms are deactivated"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public RoomEntity createDirectMessagingRoom(HttpServletRequest request,
                                               @RequestBody(description = "Matrix object to create", required = true)
@@ -174,6 +175,9 @@ public class MatrixRest implements ResourceContainer {
                                               Room room) {
     if (StringUtils.isBlank(room.getFirstParticipant()) || StringUtils.isBlank(room.getSecondParticipant())) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the ids of the participants should not be null");
+    }
+    if (!this.matrixService.loadChatSettings().isPrivateRoomsEnabled()) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chat private rooms are deactivated in the system");
     }
     try {
       String currentUserName = request.getRemoteUser();
@@ -187,8 +191,9 @@ public class MatrixRest implements ResourceContainer {
    * This API is used by Matrix server to notify the Meeds server that a user has
    * a new notification This API is used as a Push Gateway for Matrix server
    * 
-   * @param notification
-   * @return
+   * @param notification the content of the notification received from Matrix
+   *          server
+   * @return String representing the list of rejected pushKeys on Matrix
    */
   @PostMapping("notify")
   @Operation(summary = "Receives push notification from Matrix", method = "POST", description = "Receives push notification from Matrix")
@@ -203,12 +208,12 @@ public class MatrixRest implements ResourceContainer {
     try {
       JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(notification);
       JsonValue notifJsonValue = jsonValue.getElement("notification");
-      String pushKey = "";
+      String pushKey;
       if (notifJsonValue.getElement("devices").getElements().hasNext()) {
         JsonValue device = notifJsonValue.getElement("devices").getElements().next();
         pushKey = device.getElement("pushkey").getStringValue();
         if (StringUtils.isNotBlank(pushKey)) {
-          String userName = "";
+          String userName;
           try {
             userName = checkAndParseUserFromToken(pushKey);
           } catch (ExpiredJwtException expiredException) {
@@ -290,8 +295,8 @@ public class MatrixRest implements ResourceContainer {
       }
     }
 
-    matrixService.linkSpaceToMatrixRoom(space, roomId);
-    return true;
+    room = matrixService.linkSpaceToMatrixRoom(space, roomId);
+    return room != null;
   }
 
   @GetMapping("dmRooms")
@@ -328,9 +333,10 @@ public class MatrixRest implements ResourceContainer {
   @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
       @ApiResponse(responseCode = "404", description = "Space not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
-  public String getByRoomId(@Parameter(description = "The room Id")
-  @RequestParam(name = "roomId")
-  String roomId) {
+  public String getByRoomId(HttpServletRequest request,
+                            @Parameter(description = "The room Id")
+                            @RequestParam(name = "roomId")
+                            String roomId) {
     if (StringUtils.isNotBlank(roomId) && roomId.contains(PropertyManager.getProperty(MATRIX_SERVER_NAME))) {
       roomId = roomId.substring(0, roomId.indexOf(":"));
     }
@@ -346,8 +352,8 @@ public class MatrixRest implements ResourceContainer {
           throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no space with ID " + room.getSpaceId());
         }
       } else {
-        org.exoplatform.services.security.Identity connecteduserIdentity = ConversationState.getCurrent().getIdentity();
-        if (room.getFirstParticipant().equals(connecteduserIdentity.getUserId())) {
+        String currentUserName = request.getRemoteUser();
+        if (room.getFirstParticipant().equals(currentUserName)) {
           return identityManager.getOrCreateUserIdentity(room.getSecondParticipant()).getId();
         } else {
           return identityManager.getOrCreateUserIdentity(room.getFirstParticipant()).getId();
@@ -363,7 +369,6 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<RoomEntity> getRoomById(HttpServletRequest request,
-                                                WebRequest webRequest,
                                                 @Parameter(description = "The room Id")
                                                 @RequestParam(name = "roomId")
                                                 String roomId) {
@@ -386,7 +391,6 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "404", description = "User not found"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<RoomEntity> getRoomBySpaceId(HttpServletRequest request,
-                                                     WebRequest webRequest,
                                                      @Parameter(description = "The room Id")
                                                      @RequestParam(name = "spaceId")
                                                      long spaceId) {
@@ -497,26 +501,35 @@ public class MatrixRest implements ResourceContainer {
                                         "Current user does not have the needed privileges to enable the chat of the space");
     }
     Room roomToEnable = matrixService.getRoomBySpace(space, true);
-    class EnableChatRunnable implements Runnable {
-      @Override
-      public void run() {
-        ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
-        RequestLifeCycle.begin(PortalContainer.getInstance());
-        try {
-          matrixService.enableSpaceChat(space, true);
-        } catch (ObjectNotFoundException e) {
-          LOG.error("Could not enable the room {} of the space {}", roomToEnable.getRoomId(), space.getDisplayName(), e);
-          throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                                            "Could not enable the chat for the space with id " + spaceId);
-        } finally {
-          RequestLifeCycle.end();
+    try {
+      if (roomToEnable == null) {
+        String roomId = matrixService.createRoom(space);
+        roomToEnable = matrixService.getById(roomId);
+      }
+      class EnableChatRunnable implements Runnable {
+        @Override
+        public void run() {
+          ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
+          RequestLifeCycle.begin(PortalContainer.getInstance());
+          try {
+            matrixService.enableSpaceChat(space, true);
+          } catch (ObjectNotFoundException e) {
+            LOG.error("Could not enable the room of the space {}", space.getDisplayName(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                              "Could not enable the chat for the space with id " + spaceId);
+          } finally {
+            RequestLifeCycle.end();
+          }
         }
       }
+      Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
+      enableThread.start();
+      roomToEnable.setStatus(RoomStatus.ENABLE_IN_PROGRESS.name());
+      return ResponseEntity.ok().build();
+    } catch (Exception e) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                        "Could not enable the chat for the space with id " + spaceId);
     }
-    Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
-    enableThread.start();
-    roomToEnable.setStatus(RoomStatus.ENABLE_IN_PROGRESS.name());
-    return ResponseEntity.ok().build();
   }
 
   @PutMapping("disable/{spaceId}")
@@ -537,27 +550,37 @@ public class MatrixRest implements ResourceContainer {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                         "Current user does not have the needed privileges to enable the chat of the space");
     }
-    Room roomToEnable = matrixService.getRoomBySpace(space, true);
-    class EnableChatRunnable implements Runnable {
-      @Override
-      public void run() {
-        ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
-        RequestLifeCycle.begin(PortalContainer.getInstance());
-        try {
-          matrixService.enableSpaceChat(space, false);
-        } catch (ObjectNotFoundException e) {
-          LOG.error("Could not enable the room {} of the space {}", roomToEnable.getRoomId(), space.getDisplayName(), e);
-          throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                                            "Could not enable the chat for the space with id " + spaceId);
-        } finally {
-          RequestLifeCycle.end();
+    Room roomToDisable = matrixService.getRoomBySpace(space, true);
+    try {
+      if (roomToDisable == null) {
+        String roomId = matrixService.createRoom(space);
+        roomToDisable = matrixService.getById(roomId, true);
+      }
+      class EnableChatRunnable implements Runnable {
+        @Override
+        public void run() {
+          ExoContainerContext.setCurrentContainer(PortalContainer.getInstance());
+          RequestLifeCycle.begin(PortalContainer.getInstance());
+          try {
+            matrixService.enableSpaceChat(space, false);
+          } catch (ObjectNotFoundException e) {
+            LOG.error("Could not disable the room of the space {}", space.getDisplayName(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                              "Could not disable the chat for the space with id " + spaceId);
+          } finally {
+            RequestLifeCycle.end();
+          }
         }
       }
+      Thread disableThread = new Thread(new EnableChatRunnable(), "Disable members in space Thread");
+      disableThread.start();
+      roomToDisable.setStatus(RoomStatus.DISABLED_IN_PROGRESS.name());
+      return ResponseEntity.ok().build();
+    } catch (Exception e) {
+      LOG.error("Could not disable the room of the space {}", space.getDisplayName(), e);
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                        "Could not disable the chat for the space with id " + spaceId);
     }
-    Thread disableThread = new Thread(new EnableChatRunnable(), "Disable members in space Thread");
-    disableThread.start();
-    roomToEnable.setStatus(RoomStatus.DISABLED_IN_PROGRESS.name());
-    return ResponseEntity.ok().build();
   }
 
   @PutMapping("notification/{roomId}/{eventId}/{ts}")
@@ -645,9 +668,9 @@ public class MatrixRest implements ResourceContainer {
       @ApiResponse(responseCode = "403", description = "Unauthorized to access information"),
       @ApiResponse(responseCode = "500", description = "Internal server error") })
   public ResponseEntity<String> updatePushNotificationsSettings(HttpServletRequest request,
-                                                           @RequestBody(description = "Notification received from Matrix", required = true)
-                                                           @org.springframework.web.bind.annotation.RequestBody
-                                                           String pushNotificationSetting) {
+                                                                @RequestBody(description = "Notification received from Matrix", required = true)
+                                                                @org.springframework.web.bind.annotation.RequestBody
+                                                                String pushNotificationSetting) {
     try {
       JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
       JsonValue jsonValue = jsonGenerator.createJsonObjectFromString(pushNotificationSetting);
@@ -684,6 +707,34 @@ public class MatrixRest implements ResourceContainer {
     } else {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no Matrix account for the user " + userId);
     }
+  }
+
+  @GetMapping(value = "spaceChatSetting/{spaceId}", produces = MediaType.APPLICATION_JSON_VALUE)
+  @Secured("users")
+  @Operation(summary = "Get the status of the Chat on this space", method = "GET", description = "Get the status of the Chat on this space")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "400", description = "No space found or the space Id is missing"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public String getChatAuthorizationStatus(HttpServletRequest request, @PathVariable("spaceId")
+  long spaceId) {
+    if (spaceId == 0) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space id is mandatory");
+    }
+    Space space = spaceService.getSpaceById(spaceId);
+    if (space == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "space was not found");
+    }
+
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+
+    boolean chatAuthorizedForSpace = matrixService.isChatAuthorizedByAdministration(space)
+        && (spaceRoom != null || matrixService.isChatAuthorizedForSpaceTemplate(space));
+
+    return """
+        {
+          "chatAuthorizedForSpace": %s
+        }
+        """.formatted(chatAuthorizedForSpace);
   }
 
   private String checkAndParseUserFromToken(String token) {
@@ -756,8 +807,14 @@ public class MatrixRest implements ResourceContainer {
       if (!room.isDirectChat()) {
         spaceIds.remove(String.valueOf(room.getSpaceId()));
       }
-      if (RoomStatus.ENABLED.name().equals(room.getStatus())) {
+      ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
+      if (RoomStatus.ENABLED.name().equals(room.getStatus())
+          && (chatSettings == null || (room.isDirectChat() && chatSettings.isPrivateRoomsEnabled()) || (!room.isDirectChat()
+              && chatSettings.isSpaceRoomsEnabled() && matrixService.isChatAuthorizedForSpace(room.getSpaceId())))) {
         processedRooms.add(room);
+      } else {
+        // Substract the unread messages from disabled chat rooms
+        roomList.setTotalUnreadMessages(Math.max(0, roomList.getTotalUnreadMessages() - room.getUnreadMessages()));
       }
 
     }

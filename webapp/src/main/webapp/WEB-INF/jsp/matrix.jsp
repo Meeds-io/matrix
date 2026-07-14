@@ -1,6 +1,7 @@
 <%@page import="org.exoplatform.commons.utils.PropertyManager"%>
 <%@page import="io.meeds.chat.service.utils.MatrixConstants"%>
 <%@page import="io.meeds.chat.service.MatrixService"%>
+<%@page import="io.meeds.chat.service.model.ChatSettingsEntity"%>
 <%@page import="org.apache.commons.lang3.StringUtils"%>
 <%@page import="org.exoplatform.commons.utils.CommonsUtils"%>
 <%@page import="org.exoplatform.portal.config.UserACL"%>
@@ -10,8 +11,9 @@
 MatrixService matrixService = CommonsUtils.getService(MatrixService.class);
 Identity userIdentity = ConversationState.getCurrent().getIdentity();
 String[] restrictedGroups = matrixService.getRestrictedGroups();
+ChatSettingsEntity chatSettings = matrixService.loadChatSettings();
 
-if (matrixService.isServiceAvailable() && (restrictedGroups == null || restrictedGroups.length == 0
+if (matrixService.isServiceEnabled() && (chatSettings == null || chatSettings.isPrivateRoomsEnabled() || chatSettings.isSpaceRoomsEnabled()) && (restrictedGroups == null || restrictedGroups.length == 0
     || (restrictedGroups != null && restrictedGroups.length > 0 && matrixService.isUserMemberOfGroups(userIdentity.getUserId(), restrictedGroups)))) {
 %>
 <div class="VuetifyApp">

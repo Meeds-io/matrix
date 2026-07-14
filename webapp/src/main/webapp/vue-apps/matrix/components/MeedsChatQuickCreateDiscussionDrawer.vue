@@ -52,24 +52,39 @@
                 <exo-identity-suggester
                   ref="invitedPeopleAutoCompleteToRoom"
                   v-model="participant"
-                  :multiple="canCreatePrivateRooms"
+                  :multiple="canCreateSpaceRooms"
                   :search-options="{}"
                   :labels="suggesterLabels"
                   include-users />
               </v-flex>
             </div>
             <div
-              v-if="!canCreatePrivateRooms"
+              v-if="!canCreateSpaceRooms && canCreatePrivateRooms"
               class="caption font-weight-light ps-1 muted font-italic">
               <span class="mr-2">
                 <v-icon small>info</v-icon>
-                {{ $t('matrix.chat.quick.create.discussion.info') }}.
+                {{ $t('matrix.chat.quick.create.space.room.disabled') }}.
               </span>
             </div>
-            <div 
+            <div
               v-else-if="shouldJoinParentSpace">
-              <span class="text-subtitle">
+              <span class="text-subtitle ps-1">
+                <v-icon small>info</v-icon>
                 {{ $t('matrix.chat.quick.create.subspace.discussion.info') }}.
+              </span>
+            </div>
+            <div
+              v-else-if="!canCreatePrivateRooms && canCreateSpaceRooms">
+              <span class="text-subtitle ps-1">
+                <v-icon small>info</v-icon>
+                {{ $t('matrix.chat.quick.create.private.room.disabled') }}.
+              </span>
+            </div>
+            <div
+              v-else-if="canCreatePrivateRooms && canCreateSpaceRooms">
+              <span class="text-subtitle ps-1">
+                <v-icon small>info</v-icon>
+                {{ $t('matrix.chat.quick.create.discussion.info') }}.
               </span>
             </div>
           </div>
@@ -110,8 +125,6 @@ export default {
     return {
       participant: null,
       loading: false,
-      spaceCircleTemplate: null,
-      isSubspaceTemplate: false,
       parentSpaceList: [],
       parentSpacesSize: 0,
       parentSpacesLimit: 20,
@@ -121,14 +134,17 @@ export default {
     };
   },
   computed: {
+    canCreateSpaceRooms() {
+      return this.$root.canCreateSpaceRooms;
+    },
     canCreatePrivateRooms() {
-      return !!this.spaceCircleTemplate;
+      return this.$root.canCreatePrivateRooms;
     },
     canSelectParentSpace() {
-      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length > 0;
+      return this.invitedSpaceMembers && this.$root.isSubspaceTemplate && this.parentSpaceList.length > 0;
     },
     shouldJoinParentSpace() {
-      return this.invitedSpaceMembers && this.isSubspaceTemplate && this.parentSpaceList.length === 0;
+      return this.invitedSpaceMembers && this.$root.isSubspaceTemplate && this.parentSpaceList.length === 0;
     },
     hasMoreParentSpaces() {
       return this.parentSpaceList.length < this.parentSpacesSize;
@@ -142,12 +158,10 @@ export default {
       };
     },
     disabledSaveButton(){
-      return !this.participant || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
+      return !this.participant || (this.participant.length <= 1 && !this.canCreatePrivateRooms) || this.shouldJoinParentSpace || this.canSelectParentSpace && !this.selectedSpace;
     },
   },
-  async created() {
-    await this.checkCanCreatePrivateRooms();
-    await this.getParentSpaces();
+  created() {
     this.$root.$on(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER, this.openDrawer);
   },
   beforeDestroy() {
@@ -156,7 +170,9 @@ export default {
 
   methods: {
     openDrawer() {
-      this.$refs.QuickCreateDiscussionDrawer.open();
+      this.getParentSpaces().then(() => {
+        this.$refs.QuickCreateDiscussionDrawer.open();
+      });
     },
     close() {
       this.reset();
@@ -166,9 +182,9 @@ export default {
       this.loading = true;
       const space = {
         invitedMembers: this.invitedSpaceMembers,
-        subscription: this.spaceCircleTemplate.spaceDefaultRegistration?.toLowerCase?.(),
-        visibility: this.spaceCircleTemplate.spaceDefaultVisibility?.toLowerCase?.(),
-        templateId: this.spaceCircleTemplate.id,
+        subscription: this.$root.spaceCircleTemplate.spaceDefaultRegistration?.toLowerCase?.(),
+        visibility: this.$root.spaceCircleTemplate.spaceDefaultVisibility?.toLowerCase?.(),
+        templateId: this.$root.spaceCircleTemplate.id,
         parentSpaceId: this.selectedSpace?.id || 0
       };
       this.$spaceService.createSpace(space).then((createdSpace) => {
@@ -197,21 +213,12 @@ export default {
                                                        || this.participant.remoteId;
       this.openChatRoom(remoteId);
     },
-    async checkCanCreatePrivateRooms() {
-      const templates = await this.$spaceTemplateService.getSpaceTemplates(false);
-      const circleTemplate = templates?.find(template => template.system && template.layout === 'circle' && !template.deleted);
-      this.spaceCircleTemplate = circleTemplate || null;
-      if (this.spaceCircleTemplate) {
-        const subspaceTemplateIds = await this.$spaceTemplateService.getSubspaceTemplateIds() || [];
-        this.isSubspaceTemplate = subspaceTemplateIds.includes(this.spaceCircleTemplate.id);
-      }
-    },
     async getParentSpaces() {
-      if (this.isSubspaceTemplate) {
+      if (this.$root.isSubspaceTemplate) {
         const data = await this.$spaceService.getSpacesByFilter({
           offset: 0,
           limit: this.parentSpacesLimit,
-          subspaceTemplateId: this.spaceCircleTemplate.id,
+          subspaceTemplateId: this.$root.spaceCircleTemplate.id,
           filter: 'accessible'
         });
         this.parentSpaceList = data?.spaces || [];

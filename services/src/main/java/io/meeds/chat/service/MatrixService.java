@@ -24,15 +24,30 @@ import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
-import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.service.model.ChatSettings;
+import io.meeds.chat.service.model.MediaInfo;
+import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.storage.MatrixRoomStorage;
+import io.meeds.portal.navigation.model.TopbarApplication;
+import io.meeds.portal.navigation.service.NavigationConfigurationService;
+import io.meeds.social.space.template.model.SpaceTemplate;
+import io.meeds.social.space.template.model.SpaceTemplateFilter;
+import io.meeds.social.space.template.service.SpaceTemplateService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.api.notification.service.setting.PluginSettingService;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.file.model.FileItem;
+import org.exoplatform.commons.notification.channel.MailChannel;
+import org.exoplatform.commons.notification.channel.WebChannel;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.PropertyManager;
 
@@ -57,6 +72,8 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -70,6 +87,8 @@ import static org.apache.commons.lang3.StringUtils.isNumeric;
 public class MatrixService {
 
   private static final Log               LOG                       = ExoLogger.getLogger(MatrixService.class);
+
+  public static final String             CHAT_APPLICATION_ID       = "chat";
 
   @Autowired
   private MatrixRoomStorage              matrixRoomStorage;
@@ -89,6 +108,9 @@ public class MatrixService {
   @Autowired
   private MatrixHttpClient               matrixHttpClient;
 
+  @Autowired
+  private SpaceTemplateService           spaceTemplateService;
+
   /**
    * -- GETTER -- Checks if the Matrix service is available
    */
@@ -97,22 +119,32 @@ public class MatrixService {
 
   private String                         matrixAccessToken;
 
+  private SettingService                 settingService;
+
   private final ExoCache<String, String> userMatrixIdsCache;
 
   public static final String             USER_MATRIX_ID_CACHE_NAME = "chat.UserMatrixId";
+
+  @Getter
+  @Value("#{'${meeds.chat.authorized.space.templates:project,circle}'.split(',')}")
+  public List<String>                    defaultAuthorizedSpaceTemplates;
 
   public MatrixService(MatrixRoomStorage matrixRoomStorage,
                        IdentityManager identityManager,
                        IdentityStorage identityStorage,
                        OrganizationService organizationService,
                        MatrixHttpClient matrixHttpClient,
-                       CacheService cacheService) {
+                       CacheService cacheService,
+                       SettingService settingService,
+                       SpaceTemplateService spaceTemplateService) {
     this.matrixRoomStorage = matrixRoomStorage;
     this.identityManager = identityManager;
     this.identityStorage = identityStorage;
     this.organizationService = organizationService;
     this.matrixHttpClient = matrixHttpClient;
     this.userMatrixIdsCache = cacheService.getCacheInstance(USER_MATRIX_ID_CACHE_NAME);
+    this.settingService = settingService;
+    this.spaceTemplateService = spaceTemplateService;
   }
 
   @PostConstruct
@@ -134,9 +166,29 @@ public class MatrixService {
   }
 
   /**
-   * Convert the user id into the full Matrx ID format
+   * Checks if the Chat feature is enabled and that the Matrix service is
+   * available
    * 
-   * @param userName
+   * @return the status fo the chat service and feature
+   */
+  public boolean isServiceEnabled() {
+    return this.serviceAvailable && this.isChatFeatureEnabled();
+  }
+
+  /**
+   * Checks if the chat feature if enabled or not
+   * 
+   * @return boolean : chat status
+   */
+  private boolean isChatFeatureEnabled() {
+    ChatSettingsEntity settings = loadChatSettings();
+    return settings == null || settings.isChatEnabled();
+  }
+
+  /**
+   * Convert the user id into the full Matrix ID format
+   * 
+   * @param userName the username
    * @return formatted username
    */
   public String getUserFullMatrixID(String userName) {
@@ -162,7 +214,7 @@ public class MatrixService {
   /**
    * Retrieves an access token for a user using a JWT token
    * 
-   * @param jwtToken
+   * @param jwtToken the Json Web Token
    * @return String the access token
    */
   public String getAccessToken(String jwtToken) throws JsonException, IOException, InterruptedException {
@@ -172,7 +224,7 @@ public class MatrixService {
   /**
    * Invalidate a specific access token
    * 
-   * @param accessToken
+   * @param accessToken the access token to be invalidated
    * @return true if success
    */
   public boolean invalidateAccessToken(String accessToken) {
@@ -275,7 +327,18 @@ public class MatrixService {
    * @return the room ID
    */
   public Room linkSpaceToMatrixRoom(Space space, String roomId) {
-    return matrixRoomStorage.saveRoomForSpace(Long.valueOf(space.getId()), roomId);
+    return linkSpaceToMatrixRoom(Long.parseLong(space.getId()), roomId, RoomStatus.ENABLED);
+  }
+
+  /**
+   * records the matrix ID of the room linked to the space
+   *
+   * @param spaceId the Space identifier
+   * @param roomId the ID of the matrix room
+   * @return the room ID
+   */
+  public Room linkSpaceToMatrixRoom(long spaceId, String roomId, RoomStatus roomStatus) {
+    return matrixRoomStorage.saveRoomForSpace(spaceId, roomId, roomStatus);
   }
 
   /**
@@ -466,6 +529,17 @@ public class MatrixService {
     matrixHttpClient.joinUserToRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
+  /**
+   * Checks if the user is a member of the room
+   *
+   * @param roomId the room ID
+   * @param matrixIdOfUser the ID of the user on Matrix
+   * @return true if the user is a member of the room, false otherwise
+   */
+  public boolean isUserMemberOfRoom(String roomId, String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
+    return matrixHttpClient.isUserMemberOfRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
+  }
+
   public void renameRoom(String roomId, String spaceDisplayName) throws JsonException, IOException, InterruptedException {
     matrixHttpClient.renameRoom(roomId, spaceDisplayName, this.getMatrixAccessToken());
   }
@@ -514,6 +588,14 @@ public class MatrixService {
     }
   }
 
+  /**
+   * Creates a one to one room
+   * 
+   * @param directMessagingRoom the Object representation of a one to one room
+   * @return the created Room
+   * @throws ObjectAlreadyExistsException in case a room between the same users is
+   *           already created
+   */
   public Room createDirectMessagingRoom(Room directMessagingRoom) throws ObjectAlreadyExistsException {
     String firstParticipant = directMessagingRoom.getFirstParticipant();
     String secondParticipant = directMessagingRoom.getSecondParticipant();
@@ -535,6 +617,12 @@ public class MatrixService {
     }
   }
 
+  /**
+   * Loads all the one to one rooms of a defined user
+   * 
+   * @param user the username of the user
+   * @return List of Room
+   */
   public List<Room> getMatrixDMRoomsOfUser(String user) {
     return matrixRoomStorage.getMatrixDMRoomsOfUser(user);
   }
@@ -564,7 +652,7 @@ public class MatrixService {
    * @param userName the userName
    * @param groups the list of groups
    * @return true if the user is a member of the group
-   * @throws Exception
+   * @throws Exception error finding the user
    */
   public boolean isUserMemberOfGroups(String userName, String... groups) throws Exception {
     for (String group : groups) {
@@ -662,33 +750,23 @@ public class MatrixService {
     String matrixAdminUsername = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
 
     RoomStatus currentRoomStatus = RoomStatus.valueOf(spaceRoom.getStatus());
-    this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLE_IN_PROGRESS : RoomStatus.DISABLED_IN_PROGRESS);
     try {
-      for (String member : space.getMembers()) {
-        String matrixIdOfMember = getMatrixIdForUser(member);
-        if (!matrixAdminUsername.equals(matrixIdOfMember)) {
-          try {
-            if (enable) {
-              joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
-            } else {
-              kickUserFromRoom(spaceRoom.getRoomId(),
-                               matrixIdOfMember,
-                               "the Chat was disabled for the space %s, thus the user %s is removed from the chat members".formatted(space.getDisplayName(),
-                                                                                                                                     member));
-            }
-          } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-              Thread.currentThread().interrupt();
-            }
-            LOG.error("couldn't invite / remove the user {} from the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+      this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLE_IN_PROGRESS : RoomStatus.DISABLED_IN_PROGRESS);
+      this.changeChatRoomReadability(spaceRoom.getRoomId(), !enable);
+      if (enable) {
+        for (String member : space.getMembers()) {
+          String matrixIdOfMember = getMatrixIdForUser(member);
+          if (!matrixAdminUsername.equals(matrixIdOfMember)) {
+            joinUserToRoom(spaceRoom.getRoomId(), matrixIdOfMember);
           }
         }
       }
       spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), enable ? RoomStatus.ENABLED : RoomStatus.DISABLED);
     } catch (Exception e) {
-      // reset room to original status
+      // revert room to the original status
       spaceRoom = this.changeRoomStatus(spaceRoom.getRoomId(), currentRoomStatus);
-      LOG.error("An error occurred when enabling/disabling the room {}", matrixAdminUsername, spaceRoom.getRoomId(), e);
+      this.changeChatRoomReadability(spaceRoom.getRoomId(), enable);
+      LOG.error("An error occurred when enabling/disabling the room {}", spaceRoom.getRoomId(), e);
     }
     return spaceRoom;
   }
@@ -713,9 +791,10 @@ public class MatrixService {
   public void overrideAdminRateLimit(String adminUserId) {
     try {
       String currentRateLimits = matrixHttpClient.getOverriddenRateLimitForUser(adminUserId, getMatrixAccessToken());
-      JsonValue currentLimits = new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
-      JsonValue messagePerSecond = currentLimits.getElement("messages_per_second");
-      JsonValue burstCount = currentLimits.getElement("burst_count");
+      JsonValue currentLimits = StringUtils.isBlank(currentRateLimits) ? null
+                                                                        : new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
+      JsonValue messagePerSecond = currentLimits == null ? null : currentLimits.getElement("messages_per_second");
+      JsonValue burstCount = currentLimits == null ? null : currentLimits.getElement("burst_count");
       if (messagePerSecond == null || burstCount == null || messagePerSecond.getIntValue() > 0 || burstCount.getIntValue() > 0) {
         // set the messages per second to zero -> unlimited
         // set the burst count to 0 : No burst count
@@ -775,9 +854,9 @@ public class MatrixService {
    * Finds the identity of a user based on its Matrix ID and a space where he is a
    * member
    * 
-   * @param matrixId
-   * @param space
-   * @return
+   * @param matrixId the Matrix identifier of the user
+   * @param space the space
+   * @return the identity of the space member
    */
   public Identity findSpaceMemberByMatrixId(String matrixId, Space space) {
     matrixId = extractUserId(matrixId);
@@ -833,6 +912,12 @@ public class MatrixService {
     return userMatrixId;
   }
 
+  /**
+   * Find a user in Meeds DB using his email
+   * 
+   * @param email The user email
+   * @return the User if he is found, otherwise null
+   */
   private User getUserByEmail(String email) {
     if (email == null) {
       return null;
@@ -872,7 +957,7 @@ public class MatrixService {
   public String[] getRestrictedGroups() {
     String groupNames = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     if (StringUtils.isBlank(groupNames)) {
-      return new String[]{};
+      return new String[] {};
     }
     return Arrays.stream(groupNames.split(",")).map(String::trim).toArray(String[]::new);
   }
@@ -881,10 +966,13 @@ public class MatrixService {
    * Returns synapse media info by its ID
    * 
    * @param mediaId synapse media id
-   * @return {@link MediaInfo} wrapped in {@link Optional}, or {@link Optional#empty()} if mediaId is null or blank
-   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @return {@link MediaInfo} wrapped in {@link Optional}, or
+   *         {@link Optional#empty()} if mediaId is null or blank
+   * @throws JsonException if there is an error parsing the JSON response from the
+   *           server
    * @throws IOException if a network or I/O error occurs during the request
-   * @throws InterruptedException if the thread executing the request is interrupted
+   * @throws InterruptedException if the thread executing the request is
+   *           interrupted
    */
   public Optional<MediaInfo> getMediaInfo(String mediaId) throws JsonException, IOException, InterruptedException {
     if (mediaId == null || mediaId.isBlank()) {
@@ -898,14 +986,203 @@ public class MatrixService {
    * 
    * @param mediaId synapse media id
    * @throws IllegalArgumentException if mediaId is null or blank
-   * @throws JsonException if there is an error parsing the JSON response from the server
+   * @throws JsonException if there is an error parsing the JSON response from the
+   *           server
    * @throws IOException if a network or I/O error occurs during the request
-   * @throws InterruptedException if the thread executing the request is interrupted
+   * @throws InterruptedException if the thread executing the request is
+   *           interrupted
    */
   public void deleteMedia(String mediaId) throws JsonException, IOException, InterruptedException {
     if (mediaId == null || mediaId.isBlank()) {
       throw new IllegalArgumentException("mediaId must not be null or empty");
     }
     matrixHttpClient.deleteMedia(mediaId, getMatrixAccessToken());
+  }
+
+  /**
+   * retrieves the chat settings
+   * 
+   * @return the status of the chat feature
+   */
+  public ChatSettingsEntity loadChatSettings() {
+    return this.loadChatSettings(null, Locale.getDefault());
+  }
+
+  /**
+   * retrieves the chat settings
+   * 
+   * @param userName the caller username
+   * @param locale the caller Locale
+   * @return the Chat settings
+   */
+  public ChatSettingsEntity loadChatSettings(String userName, Locale locale) {
+    SettingValue<?> settings = settingService.get(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS);
+    ChatSettings chatSettings = settings == null ? null : ChatSettings.fromString((String) settings.getValue());
+    ChatSettingsEntity chatSettingsEntity;
+    if (chatSettings == null) {
+      chatSettingsEntity = new ChatSettingsEntity(true, true, true, new ArrayList<>());
+    } else {
+      chatSettingsEntity = new ChatSettingsEntity(chatSettings.isChatEnabled(),
+                                                  chatSettings.isPrivateRoomsEnabled(),
+                                                  chatSettings.isSpaceRoomsEnabled(),
+                                                  new ArrayList<>());
+    }
+    List<SpaceTemplate> spaceTemplates;
+    if (StringUtils.isNotBlank(userName)) {
+      SpaceTemplateFilter spaceTemplateFilter = new SpaceTemplateFilter(userName, locale, false);
+      spaceTemplates = spaceTemplateService.getSpaceTemplates(spaceTemplateFilter, Pageable.unpaged(), true);
+    } else {
+      spaceTemplates = spaceTemplateService.getSpaceTemplates();
+    }
+    for (SpaceTemplate spaceTemplate : spaceTemplates) {
+      SpaceTemplateSetting spaceTemplateSetting;
+      if (spaceTemplate.getExtendedProperties() == null || spaceTemplate.getExtendedProperties().isEmpty()) {
+        boolean isSpaceTemplateAuthorizedByDefault = getDefaultAuthorizedSpaceTemplates().contains(spaceTemplate.getLayout()); // we
+                                                                                                                               // use
+                                                                                                                               // layout
+                                                                                                                               // because
+                                                                                                                               // the
+                                                                                                                               // space
+                                                                                                                               // template
+                                                                                                                               // name
+                                                                                                                               // is
+                                                                                                                               // Localized
+        spaceTemplateSetting = new SpaceTemplateSetting(spaceTemplate.getId(),
+                                                        spaceTemplate.getName(),
+                                                        spaceTemplate.getIcon(),
+                                                        isSpaceTemplateAuthorizedByDefault,
+                                                        isSpaceTemplateAuthorizedByDefault);
+      } else {
+        spaceTemplateSetting = new SpaceTemplateSetting();
+        spaceTemplateSetting.setName(spaceTemplate.getName());
+        spaceTemplateSetting.setIcon(spaceTemplate.getIcon());
+        spaceTemplateSetting.setId(spaceTemplate.getId());
+        spaceTemplateSetting.setAuthorized("true".equals(spaceTemplate.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED)));
+        spaceTemplateSetting.setChatEnabledByDefault("true".equals(spaceTemplate.getExtendedProperties()
+                                                                                .get(SPACE_CHAT_ENABLED_BY_DEFAULT)));
+      }
+      chatSettingsEntity.getSpaceTemplateSetting().add(spaceTemplateSetting);
+    }
+    return chatSettingsEntity;
+  }
+
+  /**
+   * Sets the settings of the chat feature
+   * 
+   * @param chatSettings the new status fo the chat enabled/disabled
+   */
+  public void saveChatSettings(ChatSettings chatSettings) {
+    settingService.set(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS, new SettingValue<>(chatSettings.toString()));
+
+    boolean chatFeatureEnabled = chatSettings.isChatEnabled();
+
+    // Enable/Disable notifications
+    PluginSettingService pluginSettingService = CommonsUtils.getService(PluginSettingService.class);
+    pluginSettingService.saveActivePlugin(WebChannel.ID, MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN, chatFeatureEnabled);
+    pluginSettingService.saveActivePlugin(MailChannel.ID, MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN, chatFeatureEnabled);
+
+    // Disable chat application in Topbar configuration
+    NavigationConfigurationService navigationConfigurationService = CommonsUtils.getService(NavigationConfigurationService.class);
+    io.meeds.portal.navigation.model.NavigationConfiguration navigationConfiguration =
+                                                                                     navigationConfigurationService.getConfiguration();
+    List<TopbarApplication> applications = navigationConfiguration.getTopbar().getApplications();
+    for (int i = 0; i < applications.size(); i++) {
+      TopbarApplication topbarApplication = applications.get(i);
+      if (CHAT_APPLICATION_ID.equals(topbarApplication.getId())) {
+        topbarApplication.setEnabled(chatFeatureEnabled);
+        applications.set(i, topbarApplication);
+        navigationConfiguration.getTopbar().setApplications(applications);
+        navigationConfigurationService.updateConfiguration(navigationConfiguration);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Check if Chat application is authorized for the space based on its template
+   * 
+   * @param spaceId The space identifier
+   * @return boolean : true if the chat is authorized
+   */
+  public boolean isChatAuthorizedForSpace(Long spaceId) {
+    Space space = spaceService.getSpaceById(spaceId);
+    return isChatAuthorizedForSpace(space);
+  }
+
+  /**
+   * Check if Chat application is authorized for the space based on its template
+   *
+   * @param space The space
+   * @return boolean : true if the chat is authorized
+   */
+  public boolean isChatAuthorizedForSpace(Space space) {
+    return isChatAuthorizedByAdministration(space);
+  }
+
+  /**
+   * Checks if the Chat is authorized for the template used to create the space
+   * @param space The given space
+   * @return True if the chat was authorized for this space template
+   */
+  public boolean isChatAuthorizedForSpaceTemplate(Space space) {
+    ChatSettingsEntity settings = loadChatSettings();
+    if (settings == null) {
+      return true;
+    }
+    SpaceTemplateSetting spaceTemplateSetting = settings.getSpaceTemplateSetting()
+                                                        .stream()
+                                                        .filter(template -> space.getTemplateId() == template.getId())
+                                                        .findAny()
+                                                        .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isAuthorized();
+  }
+
+  /**
+   * Checks if the Chat is authorized from the administration for the space
+   * @param space The given space
+   * @return True if the chat was authorized for this space
+   */
+  public boolean isChatAuthorizedByAdministration(Space space) {
+    return (space.getExtendedProperties() == null || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED) == null
+        || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED).equals("true"));
+  }
+
+  /**
+   * Check if the chat is enabled and synched be default for the provided space
+   * 
+   * @param space the related space
+   * @return boolean True if the chat is enabled by default
+   */
+  public boolean isChatEnabledByDefault(Space space) {
+    ChatSettingsEntity settings = loadChatSettings();
+    if (settings == null) {
+      return true;
+    }
+    SpaceTemplateSetting spaceTemplateSetting = settings.getSpaceTemplateSetting()
+                                                        .stream()
+                                                        .filter(template -> space.getTemplateId() == template.getId())
+                                                        .findAny()
+                                                        .orElse(null);
+    return spaceTemplateSetting == null || spaceTemplateSetting.isChatEnabledByDefault();
+  }
+
+  /**
+   * Sets the room to readOnly
+   *
+   * @param roomId the room identifier
+   * @param readOnly true if the room will be set readonly
+   */
+  public void changeChatRoomReadability(String roomId, boolean readOnly) {
+    MatrixRoomPermissions roomPermissions;
+    try {
+      roomPermissions = getRoomSettings(roomId);
+      roomPermissions.setEventsDefault(readOnly ? ADMIN_ROLE : SIMPLE_USER_ROLE);
+      updateRoomSettings(roomId, roomPermissions);
+    } catch (JsonException | InterruptedException | IOException e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      throw new RuntimeException(e);
+    }
   }
 }

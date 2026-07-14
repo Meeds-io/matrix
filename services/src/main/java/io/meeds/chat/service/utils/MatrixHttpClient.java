@@ -19,7 +19,7 @@
 package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.MatrixMessage;
-import io.meeds.chat.rest.model.MediaInfo;
+import io.meeds.chat.service.model.MediaInfo;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -669,8 +669,37 @@ public class MatrixHttpClient {
   }
 
   /**
+   * Checks if a user is a member of a room
+   *
+   * @param matrixRoomId the room ID
+   * @param matrixIdOfUser the ID of the user on Matrix
+   * @return true if the user is a member of the room, false otherwise
+   */
+  public boolean isUserMemberOfRoom(String matrixRoomId, String matrixIdOfUser, String accessToken) throws IOException,
+                                                                                                      InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/joined_members";
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      JSONObject joinedMembers = new JSONObject(response.body()).optJSONObject("joined");
+      return joinedMembers != null && joinedMembers.has(fullUserMatrixId);
+    } else {
+      LOG.error("Error getting members of room {}, Matrix server returned HTTP {} error {}",
+                matrixRoomId,
+                String.valueOf(response.statusCode()),
+                response.body());
+      return false;
+    }
+  }
+
+  /**
    * Get permissions settings of a room
-   * 
+   *
    * @param matrixRoomId
    * @return MatrixRoomPermissions object containing settings of the room
    */

@@ -36,11 +36,14 @@ export default {
   data: () => ({
     displayed: false,
   }),
-  created() {
-    if(this.identityType === 'space') {
-      return this.$matrixService.getSpaceRoom(this.identityId).then(room => {
+  async created() {
+    if (this.identityType === 'space') {
+      const space = await this.$spaceService.getSpaceById(this.identityId, 'extendedProperties');
+      if (!space?.extendedProperties || (space?.extendedProperties['meeds.chat.authorized']
+                                       && space?.extendedProperties['meeds.chat.authorized'] === 'true')) {
+        const room = await this.$matrixService.getSpaceRoom(this.identityId);
         this.displayed = room.status === 'ENABLED';
-      });
+      }
     } else {
       this.displayed = true;
     }
