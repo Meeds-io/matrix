@@ -108,7 +108,7 @@ export default {
       if (!term) {
         return escaped;
       }
-      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
       return escaped.replace(new RegExp(`(${escapedTerm})`, 'gi'), '<span class="primary--text font-weight-bold">$1</span>');
     },
   },
