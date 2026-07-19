@@ -1484,7 +1484,7 @@ public class MatrixService {
       LOG.warn("User {} is not a participant of conversation {}, refusing to search it", userName, scopedRoomId);
       return Collections.emptyList();
     }
-    int effectiveLimit = Math.min(Math.max(limit, 1), 100);
+    int effectiveLimit = Math.clamp(limit, 1, 100);
     return callAsUser(userName, Collections.<ChatSearchResult> emptyList(), accessToken -> {
       List<MatrixMessage> matches = matrixHttpClient.searchMessages(query, scopedRoomId, effectiveLimit, accessToken);
       List<ChatSearchResult> results = new ArrayList<>();

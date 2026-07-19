@@ -29,10 +29,12 @@
       <template v-if="findBarOpen">
         <v-icon size="16" class="icon-default-color me-2">fa-filter</v-icon>
         <input
+          id="chatFindBarInput"
           ref="findBarInput"
           v-model="findBarText"
           type="text"
           :placeholder="$t('matrix.chat.search.placeholder')"
+          :aria-label="$t('matrix.chat.search.placeholder')"
           class="chat-find-input me-2"
           @input="onFindBarInput"
           @keydown.enter.prevent="searchNav('next')"
