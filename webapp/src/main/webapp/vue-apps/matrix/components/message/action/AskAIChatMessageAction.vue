@@ -54,6 +54,7 @@ export default {
       default: null,
     },
   },
+  emits: ['close'],
   data: () => ({
     uxBindings: [],
     loading: false,

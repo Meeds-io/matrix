@@ -1302,19 +1302,44 @@ public class MatrixService {
         LOG.warn("User {} has no Matrix account, skipping chat operation", userName);
         return fallback;
       }
-      try {
-        return operation.call(accessToken);
-      } catch (MatrixUnauthorizedException unauthorized) {
-        LOG.info("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
-        String refreshedToken = getUserAccessToken(userName, true);
-        if (StringUtils.isBlank(refreshedToken)) {
-          return fallback;
-        }
-        return operation.call(refreshedToken);
-      }
+      return callWithTokenRefresh(userName, fallback, operation, accessToken);
+    } catch (InterruptedException e) {
+      // Preserve the interrupt status so callers up the stack can react to it.
+      Thread.currentThread().interrupt();
+      LOG.error("Matrix chat operation interrupted for user {}", userName, e);
+      return fallback;
     } catch (Exception e) {
       LOG.error("Matrix chat operation failed for user {}", userName, e);
       return fallback;
+    }
+  }
+
+  /**
+   * Runs the operation with the given access token and, if Synapse rejects the
+   * token (HTTP 401), refreshes it once and retries. Extracted from
+   * {@link #callAsUser} so the retry stays a flat, single-purpose block.
+   *
+   * @param <T> the operation result type
+   * @param userName the Meeds username acting
+   * @param fallback the value to return when the refreshed token is unavailable
+   * @param operation the operation to run with a valid access token
+   * @param accessToken the initial access token to use
+   * @return the operation result, or {@code fallback}
+   * @throws Exception any failure raised by the operation itself
+   */
+  private <T> T callWithTokenRefresh(String userName,
+                                     T fallback,
+                                     UserMatrixCall<T> operation,
+                                     String accessToken) throws Exception { // NOSONAR
+    try {
+      return operation.call(accessToken);
+    } catch (MatrixUnauthorizedException unauthorized) {
+      LOG.info("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
+      String refreshedToken = getUserAccessToken(userName, true);
+      if (StringUtils.isBlank(refreshedToken)) {
+        return fallback;
+      }
+      return operation.call(refreshedToken);
     }
   }
 
@@ -1346,7 +1371,7 @@ public class MatrixService {
       LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
       return Collections.emptyList();
     }
-    int effectiveLimit = Math.min(Math.max(limit, 1), 200);
+    int effectiveLimit = Math.clamp(limit, 1, 200);
     return callAsUser(userName, Collections.<ChatMessage> emptyList(), accessToken -> {
       List<MatrixMessage> matrixMessages = matrixHttpClient.getRoomMessages(normalizedRoomId, effectiveLimit, accessToken);
       List<ChatMessage> messages = new ArrayList<>();

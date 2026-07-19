@@ -470,7 +470,7 @@ public class MatrixHttpClient {
     }
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url =
-               PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/state/m.room.name/";
+               PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/state/m.room.name/";
     String payload = """
         {
           "name": "%s"
@@ -510,7 +510,7 @@ public class MatrixHttpClient {
     }
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/invite";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/invite";
     String payload = """
           {
             "reason": "%s",
@@ -551,7 +551,7 @@ public class MatrixHttpClient {
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
 
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/kick";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/kick";
     String payload = """
           {
             "reason": "%s",
@@ -683,7 +683,7 @@ public class MatrixHttpClient {
     }
     String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/joined_members";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/joined_members";
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -710,7 +710,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
@@ -741,7 +741,7 @@ public class MatrixHttpClient {
 
     String payload = roomSettings.toJson();
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
     HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
@@ -802,7 +802,7 @@ public class MatrixHttpClient {
    */
   public boolean updateRoomAvatar(String matrixRoomId, String avatarURL, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.avatar/";
     String payload = """
         {
@@ -888,7 +888,7 @@ public class MatrixHttpClient {
    */
   public boolean updateRoomDescription(String matrixRoomId, String description, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.topic/";
     String plainDescription = description.replaceAll("<[^>]*>", "").replace("\n", "");
     String payload = """
@@ -1159,7 +1159,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + roomId + "/event/" + eventId;
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + roomId + "/event/" + eventId;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -1229,7 +1229,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/messages?dir=b&limit="
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit="
         + limit;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
@@ -1242,7 +1242,7 @@ public class MatrixHttpClient {
       return new ArrayList<>();
     }
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new RuntimeException("Error retrieving messages of room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+      throw new MatrixException("Error retrieving messages of room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
                                                                                                                           String.valueOf(response.statusCode()),
                                                                                                                           response.body()));
     }
@@ -1320,7 +1320,7 @@ public class MatrixHttpClient {
       throw new MatrixUnauthorizedException("Access token rejected while syncing unread messages");
     }
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new RuntimeException("Error syncing unread messages ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
+      throw new MatrixException("Error syncing unread messages ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
                                                                                                                     response.body()));
     }
     List<MatrixUnreadRoom> unreadRooms = new ArrayList<>();
@@ -1379,7 +1379,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/send/m.room.message/" + transactionId;
     String payload = new JSONObject().put("msgtype", "m.text").put("body", text).toString();
 
@@ -1388,7 +1388,7 @@ public class MatrixHttpClient {
       throw new MatrixUnauthorizedException("Access token rejected while sending a message to room " + matrixRoomId);
     }
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new RuntimeException("Error sending a message to room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+      throw new MatrixException("Error sending a message to room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
                                                                                                                         String.valueOf(response.statusCode()),
                                                                                                                         response.body()));
     }

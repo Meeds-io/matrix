@@ -158,6 +158,7 @@ export default {
           window.localStorage.setItem(this.cacheKey, transcript);
         }
       } catch (e) {
+        console.warn('Failed to transcribe the audio message', e);
         this.$root.$emit('alert-message', this.$t('matrix.chat.audio.transcribe.error'), 'error');
       } finally {
         this.transcribing = false;
