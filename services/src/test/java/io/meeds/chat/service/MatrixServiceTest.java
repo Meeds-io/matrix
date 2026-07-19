@@ -57,7 +57,6 @@ import java.util.Map;
 
 import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -355,6 +354,27 @@ class MatrixServiceTest extends MatrixBaseTest {
     // The read was attempted twice and a fresh token was minted for the retry
     verify(matrixHttpClient, times(2)).getRoomMessages(eq(roomId), anyInt(), anyString());
     verify(matrixHttpClient, atLeastOnce()).getAccessToken(anyString());
+  }
+
+  @Test
+  void getRoomMessagesReInterruptsOnInterruptedException() throws Exception {
+    Space space = getSpaceInstance(1);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenThrow(new InterruptedException("interrupted"));
+
+    // The thread must not stay flagged before we assert on the re-interrupt below
+    assertFalse(Thread.currentThread().isInterrupted());
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50);
+    // The failure is swallowed into the fallback (empty list), never propagated
+    assertNotNull(messages);
+    assertTrue(messages.isEmpty());
+    // ...but the interrupt status is preserved so callers up the stack can react to it
+    assertTrue(Thread.interrupted(), "The interrupt status must be restored (and is cleared here for the next test)");
   }
 
   @Test
