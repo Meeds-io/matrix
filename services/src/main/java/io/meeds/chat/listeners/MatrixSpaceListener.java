@@ -305,7 +305,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
         if (e instanceof InterruptedException) {
           Thread.currentThread().interrupt();
         }
-        LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName());
+        LOG.error("Could not delete the room {} linked to the space {}", room.getRoomId(), space.getDisplayName(), e);
       }
     }
   }
