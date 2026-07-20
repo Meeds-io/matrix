@@ -20,10 +20,12 @@ package io.meeds.chat;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MANAGER_ROLE;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ADMIN_USERNAME;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ASYNC_ENABLED;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_JWT_SECRET;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_URL;
 import static io.meeds.chat.service.utils.MatrixConstants.SIMPLE_USER_ROLE;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -55,9 +57,11 @@ import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.social.core.identity.model.Identity;
+import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.identity.provider.SpaceIdentityProvider;
 import org.exoplatform.social.core.jpa.search.ProfileSearchConnector;
 import org.exoplatform.social.core.jpa.storage.RDBMSIdentityStorageImpl;
+import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.social.core.storage.api.IdentityStorage;
@@ -110,6 +114,9 @@ public class MatrixBaseTest extends AbstractSpringTest {
   public IdentityStorage         identityStorage;
 
   @Autowired
+  public IdentityManager         identityManager;
+
+  @Autowired
   public MatrixService           matrixService;
 
   @MockitoBean
@@ -128,6 +135,12 @@ public class MatrixBaseTest extends AbstractSpringTest {
     PropertyManager.setProperty(MATRIX_SERVER_URL, "https://matrix.exo.tn");
     PropertyManager.setProperty(MATRIX_SERVER_NAME, "matrix.exo.tn");
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "root");
+    // run space chat enable/disable side effects synchronously in tests: the
+    // production code spawns them on a detached thread that tearDown() never
+    // waits on, so a leftover thread from one test can race with the next
+    // one's own profile updates (e.g. USER_MATRIX_ID) under certain
+    // execution orders.
+    PropertyManager.setProperty(MATRIX_ASYNC_ENABLED, "false");
   }
 
   public PortalContainer getContainer() {
@@ -144,6 +157,21 @@ public class MatrixBaseTest extends AbstractSpringTest {
   protected void setUp() throws Exception {
     begin();
     PropertyManager.setProperty(MATRIX_ADMIN_USERNAME, "demo");
+    // "demo" is reused suite-wide both as a regular space member (expecting a
+    // matrixId derived from the per-test mock, e.g. "@demo:matrix.meeds.tn")
+    // and, since it's set as MATRIX_ADMIN_USERNAME above, as the account that
+    // matrixService.init() bootstraps using the real MATRIX_SERVER_NAME
+    // (e.g. "@demo:matrix.exo.tn" - see MatrixServiceTest#init). Its profile
+    // is a suite-wide singleton, and saveUserAccount() never overwrites an
+    // already-set matrixId (correct for a real, immutable Matrix account), so
+    // whichever of those two flows runs first for "demo" would otherwise
+    // stick for every later test in the same JVM fork. Reset it before each
+    // test so every test starts from its own expectations.
+    Profile demoProfile = identityManager.getOrCreateUserIdentity("demo").getProfile();
+    if (demoProfile.getProperty(USER_MATRIX_ID) != null) {
+      demoProfile.getProperties().remove(USER_MATRIX_ID);
+      identityManager.updateProfile(demoProfile);
+    }
     when(profileSearchConnector.search(any(), any(), any(), anyLong(), anyLong())).thenReturn(List.of("1", "2"));
     when(profileSearchConnector.count(any(), any(), any())).thenReturn(2);
     if (identityStorage instanceof RDBMSIdentityStorageImpl rdbmsIdentityStorageImpl) {

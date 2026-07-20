@@ -45,6 +45,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+import io.meeds.chat.service.utils.AsyncTaskUtils;
+
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
@@ -342,8 +344,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
           }
         }
       }
-      Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
-      enableThread.start();
+      AsyncTaskUtils.runAsync("Enable members in space Thread", new EnableChatRunnable());
     }
 
   }
