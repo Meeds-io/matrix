@@ -112,18 +112,17 @@ public class MatrixRoomStorage {
   }
 
   public void removeMatrixRoom(String roomId) {
-    List<RoomEntity> roomEntities = matrixRoomDAO.findByRoomId(roomId);
-    matrixRoomDAO.deleteAll(roomEntities);
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
+    matrixRoomDAO.delete(roomEntity);
   }
 
   public Room getById(String roomId, boolean includeDisabled) {
-    return matrixRoomDAO.findByRoomIdStartsWith(roomId)
-                         .stream()
-                         .filter(roomEntity -> roomEntity.getStatus().equals(RoomStatus.ENABLED)
-                             || (includeDisabled && roomEntity.getStatus().equals(RoomStatus.DISABLED)))
-                         .findFirst()
-                         .map(MatrixRoomStorage::toRoomModel)
-                         .orElse(null);
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomIdStartsWith(roomId);
+    if (roomEntity != null && (roomEntity.getStatus().equals(RoomStatus.ENABLED)
+        || (includeDisabled && roomEntity.getStatus().equals(RoomStatus.DISABLED)))) {
+      return toRoomModel(roomEntity);
+    }
+    return null;
   }
 
   /**
@@ -160,12 +159,8 @@ public class MatrixRoomStorage {
    * @return the updated room
    */
   public Room setRoomEnabled(String roomId, RoomStatus status) {
-    List<RoomEntity> roomEntities = matrixRoomDAO.findByRoomId(roomId);
-    roomEntities.forEach(roomEntity -> roomEntity.setStatus(status));
-    return matrixRoomDAO.saveAll(roomEntities)
-                         .stream()
-                         .findFirst()
-                         .map(MatrixRoomStorage::toRoomModel)
-                         .orElse(null);
+    RoomEntity roomEntity = matrixRoomDAO.findByRoomId(roomId);
+    roomEntity.setStatus(status);
+    return toRoomModel(matrixRoomDAO.save(roomEntity));
   }
 }
