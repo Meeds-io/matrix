@@ -28,6 +28,7 @@ import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixSynchronizationService;
+import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.model.*;
 import io.meeds.pwa.model.PwaNotificationMessage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -522,8 +523,7 @@ public class MatrixRest implements ResourceContainer {
           }
         }
       }
-      Thread enableThread = new Thread(new EnableChatRunnable(), "Enable members in space Thread");
-      enableThread.start();
+      AsyncTaskUtils.runAsync("Enable members in space Thread", new EnableChatRunnable());
       roomToEnable.setStatus(RoomStatus.ENABLE_IN_PROGRESS.name());
       return ResponseEntity.ok().build();
     } catch (Exception e) {
@@ -572,8 +572,7 @@ public class MatrixRest implements ResourceContainer {
           }
         }
       }
-      Thread disableThread = new Thread(new EnableChatRunnable(), "Disable members in space Thread");
-      disableThread.start();
+      AsyncTaskUtils.runAsync("Disable members in space Thread", new EnableChatRunnable());
       roomToDisable.setStatus(RoomStatus.DISABLED_IN_PROGRESS.name());
       return ResponseEntity.ok().build();
     } catch (Exception e) {
