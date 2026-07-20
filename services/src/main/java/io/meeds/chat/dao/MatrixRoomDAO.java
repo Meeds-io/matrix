@@ -27,7 +27,7 @@ import java.util.List;
 
 public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
 
-  public RoomEntity findByRoomId(String roomId);
+  public List<RoomEntity> findByRoomId(String roomId);
 
   public RoomEntity findBySpaceId(Long spaceId);
 
@@ -43,7 +43,7 @@ public interface MatrixRoomDAO extends JpaRepository<RoomEntity, Long> {
 
   public List<RoomEntity> findByFirstParticipantOrSecondParticipant(String userOne, String userTwo);
 
-  public RoomEntity findByRoomIdStartsWith(String roomId);
+  public List<RoomEntity> findByRoomIdStartsWith(String roomId);
 
   public List<RoomEntity> findBySpaceIdIsNotNull();
 
