@@ -184,8 +184,16 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
 
     verify(matrixHttpClient, timeout(3000)).createRoom(eq(space.getDisplayName()), anyString(), eq(accessToken));
     Room room = matrixService.getRoomBySpace(space, true);
-    assertNotNull(room);
-    assertEquals(matrixRoomId, room.getRoomId());
+    try {
+      assertNotNull(room);
+      assertEquals(matrixRoomId, room.getRoomId());
+    } finally {
+      // this space isn't created through spaceService, so tearDown() never sees it
+      // and can't clean up the room it created: remove it here instead.
+      if (room != null) {
+        matrixService.deleteRoom(room.getRoomId());
+      }
+    }
   }
 
 }
