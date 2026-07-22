@@ -51,4 +51,10 @@ public class ChatSearchResult {
   /** Origin server timestamp in milliseconds since the epoch. */
   private long timestamp;
 
+  /** Avatar of the conversation (space logo or the DM peer's avatar), when resolvable. */
+  private String avatarUrl;
+
+  /** Whether the conversation is a 1:1 direct message (round avatar) vs a space room. */
+  private boolean directChat;
+
 }

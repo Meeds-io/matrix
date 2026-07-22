@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.service.model.ChatSettingsEntity;
+import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixService;
@@ -297,6 +298,50 @@ class MatrixRestTest {
   @SneakyThrows
   public static String asJsonString(final Object obj) {
     return OBJECT_MAPPER.writeValueAsString(obj);
+  }
+
+  @Test
+  void searchMessagesRequiresQuery() throws Exception {
+    // Missing the required "query" parameter -> 400 Bad Request
+    mockMvc.perform(get(REST_PATH + "/search").with(simpleUser()).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void searchMessagesEnrichesResultsWithConversationAvatar() throws Exception {
+    // One hit in a space room (enriched with an avatar) and one in an unresolvable
+    // room (getById -> null, left without an avatar): exercises both branches of the
+    // avatar-enrichment loop added for the unified-search cards.
+    ChatSearchResult spaceHit = new ChatSearchResult();
+    spaceHit.setConversationId("!searchRoom1");
+    spaceHit.setText("hello from the space room");
+    ChatSearchResult orphanHit = new ChatSearchResult();
+    orphanHit.setConversationId("!orphanRoom");
+    orphanHit.setText("hello from a gone room");
+
+    when(matrixService.searchChatMessages(eq(SIMPLE_USER), eq("hello"), isNull(), anyInt())).thenReturn(List.of(spaceHit,
+                                                                                                               orphanHit));
+
+    Room spaceRoom = new Room();
+    spaceRoom.setRoomId("!searchRoom1:matrix.meeds.tn");
+    spaceRoom.setSpaceId(1L);
+    spaceRoom.setStatus(RoomStatus.ENABLED.name());
+    when(matrixService.getById("!searchRoom1", true)).thenReturn(spaceRoom);
+    when(matrixService.getRoomBySpaceId(1L)).thenReturn(spaceRoom);
+    when(matrixService.getById("!orphanRoom", true)).thenReturn(null);
+    Space space = new Space();
+    space.setDisplayName("Space of Heroes 1");
+    space.setAvatarUrl("/Url/Of/Avatar.png");
+    space.setMembers(new String[] { "user1", "user2" });
+    when(spaceService.getSpaceById("1")).thenReturn(space);
+
+    ResultActions response = mockMvc.perform(get(REST_PATH + "/search").with(simpleUser())
+                                                                       .contentType(MediaType.APPLICATION_JSON)
+                                                                       .param("query", "hello"));
+    response.andExpect(status().isOk());
+    List<?> results = fromJsonString(response.andReturn().getResponse().getContentAsString(), List.class);
+    assertNotNull(results);
+    assertEquals(2, results.size());
   }
 
   @Test
