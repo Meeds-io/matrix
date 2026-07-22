@@ -21,6 +21,7 @@ package io.meeds.chat.service.utils;
 import io.meeds.chat.model.Events;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUnreadRoom;
 import io.meeds.chat.model.MatrixUserPermission;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.organization.User;
@@ -708,5 +709,146 @@ class MatrixHttpClientTest {
 
     result = matrixHttpClient.kickUserFromRoom("roomIdentifier", "@user:matrix.meeds.tn", "Welcome to the room", accessToken);
     assertFalse(result);
+  }
+
+  @Test
+  void getRoomMessages() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "chunk": [
+            {
+              "type": "m.room.message",
+              "event_id": "$evt1:matrix.exo.com",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 1600000000000,
+              "content": { "body": "Hello world", "msgtype": "m.text" }
+            },
+            {
+              "type": "m.room.member",
+              "content": { "membership": "join" }
+            },
+            {
+              "type": "m.room.message",
+              "content": { "msgtype": "m.text" }
+            },
+            {
+              "type": "m.room.message",
+              "content": { "body": "Minimal" }
+            }
+          ]
+        }""");
+    List<MatrixMessage> messages = matrixHttpClient.getRoomMessages("!room1", 50, accessToken);
+    // Only the two textual m.room.message events with a body are kept
+    assertEquals(2, messages.size());
+    assertEquals("Hello world", messages.get(0).getMessageContent());
+    assertEquals("@demo:matrix.exo.com", messages.get(0).getSender());
+    assertEquals(1600000000000L, messages.get(0).getTimeStamp());
+    assertEquals("Minimal", messages.get(1).getMessageContent());
+
+    // Empty / missing chunk -> empty list (no NPE)
+    when(responseOK.body()).thenReturn("{}");
+    assertTrue(matrixHttpClient.getRoomMessages("!room1", 50, accessToken).isEmpty());
+  }
+
+  @Test
+  void getRoomMessagesUnauthorized() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(unauthorized);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.getRoomMessages("!room1", 50, accessToken));
+  }
+
+  @Test
+  void getRoomMessagesForbiddenReturnsEmpty() throws Exception {
+    HttpResponse forbidden = mock(HttpResponse.class);
+    when(forbidden.statusCode()).thenReturn(403);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(forbidden);
+    assertTrue(matrixHttpClient.getRoomMessages("!room1", 50, accessToken).isEmpty());
+  }
+
+  @Test
+  void getRoomMessagesServerError() {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(MatrixException.class, () -> matrixHttpClient.getRoomMessages("!room1", 50, accessToken));
+  }
+
+  @Test
+  void getUnreadRooms() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "rooms": {
+            "join": {
+              "!room1:matrix.exo.com": {
+                "unread_notifications": { "notification_count": 3 },
+                "timeline": {
+                  "events": [
+                    {
+                      "type": "m.room.message",
+                      "sender": "@a:matrix.exo.com",
+                      "origin_server_ts": 1600000000000,
+                      "content": { "body": "Unread hello", "msgtype": "m.text" }
+                    }
+                  ]
+                }
+              },
+              "!room2:matrix.exo.com": {
+                "unread_notifications": { "notification_count": 0 },
+                "timeline": { "events": [] }
+              },
+              "!room4:matrix.exo.com": {
+                "unread_notifications": { "notification_count": 2 }
+              }
+            }
+          }
+        }""");
+    List<MatrixUnreadRoom> unreadRooms = matrixHttpClient.getUnreadRooms(accessToken, 20);
+    // room2 has 0 unread and is skipped; room1 and room4 remain
+    assertEquals(2, unreadRooms.size());
+    MatrixUnreadRoom room1 = unreadRooms.stream().filter(r -> "!room1".equals(r.getRoomId())).findFirst().orElseThrow();
+    assertEquals(3, room1.getUnreadCount());
+    assertEquals(1, room1.getMessages().size());
+    assertEquals("Unread hello", room1.getMessages().get(0).getMessageContent());
+    MatrixUnreadRoom room4 = unreadRooms.stream().filter(r -> "!room4".equals(r.getRoomId())).findFirst().orElseThrow();
+    assertEquals(2, room4.getUnreadCount());
+    assertTrue(room4.getMessages().isEmpty());
+
+    // No joined rooms -> empty list
+    when(responseOK.body()).thenReturn("{\"rooms\":{}}");
+    assertTrue(matrixHttpClient.getUnreadRooms(accessToken, 20).isEmpty());
+  }
+
+  @Test
+  void getUnreadRoomsUnauthorized() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(unauthorized);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.getUnreadRooms(accessToken, 20));
+  }
+
+  @Test
+  void getUnreadRoomsServerError() {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(MatrixException.class, () -> matrixHttpClient.getUnreadRooms(accessToken, 20));
+  }
+
+  @Test
+  void sendMessage() throws Exception {
+    when(responseOK.body()).thenReturn("{\"event_id\":\"$sentEvent1:matrix.exo.com\"}");
+    String eventId = matrixHttpClient.sendMessage("!room1", "Hello there", "txn-1", accessToken);
+    assertEquals("$sentEvent1:matrix.exo.com", eventId);
+  }
+
+  @Test
+  void sendMessageUnauthorized() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(unauthorized);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.sendMessage("!room1", "Hi", "txn-2", accessToken));
+  }
+
+  @Test
+  void sendMessageServerError() {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(MatrixException.class, () -> matrixHttpClient.sendMessage("!room1", "Hi", "txn-3", accessToken));
   }
 }
