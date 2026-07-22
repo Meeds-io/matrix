@@ -42,6 +42,15 @@ public class MatrixConstants {
 
   public static final String                   MATRIX_ASYNC_ENABLED                        = "meeds.matrix.async.enabled";
 
+  // Startup connection retry (Matrix/Synapse may not be up yet when eXo boots)
+  public static final String                   MATRIX_CONNECTION_RETRY_ATTEMPTS            = "meeds.matrix.connection.retry.attempts";
+
+  public static final String                   MATRIX_CONNECTION_RETRY_DELAY               = "meeds.matrix.connection.retry.delay";
+
+  public static final int                      DEFAULT_CONNECTION_RETRY_ATTEMPTS           = 20;
+
+  public static final int                      DEFAULT_CONNECTION_RETRY_DELAY              = 15;                                       // seconds
+
   public static final String                   MATRIX_USERNAME_PREFIX                      = "meeds.matrix.username.prefix";
 
   public static final String                   MATRIX_RESTRICTED_USERS_GROUP               =
