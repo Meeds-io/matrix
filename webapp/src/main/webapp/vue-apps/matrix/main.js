@@ -21,6 +21,7 @@ import RoomLastMessage from './components/room/RoomLastMessage.vue';
 import SpaceSettingsAdministration from './components/space-settings/SpaceSettingsAdministration.vue';
 import RoomActionMenu from './components/room/RoomActionMenu.vue';
 import RoomActionMenuDrawer from './components/room/RoomActionMenuDrawer.vue';
+import RoomAttachmentsDrawer from './components/room/RoomAttachmentsDrawer.vue';
 import RoomActionListItems from './components/room/RoomActionListItems.vue';
 import MessageReceiptList from './components/message/receipt/MessageReceiptList.vue';
 import MessageReceipt from './components/message/receipt/MessageReceipt.vue';
@@ -36,6 +37,7 @@ import AskAIChatListAction from './components/room/AskAIChatListAction.vue';
 import AskAIChatMessageAction from './components/message/action/AskAIChatMessageAction.vue';
 import MatrixChatBody from './components/MatrixChatBody.vue';
 import FilterRoomListInput from './components/room/FilterRoomListInput.vue';
+import RoomFilterChips from './components/room/RoomFilterChips.vue';
 import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
 import FileMessage from './components/message/FileMessage.vue';
 
@@ -71,6 +73,7 @@ const components = {
   'matrix-chat-space-settings': SpaceSettingsAdministration,
   'matrix-room-action-menu': RoomActionMenu,
   'matrix-room-action-menu-drawer': RoomActionMenuDrawer,
+  'matrix-room-attachments-drawer': RoomAttachmentsDrawer,
   'matrix-room-action-list-items': RoomActionListItems,
   'matrix-message-receipt-list': MessageReceiptList,
   'matrix-message-receipt': MessageReceipt,
@@ -86,6 +89,7 @@ const components = {
   'matrix-ask-ai-message-action': AskAIChatMessageAction,
   'matrix-chat-body': MatrixChatBody,
   'matrix-filter-room-list-input': FilterRoomListInput,
+  'matrix-room-filter-chips': RoomFilterChips,
   'matrix-chat-header-user-avatar': ChatHeaderUserAvatar,
   'matrix-file-message': FileMessage,
 };
