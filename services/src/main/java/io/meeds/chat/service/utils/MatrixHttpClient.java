@@ -33,6 +33,7 @@ import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Component;
@@ -1358,6 +1359,74 @@ public class MatrixHttpClient {
       unreadRooms.add(new MatrixUnreadRoom(roomLocalId, (int) unreadCount, messages));
     }
     return unreadRooms;
+  }
+
+  /**
+   * Runs a Matrix full-text search of message bodies <strong>as the user</strong>
+   * owning the given access token, optionally scoped to a single room. Synapse
+   * enforces the user's visibility, so only rooms the user can see are searched.
+   * Uses the {@code /_matrix/client/v3/search} endpoint (room_events category),
+   * ordered by recency.
+   *
+   * @param query the free-text search term
+   * @param roomIdLocalPart the room local part to scope the search to, or
+   *          {@code null}/blank to search across all of the user's rooms
+   * @param limit the maximum number of hits to return
+   * @param accessToken the requesting user's Matrix access token
+   * @return the matching messages, most recent first, each carrying its room id
+   */
+  public List<MatrixMessage> searchMessages(String query,
+                                            String roomIdLocalPart,
+                                            int limit,
+                                            String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/search";
+
+    JSONObject filter = new JSONObject().put("limit", limit);
+    if (StringUtils.isNotBlank(roomIdLocalPart)) {
+      String fullRoomId = roomIdLocalPart + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      filter.put("rooms", new JSONArray().put(fullRoomId));
+    }
+    JSONObject roomEvents = new JSONObject().put("search_term", query).put("order_by", "recent").put("filter", filter);
+    String payload = new JSONObject().put("search_categories", new JSONObject().put("room_events", roomEvents)).toString();
+
+    HttpResponse<String> response = sendHttpPostRequest(url, accessToken, payload);
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while searching messages");
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new RuntimeException("Error searching messages ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
+                                                                                                              response.body()));
+    }
+    List<MatrixMessage> messages = new ArrayList<>();
+    JsonValue searchCategories = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("search_categories");
+    if (searchCategories == null || searchCategories.getElement("room_events") == null) {
+      return messages;
+    }
+    JsonValue results = searchCategories.getElement("room_events").getElement("results");
+    if (results == null || !results.isArray()) {
+      return messages;
+    }
+    String serverSuffix = ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    Iterator<JsonValue> hits = results.getElements();
+    while (hits.hasNext()) {
+      JsonValue event = hits.next().getElement("result");
+      if (event == null) {
+        continue;
+      }
+      String roomLocalId = null;
+      if (event.getElement("room_id") != null) {
+        String fullRoomId = event.getElement("room_id").getStringValue();
+        roomLocalId = fullRoomId.contains(serverSuffix) ? fullRoomId.substring(0, fullRoomId.indexOf(serverSuffix)) : fullRoomId;
+      }
+      MatrixMessage message = parseMessageEvent(event, roomLocalId);
+      if (message != null) {
+        messages.add(message);
+      }
+    }
+    return messages;
   }
 
   /**

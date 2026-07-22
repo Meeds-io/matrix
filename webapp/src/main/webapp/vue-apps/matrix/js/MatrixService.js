@@ -572,6 +572,24 @@ export function getSpaceRoom(spaceId) {
   });
 }
 
+// Full-text search of a conversation's messages via the shared server endpoint
+// (Matrix /search, run as the user). Returns the matching messages of the given
+// room, most recent first, each with its eventId — used by "Find in conversation".
+export function searchMessages(roomId, query, limit = 100) {
+  const params = new URLSearchParams({query, limit});
+  if (roomId) {
+    params.append('conversationId', roomId);
+  }
+  return fetch(`/matrix/rest/matrix/search?${params.toString()}`, {
+    method: 'GET',
+  }).then(resp => {
+    if (!resp?.ok) {
+      throw new Error('Search chat messages : Response code indicates a server error', resp);
+    }
+    return resp.json();
+  });
+}
+
 export function getDMRoom(firstParticipant, secondParticipant, serverName, firstUserMatrixId, secondUserMatrixId) {
   return fetch(`/matrix/rest/matrix/dmRoom?firstParticipant=${firstParticipant}&secondParticipant=${secondParticipant}`, {
     method: 'GET',

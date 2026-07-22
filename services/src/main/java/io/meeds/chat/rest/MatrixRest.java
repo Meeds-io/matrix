@@ -24,6 +24,7 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
+import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
@@ -360,6 +361,30 @@ public class MatrixRest implements ResourceContainer {
         }
       }
     }
+  }
+
+  @GetMapping("search")
+  @Secured("users")
+  @Operation(summary = "Search chat messages", method = "GET",
+             description = "Full-text search the current user's chat messages, optionally scoped to one conversation")
+  @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Request fulfilled"),
+      @ApiResponse(responseCode = "400", description = "Invalid query parameter"),
+      @ApiResponse(responseCode = "500", description = "Internal server error") })
+  public ResponseEntity<List<ChatSearchResult>> searchMessages(HttpServletRequest request,
+                                                               @Parameter(description = "Free-text search term")
+                                                               @RequestParam(name = "query")
+                                                               String query,
+                                                               @Parameter(description = "Optional room id to scope the search")
+                                                               @RequestParam(name = "conversationId", required = false)
+                                                               String conversationId,
+                                                               @Parameter(description = "Maximum number of hits")
+                                                               @RequestParam(name = "limit", required = false, defaultValue = "20")
+                                                               int limit) {
+    if (StringUtils.isBlank(query)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "query parameter is required");
+    }
+    String userName = request.getRemoteUser();
+    return ResponseEntity.ok().body(matrixService.searchChatMessages(userName, query, conversationId, limit));
   }
 
   @GetMapping("byRoomId")

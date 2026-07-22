@@ -23,6 +23,7 @@ import io.jsonwebtoken.security.Keys;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.ChatConversation;
 import io.meeds.chat.model.ChatMessage;
+import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixUnreadRoom;
@@ -1453,5 +1454,50 @@ public class MatrixService {
     return callAsUser(userName,
                       null,
                       accessToken -> matrixHttpClient.sendMessage(normalizedRoomId, text, UUID.randomUUID().toString(), accessToken));
+  }
+
+  /**
+   * Runs a full-text search of message bodies <strong>as the given user</strong>,
+   * either across all their conversations (when {@code conversationId} is blank) or
+   * scoped to a single conversation. Synapse enforces the user's visibility, so only
+   * messages the user is allowed to see are returned; each hit is resolved to a human
+   * readable conversation title. Backs the {@code search_chat_messages} MCP tool and
+   * the chat UI search.
+   *
+   * @param userName the Meeds username acting
+   * @param query the free-text search term
+   * @param conversationId the Matrix room id to scope the search to, or
+   *          {@code null}/blank to search across all the user's conversations
+   * @param limit the maximum number of hits to return (clamped to [1, 100])
+   * @return the matching messages, most recent first, never {@code null}
+   */
+  public List<ChatSearchResult> searchChatMessages(String userName, String query, String conversationId, int limit) {
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(query)) {
+      return Collections.emptyList();
+    }
+    String scopedRoomId = StringUtils.isNotBlank(conversationId) ? extractRoomId(conversationId) : null;
+    Map<String, String> titlesByRoomId = new HashMap<>();
+    for (ChatConversation conversation : getUserConversations(userName)) {
+      titlesByRoomId.put(extractRoomId(conversation.getRoomId()), conversation.getTitle());
+    }
+    if (scopedRoomId != null && !titlesByRoomId.containsKey(scopedRoomId)) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to search it", userName, scopedRoomId);
+      return Collections.emptyList();
+    }
+    int effectiveLimit = Math.clamp(limit, 1, 100);
+    return callAsUser(userName, Collections.<ChatSearchResult> emptyList(), accessToken -> {
+      List<MatrixMessage> matches = matrixHttpClient.searchMessages(query, scopedRoomId, effectiveLimit, accessToken);
+      List<ChatSearchResult> results = new ArrayList<>();
+      for (MatrixMessage match : matches) {
+        String roomLocalId = extractRoomId(match.getRoomId());
+        results.add(new ChatSearchResult(roomLocalId,
+                                         match.getEventId(),
+                                         titlesByRoomId.get(roomLocalId),
+                                         extractUserId(match.getSender()),
+                                         match.getMessageContent(),
+                                         match.getTimeStamp()));
+      }
+      return results;
+    });
   }
 }
