@@ -38,6 +38,7 @@ import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.model.TopbarConfiguration;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
@@ -48,6 +49,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,6 +57,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_ATTEMPTS;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_DELAY;
 import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.*;
@@ -78,6 +82,43 @@ class MatrixServiceTest extends MatrixBaseTest {
     } catch (Exception e) {
       fail();
     }
+  }
+
+  @Test
+  void initRetriesUntilMatrixServiceIsAvailable() throws Exception {
+    PropertyManager.setProperty(MATRIX_CONNECTION_RETRY_ATTEMPTS, "5");
+    PropertyManager.setProperty(MATRIX_CONNECTION_RETRY_DELAY, "0");
+    ReflectionTestUtils.setField(matrixService, "matrixAccessToken", null);
+    clearInvocations(matrixHttpClient);
+    // Matrix is unreachable for the first two attempts, then becomes operational
+    when(matrixHttpClient.getAccessToken(anyString())).thenThrow(new IOException("Connection refused"))
+                                                      .thenThrow(new IOException("Connection refused"))
+                                                      .thenReturn(accessToken);
+
+    matrixService.init();
+
+    assertTrue(matrixService.isServiceAvailable());
+    verify(matrixHttpClient, times(3)).getAccessToken(anyString());
+  }
+
+  @Test
+  void initFailsFastOnConfigurationError() throws Exception {
+    PropertyManager.setProperty(MATRIX_CONNECTION_RETRY_ATTEMPTS, "5");
+    PropertyManager.setProperty(MATRIX_CONNECTION_RETRY_DELAY, "0");
+    ReflectionTestUtils.setField(matrixService, "matrixAccessToken", null);
+    clearInvocations(matrixHttpClient);
+    // a non-transient configuration error must not be retried
+    when(matrixHttpClient.getAccessToken(anyString())).thenThrow(new IllegalArgumentException("The URL of the Matrix server is required"));
+
+    matrixService.init();
+
+    assertFalse(matrixService.isServiceAvailable());
+    verify(matrixHttpClient, times(1)).getAccessToken(anyString());
+
+    doReturn(accessToken).when(matrixHttpClient).getAccessToken(anyString());
+    ReflectionTestUtils.setField(matrixService, "matrixAccessToken", null);
+    matrixService.init();
+    assertTrue(matrixService.isServiceAvailable());
   }
 
   @Test
