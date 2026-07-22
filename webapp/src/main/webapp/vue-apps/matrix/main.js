@@ -37,6 +37,7 @@ import AskAIChatListAction from './components/room/AskAIChatListAction.vue';
 import AskAIChatMessageAction from './components/message/action/AskAIChatMessageAction.vue';
 import MatrixChatBody from './components/MatrixChatBody.vue';
 import FilterRoomListInput from './components/room/FilterRoomListInput.vue';
+import RoomFilterChips from './components/room/RoomFilterChips.vue';
 import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
 import FileMessage from './components/message/FileMessage.vue';
 
@@ -88,6 +89,7 @@ const components = {
   'matrix-ask-ai-message-action': AskAIChatMessageAction,
   'matrix-chat-body': MatrixChatBody,
   'matrix-filter-room-list-input': FilterRoomListInput,
+  'matrix-room-filter-chips': RoomFilterChips,
   'matrix-chat-header-user-avatar': ChatHeaderUserAvatar,
   'matrix-file-message': FileMessage,
 };
