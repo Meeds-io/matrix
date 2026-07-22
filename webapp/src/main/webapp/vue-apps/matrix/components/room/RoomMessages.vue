@@ -23,6 +23,50 @@
     v-touch="{down: () => loadMoreMessages()}"
     @scroll="onMessagesContainerScroll">
     <div
+      v-if="searchActive || findBarOpen"
+      class="chat-find-bar d-flex align-center px-2 py-1 elevation-2 border-radius"
+      style="position:sticky;top:8px;z-index:1000;width:fit-content;max-width:calc(100% - 32px);margin-inline-start:auto;margin-inline-end:16px;background-color:var(--allPagesBaseBackground, #fff);">
+      <template v-if="findBarOpen">
+        <v-icon size="16" class="icon-default-color me-2">fa-filter</v-icon>
+        <input
+          id="chatFindBarInput"
+          ref="findBarInput"
+          v-model="findBarText"
+          type="text"
+          :placeholder="$t('matrix.chat.search.placeholder')"
+          :aria-label="$t('matrix.chat.search.placeholder')"
+          class="chat-find-input me-2"
+          @input="onFindBarInput"
+          @keydown.enter.prevent="searchNav('next')"
+          @keydown.esc.prevent="closeFindBar">
+      </template>
+      <span class="text-caption text-sub-title me-1" style="white-space:nowrap;">{{ matchLabel }}</span>
+      <v-btn
+        icon
+        x-small
+        :disabled="!matchEventIds.length"
+        :title="$t('matrix.chat.search.previous')"
+        @click="searchNav('previous')">
+        <v-icon size="16" class="icon-default-color">fa-chevron-up</v-icon>
+      </v-btn>
+      <v-btn
+        icon
+        x-small
+        :disabled="!matchEventIds.length"
+        :title="$t('matrix.chat.search.next')"
+        @click="searchNav('next')">
+        <v-icon size="16" class="icon-default-color">fa-chevron-down</v-icon>
+      </v-btn>
+      <v-btn
+        v-if="findBarOpen"
+        icon
+        x-small
+        :title="$t('matrix.chat.cancel')"
+        @click="closeFindBar">
+        <v-icon size="16" class="icon-default-color">fa-times</v-icon>
+      </v-btn>
+    </div>
+    <div
       v-if="loadingNewMessages"
       class="application-background-color application-border application-border-radius flex d-flex flex-column">
       <v-progress-circular
@@ -116,7 +160,16 @@ export default {
       isUserScrolling: false,
       userScrollTimeout: null,
       lastMarkedReadEventId: null,
-      scrollBottomThreshold: 60
+      scrollBottomThreshold: 60,
+      matchEventIds: [],
+      currentMatch: -1,
+      currentTerm: '',
+      highlightEls: [],
+      searchActive: false,
+      searchToken: 0,
+      findBarOpen: false,
+      findBarText: '',
+      findBarDebounce: null
     };
   },
   props: {
@@ -139,6 +192,9 @@ export default {
     document.addEventListener('matrix-message-reaction-added', this.reactionAdded);
     this.$root.$on('room-discussion-opened', this.markRoomAsRead);
     this.$root.$on('move-to-message',  this.moveToMessage);
+    this.$root.$on('conversation-search', this.runSearch);
+    this.$root.$on('conversation-search-close', this.clearSearch);
+    this.$root.$on('open-conversation-find', this.openFindBar);
   },
   beforeDestroy() {
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
@@ -150,10 +206,20 @@ export default {
     document.removeEventListener('matrix-message-reaction-added', this.reactionAdded);
     this.$root.$off('room-discussion-opened', this.markRoomAsRead);
     this.$root.$off('move-to-message',  this.moveToMessage);
+    this.$root.$off('conversation-search', this.runSearch);
+    this.$root.$off('conversation-search-close', this.clearSearch);
+    this.$root.$off('open-conversation-find', this.openFindBar);
   },
   computed: {
     fullPageMode() {
       return this.$root?.fullPageMode;
+    },
+    matchLabel() {
+      if (!this.searchActive) {
+        return '';
+      }
+      return this.matchEventIds.length ? `${this.currentMatch + 1}/${this.matchEventIds.length}`
+                                       : this.$t('matrix.chat.search.noResults');
     },
     typingUsers() {
       return this.typingCache?.[this.room?.id]?.typingUsers || [];
@@ -581,6 +647,130 @@ export default {
     },
     getMessageContentElement(eventId) {
       return document.getElementById(`message-content-${eventId}`);
+    },
+    async runSearch(term) {
+      const query = (term || '').trim();
+      if (!query) {
+        this.clearSearch();
+        return;
+      }
+      this.searchActive = true;
+      this.currentTerm = query.toLowerCase();
+      const token = ++this.searchToken;
+      let results = [];
+      try {
+        // Server-side full-text search over the whole conversation (not just loaded messages).
+        results = await this.$matrixService.searchMessages(this.room?.id, query, 100) || [];
+      } catch (error) {
+        console.error('Chat message search failed', error);
+        results = [];
+      }
+      if (token !== this.searchToken) {
+        return; // a newer search superseded this one
+      }
+      // The server returns matches most-recent-first; flip to chronological for up/down navigation.
+      this.matchEventIds = results.map(result => result.eventId).filter(Boolean).reverse();
+      this.currentMatch = this.matchEventIds.length ? 0 : -1;
+      this.$nextTick(() => {
+        this.highlightAllMatches();
+        this.scrollToMatch();
+      });
+    },
+    searchNav(direction) {
+      if (!this.matchEventIds.length) {
+        return;
+      }
+      const step = direction === 'previous' ? -1 : 1;
+      this.currentMatch = (this.currentMatch + step + this.matchEventIds.length) % this.matchEventIds.length;
+      this.scrollToMatch();
+    },
+    clearSearch() {
+      this.clearHighlight();
+      this.matchEventIds = [];
+      this.currentMatch = -1;
+      this.currentTerm = '';
+      this.searchActive = false;
+    },
+    openFindBar() {
+      this.findBarOpen = true;
+      this.$nextTick(() => this.$refs.findBarInput?.focus?.());
+    },
+    onFindBarInput() {
+      clearTimeout(this.findBarDebounce);
+      this.findBarDebounce = setTimeout(() => this.runSearch(this.findBarText), 250);
+    },
+    closeFindBar() {
+      this.findBarOpen = false;
+      this.findBarText = '';
+      this.clearSearch();
+    },
+    async scrollToMatch() {
+      const eventId = this.matchEventIds[this.currentMatch];
+      if (!eventId) {
+        return;
+      }
+      await this.moveToMessage(eventId);
+      // moveToMessage may have paged in older messages: highlight any newly-loaded matches too.
+      this.highlightAllMatches();
+    },
+    clearHighlight() {
+      (this.highlightEls || []).forEach(mark => {
+        const parent = mark.parentNode;
+        if (parent) {
+          parent.replaceChild(document.createTextNode(mark.textContent), mark);
+          parent.normalize?.();
+        }
+      });
+      this.highlightEls = [];
+    },
+    highlightAllMatches() {
+      this.clearHighlight();
+      if (!this.currentTerm) {
+        return;
+      }
+      this.matchEventIds.forEach(eventId => {
+        const container = this.getMessageContentElement(eventId);
+        if (container) {
+          this.highlightOccurrences(container, this.currentTerm);
+        }
+      });
+    },
+    highlightOccurrences(container, term) {
+      const nodes = [];
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+      let node = walker.nextNode();
+      while (node) {
+        nodes.push(node);
+        node = walker.nextNode();
+      }
+      nodes.forEach(textNode => {
+        const text = textNode.nodeValue;
+        const lower = text.toLowerCase();
+        if (!lower.includes(term)) {
+          return;
+        }
+        const fragment = document.createDocumentFragment();
+        let from = 0;
+        let index = lower.indexOf(term, from);
+        while (index >= 0) {
+          if (index > from) {
+            fragment.appendChild(document.createTextNode(text.slice(from, index)));
+          }
+          const mark = document.createElement('span');
+          mark.style.backgroundColor = '#ffeb3b';
+          mark.style.color = '#000';
+          mark.style.borderRadius = '2px';
+          mark.textContent = text.slice(index, index + term.length);
+          fragment.appendChild(mark);
+          this.highlightEls.push(mark);
+          from = index + term.length;
+          index = lower.indexOf(term, from);
+        }
+        if (from < text.length) {
+          fragment.appendChild(document.createTextNode(text.slice(from)));
+        }
+        textNode.parentNode.replaceChild(fragment, textNode);
+      });
     },
     async scrollToUnseenSectionSeparator() {
       const separatorFound = document.getElementById('unseenSeparator');

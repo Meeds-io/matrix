@@ -851,4 +851,57 @@ class MatrixHttpClientTest {
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
     assertThrows(MatrixException.class, () -> matrixHttpClient.sendMessage("!room1", "Hi", "txn-3", accessToken));
   }
+
+  @Test
+  void searchMessages() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$hit1:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "found it here", "msgtype": "m.text" }
+                  }
+                },
+                {
+                  "rank": 0.42
+                }
+              ]
+            }
+          }
+        }""");
+    // Unscoped search across all the user's rooms
+    List<MatrixMessage> results = matrixHttpClient.searchMessages("found", null, 20, accessToken);
+    assertEquals(1, results.size());
+    assertEquals("!room1", results.get(0).getRoomId());
+    assertEquals("found it here", results.get(0).getMessageContent());
+
+    // Scoped search to a single room exercises the room-filter branch
+    List<MatrixMessage> scoped = matrixHttpClient.searchMessages("found", "!room1", 20, accessToken);
+    assertEquals(1, scoped.size());
+
+    // No results / missing categories -> empty list (no NPE)
+    when(responseOK.body()).thenReturn("{\"search_categories\":{}}");
+    assertTrue(matrixHttpClient.searchMessages("found", null, 20, accessToken).isEmpty());
+  }
+
+  @Test
+  void searchMessagesUnauthorized() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(unauthorized);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.searchMessages("q", null, 20, accessToken));
+  }
+
+  @Test
+  void searchMessagesServerError() {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(RuntimeException.class, () -> matrixHttpClient.searchMessages("q", null, 20, accessToken));
+  }
 }
