@@ -104,7 +104,9 @@
           fa-envelope-open-text
         </v-icon>
       </v-btn>
-      <div 
+      <matrix-ask-ai-list-action
+        v-if="aiConciergeEnabled && !(selectedRoom && fullPageMode)" />
+      <div
         v-if="selectedRoom && fullPageMode"
         class="text-truncate">
         <matrix-room-avatar :room="selectedRoom" />
@@ -178,6 +180,9 @@ export default {
     },
     hasUnread() {
       return (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
+    },
+    aiConciergeEnabled() {
+      return eXo.env.portal.aiConciergeEnabled;
     }
   },
   watch: {

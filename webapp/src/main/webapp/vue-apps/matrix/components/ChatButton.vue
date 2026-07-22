@@ -49,6 +49,7 @@
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-quick-create-discussion-drawer />
     <matrix-room-action-menu-drawer />
+    <matrix-room-attachments-drawer />
     <matrix-message-read-receipt-list-drawer />
     <exo-confirm-dialog
       ref="deleteConfirmDialog"

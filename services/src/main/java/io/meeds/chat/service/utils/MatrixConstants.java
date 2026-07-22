@@ -34,6 +34,9 @@ public class MatrixConstants {
 
   public static final String                   MATRIX_SERVER_URL                           = "meeds.matrix.server.url";
 
+  // Matrix client-server API paths
+  public static final String                   ROOMS_API_PATH                              = "/_matrix/client/v3/rooms/";
+
   public static final String                   MATRIX_ADMIN_USERNAME                       = "meeds.matrix.user.name";
 
   public static final String                   MATRIX_ADMIN_DISPLAY_NAME                   = "meeds.matrix.user.display.name";

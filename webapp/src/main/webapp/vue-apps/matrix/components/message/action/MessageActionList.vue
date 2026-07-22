@@ -44,7 +44,7 @@
           </v-icon>
         </v-btn>
         <v-menu
-          v-if="isMyMessage"
+          v-if="isMyMessage || aiConciergeEnabled"
           v-model="showMoreActions"
           content-class="l-auto r-0 border-radius"
           :attach="`#message${message.origin_server_ts}`"
@@ -78,8 +78,12 @@
             </v-btn>
           </template>
           <v-list class="py-1">
+            <matrix-ask-ai-message-action
+              v-if="aiConciergeEnabled"
+              :message="message"
+              @close="close" />
             <v-list-item
-              v-if="isText"
+              v-if="isMyMessage && isText"
               class="chat-action-menu-item"
               :title="$t('matrix.chat.label.editMessage')"
               :aria-label="$t('matrix.chat.label.editMessage')"
@@ -92,6 +96,7 @@
               {{ $t('matrix.chat.label.editMessage') }}
             </v-list-item>
             <v-list-item
+              v-if="isMyMessage"
               class="chat-action-menu-item"
               :title="$t('matrix.chat.label.deleteMessage')"
               :aria-label="$t('matrix.chat.label.deleteMessage')"
@@ -134,6 +139,9 @@ export default {
   computed: {
     isText() {
       return this.message.content.msgtype === 'm.text';
+    },
+    aiConciergeEnabled() {
+      return eXo.env.portal.aiConciergeEnabled;
     },
   },
   watch: {
