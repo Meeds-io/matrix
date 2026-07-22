@@ -25,20 +25,30 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 public class HTTPHelper {
+
+  // Bound the TCP connect phase so an unreachable Matrix host fails fast (and can
+  // be retried) instead of hanging the caller until the OS-level socket timeout.
+  private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+
+  private static HttpClient newHttpClient() {
+    return HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+  }
+
   protected static HttpResponse<String> sendHttpGetRequest(String url, String token) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
+    HttpClient client = newHttpClient();
     HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header(AUTHORIZATION, BEARER + token).GET().build();
     return client.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   protected static HttpResponse<String> sendHttpPostRequest(String url, String token, String contentAsJson) throws IOException,
                                                                                                             InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
+    HttpClient client = newHttpClient();
     HttpRequest request;
     if (StringUtils.isNotBlank(token)) {
       request = HttpRequest.newBuilder()
@@ -56,7 +66,7 @@ public class HTTPHelper {
                                                             String token,
                                                             String mimeType,
                                                             byte[] fileContent) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
+    HttpClient client = newHttpClient();
     HttpRequest request;
     request = HttpRequest.newBuilder()
                          .uri(URI.create(url))
@@ -69,7 +79,7 @@ public class HTTPHelper {
 
   protected static HttpResponse<String> sendHttpPutRequest(String url, String token, String contentAsJson) throws IOException,
                                                                                                            InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
+    HttpClient client = newHttpClient();
     HttpRequest request = HttpRequest.newBuilder()
                                      .uri(URI.create(url))
                                      .header(AUTHORIZATION, BEARER + token)
@@ -81,7 +91,7 @@ public class HTTPHelper {
   protected static HttpResponse<String> sendHttpDeleteRequest(String url,
                                                               String token,
                                                               String contentAsJson) throws IOException, InterruptedException {
-    HttpClient client = HttpClient.newHttpClient();
+    HttpClient client = newHttpClient();
     HttpRequest request = HttpRequest.newBuilder()
                                      .uri(URI.create(url))
                                      .header(AUTHORIZATION, BEARER + token)
