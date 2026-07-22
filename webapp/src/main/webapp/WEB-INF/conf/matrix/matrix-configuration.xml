@@ -324,4 +324,51 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
+  <external-component-plugins>
+    <target-component>org.exoplatform.social.core.search.SearchService</target-component>
+    <component-plugin>
+      <name>ChatSearchConnector</name>
+      <set-method>addConnector</set-method>
+      <type>org.exoplatform.social.core.search.SearchConnectorPlugin</type>
+      <description>Chat messages search connector for the unified search</description>
+      <init-params>
+        <object-param>
+          <name>ChatSearchConnector</name>
+          <description>Search connector for chat messages (Matrix /search, run as the user)</description>
+          <object type="org.exoplatform.social.core.search.SearchConnector">
+            <field name="name">
+              <string>chat</string>
+            </field>
+            <field name="contentType">
+              <string>chat</string>
+            </field>
+            <field name="uri">
+              <string><![CDATA[/matrix/rest/matrix/search?query={keyword}&limit={limit}]]></string>
+            </field>
+            <field name="enabled">
+              <boolean>true</boolean>
+            </field>
+            <field name="jsModule">
+              <string>SHARED/ChatSearch</string>
+            </field>
+            <field name="i18nBundle">
+              <string>locale.portlet.matrix</string>
+            </field>
+            <field name="uiComponent">
+              <string>chat-search-card</string>
+            </field>
+            <field name="icon">
+              <string>fas fa-comments</string>
+            </field>
+            <field name="groupingEnabled">
+              <boolean>true</boolean>
+            </field>
+            <field name="spaceFilterEnabled">
+              <boolean>false</boolean>
+            </field>
+          </object>
+        </object-param>
+      </init-params>
+    </component-plugin>
+  </external-component-plugins>
 </configuration>

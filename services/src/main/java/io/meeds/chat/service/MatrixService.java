@@ -1495,7 +1495,9 @@ public class MatrixService {
                                          titlesByRoomId.get(roomLocalId),
                                          extractUserId(match.getSender()),
                                          match.getMessageContent(),
-                                         match.getTimeStamp()));
+                                         match.getTimeStamp(),
+                                         null,
+                                         false));
       }
       return results;
     });
