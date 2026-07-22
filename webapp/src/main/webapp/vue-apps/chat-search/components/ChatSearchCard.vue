@@ -18,7 +18,7 @@
   <div
     class="chat-search-card d-flex align-center clickable text-start pa-3"
     :class="hover ? 'elevation-2' : 'elevation-0'"
-    style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px; min-width: 360px; transition: box-shadow .2s ease;"
+    style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px; width: 360px; max-width: 100%; transition: box-shadow .2s ease;"
     @click="open"
     @mouseenter="hover = true"
     @mouseleave="hover = false">
@@ -35,9 +35,12 @@
         alt="">
       <v-icon v-else color="primary" size="22">fa-comment-dots</v-icon>
     </v-avatar>
-    <div class="flex-grow-1 overflow-hidden text-start">
+    <!-- min-width:0 lets this flex column shrink below its content, without which the
+         text-truncate children below never ellipsize and a long message stretches the
+         whole card across the carousel. -->
+    <div class="flex-grow-1 overflow-hidden text-start" style="min-width: 0;">
       <div class="d-flex align-center">
-        <span class="text-truncate text-title text-subtitle-1 flex-grow-1 text-start">
+        <span class="text-truncate text-title text-subtitle-1 flex-grow-1 text-start" style="min-width: 0;">
           {{ conversationTitle }}
         </span>
         <span
@@ -49,6 +52,7 @@
       <div class="d-flex align-center">
         <div
           class="text-truncate text-sub-title text-body-2 flex-grow-1 text-start"
+          style="min-width: 0;"
           v-html="highlightedSnippet">
         </div>
         <v-avatar
