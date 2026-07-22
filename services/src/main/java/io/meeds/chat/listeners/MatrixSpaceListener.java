@@ -77,7 +77,7 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       return;
     }
     Space space = event.getSpace();
-    if (!matrixService.isChatAuthorizedForSpaceTemplate(space)) {
+    if (space == null || !matrixService.isChatAuthorizedForSpaceTemplate(space)) {
       return;
     }
 

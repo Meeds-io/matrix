@@ -547,7 +547,8 @@ public class MatrixService {
    * @param matrixIdOfUser the ID of the user on Matrix
    * @return true if the user is a member of the room, false otherwise
    */
-  public boolean isUserMemberOfRoom(String roomId, String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
+  public boolean isUserMemberOfRoom(String roomId,
+                                    String matrixIdOfUser) throws JsonException, IOException, InterruptedException {
     return matrixHttpClient.isUserMemberOfRoom(roomId, matrixIdOfUser, this.getMatrixAccessToken());
   }
 
@@ -802,8 +803,9 @@ public class MatrixService {
   public void overrideAdminRateLimit(String adminUserId) {
     try {
       String currentRateLimits = matrixHttpClient.getOverriddenRateLimitForUser(adminUserId, getMatrixAccessToken());
-      JsonValue currentLimits = StringUtils.isBlank(currentRateLimits) ? null
-                                                                        : new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
+      JsonValue currentLimits =
+                              StringUtils.isBlank(currentRateLimits) ? null
+                                                                     : new JsonGeneratorImpl().createJsonObjectFromString(currentRateLimits);
       JsonValue messagePerSecond = currentLimits == null ? null : currentLimits.getElement("messages_per_second");
       JsonValue burstCount = currentLimits == null ? null : currentLimits.getElement("burst_count");
       if (messagePerSecond == null || burstCount == null || messagePerSecond.getIntValue() > 0 || burstCount.getIntValue() > 0) {
@@ -1117,7 +1119,7 @@ public class MatrixService {
    */
   public boolean isChatAuthorizedForSpace(Long spaceId) {
     Space space = spaceService.getSpaceById(spaceId);
-    return isChatAuthorizedForSpace(space);
+    return space != null && isChatAuthorizedForSpace(space);
   }
 
   /**
@@ -1132,6 +1134,7 @@ public class MatrixService {
 
   /**
    * Checks if the Chat is authorized for the template used to create the space
+   * 
    * @param space The given space
    * @return True if the chat was authorized for this space template
    */
@@ -1150,12 +1153,14 @@ public class MatrixService {
 
   /**
    * Checks if the Chat is authorized from the administration for the space
+   * 
    * @param space The given space
    * @return True if the chat was authorized for this space
    */
   public boolean isChatAuthorizedByAdministration(Space space) {
-    return (space.getExtendedProperties() == null || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED) == null
-        || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED).equals("true"));
+    return space != null
+        && (space.getExtendedProperties() == null || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED) == null
+            || space.getExtendedProperties().get(SPACE_CHAT_AUTHORIZED).equals("true"));
   }
 
   /**
