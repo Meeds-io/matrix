@@ -1426,39 +1426,70 @@ public class MatrixHttpClient {
     String serverSuffix = ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     Iterator<JsonValue> hits = results.getElements();
     while (hits.hasNext()) {
-      JsonValue event = hits.next().getElement("result");
-      if (event == null || isRedacted(event)) {
-        continue;
-      }
-      String roomLocalId = null;
-      if (event.getElement("room_id") != null) {
-        String fullRoomId = event.getElement("room_id").getStringValue();
-        roomLocalId = fullRoomId.contains(serverSuffix) ? fullRoomId.substring(0, fullRoomId.indexOf(serverSuffix)) : fullRoomId;
-      }
-      MatrixMessage message = parseMessageEvent(event, roomLocalId);
-      if (message == null) {
-        continue;
-      }
-      boolean stillMatches = applyEditRelation(event, message, query);
-      String eventId = message.getEventId();
-      if (eventId == null) {
-        continue;
-      }
-      if (!stillMatches) {
-        // Edited to remove the term: drop the edit and the original event it replaces, which
-        // Synapse still matches on its outdated body.
-        editedAwayEventIds.add(eventId);
-        messagesByEventId.remove(eventId);
-        continue;
-      }
-      if (editedAwayEventIds.contains(eventId)) {
-        continue;
-      }
+      collectSearchHit(hits.next().getElement("result"), serverSuffix, query, messagesByEventId, editedAwayEventIds);
+    }
+    return new ArrayList<>(messagesByEventId.values());
+  }
+
+  /**
+   * Adds a single search hit to the collected results, folding edits onto the message
+   * they replace and leaving out what must not be reported: redacted events, non
+   * textual events and messages whose edited text no longer contains the searched
+   * term.
+   *
+   * @param event the JSON event of the hit, may be {@code null}
+   * @param serverSuffix the {@code :server.name} suffix to strip from the room id
+   * @param query the free-text search term the user looked for
+   * @param messagesByEventId the collected messages, keyed by the event the client
+   *          renders, updated in place
+   * @param editedAwayEventIds the ids of messages edited to no longer contain the
+   *          term, updated in place so their outdated original is skipped too
+   */
+  private void collectSearchHit(JsonValue event,
+                                String serverSuffix,
+                                String query,
+                                Map<String, MatrixMessage> messagesByEventId,
+                                Set<String> editedAwayEventIds) {
+    if (event == null || isRedacted(event)) {
+      return;
+    }
+    MatrixMessage message = parseMessageEvent(event, extractRoomLocalId(event, serverSuffix));
+    if (message == null) {
+      return;
+    }
+    boolean stillMatches = applyEditRelation(event, message, query);
+    String eventId = message.getEventId();
+    if (eventId == null) {
+      return;
+    }
+    if (!stillMatches) {
+      // Edited to remove the term: drop the edit and the original event it replaces, which
+      // Synapse still matches on its outdated body.
+      editedAwayEventIds.add(eventId);
+      messagesByEventId.remove(eventId);
+      return;
+    }
+    if (!editedAwayEventIds.contains(eventId)) {
       // Hits come most recent first: an edit is seen before the event it replaces, and the
       // edited text is what the client renders, so the first entry for an id wins.
       messagesByEventId.putIfAbsent(eventId, message);
     }
-    return new ArrayList<>(messagesByEventId.values());
+  }
+
+  /**
+   * Extracts the room local part from a search hit, i.e. the room id without its
+   * {@code :server.name} suffix.
+   *
+   * @param event the JSON event of the hit
+   * @param serverSuffix the {@code :server.name} suffix to strip
+   * @return the room local part, or {@code null} when the event carries no room id
+   */
+  private String extractRoomLocalId(JsonValue event, String serverSuffix) {
+    if (event.getElement("room_id") == null) {
+      return null;
+    }
+    String fullRoomId = event.getElement("room_id").getStringValue();
+    return fullRoomId.contains(serverSuffix) ? fullRoomId.substring(0, fullRoomId.indexOf(serverSuffix)) : fullRoomId;
   }
 
   /**
