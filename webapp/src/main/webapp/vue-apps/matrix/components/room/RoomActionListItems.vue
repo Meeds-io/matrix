@@ -21,6 +21,26 @@
   <v-list class="pa-0">
     <v-list-item
       class="ps-2 pe-3 height-auto"
+      @click.stop="toggleFavorite">
+      <v-sheet
+        class="d-flex"
+        width="28"
+        height="36">
+        <v-icon
+          class="icon-default-color mx-auto"
+          size="16">
+          {{ isFavorite ? 'fas fa-star' : 'far fa-star' }}
+        </v-icon>
+      </v-sheet>
+      <span v-if="!isFavorite">
+        {{ $t('matrix.room.favorite.add.label') }}
+      </span>
+      <span v-else>
+        {{ $t('matrix.room.favorite.remove.label') }}
+      </span>
+    </v-list-item>
+    <v-list-item
+      class="ps-2 pe-3 height-auto"
       @click.stop="muteRoom">
       <v-sheet
         class="d-flex"
@@ -39,6 +59,24 @@
         {{ $t('matrix.room.unmute.label') }}
       </span>
     </v-list-item>
+    <v-list-item
+      class="ps-2 pe-3 height-auto"
+      :disabled="!hasUnread"
+      @click.stop="markAsRead">
+      <v-sheet
+        class="d-flex"
+        width="28"
+        height="36">
+        <v-icon
+          class="icon-default-color mx-auto"
+          size="16">
+          fa-envelope-open-text
+        </v-icon>
+      </v-sheet>
+      <span>
+        {{ $t('matrix.room.markRead.label') }}
+      </span>
+    </v-list-item>
   </v-list>
 </template>
 
@@ -55,11 +93,51 @@ export default {
     isMuted() {
       return this.room?.muted;
     },
+    isFavorite() {
+      return this.room?.favorite;
+    },
+    hasUnread() {
+      return (this.room?.unreadMessages || 0) > 0;
+    },
     spaceId() {
       return this.room?.spaceId;
     },
   },
   methods: {
+    toggleFavorite() {
+      const willBeFavorite = !this.isFavorite;
+      const request = willBeFavorite
+        ? this.$matrixService.favoriteRoom(this.room.id, this.spaceId)
+        : this.$matrixService.unfavoriteRoom(this.room.id);
+      request.then(() => {
+        // Optimistically reflect the new state so the favorite filter reacts immediately.
+        this.$set(this.room, 'favorite', willBeFavorite);
+        this.$root.$emit('alert-message',
+          this.$t(`matrix.room.favorite.${willBeFavorite ? 'add' : 'remove'}.success`),
+          'success');
+        this.$emit('close');
+        this.$root.$emit('room-favorite-updated', {
+          roomId: this.room.id,
+          favorite: willBeFavorite
+        });
+      }).catch(() => {
+        this.$root.$emit('alert-message', this.$t('matrix.room.favorite.error'), 'error');
+      });
+    },
+    markAsRead() {
+      this.$emit('close');
+      this.$matrixService.getRoomLastMessageEventId(this.room.id).then(eventId => {
+        if (!eventId) {
+          return;
+        }
+        this.$matrixService.markRoomAsFullyRead(this.room.id, eventId).then(() => {
+          document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
+            detail: {roomId: this.room.id}
+          }));
+          this.$root.$emit('alert-message', this.$t('matrix.room.markRead.success'), 'success');
+        });
+      });
+    },
     muteRoom() {
       this.$matrixService.muteRoom(this.room.id, this.spaceId, this.isMuted).then(() => {
         this.$root.$emit('alert-message',
