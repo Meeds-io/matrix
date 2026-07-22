@@ -80,7 +80,9 @@
           fa-plus
         </v-icon>
       </v-btn>
-      <div 
+      <matrix-ask-ai-list-action
+        v-if="aiConciergeEnabled && !(selectedRoom && fullPageMode)" />
+      <div
         v-if="selectedRoom && fullPageMode"
         class="text-truncate">
         <matrix-room-avatar :room="selectedRoom" />
@@ -151,6 +153,9 @@ export default {
     },
     canCreateRooms() {
       return this.$root.canCreateRooms;
+    },
+    aiConciergeEnabled() {
+      return eXo.env.portal.aiConciergeEnabled;
     }
   },
   watch: {
