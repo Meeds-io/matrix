@@ -111,6 +111,23 @@
             {{ $t('matrix.room.members.label') }}
           </span>
         </v-list-item>
+        <v-list-item
+          class="ps-2 pe-3 height-auto"
+          @click.stop="showAttachments">
+          <v-sheet
+            class="d-flex"
+            width="28"
+            height="36">
+            <v-icon
+              class="icon-default-color mx-auto"
+              size="16">
+              fas fa-paperclip
+            </v-icon>
+          </v-sheet>
+          <span>
+            {{ $t('matrix.room.attachments.label') }}
+          </span>
+        </v-list-item>
       </v-list>
     </v-menu>
   </div>
@@ -217,6 +234,10 @@ export default {
     },
     showMembers() {
       this.$root.$emit('show-room-members', this.space);
+      this.$nextTick(() => this.menu = false);
+    },
+    showAttachments() {
+      this.$root.$emit('show-room-attachments', this.room);
       this.$nextTick(() => this.menu = false);
     }
   }
