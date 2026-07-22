@@ -111,10 +111,13 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertFalse(matrixService.isServiceAvailable());
     verify(matrixHttpClient, times(1)).getAccessToken(anyString());
 
-    // restore a healthy state for the rest of the suite
+    // restore a healthy state for the rest of the suite. getAccessToken is
+    // currently stubbed to throw, so re-stub with doReturn(...).when(...) to
+    // avoid re-invoking the throwing stub while recording the new behaviour.
+    doReturn(accessToken).when(matrixHttpClient).getAccessToken(anyString());
     ReflectionTestUtils.setField(matrixService, "matrixAccessToken", null);
-    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
     matrixService.init();
+    assertTrue(matrixService.isServiceAvailable());
   }
 
   @Test
