@@ -49,7 +49,10 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
 public class MatrixHttpClient {
-  private static final Log LOG = ExoLogger.getLogger(MatrixHttpClient.class.toString());
+  private static final Log    LOG                   = ExoLogger.getLogger(MatrixHttpClient.class.toString());
+
+  /** Marker Matrix prepends to the fallback body of an edit event ("* the new text"). */
+  private static final String EDIT_FALLBACK_PREFIX  = "* ";
 
   /**
    * Get an authenticated access token for the administrative tasks
@@ -1368,12 +1371,22 @@ public class MatrixHttpClient {
    * Uses the {@code /_matrix/client/v3/search} endpoint (room_events category),
    * ordered by recency.
    *
+   * <p>
+   * An edited message is stored by Matrix as an <strong>additional</strong>
+   * {@code m.room.message} event ({@code m.relates_to.rel_type = m.replace}) whose
+   * fallback body repeats the text, so Synapse returns both the original and every
+   * edit as separate hits. Each edit is therefore folded back onto the event it
+   * replaces, redacted events are dropped, and the hits are de-duplicated by event
+   * id, so one message counts once and each hit points at an event the client
+   * actually renders.
+   *
    * @param query the free-text search term
    * @param roomIdLocalPart the room local part to scope the search to, or
    *          {@code null}/blank to search across all of the user's rooms
    * @param limit the maximum number of hits to return
    * @param accessToken the requesting user's Matrix access token
-   * @return the matching messages, most recent first, each carrying its room id
+   * @return the matching messages, most recent first, each carrying its room id,
+   *         one entry per message
    */
   public List<MatrixMessage> searchMessages(String query,
                                             String roomIdLocalPart,
@@ -1400,20 +1413,21 @@ public class MatrixHttpClient {
       throw new RuntimeException("Error searching messages ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
                                                                                                               response.body()));
     }
-    List<MatrixMessage> messages = new ArrayList<>();
+    Map<String, MatrixMessage> messagesByEventId = new LinkedHashMap<>();
+    Set<String> editedAwayEventIds = new HashSet<>();
     JsonValue searchCategories = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("search_categories");
     if (searchCategories == null || searchCategories.getElement("room_events") == null) {
-      return messages;
+      return new ArrayList<>();
     }
     JsonValue results = searchCategories.getElement("room_events").getElement("results");
     if (results == null || !results.isArray()) {
-      return messages;
+      return new ArrayList<>();
     }
     String serverSuffix = ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     Iterator<JsonValue> hits = results.getElements();
     while (hits.hasNext()) {
       JsonValue event = hits.next().getElement("result");
-      if (event == null) {
+      if (event == null || isRedacted(event)) {
         continue;
       }
       String roomLocalId = null;
@@ -1422,11 +1436,80 @@ public class MatrixHttpClient {
         roomLocalId = fullRoomId.contains(serverSuffix) ? fullRoomId.substring(0, fullRoomId.indexOf(serverSuffix)) : fullRoomId;
       }
       MatrixMessage message = parseMessageEvent(event, roomLocalId);
-      if (message != null) {
-        messages.add(message);
+      if (message == null) {
+        continue;
       }
+      boolean stillMatches = applyEditRelation(event, message, query);
+      String eventId = message.getEventId();
+      if (eventId == null) {
+        continue;
+      }
+      if (!stillMatches) {
+        // Edited to remove the term: drop the edit and the original event it replaces, which
+        // Synapse still matches on its outdated body.
+        editedAwayEventIds.add(eventId);
+        messagesByEventId.remove(eventId);
+        continue;
+      }
+      if (editedAwayEventIds.contains(eventId)) {
+        continue;
+      }
+      // Hits come most recent first: an edit is seen before the event it replaces, and the
+      // edited text is what the client renders, so the first entry for an id wins.
+      messagesByEventId.putIfAbsent(eventId, message);
     }
-    return messages;
+    return new ArrayList<>(messagesByEventId.values());
+  }
+
+  /**
+   * Tells whether a Matrix event has been redacted (deleted). Synapse keeps redacted
+   * events in its full-text index, so a deleted message would otherwise still be
+   * returned — and shown — as a search hit.
+   *
+   * @param event the JSON event returned by the search
+   * @return {@code true} when the event carries a redaction marker
+   */
+  private boolean isRedacted(JsonValue event) {
+    JsonValue unsigned = event.getElement("unsigned");
+    return unsigned != null && unsigned.getElement("redacted_because") != null;
+  }
+
+  /**
+   * Folds a search hit that is an <em>edit</em> back onto the message it replaces:
+   * the hit is re-pointed at the original event id (the one the client renders and
+   * can scroll to) and its text is taken from {@code m.new_content} so the result
+   * shows the current wording rather than the {@code * } fallback body. Hits that
+   * are not edits are left untouched.
+   * <p>
+   * @param event the JSON event returned by the search
+   * @param message the message parsed from that event, updated in place
+   * @param query the free-text search term the user looked for
+   * @return {@code false} when the hit is an edit whose new text no longer contains
+   *         the searched term — the message must then stop being reported as a
+   *         match; {@code true} for any other hit
+   */
+  private boolean applyEditRelation(JsonValue event, MatrixMessage message, String query) {
+    JsonValue content = event.getElement("content");
+    JsonValue relatesTo = content == null ? null : content.getElement("m.relates_to");
+    JsonValue relationType = relatesTo == null ? null : relatesTo.getElement("rel_type");
+    if (relationType == null || !"m.replace".equals(relationType.getStringValue())) {
+      return true;
+    }
+    JsonValue replacedEventId = relatesTo.getElement("event_id");
+    if (replacedEventId != null) {
+      message.setEventId(replacedEventId.getStringValue());
+    }
+    JsonValue newContent = content.getElement("m.new_content");
+    JsonValue newBody = newContent == null ? null : newContent.getElement("body");
+    if (newBody != null) {
+      message.setMessageContent(newBody.getStringValue());
+    } else if (StringUtils.startsWith(message.getMessageContent(), EDIT_FALLBACK_PREFIX)) {
+      // No m.new_content (older clients): strip the "* " fallback marker Matrix prepends.
+      message.setMessageContent(message.getMessageContent().substring(EDIT_FALLBACK_PREFIX.length()));
+    }
+    String currentBody = message.getMessageContent();
+    return StringUtils.isBlank(query) || StringUtils.isBlank(currentBody)
+           || StringUtils.containsIgnoreCase(currentBody, query.trim());
   }
 
   /**

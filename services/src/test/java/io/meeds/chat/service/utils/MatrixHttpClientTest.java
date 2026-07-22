@@ -892,6 +892,163 @@ class MatrixHttpClientTest {
   }
 
   @Test
+  void searchMessagesFoldsEditsOntoTheEditedMessage() throws Exception {
+    // Matrix returns the edit and the message it replaces as two separate hits, most recent
+    // first: they must count as one, pointing at the event the client renders.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$edit:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000100,
+                    "content": {
+                      "body": "* budget reviewed twice",
+                      "msgtype": "m.text",
+                      "m.new_content": { "body": "budget reviewed twice", "msgtype": "m.text" },
+                      "m.relates_to": { "rel_type": "m.replace", "event_id": "$original:matrix.exo.com" }
+                    }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$original:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget reviewed", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    List<MatrixMessage> results = matrixHttpClient.searchMessages("budget", null, 20, accessToken);
+    assertEquals(1, results.size());
+    assertEquals("$original:matrix.exo.com", results.get(0).getEventId());
+    assertEquals("budget reviewed twice", results.get(0).getMessageContent());
+  }
+
+  @Test
+  void searchMessagesDropsMessagesEditedToRemoveTheTerm() throws Exception {
+    // The original event keeps matching on its outdated body: neither it nor the edit
+    // may be reported once the term is gone from the current text.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$edit:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000100,
+                    "content": {
+                      "body": "* nothing to see",
+                      "msgtype": "m.text",
+                      "m.new_content": { "body": "nothing to see", "msgtype": "m.text" },
+                      "m.relates_to": { "rel_type": "m.replace", "event_id": "$original:matrix.exo.com" }
+                    }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$original:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget reviewed", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    assertTrue(matrixHttpClient.searchMessages("budget", null, 20, accessToken).isEmpty());
+  }
+
+  @Test
+  void searchMessagesSkipsRedactedMessages() throws Exception {
+    // Synapse keeps redacted events in its index: a deleted message is not a hit.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$deleted:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget deleted", "msgtype": "m.text" },
+                    "unsigned": { "redacted_because": { "type": "m.room.redaction" } }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$kept:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000001,
+                    "content": { "body": "budget kept", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    List<MatrixMessage> results = matrixHttpClient.searchMessages("budget", null, 20, accessToken);
+    assertEquals(1, results.size());
+    assertEquals("$kept:matrix.exo.com", results.get(0).getEventId());
+  }
+
+  @Test
+  void searchMessagesDeduplicatesRepeatedHitsOfTheSameEvent() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$twice:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget once", "msgtype": "m.text" }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$twice:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget once", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    assertEquals(1, matrixHttpClient.searchMessages("budget", null, 20, accessToken).size());
+  }
+
+  @Test
   void searchMessagesUnauthorized() {
     HttpResponse unauthorized = mock(HttpResponse.class);
     when(unauthorized.statusCode()).thenReturn(401);
