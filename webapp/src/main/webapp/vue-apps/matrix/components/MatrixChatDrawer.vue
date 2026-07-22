@@ -201,6 +201,15 @@ export default {
     },
     loadingRooms() {
       this.checkLoading();
+    },
+    searchTerm(term) {
+      // The list filter was cleared elsewhere (e.g. a conversation was opened) —
+      // reset this drawer's filter input so it matches the now-unfiltered list.
+      if (!term) {
+        this.filterText = '';
+        this.showFilter = false;
+        this.$refs.meedsChatDrawer?.resetFilter?.();
+      }
     }
   },
   mounted() {
@@ -228,7 +237,7 @@ export default {
         this.expanded = expanded;
         this.$root.fullPageMode = expanded;
         this.computeMessagesContainerWidth();
-        this.selectedRoom = this.getLastOpenedRoom();
+        this.selectedRoom = this.selectedRoom || this.getLastOpenedRoom();
         await this.openDiscussion(this.selectedRoom || this.rooms?.[0]);
       }, 300);
     },

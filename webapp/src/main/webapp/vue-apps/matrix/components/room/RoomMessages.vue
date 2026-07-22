@@ -271,6 +271,16 @@ export default {
     room() {
       // cancel any ongoing loads
       this.currentLoadToken++;
+    },
+    fullPageMode(isFullPage) {
+      // In drawer mode the search input is the exo-drawer header filter; when the
+      // drawer is expanded that header (and its filter) is replaced, so a search
+      // started in the drawer would keep its highlights with no visible field.
+      // Surface it in the floating find bar, seeded with the current term.
+      if (isFullPage && this.searchActive && !this.findBarOpen) {
+        this.findBarOpen = true;
+        this.findBarText = this.currentTerm;
+      }
     }
   },
   methods: {
