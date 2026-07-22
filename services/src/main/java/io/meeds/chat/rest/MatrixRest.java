@@ -385,7 +385,21 @@ public class MatrixRest implements ResourceContainer {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "query parameter is required");
     }
     String userName = request.getRemoteUser();
-    return ResponseEntity.ok().body(matrixService.searchChatMessages(userName, query, conversationId, limit));
+    List<ChatSearchResult> results = matrixService.searchChatMessages(userName, query, conversationId, limit);
+    // Enrich each hit with the conversation avatar for the UI, reusing the same
+    // resolution as the room list (buildRoomEntityFromRoom -> updateRoomEntity).
+    Map<String, RoomEntity> roomEntities = new HashMap<>();
+    for (ChatSearchResult result : results) {
+      RoomEntity roomEntity = roomEntities.computeIfAbsent(result.getConversationId(), id -> {
+        Room room = matrixService.getById(id, true);
+        return room == null ? null : buildRoomEntityFromRoom(room, userName);
+      });
+      if (roomEntity != null) {
+        result.setAvatarUrl(roomEntity.getAvatarUrl());
+        result.setDirectChat(roomEntity.isDirectChat());
+      }
+    }
+    return ResponseEntity.ok().body(results);
   }
 
   @GetMapping("byRoomId")

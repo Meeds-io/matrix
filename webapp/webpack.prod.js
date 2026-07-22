@@ -43,6 +43,7 @@ const config = {
     matrixSpacesAdministrationExtension: './src/main/webapp/vue-apps/spaces-administration-extension/main.js',
     matrixFavoritesExtension: './src/main/webapp/vue-apps/matrix-favorites-extension/main.js',
     aiUxBindingExtensionMatrix: './src/main/webapp/vue-apps/ai-ux-binding/main.js',
+    chatSearch: './src/main/webapp/vue-apps/chat-search/main.js',
   },
   output: {
     path: path.join(__dirname, 'target/matrix/'),
