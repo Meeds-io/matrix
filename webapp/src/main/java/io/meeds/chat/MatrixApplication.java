@@ -24,6 +24,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
+/**
+ * Spring Boot bootstrap of the Matrix chat add-on webapp. Extending
+ * {@link PortalApplicationContextInitializer} registers this WAR's Spring
+ * context with the eXo Kernel before the portal container boots, so that beans
+ * of this add-on and of the platform are mutually injectable.
+ */
 @SpringBootApplication(scanBasePackages = {
         MatrixApplication.MODULE_NAME,
         AvailableIntegration.KERNEL_MODULE,
@@ -37,6 +43,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @PropertySource("classpath:matrix.properties")
 public class MatrixApplication extends PortalApplicationContextInitializer {
 
+  /**
+   * Base package of the add-on, used both as the Spring component scan root and
+   * as the base package of its JPA repositories.
+   */
   public static final String MODULE_NAME = "io.meeds.chat";
 
 }
