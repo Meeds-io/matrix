@@ -4,11 +4,13 @@
     ref="ChatDiscussionDrawer"
     :loading="loading || loadingRooms"
     :class="customHeaderClass"
-    :go-back-button="!fullPageMode"
+    :go-back-button="!fullPageMode && !findActive"
+    :filter-placeholder="$t('matrix.chat.search.placeholder')"
     v-draggable="!fullPageMode"
     allow-expand
     right
     @expand-updated="handleExpanded"
+    @filter-updated="onFindText"
     @closed="close">
     <template slot="title">
       <matrix-filter-room-list-input
@@ -71,6 +73,8 @@
         :rooms="rooms"
         :selected-room="room"
         :parent-expanded="expanded"
+        :search-term="searchTerm"
+        :message-results="messageResults"
         @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
@@ -92,6 +96,8 @@ export default {
       showFilter: false,
       open: false,
       wasExpanded: false,
+      findActive: false,
+      findDebounce: null,
     };
   },
   props: {
@@ -106,16 +112,37 @@ export default {
     presence: {
       type: String,
       default: 'available'
+    },
+    searchTerm: {
+      type: String,
+      default: null
+    },
+    messageResults: {
+      type: Array,
+      default: () => []
     }
   },
   created() {
     this.$root.$on('open-chat-discussion', this.openDiscussion);
+    this.$root.$on('toggle-conversation-search', this.openConversationSearch);
     window.addEventListener('resize', this.handleResize);
 
   },
   beforeDestroy() {
     this.$root.$off('open-chat-discussion', this.openDiscussion);
+    this.$root.$off('toggle-conversation-search', this.openConversationSearch);
     window.removeEventListener('resize', this.handleResize);
+    clearTimeout(this.findDebounce);
+  },
+  mounted() {
+    // exo-drawer's built-in filter (showFilter) is reused as the "Find in conversation" UI.
+    // Track it so the go-back arrow is hidden while searching and the search clears on close.
+    this.$watch(() => this.$refs.ChatDiscussionDrawer?.showFilter, showFilter => {
+      this.findActive = !!showFilter;
+      if (!showFilter) {
+        this.$root.$emit('conversation-search-close');
+      }
+    });
   },
   computed: {
     spaceId() {
@@ -172,9 +199,19 @@ export default {
         this.wasExpanded = this.expanded;
       }, 300);
     },
+    openConversationSearch() {
+      this.$refs.ChatDiscussionDrawer?.openFilter?.();
+    },
+    onFindText(text) {
+      clearTimeout(this.findDebounce);
+      this.findDebounce = setTimeout(() => this.$root.$emit('conversation-search', text || ''), 250);
+    },
     async openDiscussion(room, fromRoomList) {
       if (this.fullPageMode && fromRoomList) {
         return;
+      }
+      if (this.findActive && room?.id !== this.room?.id) {
+        this.$refs.ChatDiscussionDrawer?.resetFilter?.();
       }
       this.room = room;
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
@@ -195,6 +232,7 @@ export default {
       this.$refs.chatBody?.reset();
       this.open = false;
       this.wasExpanded = false;
+      this.findActive = false;
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);

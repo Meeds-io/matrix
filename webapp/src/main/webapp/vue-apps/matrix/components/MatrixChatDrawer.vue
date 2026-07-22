@@ -125,6 +125,8 @@
         :selected-room="selectedRoom"
         :parent-expanded="expanded"
         :from-room-list="true"
+        :search-term="searchTerm"
+        :message-results="messageResults"
         @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
@@ -155,6 +157,14 @@ export default {
     presence: {
       type: String,
       default: 'available'
+    },
+    searchTerm: {
+      type: String,
+      default: null
+    },
+    messageResults: {
+      type: Array,
+      default: () => []
     }
   },
   created() {

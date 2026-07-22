@@ -22,6 +22,7 @@ import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.entity.RoomStatus;
 import io.meeds.chat.model.ChatConversation;
 import io.meeds.chat.model.ChatMessage;
+import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixUnreadRoom;
@@ -370,6 +371,45 @@ class MatrixServiceTest extends MatrixBaseTest {
     // Access guard: cannot send to a room the user does not participate in
     assertNull(matrixService.sendMessage("dragon", "!notMyRoom", "hello"));
     verify(matrixHttpClient, never()).sendMessage(eq("!notMyRoom"), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void searchChatMessages() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+    String roomId = spaceRoom.getRoomId();
+
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage hit = new MatrixMessage();
+    hit.setRoomId(roomId);
+    hit.setEventId("$hitEvent1");
+    hit.setSender("@ghost:matrix.exo.tn");
+    hit.setMessageContent("the release date is friday");
+    hit.setTimeStamp(4000L);
+    when(matrixHttpClient.searchMessages(eq("release"), any(), anyInt(), anyString())).thenReturn(List.of(hit));
+
+    // Global search across the user's conversations: hit mapped + title resolved
+    List<ChatSearchResult> results = matrixService.searchChatMessages("dragon", "release", null, 20);
+    assertEquals(1, results.size());
+    ChatSearchResult result = results.get(0);
+    assertEquals("$hitEvent1", result.getEventId());
+    assertEquals("the release date is friday", result.getText());
+    assertEquals("ghost", result.getSender());
+    assertEquals(4000L, result.getTimestamp());
+    assertEquals(space.getDisplayName(), result.getConversationTitle());
+
+    // Scoped to a conversation the user participates in still works
+    assertEquals(1, matrixService.searchChatMessages("dragon", "release", roomId, 20).size());
+
+    // Access guard: scoping to a room the user is not in -> empty, no Synapse search
+    assertTrue(matrixService.searchChatMessages("dragon", "release", "!notMyRoom", 20).isEmpty());
+    verify(matrixHttpClient, never()).searchMessages(anyString(), eq("!notMyRoom"), anyInt(), anyString());
+
+    // Blank query -> empty list (no NPE, no search)
+    assertTrue(matrixService.searchChatMessages("dragon", "  ", null, 20).isEmpty());
   }
 
   @Test
