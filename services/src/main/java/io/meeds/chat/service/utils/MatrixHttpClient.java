@@ -19,6 +19,7 @@
 package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.MatrixMessage;
+import io.meeds.chat.model.MatrixUnreadRoom;
 import io.meeds.chat.service.model.MediaInfo;
 import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
@@ -469,7 +470,7 @@ public class MatrixHttpClient {
     }
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url =
-               PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/state/m.room.name/";
+               PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/state/m.room.name/";
     String payload = """
         {
           "name": "%s"
@@ -509,7 +510,7 @@ public class MatrixHttpClient {
     }
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/invite";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/invite";
     String payload = """
           {
             "reason": "%s",
@@ -550,7 +551,7 @@ public class MatrixHttpClient {
     String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
 
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/kick";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/kick";
     String payload = """
           {
             "reason": "%s",
@@ -682,7 +683,7 @@ public class MatrixHttpClient {
     }
     String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId + "/joined_members";
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/joined_members";
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -709,7 +710,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
@@ -740,7 +741,7 @@ public class MatrixHttpClient {
 
     String payload = roomSettings.toJson();
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + fullRoomId
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
     HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
@@ -801,7 +802,7 @@ public class MatrixHttpClient {
    */
   public boolean updateRoomAvatar(String matrixRoomId, String avatarURL, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.avatar/";
     String payload = """
         {
@@ -887,7 +888,7 @@ public class MatrixHttpClient {
    */
   public boolean updateRoomDescription(String matrixRoomId, String description, String accessToken) {
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/"
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.topic/";
     String plainDescription = description.replaceAll("<[^>]*>", "").replace("\n", "");
     String payload = """
@@ -1158,7 +1159,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/rooms/" + roomId + "/event/" + eventId;
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + roomId + "/event/" + eventId;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -1209,8 +1210,194 @@ public class MatrixHttpClient {
   }
 
   /**
+   * Retrieves the most recent messages of a room as the user owning the given
+   * access token, using the Matrix client API
+   * ({@code /_matrix/client/v3/rooms/{roomId}/messages}). Synapse enforces the
+   * user's own visibility (membership, history visibility, redactions); if the
+   * user is not allowed to read the room an empty list is returned. Events are
+   * returned newest-first (the {@code dir=b} direction).
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param limit the maximum number of events to fetch
+   * @param accessToken the requesting user's Matrix access token
+   * @return the {@code m.room.message} events the user can see, newest first
+   */
+  public List<MatrixMessage> getRoomMessages(String matrixRoomId,
+                                             int limit,
+                                             String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit="
+        + limit;
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while reading messages of room " + matrixRoomId);
+    }
+    if (response.statusCode() == 403 || response.statusCode() == 404) {
+      // The user is not a member of the room or cannot see its history
+      LOG.debug("User is not allowed to read messages of room {} (HTTP {})", matrixRoomId, response.statusCode());
+      return new ArrayList<>();
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error retrieving messages of room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                          String.valueOf(response.statusCode()),
+                                                                                                                          response.body()));
+    }
+    List<MatrixMessage> messages = new ArrayList<>();
+    JsonValue chunk = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("chunk");
+    if (chunk == null || !chunk.isArray()) {
+      return messages;
+    }
+    Iterator<JsonValue> events = chunk.getElements();
+    while (events.hasNext()) {
+      MatrixMessage message = parseMessageEvent(events.next(), matrixRoomId);
+      if (message != null) {
+        messages.add(message);
+      }
+    }
+    return messages;
+  }
+
+  /**
+   * Parses a single Matrix timeline event into a {@link MatrixMessage}, or returns
+   * {@code null} when the event is not a textual {@code m.room.message}.
+   *
+   * @param event the JSON event
+   * @param roomLocalId the room local part the event belongs to
+   * @return the parsed message, or {@code null}
+   */
+  private MatrixMessage parseMessageEvent(JsonValue event, String roomLocalId) {
+    JsonValue typeElement = event.getElement("type");
+    if (typeElement == null || !"m.room.message".equals(typeElement.getStringValue())) {
+      return null;
+    }
+    JsonValue content = event.getElement("content");
+    if (content == null || content.getElement("body") == null) {
+      return null;
+    }
+    MatrixMessage message = new MatrixMessage();
+    message.setRoomId(roomLocalId);
+    message.setType(typeElement.getStringValue());
+    if (event.getElement("event_id") != null) {
+      message.setEventId(event.getElement("event_id").getStringValue());
+    }
+    if (event.getElement("sender") != null) {
+      message.setSender(event.getElement("sender").getStringValue());
+    }
+    if (event.getElement("origin_server_ts") != null) {
+      message.setTimeStamp(Long.parseLong(event.getElement("origin_server_ts").getStringValue()));
+    }
+    message.setMessageContent(content.getElement("body").getStringValue());
+    if (content.getElement("msgtype") != null) {
+      message.setMessageType(content.getElement("msgtype").getStringValue());
+    }
+    return message;
+  }
+
+  /**
+   * Returns, for the user owning the given access token, the rooms that have
+   * unread notifications together with their recent timeline messages, using a
+   * lightweight {@code /sync} call. Synapse only returns rooms the user has
+   * joined, so visibility is naturally enforced.
+   *
+   * @param accessToken the requesting user's Matrix access token
+   * @param timelineLimit the maximum number of recent events to fetch per room
+   * @return the user's unread rooms, never {@code null}
+   */
+  public List<MatrixUnreadRoom> getUnreadRooms(String accessToken,
+                                               int timelineLimit) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String filter = URLEncoder.encode("{\"room\":{\"timeline\":{\"limit\":" + timelineLimit + "}}}", StandardCharsets.UTF_8);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/sync?timeout=0&filter=" + filter;
+
+    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while syncing unread messages");
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error syncing unread messages ,Matrix server returned HTTP %s error %s".formatted(String.valueOf(response.statusCode()),
+                                                                                                                    response.body()));
+    }
+    List<MatrixUnreadRoom> unreadRooms = new ArrayList<>();
+    JsonValue rooms = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("rooms");
+    if (rooms == null || rooms.getElement("join") == null) {
+      return unreadRooms;
+    }
+    JsonValue joinedRooms = rooms.getElement("join");
+    Iterator<String> roomIds = joinedRooms.getKeys();
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    while (roomIds.hasNext()) {
+      String fullRoomId = roomIds.next();
+      JsonValue room = joinedRooms.getElement(fullRoomId);
+      JsonValue notifications = room.getElement("unread_notifications");
+      long unreadCount = notifications != null && notifications.getElement("notification_count") != null ?
+                                                                                                          notifications.getElement("notification_count")
+                                                                                                                       .getLongValue() :
+                                                                                                          0;
+      if (unreadCount <= 0) {
+        continue;
+      }
+      String roomLocalId = fullRoomId.contains(":" + serverName) ? fullRoomId.substring(0, fullRoomId.indexOf(":" + serverName))
+                                                                 : fullRoomId;
+      List<MatrixMessage> messages = new ArrayList<>();
+      JsonValue timeline = room.getElement("timeline");
+      if (timeline != null && timeline.getElement("events") != null && timeline.getElement("events").isArray()) {
+        Iterator<JsonValue> events = timeline.getElement("events").getElements();
+        while (events.hasNext()) {
+          MatrixMessage message = parseMessageEvent(events.next(), roomLocalId);
+          if (message != null) {
+            messages.add(message);
+          }
+        }
+      }
+      unreadRooms.add(new MatrixUnreadRoom(roomLocalId, (int) unreadCount, messages));
+    }
+    return unreadRooms;
+  }
+
+  /**
+   * Sends a textual message to a room as the user owning the given access token,
+   * using the Matrix client API. Synapse enforces that the user is allowed to send
+   * to the room.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param text the plain text message body
+   * @param transactionId a unique client transaction id (for idempotency)
+   * @param accessToken the requesting user's Matrix access token
+   * @return the created event id
+   */
+  public String sendMessage(String matrixRoomId,
+                            String text,
+                            String transactionId,
+                            String accessToken) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
+        + "/send/m.room.message/" + transactionId;
+    String payload = new JSONObject().put("msgtype", "m.text").put("body", text).toString();
+
+    HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while sending a message to room " + matrixRoomId);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error sending a message to room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                        String.valueOf(response.statusCode()),
+                                                                                                                        response.body()));
+    }
+    return new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("event_id").getStringValue();
+  }
+
+  /**
    * Invalidates an access token on Matrix server
-   * 
+   *
    * @param accessToken
    * @return
    * @throws IOException
