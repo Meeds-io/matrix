@@ -57,6 +57,7 @@
         </div>
         <v-avatar
           v-if="matchCount > 1"
+          :title="matchCountLabel"
           size="20"
           class="ms-2 flex-shrink-0 align-center align-content-center grey-lighten1-background white--text text-font-small-size">
           {{ matchCount }}
@@ -88,10 +89,16 @@ export default {
   },
   computed: {
     conversationTitle() {
-      return this.result.conversationTitle || this.result.conversationId;
+      // Never fall back to the raw Matrix room id: a conversation the server could not name
+      // (a direct message opened from another client, a room not synced yet…) would otherwise
+      // render as "!AbCdEf" in the card.
+      return this.result.conversationTitle || this.$t('matrix.search.card.untitledConversation');
     },
     matchCount() {
       return this.result.matchCount || 1;
+    },
+    matchCountLabel() {
+      return this.$t('matrix.search.card.matchCount', {0: this.matchCount});
     },
     formattedDate() {
       if (!this.result.timestamp) {
