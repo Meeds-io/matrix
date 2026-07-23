@@ -1476,6 +1476,38 @@ public class MatrixService {
    * @param limit the maximum number of hits to return (clamped to [1, 100])
    * @return the matching messages, most recent first, never {@code null}
    */
+  /**
+   * Resolves the display title of a conversation carrying a search hit. The user's
+   * conversation list answers for the rooms the platform tracks; for the others — a
+   * direct message opened from another Matrix client, a room whose platform record is
+   * gone — Matrix itself is asked for the room name, or for the other member's name
+   * when the room has none. What Matrix answers is memoised, including a miss, so a
+   * search returning several hits of the same conversation resolves it once.
+   *
+   * @param roomLocalId the room local part the hit belongs to
+   * @param titlesByRoomId the titles of the conversations the platform tracks
+   * @param titlesFromMatrix the titles already resolved from Matrix, updated in place
+   * @param currentUserMatrixId the requesting user's full Matrix id
+   * @param accessToken the requesting user's Matrix access token
+   * @return the conversation title, or {@code null} when neither side can name it
+   */
+  private String resolveConversationTitle(String roomLocalId,
+                                          Map<String, String> titlesByRoomId,
+                                          Map<String, String> titlesFromMatrix,
+                                          String currentUserMatrixId,
+                                          String accessToken) {
+    String knownTitle = titlesByRoomId.get(roomLocalId);
+    if (StringUtils.isNotBlank(knownTitle)) {
+      return knownTitle;
+    }
+    if (titlesFromMatrix.containsKey(roomLocalId)) {
+      return titlesFromMatrix.get(roomLocalId);
+    }
+    String matrixTitle = matrixHttpClient.getRoomDisplayName(roomLocalId, currentUserMatrixId, accessToken);
+    titlesFromMatrix.put(roomLocalId, matrixTitle);
+    return matrixTitle;
+  }
+
   public List<ChatSearchResult> searchChatMessages(String userName, String query, String conversationId, int limit) {
     if (StringUtils.isBlank(userName) || StringUtils.isBlank(query)) {
       return Collections.emptyList();
@@ -1490,6 +1522,8 @@ public class MatrixService {
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 100);
+    String currentUserMatrixId = getUserFullMatrixID(userName);
+    Map<String, String> titlesFromMatrix = new HashMap<>();
     return callAsUser(userName, Collections.<ChatSearchResult> emptyList(), accessToken -> {
       List<MatrixMessage> matches = matrixHttpClient.searchMessages(query, scopedRoomId, effectiveLimit, accessToken);
       List<ChatSearchResult> results = new ArrayList<>();
@@ -1497,7 +1531,11 @@ public class MatrixService {
         String roomLocalId = extractRoomId(match.getRoomId());
         results.add(new ChatSearchResult(roomLocalId,
                                          match.getEventId(),
-                                         titlesByRoomId.get(roomLocalId),
+                                         resolveConversationTitle(roomLocalId,
+                                                                  titlesByRoomId,
+                                                                  titlesFromMatrix,
+                                                                  currentUserMatrixId,
+                                                                  accessToken),
                                          extractUserId(match.getSender()),
                                          match.getMessageContent(),
                                          match.getTimeStamp(),
