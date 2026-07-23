@@ -372,6 +372,72 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   @Test
+  void searchChatMessagesDropsHitsOutsideTheUserConversations() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage mine = new MatrixMessage();
+    mine.setRoomId(spaceRoom.getRoomId());
+    mine.setEventId("$mine");
+    mine.setSender("@ghost:matrix.exo.tn");
+    mine.setMessageContent("release notes");
+    mine.setTimeStamp(4000L);
+    // Matrix also answers for a room the user belongs to on Matrix but the platform does not
+    // track — created from another client, or left behind by a failed space kick.
+    MatrixMessage untracked = new MatrixMessage();
+    untracked.setRoomId("!roomThePlatformIgnores");
+    untracked.setEventId("$untracked");
+    untracked.setSender("@ghost:matrix.exo.tn");
+    untracked.setMessageContent("release notes elsewhere");
+    untracked.setTimeStamp(5000L);
+    when(matrixHttpClient.searchMessages(eq("release"), any(), anyInt(), anyString())).thenReturn(List.of(untracked,
+                                                                                                         mine));
+
+    List<ChatSearchResult> results = matrixService.searchChatMessages("dragon", "release", null, 20);
+
+    assertEquals(1, results.size());
+    assertEquals("$mine", results.get(0).getEventId());
+    assertEquals(space.getDisplayName(), results.get(0).getConversationTitle());
+  }
+
+  @Test
+  void searchChatMessagesResolvesAConversationTitleOnlyOnce() throws Exception {
+    Space space = getSpaceInstance(1);
+    Room spaceRoom = matrixService.getRoomBySpace(space);
+
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage first = new MatrixMessage();
+    first.setRoomId(spaceRoom.getRoomId());
+    first.setEventId("$first");
+    first.setSender("@ghost:matrix.exo.tn");
+    first.setMessageContent("release one");
+    first.setTimeStamp(4000L);
+    MatrixMessage second = new MatrixMessage();
+    second.setRoomId(spaceRoom.getRoomId());
+    second.setEventId("$second");
+    second.setSender("@ghost:matrix.exo.tn");
+    second.setMessageContent("release two");
+    second.setTimeStamp(3000L);
+    when(matrixHttpClient.searchMessages(eq("release"), any(), anyInt(), anyString())).thenReturn(List.of(first,
+                                                                                                         second));
+
+    List<ChatSearchResult> results = matrixService.searchChatMessages("dragon", "release", null, 20);
+
+    // Both hits of the same conversation come back carrying the same title, and the conversation
+    // is never resolved against Matrix more than once for a single search.
+    assertEquals(2, results.size());
+    assertEquals(results.get(0).getConversationTitle(), results.get(1).getConversationTitle());
+    verify(matrixHttpClient, atMost(1)).getRoomDisplayName(anyString(), anyString(), anyString());
+  }
+
+  @Test
   void getRoomMessagesRetriesOnExpiredToken() throws Exception {
     Space space = getSpaceInstance(1);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();

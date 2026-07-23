@@ -1406,6 +1406,10 @@ public class MatrixHttpClient {
       JSONObject member = joined.optJSONObject(others.get(0));
       String displayName = member == null ? null : member.optString("display_name", null);
       return StringUtils.isNotBlank(displayName) ? displayName : null;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.debug("Interrupted while reading the display name of room {} from Matrix", roomIdLocalPart, e);
+      return null;
     } catch (Exception e) {
       LOG.debug("Could not read the display name of room {} from Matrix", roomIdLocalPart, e);
       return null;

@@ -1462,23 +1462,6 @@ public class MatrixService {
   }
 
   /**
-   * Runs a full-text search of message bodies <strong>as the given user</strong>,
-   * either across all their conversations (when {@code conversationId} is blank) or
-   * scoped to a single conversation. Synapse enforces the user's visibility, and the
-   * hits are then restricted to the conversations the platform lists for that user, so
-   * a room they still belong to on Matrix but not in the chat — created from another
-   * Matrix client, left behind by a space kick that failed — is never returned. Each
-   * hit is resolved to a human readable conversation title. Backs the
-   * {@code search_chat_messages} MCP tool and the chat UI search.
-   *
-   * @param userName the Meeds username acting
-   * @param query the free-text search term
-   * @param conversationId the Matrix room id to scope the search to, or
-   *          {@code null}/blank to search across all the user's conversations
-   * @param limit the maximum number of hits to return (clamped to [1, 100])
-   * @return the matching messages, most recent first, never {@code null}
-   */
-  /**
    * Resolves the display title of a conversation carrying a search hit. The user's
    * conversation list answers for the rooms the platform tracks; for the others — a
    * direct message opened from another Matrix client, a room whose platform record is
@@ -1510,6 +1493,23 @@ public class MatrixService {
     return matrixTitle;
   }
 
+  /**
+   * Runs a full-text search of message bodies <strong>as the given user</strong>,
+   * either across all their conversations (when {@code conversationId} is blank) or
+   * scoped to a single conversation. Synapse enforces the user's visibility, and the
+   * hits are then restricted to the conversations the platform lists for that user, so
+   * a room they still belong to on Matrix but not in the chat — created from another
+   * Matrix client, left behind by a space kick that failed — is never returned. Each
+   * hit is resolved to a human readable conversation title. Backs the
+   * {@code search_chat_messages} MCP tool and the chat UI search.
+   *
+   * @param userName the Meeds username acting
+   * @param query the free-text search term
+   * @param conversationId the Matrix room id to scope the search to, or
+   *          {@code null}/blank to search across all the user's conversations
+   * @param limit the maximum number of hits to return (clamped to [1, 100])
+   * @return the matching messages, most recent first, never {@code null}
+   */
   public List<ChatSearchResult> searchChatMessages(String userName, String query, String conversationId, int limit) {
     if (StringUtils.isBlank(userName) || StringUtils.isBlank(query)) {
       return Collections.emptyList();
