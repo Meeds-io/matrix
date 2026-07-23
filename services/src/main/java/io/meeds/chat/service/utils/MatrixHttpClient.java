@@ -87,14 +87,19 @@ public class MatrixHttpClient {
           Thread.sleep(sleepInMs);
           return getAccessToken(userJWTToken);
         } else {
-          LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
-                    String.valueOf(response.statusCode()),
-                    response.body());
-          throw new IllegalStateException("Could not authenticate Admin account on Matrix");
+          // Do not dump the response body: when Matrix is still starting, a
+          // reverse proxy typically answers with a full HTML error page.
+          LOG.warn("Could not authenticate admin account with JWT, Matrix server returned HTTP {}", response.statusCode());
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Matrix authentication error response body: {}", response.body());
+          }
+          throw new IllegalStateException("Could not authenticate Admin account on Matrix (HTTP " + response.statusCode() + ")");
         }
       }
     } catch (Exception e) {
-      LOG.error("Could not authenticate Admin account with JWT on Matrix", e.getMessage());
+      // Logged at debug only: the caller (MatrixService#init) decides the final
+      // severity, retrying while Matrix is not operational yet.
+      LOG.debug("Could not authenticate Admin account with JWT on Matrix", e);
       throw e;
     }
 
