@@ -343,7 +343,13 @@
               <string>chat</string>
             </field>
             <field name="uri">
-              <string><![CDATA[/matrix/rest/matrix/search?query={keyword}&limit={limit}]]></string>
+              <!-- The endpoint returns one hit per matching MESSAGE, which the connector's
+                   formatSearchResult() then groups into one card per conversation with its match
+                   count. Passing the app's display limit ({limit}, ~10) would cut the message
+                   window: a busy conversation fills it alone, the other conversations disappear
+                   and the counts are wrong. Ask for the server maximum instead and let the
+                   grouping decide how many cards come out. -->
+              <string><![CDATA[/matrix/rest/matrix/search?query={keyword}&limit=100]]></string>
             </field>
             <field name="enabled">
               <boolean>true</boolean>

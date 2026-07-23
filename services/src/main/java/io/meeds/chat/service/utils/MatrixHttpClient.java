@@ -1365,6 +1365,58 @@ public class MatrixHttpClient {
   }
 
   /**
+   * Reads a room's display name from Matrix itself, <strong>as the given user</strong>:
+   * its {@code m.room.name}, or — for a two-member room, i.e. a direct message — the
+   * other member's display name. Used to name a conversation the platform does not
+   * track, so it is shown by its real name instead of a placeholder.
+   *
+   * @param roomIdLocalPart the room local part (without the server name suffix)
+   * @param currentUserMatrixId the requesting user's full Matrix id, used to pick the
+   *          other member of a direct message
+   * @param accessToken the requesting user's Matrix access token
+   * @return the room display name, or {@code null} when Matrix has none either
+   */
+  public String getRoomDisplayName(String roomIdLocalPart, String currentUserMatrixId, String accessToken) {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL)) || StringUtils.isBlank(roomIdLocalPart)) {
+      return null;
+    }
+    String fullRoomId = roomIdLocalPart + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String baseUrl = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId;
+    try {
+      HttpResponse<String> nameResponse = sendHttpGetRequest(baseUrl + "/state/m.room.name", accessToken);
+      if (nameResponse.statusCode() >= 200 && nameResponse.statusCode() < 300) {
+        String name = new JSONObject(nameResponse.body()).optString("name", null);
+        if (StringUtils.isNotBlank(name)) {
+          return name;
+        }
+      }
+      // No room name: a direct message is named after the person on the other side.
+      HttpResponse<String> membersResponse = sendHttpGetRequest(baseUrl + "/joined_members", accessToken);
+      if (membersResponse.statusCode() < 200 || membersResponse.statusCode() >= 300) {
+        return null;
+      }
+      JSONObject joined = new JSONObject(membersResponse.body()).optJSONObject("joined");
+      if (joined == null) {
+        return null;
+      }
+      List<String> others = joined.keySet().stream().filter(id -> !id.equals(currentUserMatrixId)).toList();
+      if (others.size() != 1) {
+        return null;
+      }
+      JSONObject member = joined.optJSONObject(others.get(0));
+      String displayName = member == null ? null : member.optString("display_name", null);
+      return StringUtils.isNotBlank(displayName) ? displayName : null;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.debug("Interrupted while reading the display name of room {} from Matrix", roomIdLocalPart, e);
+      return null;
+    } catch (Exception e) {
+      LOG.debug("Could not read the display name of room {} from Matrix", roomIdLocalPart, e);
+      return null;
+    }
+  }
+
+  /**
    * Runs a Matrix full-text search of message bodies <strong>as the user</strong>
    * owning the given access token, optionally scoped to a single room. Synapse
    * enforces the user's visibility, so only rooms the user can see are searched.

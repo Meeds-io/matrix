@@ -1462,12 +1462,46 @@ public class MatrixService {
   }
 
   /**
+   * Resolves the display title of a conversation carrying a search hit. The user's
+   * conversation list answers for the rooms the platform tracks; for the others — a
+   * direct message opened from another Matrix client, a room whose platform record is
+   * gone — Matrix itself is asked for the room name, or for the other member's name
+   * when the room has none. What Matrix answers is memoised, including a miss, so a
+   * search returning several hits of the same conversation resolves it once.
+   *
+   * @param roomLocalId the room local part the hit belongs to
+   * @param titlesByRoomId the titles of the conversations the platform tracks
+   * @param titlesFromMatrix the titles already resolved from Matrix, updated in place
+   * @param currentUserMatrixId the requesting user's full Matrix id
+   * @param accessToken the requesting user's Matrix access token
+   * @return the conversation title, or {@code null} when neither side can name it
+   */
+  private String resolveConversationTitle(String roomLocalId,
+                                          Map<String, String> titlesByRoomId,
+                                          Map<String, String> titlesFromMatrix,
+                                          String currentUserMatrixId,
+                                          String accessToken) {
+    String knownTitle = titlesByRoomId.get(roomLocalId);
+    if (StringUtils.isNotBlank(knownTitle)) {
+      return knownTitle;
+    }
+    if (titlesFromMatrix.containsKey(roomLocalId)) {
+      return titlesFromMatrix.get(roomLocalId);
+    }
+    String matrixTitle = matrixHttpClient.getRoomDisplayName(roomLocalId, currentUserMatrixId, accessToken);
+    titlesFromMatrix.put(roomLocalId, matrixTitle);
+    return matrixTitle;
+  }
+
+  /**
    * Runs a full-text search of message bodies <strong>as the given user</strong>,
    * either across all their conversations (when {@code conversationId} is blank) or
-   * scoped to a single conversation. Synapse enforces the user's visibility, so only
-   * messages the user is allowed to see are returned; each hit is resolved to a human
-   * readable conversation title. Backs the {@code search_chat_messages} MCP tool and
-   * the chat UI search.
+   * scoped to a single conversation. Synapse enforces the user's visibility, and the
+   * hits are then restricted to the conversations the platform lists for that user, so
+   * a room they still belong to on Matrix but not in the chat — created from another
+   * Matrix client, left behind by a space kick that failed — is never returned. Each
+   * hit is resolved to a human readable conversation title. Backs the
+   * {@code search_chat_messages} MCP tool and the chat UI search.
    *
    * @param userName the Meeds username acting
    * @param query the free-text search term
@@ -1490,14 +1524,32 @@ public class MatrixService {
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 100);
+    String currentUserMatrixId = getUserFullMatrixID(userName);
+    Map<String, String> titlesFromMatrix = new HashMap<>();
     return callAsUser(userName, Collections.<ChatSearchResult> emptyList(), accessToken -> {
       List<MatrixMessage> matches = matrixHttpClient.searchMessages(query, scopedRoomId, effectiveLimit, accessToken);
       List<ChatSearchResult> results = new ArrayList<>();
       for (MatrixMessage match : matches) {
         String roomLocalId = extractRoomId(match.getRoomId());
+        if (!titlesByRoomId.containsKey(roomLocalId)) {
+          // Matrix answers for the rooms the user belongs to *on Matrix*, which can outlive what
+          // the platform grants: a room created from another Matrix client, a space kick that
+          // failed on leave, a restored backup. The chat only lists — and only opens — the
+          // conversations of the platform, so a hit outside that list is dropped rather than
+          // offered as a result that cannot be opened. This is the rule the scoped search above
+          // already applies.
+          LOG.debug("Skipping a search hit of user {} in conversation {}, which is not one of their conversations",
+                    userName,
+                    roomLocalId);
+          continue;
+        }
         results.add(new ChatSearchResult(roomLocalId,
                                          match.getEventId(),
-                                         titlesByRoomId.get(roomLocalId),
+                                         resolveConversationTitle(roomLocalId,
+                                                                  titlesByRoomId,
+                                                                  titlesFromMatrix,
+                                                                  currentUserMatrixId,
+                                                                  accessToken),
                                          extractUserId(match.getSender()),
                                          match.getMessageContent(),
                                          match.getTimeStamp(),

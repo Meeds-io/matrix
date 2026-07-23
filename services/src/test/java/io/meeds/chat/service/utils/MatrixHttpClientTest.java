@@ -41,6 +41,7 @@ import java.util.List;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.*;
 
 class MatrixHttpClientTest {
@@ -1046,6 +1047,62 @@ class MatrixHttpClientTest {
           }
         }""");
     assertEquals(1, matrixHttpClient.searchMessages("budget", null, 20, accessToken).size());
+  }
+
+  @Test
+  void getRoomDisplayNameUsesTheRoomName() {
+    HttpResponse nameResponse = mock(HttpResponse.class);
+    when(nameResponse.statusCode()).thenReturn(200);
+    when(nameResponse.body()).thenReturn("{\"name\":\"Support Team\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(nameResponse);
+
+    assertEquals("Support Team", matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
+  }
+
+  @Test
+  void getRoomDisplayNameFallsBackToTheOtherMemberOfADirectMessage() {
+    // No m.room.name on the room: a two-member room is named after the other member.
+    HttpResponse noName = mock(HttpResponse.class);
+    when(noName.statusCode()).thenReturn(404);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(noName);
+    HttpResponse members = mock(HttpResponse.class);
+    when(members.statusCode()).thenReturn(200);
+    when(members.body()).thenReturn("""
+        {
+          "joined": {
+            "@me:matrix.exo.com": { "display_name": "Me Myself" },
+            "@veronika:matrix.exo.com": { "display_name": "Veronika V" }
+          }
+        }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/joined_members"), anyString()))
+                      .thenReturn(members);
+
+    assertEquals("Veronika V", matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
+  }
+
+  @Test
+  void getRoomDisplayNameReturnsNullWhenMatrixCannotNameTheRoom() {
+    HttpResponse noName = mock(HttpResponse.class);
+    when(noName.statusCode()).thenReturn(404);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(noName);
+    // More than two members and no room name -> nothing sensible to display.
+    HttpResponse members = mock(HttpResponse.class);
+    when(members.statusCode()).thenReturn(200);
+    when(members.body()).thenReturn("""
+        {
+          "joined": {
+            "@me:matrix.exo.com": { "display_name": "Me Myself" },
+            "@a:matrix.exo.com": { "display_name": "A A" },
+            "@b:matrix.exo.com": { "display_name": "B B" }
+          }
+        }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/joined_members"), anyString()))
+                      .thenReturn(members);
+
+    assertNull(matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
   }
 
   @Test
