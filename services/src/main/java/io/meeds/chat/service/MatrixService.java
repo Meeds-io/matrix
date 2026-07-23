@@ -1464,10 +1464,12 @@ public class MatrixService {
   /**
    * Runs a full-text search of message bodies <strong>as the given user</strong>,
    * either across all their conversations (when {@code conversationId} is blank) or
-   * scoped to a single conversation. Synapse enforces the user's visibility, so only
-   * messages the user is allowed to see are returned; each hit is resolved to a human
-   * readable conversation title. Backs the {@code search_chat_messages} MCP tool and
-   * the chat UI search.
+   * scoped to a single conversation. Synapse enforces the user's visibility, and the
+   * hits are then restricted to the conversations the platform lists for that user, so
+   * a room they still belong to on Matrix but not in the chat — created from another
+   * Matrix client, left behind by a space kick that failed — is never returned. Each
+   * hit is resolved to a human readable conversation title. Backs the
+   * {@code search_chat_messages} MCP tool and the chat UI search.
    *
    * @param userName the Meeds username acting
    * @param query the free-text search term
@@ -1529,6 +1531,18 @@ public class MatrixService {
       List<ChatSearchResult> results = new ArrayList<>();
       for (MatrixMessage match : matches) {
         String roomLocalId = extractRoomId(match.getRoomId());
+        if (!titlesByRoomId.containsKey(roomLocalId)) {
+          // Matrix answers for the rooms the user belongs to *on Matrix*, which can outlive what
+          // the platform grants: a room created from another Matrix client, a space kick that
+          // failed on leave, a restored backup. The chat only lists — and only opens — the
+          // conversations of the platform, so a hit outside that list is dropped rather than
+          // offered as a result that cannot be opened. This is the rule the scoped search above
+          // already applies.
+          LOG.debug("Skipping a search hit of user {} in conversation {}, which is not one of their conversations",
+                    userName,
+                    roomLocalId);
+          continue;
+        }
         results.add(new ChatSearchResult(roomLocalId,
                                          match.getEventId(),
                                          resolveConversationTitle(roomLocalId,
