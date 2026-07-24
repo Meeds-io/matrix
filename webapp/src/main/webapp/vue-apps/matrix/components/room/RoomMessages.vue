@@ -43,7 +43,7 @@
       <span class="text-caption text-sub-title me-1" style="white-space:nowrap;">{{ matchLabel }}</span>
       <v-btn
         icon
-        x-small
+        small
         :disabled="!matchEventIds.length"
         :title="$t('matrix.chat.search.previous')"
         @click="searchNav('previous')">
@@ -51,7 +51,7 @@
       </v-btn>
       <v-btn
         icon
-        x-small
+        small
         :disabled="!matchEventIds.length"
         :title="$t('matrix.chat.search.next')"
         @click="searchNav('next')">
@@ -60,7 +60,7 @@
       <v-btn
         v-if="findBarOpen"
         icon
-        x-small
+        small
         :title="$t('matrix.chat.cancel')"
         @click="closeFindBar">
         <v-icon size="16" class="icon-default-color">fa-times</v-icon>
@@ -129,6 +129,9 @@
 </template>
 
 <script>
+// Height reserved above a search match when scrolling to it, so the sticky find bar
+// (top:8px + its own height) never overlaps the matched sentence.
+const FIND_BAR_SCROLL_MARGIN = 56;
 
 export default {
   data() {
@@ -810,6 +813,11 @@ export default {
       }
 
       if (targetElement) {
+        // The find bar floats over the top of the scroll container (position:sticky; top:8px),
+        // so a match scrolled to the edge — or a tall message centered by scrollIntoView — ends up
+        // clipped under it, showing a truncated sentence. Reserve the bar's height as a scroll
+        // margin so the match always lands clear of it.
+        targetElement.style.scrollMarginTop = `${FIND_BAR_SCROLL_MARGIN}px`;
         targetElement.scrollIntoView({behavior: 'smooth', block: 'center'});
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');
