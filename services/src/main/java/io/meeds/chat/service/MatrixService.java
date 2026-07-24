@@ -1476,6 +1476,25 @@ public class MatrixService {
    * @param accessToken the requesting user's Matrix access token
    * @return the conversation title, or {@code null} when neither side can name it
    */
+  /**
+   * Tells whether a conversation carrying a search hit is one the given user may see in the chat
+   * and open from a result: the room is tracked by the platform and the user can access it. This
+   * is the same test the chat list (processRooms) and the open action (byRoomId) rely on, so a
+   * search result is shown only when it maps to a real, openable conversation. Results are
+   * memoised per room so a search returning several hits of one conversation checks it once.
+   *
+   * @param roomLocalId the room local part the hit belongs to
+   * @param userName the login of the searching user
+   * @param accessibleByRoomId the decisions already taken, updated in place
+   * @return {@code true} when the conversation is tracked and accessible to the user
+   */
+  private boolean isAccessibleConversation(String roomLocalId, String userName, Map<String, Boolean> accessibleByRoomId) {
+    return accessibleByRoomId.computeIfAbsent(roomLocalId, id -> {
+      Room room = getById(id, true);
+      return room != null && canAccess(room, userName);
+    });
+  }
+
   private String resolveConversationTitle(String roomLocalId,
                                           Map<String, String> titlesByRoomId,
                                           Map<String, String> titlesFromMatrix,
@@ -1496,11 +1515,12 @@ public class MatrixService {
   /**
    * Runs a full-text search of message bodies <strong>as the given user</strong>,
    * either across all their conversations (when {@code conversationId} is blank) or
-   * scoped to a single conversation. Synapse enforces the user's visibility, and the
-   * hits are then restricted to the conversations the platform lists for that user, so
-   * a room they still belong to on Matrix but not in the chat — created from another
-   * Matrix client, left behind by a space kick that failed — is never returned. Each
-   * hit is resolved to a human readable conversation title. Backs the
+   * scoped to a single conversation. Synapse enforces the user's Matrix visibility, and
+   * the hits are then restricted to the conversations that are tracked by the platform
+   * and accessible to the user — the same rooms the chat list shows and the row can open
+   * — so a room they still belong to on Matrix but not in the chat (created from another
+   * Matrix client, left behind by a failed space kick) is never returned. Each hit is
+   * resolved to a human readable conversation title. Backs the
    * {@code search_chat_messages} MCP tool and the chat UI search.
    *
    * @param userName the Meeds username acting
@@ -1519,8 +1539,9 @@ public class MatrixService {
     for (ChatConversation conversation : getUserConversations(userName)) {
       titlesByRoomId.put(extractRoomId(conversation.getRoomId()), conversation.getTitle());
     }
-    if (scopedRoomId != null && !titlesByRoomId.containsKey(scopedRoomId)) {
-      LOG.warn("User {} is not a participant of conversation {}, refusing to search it", userName, scopedRoomId);
+    Map<String, Boolean> accessibleByRoomId = new HashMap<>();
+    if (scopedRoomId != null && !isAccessibleConversation(scopedRoomId, userName, accessibleByRoomId)) {
+      LOG.warn("User {} cannot access conversation {}, refusing to search it", userName, scopedRoomId);
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 100);
@@ -1531,14 +1552,15 @@ public class MatrixService {
       List<ChatSearchResult> results = new ArrayList<>();
       for (MatrixMessage match : matches) {
         String roomLocalId = extractRoomId(match.getRoomId());
-        if (!titlesByRoomId.containsKey(roomLocalId)) {
-          // Matrix answers for the rooms the user belongs to *on Matrix*, which can outlive what
-          // the platform grants: a room created from another Matrix client, a space kick that
-          // failed on leave, a restored backup. The chat only lists — and only opens — the
-          // conversations of the platform, so a hit outside that list is dropped rather than
-          // offered as a result that cannot be opened. This is the rule the scoped search above
-          // already applies.
-          LOG.debug("Skipping a search hit of user {} in conversation {}, which is not one of their conversations",
+        if (!isAccessibleConversation(roomLocalId, userName, accessibleByRoomId)) {
+          // Synapse answers for every room the user belongs to on Matrix, which can outlive what
+          // the platform grants — a room created from another Matrix client, a space kick that
+          // failed on leave, a restored backup. Keep only the conversations the platform tracks
+          // and the user may view: those are the ones the chat list shows (processRooms builds it
+          // from the same tracked rooms) and the only ones the row can open (byRoomId uses the
+          // same getById + canAccess). A hit outside that set is dropped rather than shown as a
+          // card that leads nowhere.
+          LOG.debug("Skipping a search hit of user {} in conversation {}, which they cannot access",
                     userName,
                     roomLocalId);
           continue;

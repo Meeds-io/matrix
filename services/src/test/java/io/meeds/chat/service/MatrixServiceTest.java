@@ -372,7 +372,7 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   @Test
-  void searchChatMessagesDropsHitsOutsideTheUserConversations() throws Exception {
+  void searchChatMessagesDropsHitsInRoomsThePlatformDoesNotTrack() throws Exception {
     Space space = getSpaceInstance(1);
     Room spaceRoom = matrixService.getRoomBySpace(space);
 
