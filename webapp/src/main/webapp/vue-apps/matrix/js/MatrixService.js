@@ -1257,6 +1257,78 @@ export async function saveAttachmentInDocuments(attachment, room, messages = {})
   document.dispatchEvent(new CustomEvent('open-documents-folder-picker', { detail: pickerDetail }));
 }
 
+// Where a chat attachment is copied to just so OnlyOffice has a document to open. A
+// throwaway copy under 'Chat Attachments/Received', mirroring the email connector: the
+// editor addresses a document by id and a chat attachment is only Matrix media.
+const CHAT_RECEIVED_FOLDER_TITLES = [CHAT_ATTACHMENTS_FOLDER_TITLE, 'Received'];
+
+const CHAT_RECEIVED_FOLDER_PATH = CHAT_RECEIVED_FOLDER_TITLES.map(title => title.toLowerCase()).join('/');
+
+/**
+ * The types OnlyOffice declares it can open. Registered by the OnlyOffice add-on into
+ * the shared 'documents' extension point, so this works without any build dependency
+ * on documents; when that add-on isn't installed the list is empty and every
+ * attachment simply keeps downloading, which is the right degradation.
+ *
+ * @returns {Array} the supported document type descriptors, empty when none
+ */
+function supportedDocumentTypes() {
+  return extensionRegistry?.loadExtensions('documents', 'supported-document-types') || [];
+}
+
+/**
+ * The content type of a chat attachment, lower case and without any parameters, in
+ * the shape the rest of the platform compares against.
+ *
+ * @param {Object} attachment the chat attachment
+ * @returns {String} the bare content type
+ */
+function normaliseChatMimeType(attachment) {
+  return (attachment?.mimetype || '').split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Whether OnlyOffice declares it can open the attachment, which also means the add-on
+ * is installed at all.
+ *
+ * @param {Object} attachment the chat attachment
+ * @returns {Boolean} true when a registered document type matches
+ */
+export function isEditorPreviewable(attachment) {
+  const mimeType = normaliseChatMimeType(attachment);
+  return supportedDocumentTypes().some(type => (type.mimeType || '').toLowerCase() === mimeType);
+}
+
+/**
+ * The address of the OnlyOffice editor for a stored document. Built the way the
+ * Documents add-on builds it: on the meta portal, since the chat is opened from any
+ * page and the current portal can be a space, which has no editor.
+ *
+ * @param {String} documentId the id of the stored document
+ * @param {String} mode 'view' to open read only, editable when absent
+ * @returns {String} the editor URL, coming back to the current page when closed
+ */
+export function getEditorUrl(documentId, mode) {
+  const portal = eXo.env.portal.metaPortalName || eXo.env.portal.portalName;
+  const modeParam = mode && `&mode=${mode}` || '';
+  return `${eXo.env.portal.context}/${portal}/oeditor?docId=${documentId}${modeParam}&backTo=${window.location.pathname}`;
+}
+
+/**
+ * Copies a chat attachment into the user's Drive under 'Chat Attachments/Received'
+ * and returns its document id, so OnlyOffice can open it. The folder chain is created
+ * first (it is the user's own Drive, addressed by identity), then the upload reuses
+ * the picker-facing materialiser. Memoised per attachment, so opening the same file
+ * twice copies it once.
+ *
+ * @param {Object} attachment the chat attachment to materialise
+ * @returns {Promise} resolved with the id of the created document
+ */
+export async function materialiseChatAttachment(attachment) {
+  await ensureDocumentsFolderPath(CHAT_RECEIVED_FOLDER_TITLES);
+  return materialiseChatAttachmentAt(attachment, CHAT_RECEIVED_FOLDER_PATH, DOCS_PERSONAL_DRIVE_NAME, DOCS_DEFAULT_WORKSPACE);
+}
+
 export async function loadMessageReactions(roomId, eventId) {
   const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction?limit=100`;
   try {
