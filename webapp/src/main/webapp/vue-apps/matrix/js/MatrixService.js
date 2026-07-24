@@ -942,6 +942,396 @@ export async function loadRoomAttachments(roomId, maxPages = 10) {
   return attachments;
 }
 
+// Where a chat attachment is stored by default. Two spellings on purpose: the
+// platform keeps the capitalised title for display but stores the node under a
+// lower-cased name, and both the ECMS upload endpoint and the folder picker match
+// path segments verbatim — a display title handed to either would create a second,
+// differently-cased duplicate folder (see EXO-88779).
+const CHAT_ATTACHMENTS_FOLDER_TITLE = 'Chat Attachments';
+
+const CHAT_ATTACHMENTS_FOLDER_PATH = CHAT_ATTACHMENTS_FOLDER_TITLE.toLowerCase();
+
+// The user's own Drive, where a chat attachment lands by default in a direct room.
+const DOCS_PERSONAL_DRIVE_NAME = 'Personal Documents';
+
+const DOCS_DEFAULT_WORKSPACE = 'collaboration';
+
+// Documents already materialised in this page, keyed by the message event id AND
+// destination, so saving the same attachment twice into the same folder copies it
+// once, while saving it somewhere else really stores it there.
+const materialisedChatDocuments = {};
+
+/**
+ * Reads a chat attachment back as a File, the shape every upload path of the
+ * platform takes. The bytes are fetched the authenticated way (the modern
+ * client/v1 media endpoint with a Bearer token), the same path getMediaBlobUrl
+ * uses — never the legacy unauthenticated media URLs, which 401 on modern Synapse.
+ *
+ * @param {String} mxcUrl the mxc:// URI of the attachment
+ * @param {String} fileName the attachment file name
+ * @param {String} mimeType the attachment content type, optional
+ * @returns {Promise} resolved with the attachment content as a File
+ */
+export async function getMediaFile(mxcUrl, fileName, mimeType) {
+  const downloadUrl = parseDownloadUrl(mxcUrl);
+  if (!downloadUrl) {
+    throw new Error('Invalid attachment URL');
+  }
+  const response = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('matrix_access_token')}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Could not read the attachment (${response.status})`);
+  }
+  const blob = await response.blob();
+  return new File([blob], fileName || 'file', { type: mimeType || blob.type });
+}
+
+/**
+ * Whether the Documents add-on is deployed, hence whether its folder picker can be
+ * opened at all. Same probe the email connector and the composer use: the picker is
+ * contributed by Documents at runtime, so its absence is detected rather than
+ * declared, and the action simply keeps out of the menu when it is missing.
+ *
+ * @returns {Boolean} true when the Documents add-on is on the page
+ */
+export function isDocumentsDeployed() {
+  return extensionRegistry?.loadExtensions('RichEditor', 'ckeditor-extensions').some(extension => extension.id === 'attachFile')
+    || !!Vue.prototype.$attachmentService;
+}
+
+/**
+ * Creates a folder in the user's Drive, ignoring the answer: it is called to make
+ * sure the folder is there, and it already existing is the expected outcome.
+ *
+ * @param {String} ownerId the identity the Drive belongs to
+ * @param {String} name the folder title
+ * @param {String} parentId the id of the folder it goes in, root when absent
+ * @returns {Promise} resolved once the server has answered, never rejected
+ */
+function createDocumentsFolder(ownerId, name, parentId) {
+  const params = new URLSearchParams({ ownerId, name });
+  if (parentId) {
+    params.append('parentid', parentId);
+  } else {
+    params.append('folderPath', '');
+  }
+  return fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/documents/folder?${params}`, {
+    credentials: 'include',
+    method: 'POST',
+  }).catch(() => null);
+}
+
+/**
+ * Looks a folder up by title among the folders of a parent.
+ *
+ * @param {String} ownerId the identity the Drive belongs to
+ * @param {String} name the folder title to look for
+ * @param {String} parentFolderId the folder to look into, root when absent
+ * @returns {Promise} resolved with the folder, or null when it isn't there
+ */
+function findDocumentsFolder(ownerId, name, parentFolderId) {
+  const params = new URLSearchParams({ ownerId, listingType: 'FOLDER', limit: '200' });
+  if (parentFolderId) {
+    params.append('parentFolderId', parentFolderId);
+  }
+  return fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/v1/documents?${params}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  }).then(response => response.json())
+    .then(body => {
+      const items = Array.isArray(body) && body || body.documents || body.items || [];
+      return items.find(item => (item.name || item.title) === name);
+    })
+    .catch(() => null);
+}
+
+/**
+ * Makes sure a whole chain of folders exists in the user's Drive, creating each
+ * level under the previous one. The folders are addressed by path afterwards, so
+ * this only guarantees they are there. Only usable on the user's own Drive, which
+ * alone is addressed by identity through the documents folder REST.
+ *
+ * @param {Array} folderTitles the folder titles, outermost first
+ * @returns {Promise} resolved once every level is known to exist
+ */
+function ensureDocumentsFolderPath(folderTitles) {
+  const ownerId = eXo.env.portal.userIdentityId;
+  if (!ownerId) {
+    return Promise.resolve();
+  }
+  return ensureDocumentsFolder(ownerId, folderTitles, 0, null);
+}
+
+/**
+ * Creates one level of a folder chain, then goes on with the next one under it.
+ * Recursive rather than a loop because a level can only be created once the id of
+ * its parent is known, hence one round trip after the other. Looks a level up
+ * before creating it, so the browser does not log a 409 on every save.
+ *
+ * @param {String} ownerId the identity the Drive belongs to
+ * @param {Array} folderTitles the folder titles, outermost first
+ * @param {Number} index the level being created
+ * @param {String} parentId the id of the level above, null at the root
+ * @returns {Promise} resolved once this level and the ones below it exist
+ */
+function ensureDocumentsFolder(ownerId, folderTitles, index, parentId) {
+  const title = folderTitles[index];
+  return findDocumentsFolder(ownerId, title, parentId)
+    .then(existing => existing || createDocumentsFolder(ownerId, title, parentId)
+      .then(() => findDocumentsFolder(ownerId, title, parentId)))
+    .then(folder => {
+      if (!folder || index === folderTitles.length - 1) {
+        return null;
+      }
+      return ensureDocumentsFolder(ownerId, folderTitles, index + 1, folder.id);
+    });
+}
+
+/**
+ * Copies a chat attachment into an already-known Drive folder and returns its
+ * document id, going through the very same upload the Documents picker uses so the
+ * file is ingested exactly like any other upload. The destination is a
+ * drive-root-relative node path used VERBATIM — exactly what the folder picker
+ * returns — so nothing is lower-cased or created on top of it.
+ *
+ * The result is memoised on the event id AND its destination: the same attachment
+ * saved twice into the same folder is copied once, but saving it into another folder
+ * really stores it there instead of handing back the first copy.
+ *
+ * @param {Object} attachment the chat attachment ({ eventId, name, mxcUrl, mimetype })
+ * @param {String} destination the drive-root-relative node path ('' for the root)
+ * @param {String} driveName the legacy ECMS Drive name to store into
+ * @param {String} workspace the JCR workspace of that Drive
+ * @returns {Promise} resolved with the id of the created document
+ */
+export function materialiseChatAttachmentAt(attachment, destination, driveName = DOCS_PERSONAL_DRIVE_NAME, workspace = DOCS_DEFAULT_WORKSPACE) {
+  const key = `${attachment.eventId}@${driveName}:${workspace}:${destination}`;
+  if (materialisedChatDocuments[key]) {
+    return materialisedChatDocuments[key];
+  }
+  const promise = (async () => {
+    const file = await getMediaFile(attachment.mxcUrl, attachment.name, attachment.mimetype);
+    const uploadId = Vue.prototype.$uploadService.generateRandomId();
+    await Vue.prototype.$uploadService.upload(file, uploadId);
+
+    const params = new URLSearchParams({
+      workspaceName: workspace,
+      driveName: driveName,
+      currentFolder: destination,
+      currentPortal: eXo.env.portal.portalName,
+      uploadId,
+      fileName: attachment.name,
+      language: eXo.env.portal.language,
+      // keep both copies rather than overwrite a same-named file from another message
+      existenceAction: 'keep',
+      action: 'save',
+    });
+    const saved = await fetch(`${eXo.env.portal.context}/${eXo.env.portal.rest}/managedocument/uploadFile/control?${params}`, {
+      credentials: 'include',
+    });
+    if (!saved.ok) {
+      throw new Error(`Could not store the attachment (${saved.status})`);
+    }
+    // the upload service answers in XML, the document id is its UUID
+    const document = new DOMParser().parseFromString(await saved.text(), 'text/xml');
+    const documentId = document.querySelector('UUID')?.textContent
+      || document.documentElement?.getAttribute('UUID');
+    if (!documentId) {
+      throw new Error('The stored attachment has no document id');
+    }
+    return documentId;
+  })();
+  materialisedChatDocuments[key] = promise;
+  promise.catch(() => delete materialisedChatDocuments[key]);
+  return promise;
+}
+
+/**
+ * Shows a toast through the platform's global alert bus. Used from here rather than a
+ * component's $root because the save completes asynchronously, after the user has
+ * picked a folder, when the click that started it is long gone. When a link is given
+ * the toast carries a link button (opened in a new tab) to the saved location.
+ *
+ * @param {String} alertMessage the already-translated message to show
+ * @param {String} alertType 'success' or 'error'
+ * @param {String} alertLink the address the toast's link button opens, or null
+ * @param {String} alertLinkText the already-translated link button text
+ * @returns {void}
+ */
+function notifyDocuments(alertMessage, alertType, alertLink = null, alertLinkText = null) {
+  document.dispatchEvent(new CustomEvent('alert-message', {
+    detail: {
+      alertType,
+      alertMessage,
+      alertLink: alertLink || null,
+      alertLinkText: alertLink && alertLinkText || null,
+      alertLinkTarget: alertLink && '_blank' || null,
+    },
+  }));
+}
+
+/**
+ * The address of the Documents application showing the picked folder. A folder in a
+ * space drive opens the Documents app of that space (its own context); a folder in
+ * the personal drive opens the user's own Documents (eXo.env.portal.defaultPath).
+ * Both read folderId from the URL. Null — a plain toast — when the picker did not
+ * hand back the folder id.
+ *
+ * @param {Object} pickerDetail the folder picker's selection event detail
+ * @returns {String} the documents page URL for the picked folder, or null
+ */
+function savedDocumentsLocationUrl(pickerDetail) {
+  if (!pickerDetail.folderId) {
+    return null;
+  }
+  const params = new URLSearchParams({ folderId: pickerDetail.folderId });
+  if (pickerDetail.spaceId) {
+    return `${eXo.env.portal.context}/s/${pickerDetail.spaceId}/documents?${params}`;
+  }
+  return `${eXo.env.portal.defaultPath}/documents?${params}`;
+}
+
+/**
+ * Saves a chat attachment into the Drive. Opens the reusable Documents folder picker
+ * (the same folders-only explorer Documents uses for "change location"), then, on the
+ * folder the user confirms, uploads the attachment straight there — no staging drawer,
+ * no second click. Closing the picker without choosing cancels silently.
+ *
+ * The picker hands back BOTH the /v1/documents folder id and the legacy addressing
+ * (the ECMS drive name plus the drive-root-relative node path). The upload endpoint
+ * wants exactly that legacy pair, so both are used VERBATIM — the picker's answer is
+ * authoritative, nothing is re-derived or created on top of it.
+ *
+ * A room bound to a space biases the picker to that space's drive; a direct room
+ * defaults to the user's own Drive, where the default folder is pre-created so the
+ * picker opens right inside it.
+ *
+ * @param {Object} attachment the chat attachment to store
+ * @param {Object} room the room it was shared in ({ spaceId } routes the drive)
+ * @param {Object} messages the translated toasts: { success, error, see }
+ * @returns {Promise} resolved once the picker has been opened (not once saved)
+ */
+export async function saveAttachmentInDocuments(attachment, room, messages = {}) {
+  const isSpaceRoom = !!room?.spaceId;
+  // Only the user's own Drive is addressed by identity and can have its default
+  // folder created up front; a space drive is left to the picker to open.
+  if (!isSpaceRoom) {
+    await ensureDocumentsFolderPath([CHAT_ATTACHMENTS_FOLDER_TITLE]);
+  }
+
+  const onCancelled = () => cleanup();
+  const onSelected = (event) => {
+    cleanup();
+    const detail = event.detail || {};
+    // drive-root-relative node path, '' when the drive root itself was picked
+    const destination = detail.relativePath ?? detail.path ?? '';
+    const driveName = detail.driveName || detail.drive?.name || DOCS_PERSONAL_DRIVE_NAME;
+    const workspace = detail.workspace || DOCS_DEFAULT_WORKSPACE;
+    materialiseChatAttachmentAt(attachment, destination, driveName, workspace)
+      .then(() => notifyDocuments(messages.success, 'success', savedDocumentsLocationUrl(detail), messages.see))
+      .catch(() => notifyDocuments(messages.error, 'error'));
+  };
+  const cleanup = () => {
+    document.removeEventListener('documents-folder-picker-selected', onSelected);
+    document.removeEventListener('documents-folder-picker-cancelled', onCancelled);
+  };
+
+  // one-shot: a single pick answers a single save request, then the listeners go away
+  document.addEventListener('documents-folder-picker-selected', onSelected);
+  document.addEventListener('documents-folder-picker-cancelled', onCancelled);
+
+  const pickerDetail = {
+    // the node name, not the title: the picker navigates by JCR node path and the
+    // upload uses the picked path verbatim (see EXO-88779)
+    defaultFolder: CHAT_ATTACHMENTS_FOLDER_PATH,
+    workspace: DOCS_DEFAULT_WORKSPACE,
+  };
+  if (isSpaceRoom) {
+    // let the picker resolve and open the space's own drive. As a string on purpose:
+    // the room carries the space id as a number, while the picker matches it against
+    // the space service's ids, which are strings — a numeric id never matches and the
+    // picker would silently fall back to the personal drive.
+    pickerDetail.spaceId = String(room.spaceId);
+  } else {
+    // no title on purpose: the picker localises the personal drive's display name
+    pickerDetail.defaultDrive = { name: DOCS_PERSONAL_DRIVE_NAME };
+  }
+  document.dispatchEvent(new CustomEvent('open-documents-folder-picker', { detail: pickerDetail }));
+}
+
+// Where a chat attachment is copied to just so OnlyOffice has a document to open. A
+// throwaway copy under 'Chat Attachments/Received', mirroring the email connector: the
+// editor addresses a document by id and a chat attachment is only Matrix media.
+const CHAT_RECEIVED_FOLDER_TITLES = [CHAT_ATTACHMENTS_FOLDER_TITLE, 'Received'];
+
+const CHAT_RECEIVED_FOLDER_PATH = CHAT_RECEIVED_FOLDER_TITLES.map(title => title.toLowerCase()).join('/');
+
+/**
+ * The types OnlyOffice declares it can open. Registered by the OnlyOffice add-on into
+ * the shared 'documents' extension point, so this works without any build dependency
+ * on documents; when that add-on isn't installed the list is empty and every
+ * attachment simply keeps downloading, which is the right degradation.
+ *
+ * @returns {Array} the supported document type descriptors, empty when none
+ */
+function supportedDocumentTypes() {
+  return extensionRegistry?.loadExtensions('documents', 'supported-document-types') || [];
+}
+
+/**
+ * The content type of a chat attachment, lower case and without any parameters, in
+ * the shape the rest of the platform compares against.
+ *
+ * @param {Object} attachment the chat attachment
+ * @returns {String} the bare content type
+ */
+function normaliseChatMimeType(attachment) {
+  return (attachment?.mimetype || '').split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Whether OnlyOffice declares it can open the attachment, which also means the add-on
+ * is installed at all.
+ *
+ * @param {Object} attachment the chat attachment
+ * @returns {Boolean} true when a registered document type matches
+ */
+export function isEditorPreviewable(attachment) {
+  const mimeType = normaliseChatMimeType(attachment);
+  return supportedDocumentTypes().some(type => (type.mimeType || '').toLowerCase() === mimeType);
+}
+
+/**
+ * The address of the OnlyOffice editor for a stored document. Built the way the
+ * Documents add-on builds it: on the meta portal, since the chat is opened from any
+ * page and the current portal can be a space, which has no editor.
+ *
+ * @param {String} documentId the id of the stored document
+ * @param {String} mode 'view' to open read only, editable when absent
+ * @returns {String} the editor URL, coming back to the current page when closed
+ */
+export function getEditorUrl(documentId, mode) {
+  const portal = eXo.env.portal.metaPortalName || eXo.env.portal.portalName;
+  const modeParam = mode && `&mode=${mode}` || '';
+  return `${eXo.env.portal.context}/${portal}/oeditor?docId=${documentId}${modeParam}&backTo=${window.location.pathname}`;
+}
+
+/**
+ * Copies a chat attachment into the user's Drive under 'Chat Attachments/Received'
+ * and returns its document id, so OnlyOffice can open it. The folder chain is created
+ * first (it is the user's own Drive, addressed by identity), then the upload reuses
+ * the picker-facing materialiser. Memoised per attachment, so opening the same file
+ * twice copies it once.
+ *
+ * @param {Object} attachment the chat attachment to materialise
+ * @returns {Promise} resolved with the id of the created document
+ */
+export async function materialiseChatAttachment(attachment) {
+  await ensureDocumentsFolderPath(CHAT_RECEIVED_FOLDER_TITLES);
+  return materialiseChatAttachmentAt(attachment, CHAT_RECEIVED_FOLDER_PATH, DOCS_PERSONAL_DRIVE_NAME, DOCS_DEFAULT_WORKSPACE);
+}
+
 export async function loadMessageReactions(roomId, eventId) {
   const url = `/_matrix/client/v1/rooms/${encodeURIComponent(roomId)}/relations/${encodeURIComponent(eventId)}/m.annotation/m.reaction?limit=100`;
   try {
