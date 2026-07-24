@@ -64,14 +64,44 @@
               </template>
             </v-list-item-subtitle>
           </v-list-item-content>
-          <v-list-item-action class="ma-0">
-            <v-btn
-              :title="$t('matrix.chat.download')"
-              :loading="attachment.downloading"
-              icon
-              @click="download(attachment)">
-              <v-icon size="18" class="icon-default-color">fa-download</v-icon>
-            </v-btn>
+          <!-- position-relative + attach: the exo-drawer forces its own z-index, so a
+               teleported menu renders behind it and takes no clicks; attaching it here
+               makes it open inside the drawer's stacking context (same fix as email). -->
+          <v-list-item-action class="ma-0 position-relative">
+            <v-menu
+              offset-y
+              left
+              attach
+              content-class="border-radius overflow-hidden"
+              min-width="200">
+              <template #activator="{ on, attrs }">
+                <v-btn
+                  v-bind="attrs"
+                  :loading="attachment.downloading || attachment.saving"
+                  :title="$t('matrix.room.attachments.actions')"
+                  :aria-label="$t('matrix.room.attachments.actions')"
+                  icon
+                  v-on="on">
+                  <v-icon size="18" class="icon-default-color">fa-ellipsis-v</v-icon>
+                </v-btn>
+              </template>
+              <v-list class="pa-0" dense>
+                <v-list-item @click="download(attachment)">
+                  <v-list-item-icon class="me-3 my-auto">
+                    <v-icon size="16" class="icon-default-color">fa-download</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>{{ $t('matrix.chat.download') }}</v-list-item-title>
+                </v-list-item>
+                <v-list-item
+                  v-if="documentsDeployed"
+                  @click="saveInDocuments(attachment)">
+                  <v-list-item-icon class="me-3 my-auto">
+                    <v-icon size="16" class="icon-default-color">fa-hdd</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>{{ $t('matrix.room.attachments.saveInDocuments') }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
           </v-list-item-action>
         </v-list-item>
       </v-list>
@@ -92,6 +122,11 @@ export default {
         day: 'numeric',
       },
     };
+  },
+  computed: {
+    documentsDeployed() {
+      return this.$matrixService.isDocumentsDeployed();
+    },
   },
   created() {
     this.$root.$on('show-room-attachments', this.open);
@@ -161,6 +196,27 @@ export default {
       } finally {
         this.$set(attachment, 'downloading', false);
       }
+    },
+    /**
+     * Opens the Documents folder picker for this attachment and, on the folder the
+     * user confirms, uploads it there. The whole flow — picker, upload, "See" toast —
+     * lives in the service; here we only wire the loading state and the toast texts.
+     *
+     * @param {Object} attachment the attachment row to save
+     * @returns {void}
+     */
+    saveInDocuments(attachment) {
+      if (attachment.saving) {
+        return;
+      }
+      this.$set(attachment, 'saving', true);
+      this.$matrixService.saveAttachmentInDocuments(attachment, this.room, {
+        success: this.$t('matrix.room.attachments.saveInDocuments.success'),
+        error: this.$t('matrix.room.attachments.saveInDocuments.error'),
+        see: this.$t('matrix.room.attachments.saveInDocuments.see'),
+      })
+        .catch(() => this.$root.$emit('alert-message', this.$t('matrix.room.attachments.saveInDocuments.error'), 'error'))
+        .finally(() => this.$set(attachment, 'saving', false));
     },
     reset() {
       this.attachments = [];
