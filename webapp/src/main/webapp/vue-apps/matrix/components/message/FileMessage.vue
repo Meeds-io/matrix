@@ -24,7 +24,7 @@
       :alt="fileName"
       class="d-flex text-decoration-none"
       :download="fileName"
-      @click.prevent="download">
+      @click.prevent="!isMediaDeleted && openChatAttachment(attachment)">
       <div
         class="size-7 white rounded-circle d-flex justify-center me-3 text-decoration-none">
         <v-icon :size="16" :color="fileIcon.color">
@@ -42,8 +42,10 @@
 </template>
 
 <script>
+import ChatAttachmentOpenMixin from '../../js/ChatAttachmentOpenMixin.js';
 
 export default {
+  mixins: [ChatAttachmentOpenMixin],
   props: {
     message: {
       type: Object,
@@ -52,9 +54,8 @@ export default {
   },
   data() {
     return {
-      blobUrl: null,
+      attachment: null,
       fileIcon: null,
-      isDownloading: false
     };
   },
   computed: {
@@ -66,47 +67,18 @@ export default {
     }
   },
   created() {
-    this.fileIcon = this.getFileIcon(this.message.content?.info?.mimetype);
-  },
-  beforeDestroy() {
-    if (this.blobUrl) {
-      URL.revokeObjectURL(this.blobUrl);
-    }
+    const content = this.message?.content || {};
+    // the attachment shape the open mixin (shared with the drawer) expects
+    this.attachment = {
+      eventId: this.message?.event_id,
+      name: content.body,
+      mxcUrl: content.url,
+      mimetype: content.info?.mimetype,
+      size: content.info?.size,
+    };
+    this.fileIcon = this.getFileIcon(content.info?.mimetype);
   },
   methods: {
-    async download() {
-      if (this.isDownloading || this.isMediaDeleted) {
-        return;
-      }
-      this.isDownloading = true;
-
-      try {
-        const url = this.message.content.url;
-
-        const blobUrl = await this.$matrixService.getMediaBlobUrl(url);
-
-        if (!blobUrl) {
-          this.isDownloading = false;
-          return;
-        }
-
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = this.fileName ?? 'file';
-
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        if (this.blobUrl) {
-          URL.revokeObjectURL(this.blobUrl);
-        }
-        this.blobUrl = blobUrl;
-
-      } finally {
-        this.isDownloading = false;
-      }
-    },
     getFileIcon(mimeType) {
       const extensions = Vue.prototype.$filesIconsExtension;
       let extension = extensions[0].get(mimeType);

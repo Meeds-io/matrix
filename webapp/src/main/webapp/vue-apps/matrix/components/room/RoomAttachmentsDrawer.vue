@@ -45,7 +45,7 @@
           :key="attachment.eventId"
           class="px-4 attachment-item"
           :ripple="false"
-          @click="openAttachment(attachment)">
+          @click="openChatAttachment(attachment)">
           <v-list-item-icon class="me-3 my-auto">
             <v-icon
               :size="20"
@@ -89,7 +89,7 @@
                 </v-btn>
               </template>
               <v-list class="pa-0" dense>
-                <v-list-item @click="download(attachment)">
+                <v-list-item @click="downloadChatAttachment(attachment)">
                   <v-list-item-icon class="me-3 my-auto">
                     <v-icon size="16" class="icon-default-color">fa-download</v-icon>
                   </v-list-item-icon>
@@ -113,7 +113,10 @@
 </template>
 
 <script>
+import ChatAttachmentOpenMixin from '../../js/ChatAttachmentOpenMixin.js';
+
 export default {
+  mixins: [ChatAttachmentOpenMixin],
   data() {
     return {
       room: null,
@@ -177,107 +180,6 @@ export default {
         unit++;
       }
       return `${value.toFixed(value < 10 && unit > 0 ? 1 : 0)} ${units[unit]}`;
-    },
-    async download(attachment) {
-      if (attachment.downloading) {
-        return;
-      }
-      this.$set(attachment, 'downloading', true);
-      try {
-        const blobUrl = await this.$matrixService.getMediaBlobUrl(attachment.mxcUrl);
-        if (!blobUrl) {
-          this.$root.$emit('alert-message', this.$t('matrix.chat.file.no.available'), 'error');
-          return;
-        }
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = attachment.name || 'file';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
-      } finally {
-        this.$set(attachment, 'downloading', false);
-      }
-    },
-    /**
-     * Opens the attachment the way email does: a document OnlyOffice can render opens
-     * read only in the editor (when the Documents add-on is installed), anything else
-     * simply downloads. Read only on purpose — the editor needs a document to address,
-     * so a throwaway copy is stored under Chat Attachments/Received just to open it;
-     * editing means Save in Documents first, into a folder the user picked.
-     *
-     * @param {Object} attachment the attachment row that was clicked
-     * @returns {void}
-     */
-    openAttachment(attachment) {
-      if (attachment.opening || attachment.downloading) {
-        return;
-      }
-      if (this.documentsDeployed && this.$matrixService.isEditorPreviewable(attachment)) {
-        this.openInEditor(attachment, 'view');
-        return;
-      }
-      this.download(attachment);
-    },
-    /**
-     * Stores the attachment in the Drive and hands the document to OnlyOffice. The tab
-     * is opened on the click itself, before the (asynchronous) store, so the browser
-     * does not treat the later navigation as a blocked pop-up.
-     *
-     * @param {Object} attachment the attachment to open
-     * @param {String} mode 'view' to open read only, editable when absent
-     * @returns {void}
-     */
-    openInEditor(attachment, mode) {
-      if (attachment.opening) {
-        return;
-      }
-      this.$set(attachment, 'opening', true);
-      const editorTab = window.open('', '_blank');
-      this.showOpeningPlaceholder(editorTab, attachment);
-      this.$matrixService.materialiseChatAttachment(attachment)
-        .then(documentId => {
-          const url = this.$matrixService.getEditorUrl(documentId, mode);
-          if (editorTab) {
-            editorTab.location = url;
-          } else {
-            window.location.href = url;
-          }
-        })
-        .catch(() => {
-          if (editorTab) {
-            editorTab.close();
-          }
-          this.$root.$emit('alert-message', this.$t('matrix.room.attachments.preview.error'), 'error');
-          this.download(attachment);
-        })
-        .finally(() => this.$set(attachment, 'opening', false));
-    },
-    /**
-     * Fills the freshly opened tab with a spinner while the document is being stored,
-     * so the gap between the click and the editor is not a blank white tab.
-     *
-     * @param {Window} editorTab the tab opened for the editor, null when pop-ups blocked
-     * @param {Object} attachment the attachment being opened
-     * @returns {void}
-     */
-    showOpeningPlaceholder(editorTab, attachment) {
-      if (!editorTab) {
-        return;
-      }
-      // the name comes from a chat message, so it is not to be trusted as markup
-      const name = document.createElement('div');
-      name.textContent = attachment.name;
-      const label = this.$t('matrix.room.attachments.opening', { 0: name.innerHTML });
-      editorTab.document.write(`<!doctype html>
-<html><head><meta charset="utf-8"><title>${name.innerHTML}</title></head>
-<body style="margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:Helvetica,Arial,sans-serif;color:#4d5466;background:#fff">
-<div style="width:36px;height:36px;border:3px solid #e1e8ee;border-top-color:#476a9c;border-radius:50%;animation:s 1s linear infinite"></div>
-<div>${label}</div>
-<style>@keyframes s{to{transform:rotate(360deg)}}</style>
-</body></html>`);
-      editorTab.document.close();
     },
     /**
      * Opens the Documents folder picker for this attachment and, on the folder the
