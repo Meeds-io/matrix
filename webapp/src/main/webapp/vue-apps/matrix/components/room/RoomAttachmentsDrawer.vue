@@ -88,8 +88,11 @@
                   <v-icon size="18" class="icon-default-color">fa-ellipsis-v</v-icon>
                 </v-btn>
               </template>
+              <!-- .stop on each item: the menu is attached inside the row, so an item
+                   click would otherwise bubble up to the row's openChatAttachment and,
+                   for a document, open OnlyOffice on top of the chosen action. -->
               <v-list class="pa-0" dense>
-                <v-list-item @click="downloadChatAttachment(attachment)">
+                <v-list-item @click.stop="downloadChatAttachment(attachment)">
                   <v-list-item-icon class="me-3 my-auto">
                     <v-icon size="16" class="icon-default-color">fa-download</v-icon>
                   </v-list-item-icon>
@@ -97,7 +100,7 @@
                 </v-list-item>
                 <v-list-item
                   v-if="documentsDeployed"
-                  @click="saveInDocuments(attachment)">
+                  @click.stop="saveInDocuments(attachment)">
                   <v-list-item-icon class="me-3 my-auto">
                     <v-icon size="16" class="icon-default-color">fa-hdd</v-icon>
                   </v-list-item-icon>

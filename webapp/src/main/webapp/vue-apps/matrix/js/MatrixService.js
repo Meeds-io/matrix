@@ -1248,8 +1248,11 @@ export async function saveAttachmentInDocuments(attachment, room, messages = {})
     workspace: DOCS_DEFAULT_WORKSPACE,
   };
   if (isSpaceRoom) {
-    // let the picker resolve and open the space's own drive
-    pickerDetail.spaceId = room.spaceId;
+    // let the picker resolve and open the space's own drive. As a string on purpose:
+    // the room carries the space id as a number, while the picker matches it against
+    // the space service's ids, which are strings — a numeric id never matches and the
+    // picker would silently fall back to the personal drive.
+    pickerDetail.spaceId = String(room.spaceId);
   } else {
     // no title on purpose: the picker localises the personal drive's display name
     pickerDetail.defaultDrive = { name: DOCS_PERSONAL_DRIVE_NAME };
