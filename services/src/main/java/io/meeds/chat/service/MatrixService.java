@@ -160,19 +160,70 @@ public class MatrixService {
 
   @PostConstruct
   public void init() {
-    try {
-      this.getMatrixAccessToken();
+    int maxAttempts = getConnectionRetryAttempts();
+    long retryDelayMs = getConnectionRetryDelay() * 1000L;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        this.getMatrixAccessToken();
 
-      String userFullMatrixID = getUserFullMatrixID(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
-      this.overrideAdminRateLimit(userFullMatrixID);
-      String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
-      if (StringUtils.isNotBlank(displayName)) {
-        this.updateUserDisplayName(userFullMatrixID, displayName);
+        String userFullMatrixID = getUserFullMatrixID(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
+        this.overrideAdminRateLimit(userFullMatrixID);
+        String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
+        if (StringUtils.isNotBlank(displayName)) {
+          this.updateUserDisplayName(userFullMatrixID, displayName);
+        }
+        this.serviceAvailable = true;
+        LOG.info("Matrix service initialized successfully (attempt {}/{})", attempt, maxAttempts);
+        return;
+      } catch (IllegalArgumentException e) {
+        // Non-transient configuration error (e.g. missing server URL or admin
+        // username): waiting/retrying will never make it succeed, so fail fast.
+        LOG.error("Could not initialize Matrix service because of an invalid configuration, the service is unavailable: {}",
+                  e.getMessage());
+        this.serviceAvailable = false;
+        return;
+      } catch (Exception e) {
+        this.serviceAvailable = false;
+        if (attempt < maxAttempts) {
+          LOG.warn("Matrix service is not available yet (attempt {}/{}), retrying in {}s. Cause: {}",
+                   attempt,
+                   maxAttempts,
+                   retryDelayMs / 1000,
+                   e.getMessage());
+          try {
+            Thread.sleep(retryDelayMs);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Interrupted while waiting for the Matrix service to become available, aborting initialization");
+            return;
+          }
+        } else {
+          LOG.error("Could not initialize Matrix service after {} attempt(s), the service is unavailable", maxAttempts, e);
+        }
       }
-      this.serviceAvailable = true;
-    } catch (Exception e) {
-      LOG.error("Could not initialize Matrix service, the service is unavailable", e.getMessage());
-      this.serviceAvailable = false;
+    }
+  }
+
+  private int getConnectionRetryAttempts() {
+    int attempts = getIntProperty(MATRIX_CONNECTION_RETRY_ATTEMPTS, DEFAULT_CONNECTION_RETRY_ATTEMPTS);
+    return attempts < 1 ? 1 : attempts;
+  }
+
+  private int getConnectionRetryDelay() {
+    int delay = getIntProperty(MATRIX_CONNECTION_RETRY_DELAY, DEFAULT_CONNECTION_RETRY_DELAY);
+    return delay < 0 ? 0 : delay;
+  }
+
+  private int getIntProperty(String key, int defaultValue) {
+    String value = PropertyManager.getProperty(key);
+    if (StringUtils.isBlank(value)) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(value.trim());
+    } catch (NumberFormatException e) {
+      LOG.warn("Invalid value '{}' for property {}, falling back to default {}", value, key, defaultValue);
+      return defaultValue;
     }
   }
 
