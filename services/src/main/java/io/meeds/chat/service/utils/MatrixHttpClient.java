@@ -87,14 +87,15 @@ public class MatrixHttpClient {
           Thread.sleep(sleepInMs);
           return getAccessToken(userJWTToken);
         } else {
-          LOG.error("Error Authenticating admin account with JWT, Matrix server returned HTTP {} error {}",
-                    String.valueOf(response.statusCode()),
-                    response.body());
-          throw new IllegalStateException("Could not authenticate Admin account on Matrix");
+          LOG.warn("Could not authenticate admin account with JWT, Matrix server returned HTTP {}", response.statusCode());
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Matrix authentication error response body: {}", response.body());
+          }
+          throw new IllegalStateException("Could not authenticate Admin account on Matrix (HTTP " + response.statusCode() + ")");
         }
       }
     } catch (Exception e) {
-      LOG.error("Could not authenticate Admin account with JWT on Matrix", e.getMessage());
+      LOG.debug("Could not authenticate Admin account with JWT on Matrix", e);
       throw e;
     }
 
