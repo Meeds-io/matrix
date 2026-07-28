@@ -15,30 +15,24 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <v-list-item
-    v-if="uxBindings && uxBindings.length"
-    class="ps-2 pe-3 height-auto"
-    @click="askAi">
-    <v-sheet
-      class="d-flex"
-      width="28"
-      height="36">
-      <v-progress-circular
-        v-if="loading"
-        indeterminate
-        size="16"
-        width="2"
-        color="primary"
-        class="ma-auto" />
-      <v-icon
-        v-else
-        class="icon-default-color mx-auto"
-        size="16">
-        fa-concierge-bell
-      </v-icon>
-    </v-sheet>
+  <v-tooltip v-if="uxBindings && uxBindings.length" bottom>
+    <template #activator="{ on, attrs }">
+      <v-btn
+        v-on="on"
+        v-bind="attrs"
+        :loading="loading"
+        :aria-label="$t('matrix.chat.ai.askAgent')"
+        icon
+        @click="askAi">
+        <v-icon
+          size="20"
+          class="icon-default-color">
+          fa-concierge-bell
+        </v-icon>
+      </v-btn>
+    </template>
     <span>{{ $t('matrix.chat.ai.askAgent') }}</span>
-  </v-list-item>
+  </v-tooltip>
 </template>
 <script>
 export default {

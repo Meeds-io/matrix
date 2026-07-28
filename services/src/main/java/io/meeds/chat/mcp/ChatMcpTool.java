@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 
 import io.meeds.chat.model.ChatConversation;
 import io.meeds.chat.model.ChatMessage;
-import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.service.MatrixService;
 import io.meeds.mcp.server.plugin.McpToolPlugin;
@@ -95,20 +94,6 @@ public class ChatMcpTool implements McpToolPlugin {
           + "access to it, or the chat service is unavailable. Do not tell the user it was sent.";
     }
     return "The message was sent successfully (event id: " + eventId + ").";
-  }
-
-  /**
-   * Full-text searches the current user's chat messages, either across all their
-   * conversations or scoped to a single one. Tool name: {@code search_chat_messages}.
-   *
-   * @param query the free-text search term
-   * @param conversationId an optional Matrix room id (as returned by
-   *          {@code list_chat_conversations}) to restrict the search to a single
-   *          conversation; when omitted, all the user's conversations are searched
-   * @return the matching messages, most recent first, each with its conversation
-   */
-  public List<ChatSearchResult> searchChatMessages(String query, String conversationId) {
-    return matrixService.searchChatMessages(getCurrentUserName(), query, conversationId, 20);
   }
 
 }

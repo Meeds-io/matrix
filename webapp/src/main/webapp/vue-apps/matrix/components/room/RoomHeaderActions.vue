@@ -35,6 +35,9 @@
         </div>
       </div>
     </div>
+    <matrix-ask-ai-room-action
+      v-if="aiConciergeEnabled"
+      :room="room" />
     <v-menu
       v-model="menu"
       content-class="border-radius overflow-hidden"
@@ -57,26 +60,6 @@
         </v-btn>
       </template>
       <v-list class="pa-0">
-        <matrix-ask-ai-room-action
-          v-if="aiConciergeEnabled"
-          :room="room" />
-        <v-list-item
-          class="ps-2 pe-3 height-auto"
-          @click.stop="toggleFind">
-          <v-sheet
-            class="d-flex"
-            width="28"
-            height="36">
-            <v-icon
-              class="icon-default-color mx-auto"
-              size="16">
-              fa-filter
-            </v-icon>
-          </v-sheet>
-          <span>
-            {{ $t('matrix.chat.search.find') }}
-          </span>
-        </v-list-item>
         <v-list-item
           v-if="canEditSpace"
           class="ps-2 pe-3 height-auto"
@@ -183,9 +166,6 @@ export default {
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
     },
-    fullPageMode() {
-      return this.$root?.fullPageMode;
-    },
     enabledRoomActionComponents() {
       return this.roomActionComponents && this.roomActionComponents.filter(action => action.enabled) || [];
     }
@@ -254,17 +234,6 @@ export default {
           }
         }
       });
-    },
-    toggleFind() {
-      this.menu = false;
-      if (this.fullPageMode) {
-        // Full page: the header is shared with the room list, so open the find field
-        // inside the floating search bar over the conversation instead of the header.
-        this.$root.$emit('open-conversation-find');
-      } else {
-        // Discussion drawer: reuse exo-drawer's full-width header filter.
-        this.$root.$emit('toggle-conversation-search', this.room);
-      }
     },
     editSpace() {
       window.require(['SHARED/spaceForm'], drawer => drawer.edit(this.space?.id));

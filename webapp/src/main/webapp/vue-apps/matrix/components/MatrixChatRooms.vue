@@ -17,9 +17,9 @@
 
 <template>
   <div
-    v-if="rooms?.length || hasMessageResults"
+    v-if="rooms?.length"
     class="d-flex flex-column">
-    <div
+    <div 
       id="initialRoomsElement"
       ref="initialRoomsElement">
       <matrix-chat-room
@@ -29,7 +29,7 @@
         :from-room-list="fromRoomList"
         :room="room" />
     </div>
-    <div
+    <div 
       id="remainingRoomsElement"
       v-if="rooms?.length > limit"
       v-intersect="onIntersect">
@@ -41,47 +41,6 @@
         :from-room-list="fromRoomList"
         :room="room" />
     </div>
-    <!-- WhatsApp-style: conversations whose messages contain the typed word. -->
-    <template v-if="hasMessageResults">
-      <div class="px-5 pt-4 pb-1 text-uppercase text-caption text-sub-title font-weight-bold">
-        {{ $t('matrix.chat.search.messagesSection') }}
-      </div>
-      <div
-        v-for="result in messageResults"
-        :key="`message-result-${result.room.id}`"
-        class="d-flex chat-room-item position-relative py-3 px-5 clickable"
-        @click="openMessageResult(result)">
-        <v-avatar
-          :tile="!result.room.directChat"
-          :class="{'rounded-lg': !result.room.directChat}"
-          width="52"
-          min-width="52"
-          height="52">
-          <img
-            :src="result.room.avatarUrl"
-            loading="lazy"
-            alt="">
-        </v-avatar>
-        <div class="overflow-hidden ps-2 flex-grow-1">
-          <div class="chat-room-name text-truncate text-title text-subtitle-1">
-            {{ result.room.name }}
-          </div>
-          <div
-            class="chat-room-last-message text-truncate text-sub-title text-caption"
-            v-html="highlightSnippet(result.snippet)">
-          </div>
-        </div>
-        <div
-          v-if="result.count > 1"
-          class="ps-3 align-self-center">
-          <v-avatar
-            size="24"
-            class="align-center align-content-center grey-lighten1-background white--text text-font-small-size">
-            {{ result.count <= 99 ? result.count : '99+' }}
-          </v-avatar>
-        </div>
-      </div>
-    </template>
   </div>
   <div v-else-if="!loading" class="d-flex full-height align-center justify-center full-width">
     <div>
@@ -119,14 +78,6 @@ export default {
     fromRoomList: {
       type: Boolean,
       default: false
-    },
-    searchTerm: {
-      type: String,
-      default: null
-    },
-    messageResults: {
-      type: Array,
-      default: () => []
     }
   },
   created() {
@@ -141,36 +92,9 @@ export default {
     },
     remainingRooms() {
       return this.rooms.slice(this.limit, this.rooms.length);
-    },
-    hasMessageResults() {
-      return !!this.searchTerm && this.messageResults?.length > 0;
     }
   },
   methods: {
-    openMessageResult(result) {
-      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,
-        {
-          detail: {
-            room: result.room,
-            fromRoomList: this.fromRoomList
-          }
-        }));
-      localStorage.setItem('lastOpenedRoomId', result.room.id);
-    },
-    highlightSnippet(text) {
-      const escaped = (text || '').replace(/[&<>"]/g, character => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;'
-      }[character]));
-      const term = (this.searchTerm || '').trim();
-      if (!term) {
-        return escaped;
-      }
-      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return escaped.replace(new RegExp(`(${escapedTerm})`, 'gi'), '<span class="primary--text font-weight-bold">$1</span>');
-    },
     addJoinedRoom(event) {
       const roomExistsIndex = this.rooms.findIndex(room => room.id === event.detail.id);
       if (roomExistsIndex < 0) {

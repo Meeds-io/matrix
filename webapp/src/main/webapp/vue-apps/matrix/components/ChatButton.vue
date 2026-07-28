@@ -38,8 +38,6 @@
       :rooms="sortedRooms"
       :loading-rooms="loading"
       :presence="presence"
-      :search-term="searchTerm"
-      :message-results="messageResults"
       @room-active-changed="handleActiveRoomState"
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-discussion-drawer
@@ -47,8 +45,6 @@
       :rooms="sortedRooms"
       :presence="presence"
       :loading-rooms="loading"
-      :search-term="searchTerm"
-      :message-results="messageResults"
       @room-active-changed="handleActiveRoomState"
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-quick-create-discussion-drawer />
@@ -92,8 +88,6 @@ export default {
     targetRoomId: null,
     searchTimer: null,
     searchTerm: null,
-    messageResults: [],
-    messageSearchTerm: null,
     activeFilters: [],
     activeRoomId: null,
     cacheRoomsTimeout: null,
@@ -295,49 +289,7 @@ export default {
       this.searchTimer = setTimeout(() => {
         this.searchTerm = text;
         this.loading = false;
-        this.runMessageSearch(text);
       }, 300);
-    },
-    // WhatsApp-style: besides filtering the list by conversation name, look up the
-    // typed word inside message bodies (global Matrix /search, run as the user) and
-    // surface the matching conversations in a "Messages" section under the list.
-    async runMessageSearch(text) {
-      const term = (text || '').trim();
-      this.messageSearchTerm = term;
-      if (!term) {
-        this.messageResults = [];
-        return;
-      }
-      try {
-        const results = await this.$matrixService.searchMessages(null, term, 50);
-        // Drop stale responses if the user kept typing.
-        if (this.messageSearchTerm !== term) {
-          return;
-        }
-        const byConversation = new Map();
-        for (const result of results) {
-          const conversationId = result.conversationId;
-          const existing = byConversation.get(conversationId);
-          if (existing) {
-            existing.count++;
-            continue;
-          }
-          const room = this.rooms?.find(candidate => (candidate.id || '').split(':')[0] === conversationId);
-          if (!room) {
-            continue;
-          }
-          byConversation.set(conversationId, {
-            room,
-            snippet: result.text,
-            sender: result.sender,
-            count: 1,
-          });
-        }
-        this.messageResults = [...byConversation.values()];
-      } catch (error) {
-        console.error('Chat message search failed:', error);
-        this.messageResults = [];
-      }
     },
     handleTotalUnreadUpdate(total) {
       this.totalUnreadMessages = total;
