@@ -85,33 +85,6 @@
         "openWorldHint": false
       },
       "require_approval": true
-    },
-    {
-      "name": "search_chat_messages",
-      "title": "Search Chat Messages",
-      "description": "Full-text search the current user's chat messages by keyword. By default searches across all of the user's conversations; pass conversation_id to restrict the search to a single conversation. Returns each matching message with its text, sender, timestamp and the conversation it belongs to (id and title), most recent first. Use this to find where something was discussed before reading a whole conversation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "description": "Free-text search term to match against message contents"
-          },
-          "conversation_id": {
-            "type": "string",
-            "description": "Optional Matrix room id (as returned by list_chat_conversations) to restrict the search to a single conversation; omit to search everywhere"
-          }
-        },
-        "required": [
-          "query"
-        ]
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "destructiveHint": false,
-        "idempotentHint": true,
-        "openWorldHint": false
-      }
     }
   ]
 }
