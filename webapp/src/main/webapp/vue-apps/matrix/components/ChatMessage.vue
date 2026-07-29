@@ -92,6 +92,7 @@
             <matrix-message-action-list
               ref="actionList"
               :message="message"
+              :room="room"
               :is-my-message="isMyMessage"
               @close="closeMenuOnMobile"
               @reply="replyToMessage"

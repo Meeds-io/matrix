@@ -44,7 +44,7 @@
           </v-icon>
         </v-btn>
         <v-menu
-          v-if="isMyMessage || aiConciergeEnabled"
+          v-if="isMyMessage || aiConciergeEnabled || canSaveAttachment"
           v-model="showMoreActions"
           content-class="l-auto r-0 border-radius"
           :attach="`#message${message.origin_server_ts}`"
@@ -96,6 +96,20 @@
               {{ $t('matrix.chat.label.editMessage') }}
             </v-list-item>
             <v-list-item
+              v-if="canSaveAttachment"
+              class="chat-action-menu-item"
+              :title="$t('matrix.room.attachments.saveInDocuments')"
+              :aria-label="$t('matrix.room.attachments.saveInDocuments')"
+              @click="handleSaveInDocuments">
+              <v-icon
+                class="me-1"
+                size="16">
+                fa-hdd
+              </v-icon>
+              {{ $t('matrix.room.attachments.saveInDocuments') }}
+            </v-list-item>
+            <!-- Delete stays last: the destructive action sits at the bottom of the menu. -->
+            <v-list-item
               v-if="isMyMessage"
               class="chat-action-menu-item"
               :title="$t('matrix.chat.label.deleteMessage')"
@@ -119,11 +133,18 @@
 
 <script>
 
+// The message types that carry a stored attachment, hence something to save.
+const ATTACHMENT_MSG_TYPES = ['m.file', 'm.image', 'm.video', 'm.audio'];
+
 export default {
   props: {
     message: {
       type: Object,
       default: {},
+    },
+    room: {
+      type: Object,
+      default: null,
     },
     isMyMessage: {
       type: Boolean,
@@ -142,6 +163,19 @@ export default {
     },
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
+    },
+    /**
+     * Whether this message carries an attachment that can be saved to Documents, and
+     * the Documents add-on is there to save it to. Shown for any such message, one's
+     * own or not — so the menu appears on others' attachments too, with Save as its
+     * only entry.
+     *
+     * @returns {Boolean} true when a Save in Documents entry applies
+     */
+    canSaveAttachment() {
+      return ATTACHMENT_MSG_TYPES.includes(this.message?.content?.msgtype)
+        && !!this.message?.content?.url
+        && this.$matrixService.isDocumentsDeployed();
     },
   },
   watch: {
@@ -176,6 +210,29 @@ export default {
     },
     handleDeleteMessage() {
       this.$emit('delete', this.message);
+      this.close();
+    },
+    /**
+     * Saves this message's attachment to Documents through the reusable folder picker,
+     * the same flow the attachments drawer uses. Builds the attachment shape the
+     * service expects from the message content.
+     *
+     * @returns {void}
+     */
+    handleSaveInDocuments() {
+      const content = this.message?.content || {};
+      const attachment = {
+        eventId: this.message?.event_id,
+        name: content.body,
+        mxcUrl: content.url,
+        mimetype: content.info?.mimetype,
+        size: content.info?.size,
+      };
+      this.$matrixService.saveAttachmentInDocuments(attachment, this.room, {
+        success: this.$t('matrix.room.attachments.saveInDocuments.success'),
+        error: this.$t('matrix.room.attachments.saveInDocuments.error'),
+        see: this.$t('matrix.room.attachments.saveInDocuments.see'),
+      }).catch(() => this.$root.$emit('alert-message', this.$t('matrix.room.attachments.saveInDocuments.error'), 'error'));
       this.close();
     },
     close() {
