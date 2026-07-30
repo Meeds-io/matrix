@@ -160,70 +160,19 @@ public class MatrixService {
 
   @PostConstruct
   public void init() {
-    int maxAttempts = getConnectionRetryAttempts();
-    long retryDelayMs = getConnectionRetryDelay() * 1000L;
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        this.getMatrixAccessToken();
-
-        String userFullMatrixID = getUserFullMatrixID(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
-        this.overrideAdminRateLimit(userFullMatrixID);
-        String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
-        if (StringUtils.isNotBlank(displayName)) {
-          this.updateUserDisplayName(userFullMatrixID, displayName);
-        }
-        this.serviceAvailable = true;
-        LOG.info("Matrix service initialized successfully (attempt {}/{})", attempt, maxAttempts);
-        return;
-      } catch (IllegalArgumentException e) {
-        // Non-transient configuration error (e.g. missing server URL or admin
-        // username): waiting/retrying will never make it succeed, so fail fast.
-        LOG.error("Could not initialize Matrix service because of an invalid configuration, the service is unavailable: {}",
-                  e.getMessage());
-        this.serviceAvailable = false;
-        return;
-      } catch (Exception e) {
-        this.serviceAvailable = false;
-        if (attempt < maxAttempts) {
-          LOG.warn("Matrix service is not available yet (attempt {}/{}), retrying in {}s. Cause: {}",
-                   attempt,
-                   maxAttempts,
-                   retryDelayMs / 1000,
-                   e.getMessage());
-          try {
-            Thread.sleep(retryDelayMs);
-          } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Interrupted while waiting for the Matrix service to become available, aborting initialization");
-            return;
-          }
-        } else {
-          LOG.error("Could not initialize Matrix service after {} attempt(s), the service is unavailable", maxAttempts, e);
-        }
-      }
-    }
-  }
-
-  private int getConnectionRetryAttempts() {
-    int attempts = getIntProperty(MATRIX_CONNECTION_RETRY_ATTEMPTS, DEFAULT_CONNECTION_RETRY_ATTEMPTS);
-    return attempts < 1 ? 1 : attempts;
-  }
-
-  private int getConnectionRetryDelay() {
-    int delay = getIntProperty(MATRIX_CONNECTION_RETRY_DELAY, DEFAULT_CONNECTION_RETRY_DELAY);
-    return delay < 0 ? 0 : delay;
-  }
-
-  private int getIntProperty(String key, int defaultValue) {
-    String value = PropertyManager.getProperty(key);
-    if (StringUtils.isBlank(value)) {
-      return defaultValue;
-    }
     try {
-      return Integer.parseInt(value.trim());
-    } catch (NumberFormatException e) {
-      LOG.warn("Invalid value '{}' for property {}, falling back to default {}", value, key, defaultValue);
-      return defaultValue;
+      this.getMatrixAccessToken();
+
+      String userFullMatrixID = getUserFullMatrixID(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
+      this.overrideAdminRateLimit(userFullMatrixID);
+      String displayName = System.getProperty(MATRIX_ADMIN_DISPLAY_NAME, "Chat Bot");
+      if (StringUtils.isNotBlank(displayName)) {
+        this.updateUserDisplayName(userFullMatrixID, displayName);
+      }
+      this.serviceAvailable = true;
+    } catch (Exception e) {
+      LOG.error("Could not initialize Matrix service, the service is unavailable", e.getMessage());
+      this.serviceAvailable = false;
     }
   }
 
@@ -1513,12 +1462,66 @@ public class MatrixService {
   }
 
   /**
+   * Resolves the display title of a conversation carrying a search hit. The user's
+   * conversation list answers for the rooms the platform tracks; for the others — a
+   * direct message opened from another Matrix client, a room whose platform record is
+   * gone — Matrix itself is asked for the room name, or for the other member's name
+   * when the room has none. What Matrix answers is memoised, including a miss, so a
+   * search returning several hits of the same conversation resolves it once.
+   *
+   * @param roomLocalId the room local part the hit belongs to
+   * @param titlesByRoomId the titles of the conversations the platform tracks
+   * @param titlesFromMatrix the titles already resolved from Matrix, updated in place
+   * @param currentUserMatrixId the requesting user's full Matrix id
+   * @param accessToken the requesting user's Matrix access token
+   * @return the conversation title, or {@code null} when neither side can name it
+   */
+  /**
+   * Tells whether a conversation carrying a search hit is one the given user may see in the chat
+   * and open from a result: the room is tracked by the platform and the user can access it. This
+   * is the same test the chat list (processRooms) and the open action (byRoomId) rely on, so a
+   * search result is shown only when it maps to a real, openable conversation. Results are
+   * memoised per room so a search returning several hits of one conversation checks it once.
+   *
+   * @param roomLocalId the room local part the hit belongs to
+   * @param userName the login of the searching user
+   * @param accessibleByRoomId the decisions already taken, updated in place
+   * @return {@code true} when the conversation is tracked and accessible to the user
+   */
+  private boolean isAccessibleConversation(String roomLocalId, String userName, Map<String, Boolean> accessibleByRoomId) {
+    return accessibleByRoomId.computeIfAbsent(roomLocalId, id -> {
+      Room room = getById(id, true);
+      return room != null && canAccess(room, userName);
+    });
+  }
+
+  private String resolveConversationTitle(String roomLocalId,
+                                          Map<String, String> titlesByRoomId,
+                                          Map<String, String> titlesFromMatrix,
+                                          String currentUserMatrixId,
+                                          String accessToken) {
+    String knownTitle = titlesByRoomId.get(roomLocalId);
+    if (StringUtils.isNotBlank(knownTitle)) {
+      return knownTitle;
+    }
+    if (titlesFromMatrix.containsKey(roomLocalId)) {
+      return titlesFromMatrix.get(roomLocalId);
+    }
+    String matrixTitle = matrixHttpClient.getRoomDisplayName(roomLocalId, currentUserMatrixId, accessToken);
+    titlesFromMatrix.put(roomLocalId, matrixTitle);
+    return matrixTitle;
+  }
+
+  /**
    * Runs a full-text search of message bodies <strong>as the given user</strong>,
    * either across all their conversations (when {@code conversationId} is blank) or
-   * scoped to a single conversation. Synapse enforces the user's visibility, so only
-   * messages the user is allowed to see are returned; each hit is resolved to a human
-   * readable conversation title. Backs the {@code search_chat_messages} MCP tool and
-   * the chat UI search.
+   * scoped to a single conversation. Synapse enforces the user's Matrix visibility, and
+   * the hits are then restricted to the conversations that are tracked by the platform
+   * and accessible to the user — the same rooms the chat list shows and the row can open
+   * — so a room they still belong to on Matrix but not in the chat (created from another
+   * Matrix client, left behind by a failed space kick) is never returned. Each hit is
+   * resolved to a human readable conversation title. Backs the
+   * {@code search_chat_messages} MCP tool and the chat UI search.
    *
    * @param userName the Meeds username acting
    * @param query the free-text search term
@@ -1536,19 +1539,39 @@ public class MatrixService {
     for (ChatConversation conversation : getUserConversations(userName)) {
       titlesByRoomId.put(extractRoomId(conversation.getRoomId()), conversation.getTitle());
     }
-    if (scopedRoomId != null && !titlesByRoomId.containsKey(scopedRoomId)) {
-      LOG.warn("User {} is not a participant of conversation {}, refusing to search it", userName, scopedRoomId);
+    Map<String, Boolean> accessibleByRoomId = new HashMap<>();
+    if (scopedRoomId != null && !isAccessibleConversation(scopedRoomId, userName, accessibleByRoomId)) {
+      LOG.warn("User {} cannot access conversation {}, refusing to search it", userName, scopedRoomId);
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 100);
+    String currentUserMatrixId = getUserFullMatrixID(userName);
+    Map<String, String> titlesFromMatrix = new HashMap<>();
     return callAsUser(userName, Collections.<ChatSearchResult> emptyList(), accessToken -> {
       List<MatrixMessage> matches = matrixHttpClient.searchMessages(query, scopedRoomId, effectiveLimit, accessToken);
       List<ChatSearchResult> results = new ArrayList<>();
       for (MatrixMessage match : matches) {
         String roomLocalId = extractRoomId(match.getRoomId());
+        if (!isAccessibleConversation(roomLocalId, userName, accessibleByRoomId)) {
+          // Synapse answers for every room the user belongs to on Matrix, which can outlive what
+          // the platform grants — a room created from another Matrix client, a space kick that
+          // failed on leave, a restored backup. Keep only the conversations the platform tracks
+          // and the user may view: those are the ones the chat list shows (processRooms builds it
+          // from the same tracked rooms) and the only ones the row can open (byRoomId uses the
+          // same getById + canAccess). A hit outside that set is dropped rather than shown as a
+          // card that leads nowhere.
+          LOG.debug("Skipping a search hit of user {} in conversation {}, which they cannot access",
+                    userName,
+                    roomLocalId);
+          continue;
+        }
         results.add(new ChatSearchResult(roomLocalId,
                                          match.getEventId(),
-                                         titlesByRoomId.get(roomLocalId),
+                                         resolveConversationTitle(roomLocalId,
+                                                                  titlesByRoomId,
+                                                                  titlesFromMatrix,
+                                                                  currentUserMatrixId,
+                                                                  accessToken),
                                          extractUserId(match.getSender()),
                                          match.getMessageContent(),
                                          match.getTimeStamp(),
