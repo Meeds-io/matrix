@@ -397,6 +397,14 @@ public class MatrixRest implements ResourceContainer {
       if (roomEntity != null) {
         result.setAvatarUrl(roomEntity.getAvatarUrl());
         result.setDirectChat(roomEntity.isDirectChat());
+        if (StringUtils.isBlank(result.getConversationTitle()) && StringUtils.isNotBlank(roomEntity.getName())) {
+          // The service resolves titles from the user's conversation list, which misses rooms it
+          // does not track (a direct message opened from another Matrix client, a room not synced
+          // yet…). The room entity carries the same display name the room list shows — the space
+          // name, or the other member's full name for a direct chat — so use it rather than
+          // letting the UI fall back to the raw Matrix room id.
+          result.setConversationTitle(roomEntity.getName());
+        }
       }
     }
     return ResponseEntity.ok().body(results);

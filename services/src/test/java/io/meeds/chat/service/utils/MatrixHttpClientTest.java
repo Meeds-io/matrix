@@ -41,6 +41,7 @@ import java.util.List;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.*;
 
 class MatrixHttpClientTest {
@@ -889,6 +890,219 @@ class MatrixHttpClientTest {
     // No results / missing categories -> empty list (no NPE)
     when(responseOK.body()).thenReturn("{\"search_categories\":{}}");
     assertTrue(matrixHttpClient.searchMessages("found", null, 20, accessToken).isEmpty());
+  }
+
+  @Test
+  void searchMessagesFoldsEditsOntoTheEditedMessage() throws Exception {
+    // Matrix returns the edit and the message it replaces as two separate hits, most recent
+    // first: they must count as one, pointing at the event the client renders.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$edit:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000100,
+                    "content": {
+                      "body": "* budget reviewed twice",
+                      "msgtype": "m.text",
+                      "m.new_content": { "body": "budget reviewed twice", "msgtype": "m.text" },
+                      "m.relates_to": { "rel_type": "m.replace", "event_id": "$original:matrix.exo.com" }
+                    }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$original:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget reviewed", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    List<MatrixMessage> results = matrixHttpClient.searchMessages("budget", null, 20, accessToken);
+    assertEquals(1, results.size());
+    assertEquals("$original:matrix.exo.com", results.get(0).getEventId());
+    assertEquals("budget reviewed twice", results.get(0).getMessageContent());
+  }
+
+  @Test
+  void searchMessagesDropsMessagesEditedToRemoveTheTerm() throws Exception {
+    // The original event keeps matching on its outdated body: neither it nor the edit
+    // may be reported once the term is gone from the current text.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$edit:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000100,
+                    "content": {
+                      "body": "* nothing to see",
+                      "msgtype": "m.text",
+                      "m.new_content": { "body": "nothing to see", "msgtype": "m.text" },
+                      "m.relates_to": { "rel_type": "m.replace", "event_id": "$original:matrix.exo.com" }
+                    }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$original:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget reviewed", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    assertTrue(matrixHttpClient.searchMessages("budget", null, 20, accessToken).isEmpty());
+  }
+
+  @Test
+  void searchMessagesSkipsRedactedMessages() throws Exception {
+    // Synapse keeps redacted events in its index: a deleted message is not a hit.
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$deleted:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget deleted", "msgtype": "m.text" },
+                    "unsigned": { "redacted_because": { "type": "m.room.redaction" } }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$kept:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000001,
+                    "content": { "body": "budget kept", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    List<MatrixMessage> results = matrixHttpClient.searchMessages("budget", null, 20, accessToken);
+    assertEquals(1, results.size());
+    assertEquals("$kept:matrix.exo.com", results.get(0).getEventId());
+  }
+
+  @Test
+  void searchMessagesDeduplicatesRepeatedHitsOfTheSameEvent() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "search_categories": {
+            "room_events": {
+              "results": [
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$twice:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget once", "msgtype": "m.text" }
+                  }
+                },
+                {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$twice:matrix.exo.com",
+                    "room_id": "!room1:matrix.exo.com",
+                    "sender": "@a:matrix.exo.com",
+                    "origin_server_ts": 1600000000000,
+                    "content": { "body": "budget once", "msgtype": "m.text" }
+                  }
+                }
+              ]
+            }
+          }
+        }""");
+    assertEquals(1, matrixHttpClient.searchMessages("budget", null, 20, accessToken).size());
+  }
+
+  @Test
+  void getRoomDisplayNameUsesTheRoomName() {
+    HttpResponse nameResponse = mock(HttpResponse.class);
+    when(nameResponse.statusCode()).thenReturn(200);
+    when(nameResponse.body()).thenReturn("{\"name\":\"Support Team\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(nameResponse);
+
+    assertEquals("Support Team", matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
+  }
+
+  @Test
+  void getRoomDisplayNameFallsBackToTheOtherMemberOfADirectMessage() {
+    // No m.room.name on the room: a two-member room is named after the other member.
+    HttpResponse noName = mock(HttpResponse.class);
+    when(noName.statusCode()).thenReturn(404);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(noName);
+    HttpResponse members = mock(HttpResponse.class);
+    when(members.statusCode()).thenReturn(200);
+    when(members.body()).thenReturn("""
+        {
+          "joined": {
+            "@me:matrix.exo.com": { "display_name": "Me Myself" },
+            "@veronika:matrix.exo.com": { "display_name": "Veronika V" }
+          }
+        }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/joined_members"), anyString()))
+                      .thenReturn(members);
+
+    assertEquals("Veronika V", matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
+  }
+
+  @Test
+  void getRoomDisplayNameReturnsNullWhenMatrixCannotNameTheRoom() {
+    HttpResponse noName = mock(HttpResponse.class);
+    when(noName.statusCode()).thenReturn(404);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.name"), anyString()))
+                      .thenReturn(noName);
+    // More than two members and no room name -> nothing sensible to display.
+    HttpResponse members = mock(HttpResponse.class);
+    when(members.statusCode()).thenReturn(200);
+    when(members.body()).thenReturn("""
+        {
+          "joined": {
+            "@me:matrix.exo.com": { "display_name": "Me Myself" },
+            "@a:matrix.exo.com": { "display_name": "A A" },
+            "@b:matrix.exo.com": { "display_name": "B B" }
+          }
+        }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/joined_members"), anyString()))
+                      .thenReturn(members);
+
+    assertNull(matrixHttpClient.getRoomDisplayName("!room1", "@me:matrix.exo.com", accessToken));
   }
 
   @Test

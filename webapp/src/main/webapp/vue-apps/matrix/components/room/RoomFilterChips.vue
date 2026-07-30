@@ -28,7 +28,8 @@
       :value="filter.key"
       filter
       outlined
-      small>
+      small
+      @click.native="blurChip">
       {{ $t(filter.label) }}
     </v-chip>
   </v-chip-group>
@@ -50,6 +51,12 @@ export default {
   methods: {
     emitChange() {
       this.$root.$emit('chat-rooms-filter-changed', this.selected);
+    },
+    blurChip(event) {
+      // Vuetify keeps the chip's :focus/:hover ::before overlay visible after
+      // toggling it off, leaving a stuck grey background - clear it explicitly.
+      const chipEl = event.currentTarget;
+      this.$nextTick(() => chipEl?.blur());
     }
   }
 };
