@@ -43,7 +43,7 @@
       <span class="text-caption text-sub-title me-1" style="white-space:nowrap;">{{ matchLabel }}</span>
       <v-btn
         icon
-        x-small
+        small
         :disabled="!matchEventIds.length"
         :title="$t('matrix.chat.search.previous')"
         @click="searchNav('previous')">
@@ -51,7 +51,7 @@
       </v-btn>
       <v-btn
         icon
-        x-small
+        small
         :disabled="!matchEventIds.length"
         :title="$t('matrix.chat.search.next')"
         @click="searchNav('next')">
@@ -60,7 +60,7 @@
       <v-btn
         v-if="findBarOpen"
         icon
-        x-small
+        small
         :title="$t('matrix.chat.cancel')"
         @click="closeFindBar">
         <v-icon size="16" class="icon-default-color">fa-times</v-icon>
@@ -129,6 +129,16 @@
 </template>
 
 <script>
+// Breathing space kept between a message scrolled into view and the edges of the
+// visible area (below the floating find bar, above the bottom of the container).
+const SCROLL_TARGET_GAP = 12;
+// Fallback clearance when the find bar element cannot be measured yet (top:8px + its height).
+const FIND_BAR_SCROLL_MARGIN = 56;
+// Delay after the smooth scroll before checking the match is really fully visible:
+// avatars, images and reactions can still change the layout while the scroll runs.
+const SCROLL_SETTLE_DELAY = 400;
+// Class marking the highlighted occurrences of the searched term.
+const SEARCH_HIGHLIGHT_CLASS = 'chat-search-highlight';
 
 export default {
   data() {
@@ -169,7 +179,9 @@ export default {
       searchToken: 0,
       findBarOpen: false,
       findBarText: '',
-      findBarDebounce: null
+      findBarDebounce: null,
+      scrollSettleTimeout: null,
+      scrollCorrectionCleanup: null
     };
   },
   props: {
@@ -197,6 +209,8 @@ export default {
     this.$root.$on('open-conversation-find', this.openFindBar);
   },
   beforeDestroy() {
+    clearTimeout(this.findBarDebounce);
+    this.cancelScrollCorrection();
     document.removeEventListener('space-settings-updated', this.handleSpaceSettingsUpdate);
     document.removeEventListener('matrix-message-received', this.messageReceived);
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
@@ -695,6 +709,7 @@ export default {
       this.scrollToMatch();
     },
     clearSearch() {
+      this.cancelScrollCorrection();
       this.clearHighlight();
       this.matchEventIds = [];
       this.currentMatch = -1;
@@ -719,9 +734,15 @@ export default {
       if (!eventId) {
         return;
       }
-      await this.moveToMessage(eventId);
-      // moveToMessage may have paged in older messages: highlight any newly-loaded matches too.
+      const targetElement = await this.loadMessageElement(eventId);
+      if (!targetElement) {
+        return;
+      }
+      // Reaching the match may have paged in older messages: highlight the newly-loaded
+      // matches before scrolling, so the scroll can anchor on the occurrence itself.
       this.highlightAllMatches();
+      await this.$nextTick();
+      this.scrollMessageIntoView(targetElement, this.getFirstHighlight(targetElement));
     },
     clearHighlight() {
       (this.highlightEls || []).forEach(mark => {
@@ -767,6 +788,7 @@ export default {
             fragment.appendChild(document.createTextNode(text.slice(from, index)));
           }
           const mark = document.createElement('span');
+          mark.className = SEARCH_HIGHLIGHT_CLASS;
           mark.style.backgroundColor = '#ffeb3b';
           mark.style.color = '#000';
           mark.style.borderRadius = '2px';
@@ -798,6 +820,13 @@ export default {
       await this.moveToMessage(firstUnseenEventId);
     },
     async moveToMessage(eventId) {
+      const targetElement = await this.loadMessageElement(eventId);
+      if (targetElement) {
+        this.scrollMessageIntoView(targetElement);
+      }
+    },
+    // Pages older messages in until the wanted message is rendered; returns its content element.
+    async loadMessageElement(eventId) {
       let targetElement = this.getMessageContentElement(eventId);
       let tries = 0;
       const maxTries = 10;
@@ -809,11 +838,90 @@ export default {
         targetElement = this.getMessageContentElement(eventId);
       }
 
-      if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'center'});
-      } else {
+      if (!targetElement) {
         this.$root.$emit('alert-message', this.$t('matrix.unread.section.load.exceed'), 'success');
       }
+      return targetElement;
+    },
+    getFirstHighlight(contentElement) {
+      return contentElement?.querySelector?.(`.${SEARCH_HIGHLIGHT_CLASS}`) || null;
+    },
+    // Vertical space taken at the top of the scroll container by the floating find bar,
+    // which is sticky over the messages and would otherwise clip the message scrolled to.
+    getTopOverlayHeight(container) {
+      const findBar = container?.querySelector?.('.chat-find-bar');
+      if (!findBar) {
+        return 0;
+      }
+      const height = findBar.getBoundingClientRect().bottom - container.getBoundingClientRect().top;
+      return height > 0 && height || FIND_BAR_SCROLL_MARGIN;
+    },
+    // scrollIntoView({block: 'center'}) ignores the sticky find bar and, on messages taller
+    // than the visible area, leaves the matched line half cut. Compute the scroll position
+    // ourselves so the whole message bubble — or at least the matched line — is fully visible.
+    scrollMessageIntoView(contentElement, highlightElement = null) {
+      // Resolve the container from the message itself: the id is shared by the drawer and
+      // the full-page conversation, so a lookup by id may return the other one.
+      const container = contentElement?.closest?.(`#${this.messagesContainerId}`);
+      if (!container || !contentElement?.isConnected) {
+        return;
+      }
+      const top = this.computeScrollTopFor(container, contentElement, highlightElement);
+      if (top === null) {
+        return;
+      }
+      container.scrollTo({top, behavior: 'smooth'});
+      this.scheduleScrollCorrection(container, contentElement, highlightElement);
+    },
+    // The layout can still shift while the smooth scroll runs (avatars, images, reactions):
+    // check once it settled and correct the position, unless the user took over scrolling.
+    scheduleScrollCorrection(container, contentElement, highlightElement) {
+      this.cancelScrollCorrection();
+      const cancel = () => this.cancelScrollCorrection();
+      container.addEventListener('wheel', cancel, {passive: true});
+      container.addEventListener('touchstart', cancel, {passive: true});
+      this.scrollCorrectionCleanup = () => {
+        container.removeEventListener('wheel', cancel);
+        container.removeEventListener('touchstart', cancel);
+      };
+      this.scrollSettleTimeout = setTimeout(() => {
+        const corrected = this.computeScrollTopFor(container, contentElement, highlightElement);
+        if (corrected !== null && Math.abs(corrected - container.scrollTop) > SCROLL_TARGET_GAP) {
+          container.scrollTo({top: corrected, behavior: 'smooth'});
+        }
+        this.cancelScrollCorrection();
+      }, SCROLL_SETTLE_DELAY);
+    },
+    cancelScrollCorrection() {
+      clearTimeout(this.scrollSettleTimeout);
+      this.scrollSettleTimeout = null;
+      this.scrollCorrectionCleanup?.();
+      this.scrollCorrectionCleanup = null;
+    },
+    computeScrollTopFor(container, contentElement, highlightElement) {
+      if (!contentElement?.isConnected) {
+        return null;
+      }
+      // The bubble holds the reply quote, the text and the timestamp: showing it whole is
+      // what makes the matched line readable, not just the text node.
+      const bubble = contentElement.closest('.chat-message-content-body') || contentElement;
+      const topInset = this.getTopOverlayHeight(container) + SCROLL_TARGET_GAP;
+      const visibleHeight = container.clientHeight - topInset - SCROLL_TARGET_GAP;
+      if (visibleHeight <= 0) {
+        return null;
+      }
+      const containerTop = container.getBoundingClientRect().top;
+      let rect = bubble.getBoundingClientRect();
+      // A message longer than the visible area can never be shown whole: fall back on the
+      // matched occurrence so its own line is the one guaranteed to be fully visible.
+      if (rect.height > visibleHeight && highlightElement?.isConnected) {
+        rect = highlightElement.getBoundingClientRect();
+      }
+      const offsetTop = rect.top - containerTop + container.scrollTop;
+      const freeSpace = Math.max(0, visibleHeight - rect.height);
+      const wantedTop = offsetTop - topInset - freeSpace / 2;
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      return Math.min(Math.max(wantedTop, 0), maxScrollTop);
     },
     async fetchAndAppendOlderMessages(preserveScroll = true) {
       const lastMessageId = this.messages?.[0]?.event_id;
