@@ -24,7 +24,7 @@
   <parent>
     <groupId>io.meeds.matrix</groupId>
     <artifactId>matrix</artifactId>
-    <version>7.3.x-SNAPSHOT</version>
+    <version>7.3.x-ai-contribution-SNAPSHOT</version>
   </parent>
   <artifactId>matrix-services</artifactId>
   <packaging>jar</packaging>
@@ -96,6 +96,13 @@
     <dependency>
       <groupId>io.meeds.mcp-server</groupId>
       <artifactId>mcp-server-service</artifactId>
+      <version>7.3.x-ai-contribution-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springaicommunity</groupId>
+      <artifactId>mcp-annotations</artifactId>
+      <version>0.9.0</version>
       <scope>provided</scope>
     </dependency>
     <!-- App Center badge SPI (used to bind the chat unread counter to its application tile) -->
