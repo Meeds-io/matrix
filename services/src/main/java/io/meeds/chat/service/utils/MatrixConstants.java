@@ -50,7 +50,7 @@ public class MatrixConstants {
 
   public static final String                   MATRIX_CONNECTION_RETRY_DELAY               = "meeds.matrix.connection.retry.delay";
 
-  public static final int                      DEFAULT_CONNECTION_RETRY_ATTEMPTS           = 20;
+  public static final int                      DEFAULT_CONNECTION_RETRY_ATTEMPTS           = 5;
 
   public static final int                      DEFAULT_CONNECTION_RETRY_DELAY              = 15;                                       // seconds
 
