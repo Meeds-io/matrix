@@ -261,41 +261,38 @@ export default {
     formattedMessage() {
       return this.message?.formattedMessage;
     },
+    imageNaturalWidth() {
+      return this.message.content.info.w || this.message.content.w || 1;
+    },
+    imageNaturalHeight() {
+      return this.message.content.info.h || this.message.content.h || 1;
+    },
+    imageThumbnailScale() {
+      // A single scale factor applied to both dimensions so the thumbnail
+      // always keeps the image's real aspect ratio (a square image must stay
+      // square) while fitting inside the (max width x max height) box.
+      // Computing width and height independently (previous implementation)
+      // let each pick a different capping dimension - e.g. a square image
+      // larger than 500px could end up width-capped but not height-capped
+      // (or the reverse), producing a non-square box that then got cropped
+      // by the v-img's cover fit. Never upscale past the natural size.
+      return Math.min(
+        this.defaultThumbnailMaxWidth / this.imageNaturalWidth,
+        this.defaultThumbnailMaxHeight / this.imageNaturalHeight,
+        1
+      );
+    },
     imageThumbnailMaxWidth() {
-      const width = this.message.content.info.w || this.message.content.w;
-      const height = this.message.content.info.h || this.message.content.h;
-      if (width <= 60) {
+      if (this.imageNaturalWidth <= 60 || this.imageNaturalHeight <= 60) {
         return 60;
       }
-      if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
-        if (this.message.content.info.h < this.defaultThumbnailMaxHeight) {
-          return this.message.content.info.w;
-        } else {
-          return this.defaultThumbnailMaxHeight / (height / width);
-        }
-      } else if (this.message.content.info.w >= this.message.content.info.h) {
-        return this.defaultThumbnailMaxWidth;
-      } else {
-        return this.defaultThumbnailMaxHeight / (height / width);
-      }
+      return this.imageNaturalWidth * this.imageThumbnailScale;
     },
     imageThumbnailMaxHeight() {
-      const width = this.message.content.info.w || this.message.content.w;
-      const height = this.message.content.info.h || this.message.content.h;
-      if (height <= 60) {
+      if (this.imageNaturalWidth <= 60 || this.imageNaturalHeight <= 60) {
         return 60;
       }
-      if (this.message.content.info.h < this.defaultThumbnailMaxHeight){
-        if (this.message.content.info.w < this.defaultThumbnailMaxWidth) {
-          return this.message.content.info.h;
-        } else {
-          return this.defaultThumbnailMaxWidth / (width / height);
-        }
-      } else if (this.message.content.info.w >= this.message.content.info.h) {
-        return this.defaultThumbnailMaxWidth / (width / height);
-      } else {
-        return this.defaultThumbnailMaxHeight;
-      }
+      return this.imageNaturalHeight * this.imageThumbnailScale;
     },
     imageRatio() {
       const w = this.message.content.info?.w || this.message.content.w || 1;
