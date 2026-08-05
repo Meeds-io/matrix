@@ -33,6 +33,7 @@ import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.service.model.ChatSettings;
 import io.meeds.chat.service.model.MediaInfo;
 import io.meeds.chat.service.model.SpaceTemplateSetting;
+import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
 import io.meeds.chat.storage.MatrixRoomStorage;
@@ -122,9 +123,9 @@ public class MatrixService {
    * -- GETTER -- Checks if the Matrix service is available
    */
   @Getter
-  private boolean                        serviceAvailable;
+  private volatile boolean               serviceAvailable;
 
-  private String                         matrixAccessToken;
+  private volatile String                matrixAccessToken;
 
   private SettingService                 settingService;
 
@@ -158,8 +159,18 @@ public class MatrixService {
     this.userAccessTokensCache = cacheService.getCacheInstance(USER_ACCESS_TOKEN_CACHE_NAME);
   }
 
+  /**
+   * Kicks off the connection to the Matrix server on a background thread so
+   * that the (possibly slow, possibly retried) handshake never blocks the WAR
+   * deployment / server startup. See {@link AsyncTaskUtils#runAsync} for the
+   * escape hatch used by tests to run it synchronously instead.
+   */
   @PostConstruct
   public void init() {
+    AsyncTaskUtils.runAsync("Matrix connection init Thread", this::connectToMatrixServer);
+  }
+
+  private void connectToMatrixServer() {
     int maxAttempts = getConnectionRetryAttempts();
     long retryDelayMs = getConnectionRetryDelay() * 1000L;
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -185,11 +196,10 @@ public class MatrixService {
       } catch (Exception e) {
         this.serviceAvailable = false;
         if (attempt < maxAttempts) {
-          LOG.warn("Matrix service is not available yet (attempt {}/{}), retrying in {}s. Cause: {}",
+          LOG.warn("Matrix service is not available yet (attempt {}/{}), retrying in {}s.",
                    attempt,
                    maxAttempts,
-                   retryDelayMs / 1000,
-                   e.getMessage());
+                   retryDelayMs / 1000);
           try {
             Thread.sleep(retryDelayMs);
           } catch (InterruptedException ie) {
