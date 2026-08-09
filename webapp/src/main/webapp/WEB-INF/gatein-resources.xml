@@ -39,6 +39,13 @@
   <portlet>
     <name>Matrix</name>
     <module>
+      <!-- The load-group other add-ons join to contribute to the chat's
+           ('chat', 'message-action') and ('chat', 'composer-action') extension
+           points: a contributor's module sits in matrixGRP so it is present
+           wherever the chat renders, and is then required by name — its module
+           name MUST contain "ChatActionExtension" (see
+           vue-apps/matrix/js/ChatActionExtensions.js). -->
+      <load-group>matrixGRP</load-group>
       <script>
         <minify>false</minify>
         <path>/js/matrix.bundle.js</path>
