@@ -115,6 +115,29 @@
     </module>
   </portlet>
 
+  <!-- Contributes "Send by chat" to the Documents file menu. The name MUST
+       contain "DocumentsExtension": the Documents app discovers contributors via
+       includeExtensions('DocumentsExtension'), so a module merely present in the
+       load-group would never run. Sending a file to a conversation is the chat's
+       own feature, which is why it ships here rather than in whichever add-on
+       happens to sit beside it. -->
+  <module>
+    <name>MatrixDocumentsExtension</name>
+    <load-group>DocumentsGRP</load-group>
+    <script>
+      <path>/js/matrixDocumentsExtension.bundle.js</path>
+    </script>
+    <depends>
+      <module>vue</module>
+    </depends>
+    <depends>
+      <module>vuetify</module>
+    </depends>
+    <depends>
+      <module>extensionRegistry</module>
+    </depends>
+  </module>
+
   <module>
     <name>MatrixFavoriteDrawerExtension</name>
     <load-group>FavoriteDrawerGRP</load-group>

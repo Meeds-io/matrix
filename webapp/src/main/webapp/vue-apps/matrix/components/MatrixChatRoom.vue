@@ -75,8 +75,10 @@
           class="align-center align-content-center error-color-background white--text text-font-small-size">
           {{ room.unreadMessages <= 99 ? room.unreadMessages : '99+' }}
         </v-avatar>
+        <!-- Not while picking: muting, favouriting or leaving a conversation is
+             not what someone choosing where to send something came to do. -->
         <matrix-room-action-menu
-          v-else-if="isActive && !isMobile"
+          v-else-if="isActive && !isMobile && !selectMode"
           ref="menu"
           :room="room"
           :attached-id="roomItemTagId"
@@ -128,6 +130,16 @@ export default {
     fromRoomList: {
       type: Boolean,
       default: false
+    },
+    /**
+     * Whether a click picks this conversation instead of opening it. The row is
+     * the chat's own, wherever a conversation is listed — the share picker shows
+     * the same avatars, names and last messages as the room list, because it is
+     * the same component.
+     */
+    selectMode: {
+      type: Boolean,
+      default: false
     }
   },
   created() {
@@ -177,7 +189,13 @@ export default {
       });
     },
     openRoom() {
-      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, 
+      if (this.selectMode) {
+        // Picking, not entering: the caller decides what a pick means, and the
+        // room is not opened underneath the drawer doing the asking.
+        this.$emit('select', this.room);
+        return;
+      }
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.ACTION_OPEN_CHAT_ROOM,
         {
           detail: {
             room: this.room,
@@ -189,6 +207,11 @@ export default {
       return this.$matrixService.formatDate(room.updated);
     },
     openMenu() {
+      if (this.selectMode) {
+        // Same reason the hover menu is hidden: a long press while picking must
+        // not offer the room's own actions.
+        return;
+      }
       this.$root.$emit('open-room-action-menu', this.room);
     }
   }

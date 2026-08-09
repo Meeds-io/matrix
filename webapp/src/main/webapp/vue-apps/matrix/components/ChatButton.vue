@@ -52,6 +52,12 @@
       @room-active-changed="handleActiveRoomState"
       @filter-updated="handleFilterUpdate" />
     <matrix-chat-quick-create-discussion-drawer />
+    <!-- Where a file shared from outside the chat is given a conversation. Here,
+         because this component is mounted wherever chat is and already holds the
+         room list the picker needs. -->
+    <matrix-chat-share-file-drawer
+      ref="shareFileDrawer"
+      :rooms="rooms" />
     <matrix-room-action-menu-drawer />
     <matrix-room-attachments-drawer />
     <matrix-message-read-receipt-list-drawer />
@@ -153,6 +159,7 @@ export default {
     document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+    document.addEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
     document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.addEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -183,6 +190,7 @@ export default {
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+    document.removeEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
     document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -688,15 +696,52 @@ export default {
         this.rooms?.push(room);
       }
     },
+    /**
+     * Takes what an add-on outside this webapp wants to put into a conversation,
+     * and asks which one — unless it already said.
+     * <p>
+     * The payload is either a File (content with no home of its own) or a link
+     * (content that lives in another app, and keeps its own permissions there).
+     * Picking the conversation, the upload cap and the send stay here, so a
+     * contributor never touches a room id, a matrix id or the homeserver. A
+     * share carrying neither is ignored rather than opening an empty picker.
+     *
+     * @param {CustomEvent} event carrying { file } or { link }, optionally { roomId }
+     * @returns {void}
+     */
+    shareInChat(event) {
+      const share = {
+        file: event?.detail?.file,
+        link: event?.detail?.link,
+      };
+      if (!share.file && !share.link?.url) {
+        return;
+      }
+      const roomId = event?.detail?.roomId;
+      const room = roomId && this.rooms?.find?.(r => r.id === roomId);
+      if (room) {
+        this.$refs.shareFileDrawer.sendTo(room, share)
+          .catch(error => console.error('Sharing into a conversation failed:', error));
+        return;
+      }
+      this.$refs.shareFileDrawer.open(share);
+    },
     openRoom(event) {
       const room = event?.detail?.room || event;
       const fromRoomList = event?.detail?.fromRoomList || false;
+      // Opened from somewhere that is not the chat: show the conversation alone,
+      // so closing it uncovers whatever the user came from — the contact card,
+      // the document list — instead of stranding them in a room list they never
+      // asked for.
+      const discussionOnly = event?.detail?.discussionOnly || false;
       this.addRoomIfNotExists(room);
       // Opening a conversation exits the list search (WhatsApp-style): clear the
       // filter so the full list shows with the opened conversation highlighted —
       // important for message-search results that aren't in the name-filtered list.
       this.clearListFilter();
-      this.openDrawer();
+      if (!discussionOnly) {
+        this.openDrawer();
+      }
       setTimeout(() => {
         this.$root.$emit('open-chat-discussion', room, fromRoomList);
         document.dispatchEvent(new CustomEvent('space-members-drawer-close'));
