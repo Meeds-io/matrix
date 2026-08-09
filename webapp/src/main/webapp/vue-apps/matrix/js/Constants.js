@@ -23,6 +23,21 @@ export const chatConstants = {
   // Static String for action names
   ACTION_OPEN_CHAT_ROOM: 'meeds-chat-open-room',
 
+  // How an add-on outside this webapp puts something into a conversation. The
+  // event carries EITHER { file } (a File, for content that exists nowhere else
+  // — a generated card, a recording) OR { link: {url, title} } (for content that
+  // already lives in an app of its own), and optionally { roomId }; without a
+  // room, chat asks the user which conversation.
+  //
+  // The two are not interchangeable. Uploading the bytes of something that has
+  // an owner and an ACL — a document — hands its content to everyone in the room
+  // whatever that ACL says, and the copy goes stale the moment the original is
+  // edited. Link those; upload only what has no other home.
+  //
+  // Either way the sender never learns a room id, a matrix id or the homeserver:
+  // picking and sending stay chat's business.
+  ACTION_SHARE_IN_CHAT: 'meeds-chat-share',
+
   ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER: 'meeds-open-quick-create-discussion-drawer',
 
   ACTION_CHAT_OPEN_DISCUSSION_DRAWER: 'open-discussion-drawer',
