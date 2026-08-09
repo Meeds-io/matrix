@@ -42,6 +42,7 @@ const config = {
     matrixSpaceTemplateExtension: './src/main/webapp/vue-apps/space-template-extension/main.js',
     matrixSpacesAdministrationExtension: './src/main/webapp/vue-apps/spaces-administration-extension/main.js',
     matrixFavoritesExtension: './src/main/webapp/vue-apps/matrix-favorites-extension/main.js',
+    matrixDocumentsExtension: './src/main/webapp/vue-apps/documents-extension/main.js',
     aiUxBindingExtensionMatrix: './src/main/webapp/vue-apps/ai-ux-binding/main.js',
     chatSearch: './src/main/webapp/vue-apps/chat-search/main.js',
     matrixQuickActionExtensions: './src/main/webapp/vue-apps/quick-actions/main.js',

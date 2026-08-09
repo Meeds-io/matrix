@@ -5,6 +5,7 @@ import MatrixChatRoom from './components/MatrixChatRoom.vue';
 import MeedsChatMessage from './components/ChatMessage.vue';
 import MeedsChatMessageContent from './components/ChatMessageContent.vue';
 import MeedsChatQuickCreateDiscussionDrawer from './components/MeedsChatQuickCreateDiscussionDrawer.vue';
+import MeedsChatShareFileDrawer from './components/MeedsChatShareFileDrawer.vue';
 import MeedsChatDiscussionDrawer from './components/MeedsChatDiscussionDrawer.vue';
 import MeedsChatParentSpaceSelector from './components/MeedsChatParentSpaceSelector.vue';
 import PopoverChatButton from './components/PopoverChatButton.vue';
@@ -59,6 +60,7 @@ const components = {
   'matrix-chat-message-content': MeedsChatMessageContent,
   'matrix-popover-chat-button': PopoverChatButton,
   'matrix-chat-quick-create-discussion-drawer': MeedsChatQuickCreateDiscussionDrawer,
+  'matrix-chat-share-file-drawer': MeedsChatShareFileDrawer,
   'matrix-chat-discussion-drawer': MeedsChatDiscussionDrawer,
   'matrix-chat-parent-space-selector': MeedsChatParentSpaceSelector,
   'matrix-audio-message': AudioMessage,
