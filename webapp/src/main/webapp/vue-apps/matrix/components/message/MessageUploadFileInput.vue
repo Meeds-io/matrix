@@ -87,12 +87,38 @@
             {{ $t('matrix.chat.attachment.label') }}
           </v-list-item-title>
         </v-list-item>
+        <!-- Contributed entries, discovered through the ('chat', 'composer-action')
+             extension point — see js/ChatActionExtensions.js for the contract. They
+             render exactly like the two built-in entries above. -->
+        <template v-for="action in composerActions">
+          <component
+            :is="action.vueComponent"
+            v-if="action.vueComponent"
+            :key="action.id"
+            :context="composerActionContext" />
+          <v-list-item
+            v-else
+            :key="action.id"
+            class="ma-0 height-auto px-3 py-2"
+            :title="actionLabel(action)"
+            @click="handleComposerAction(action)">
+            <v-list-item-icon class="me-1 ms-0 my-auto">
+              <v-icon size="16">
+                {{ action.icon }}
+              </v-icon>
+            </v-list-item-icon>
+            <v-list-item-title>
+              {{ actionLabel(action) }}
+            </v-list-item-title>
+          </v-list-item>
+        </template>
       </v-list>
     </v-menu>
   </div>
 </template>
 
 <script>
+import {getComposerActions, includeChatActionExtensions, COMPOSER_ACTION_UPDATED_EVENT} from '../../js/ChatActionExtensions.js';
 
 export default {
   data() {
@@ -106,7 +132,10 @@ export default {
       ignoredFiles: 0,
       pasteTargetElement: null,
       dropTargetElement: null,
-      imagesOnly: false
+      imagesOnly: false,
+      // Bumped when the registry announces a new contribution, so the
+      // composerActions computed re-reads a registry Vue cannot observe.
+      actionsStamp: 0
     };
   },
   props: {
@@ -125,6 +154,8 @@ export default {
   },
   created() {
     this.getMaxUploadSize();
+    includeChatActionExtensions();
+    document.addEventListener(COMPOSER_ACTION_UPDATED_EVENT, this.refreshActions);
   },
   mounted() {
     this.addPasteEventListener();
@@ -134,13 +165,80 @@ export default {
     this.pasteTargetElement?.removeEventListener('paste', this.handlePaste);
     this.dropTargetElement?.removeEventListener('dragover', this.handleDragOver);
     this.dropTargetElement?.removeEventListener('drop', this.handleDrop);
+    document.removeEventListener(COMPOSER_ACTION_UPDATED_EVENT, this.refreshActions);
   },
   computed: {
     accept() {
       return this.imagesOnly && '.png,.jpg,.jpeg,.webp,.gif,.bmp' || '*/*';
+    },
+    /**
+     * What a contributed "+" entry receives: the room, and the one supported way
+     * to send a file into it — this component's own upload path, so a contributed
+     * file goes through the same size gate, the same progress on the "+" button
+     * and the same statistics as a picked one. See js/ChatActionExtensions.js.
+     *
+     * @returns {Object} the composer action context
+     */
+    composerActionContext() {
+      return {
+        room: this.room,
+        sendFile: this.sendFile,
+      };
+    },
+    /**
+     * The contributed actions that apply to this composer, re-read when the
+     * registry announces a new contribution (the stamp) or the room changes.
+     *
+     * @returns {Array} the applicable action descriptors, in rank order
+     */
+    composerActions() {
+      return this.actionsStamp >= 0 && getComposerActions(this.composerActionContext) || [];
     }
   },
   methods: {
+    /**
+     * Re-evaluates the contributed actions after the registry changed under us —
+     * the stamp is the computed's only way to know the registry moved.
+     *
+     * @returns {void}
+     */
+    refreshActions() {
+      this.actionsStamp++;
+    },
+    /**
+     * Sends one File into the room through the same path a picked file takes:
+     * size gate, mxc upload, file message, progress and statistics included.
+     * This is the sendFile the composer-action context publishes.
+     *
+     * @param {File} file the file a contributed action produced
+     * @returns {Promise} resolved when the file message is sent
+     */
+    sendFile(file) {
+      return this.handleFileChange([file]);
+    },
+    /**
+     * The label of a contributed entry: its key resolved against the matrix
+     * bundle (merged across webapps, so contributors ship their own keys), or
+     * the pre-resolved label a contributor may hand instead.
+     *
+     * @param {Object} action the contributed descriptor
+     * @returns {String} the label to render
+     */
+    actionLabel(action) {
+      return action.labelKey && this.$t(action.labelKey) || action.label || '';
+    },
+    /**
+     * Runs a contributed action with the published context; the menu closes on
+     * its own (close-on-content-click), same as the built-in entries.
+     *
+     * @param {Object} action the contributed descriptor
+     * @returns {void}
+     */
+    handleComposerAction(action) {
+      if (action.click) {
+        action.click(this.composerActionContext);
+      }
+    },
     getMaxUploadSize() {
       return this.$matrixService.getMaxUploadSize()
         .then(maxSize => this.maxUploadSize = maxSize)
