@@ -76,9 +76,10 @@ export default {
       const supported = this.$supportedDocuments || [];
       const editable = supported.some(type => type.edit && type.mimeType === this.file.mimeType);
       const readable = supported.some(type => type.mimeType === this.file.mimeType);
-      if (editable) {
-        return this.$documentsUtils.getEditorUrl(this.file, this.file?.acl?.canEdit && null || 'view');
-      } else if (readable) {
+      if (editable && this.file?.acl?.canEdit) {
+        // No mode means edit: getEditorUrl only appends &mode= when one is given.
+        return this.$documentsUtils.getEditorUrl(this.file, null);
+      } else if (editable || readable) {
         return this.$documentsUtils.getEditorUrl(this.file, 'view');
       }
       return `${this.$documentsUtils.getParentFolderUrl(this.file)}?documentPreviewId=${this.file.id}`;
