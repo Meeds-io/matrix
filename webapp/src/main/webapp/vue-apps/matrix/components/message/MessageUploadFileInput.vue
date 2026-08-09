@@ -356,53 +356,17 @@ export default {
       }
       return totalBytes;
     },
+    /**
+     * What a file is, in the terms a matrix message needs. Delegated to the
+     * service, which is where the same question is answered for every other way
+     * a file reaches a room — the "+" menu, a contributed composer action, or an
+     * add-on sharing a file from outside this webapp.
+     *
+     * @param {File} file the file about to be sent
+     * @returns {Promise<Object>} {msgtype, info}
+     */
     async extractFileMetadata(file) {
-      const type = file.type;
-      let msgtype = 'm.file';
-      const info = {
-        mimetype: type,
-        size: file.size
-      };
-      try {
-        if (type.startsWith('image/')) {
-          msgtype = 'm.image';
-          const image = new Image();
-          image.src = URL.createObjectURL(file);
-          await image.decode();
-          info.w = image.width;
-          info.h = image.height;
-        } else if (type.startsWith('video/')) {
-          msgtype = 'm.video';
-          const video = document.createElement('video');
-          video.preload = 'metadata';
-          video.src = URL.createObjectURL(file);
-          await new Promise((resolve, reject) => {
-            video.onloadedmetadata = () => {
-              info.w = video.videoWidth;
-              info.h = video.videoHeight;
-              info.duration = Math.round(video.duration * 1000);
-              resolve();
-            };
-            video.onerror = reject;
-          });
-        } else if (type.startsWith('audio/')) {
-          msgtype = 'm.audio';
-          info.uAudio = true;
-          const audio = document.createElement('audio');
-          audio.preload = 'metadata';
-          audio.src = URL.createObjectURL(file);
-          await new Promise((resolve, reject) => {
-            audio.onloadedmetadata = () => {
-              info.duration = Math.round(audio.duration * 1000);
-              resolve();
-            };
-            audio.onerror = reject;
-          });
-        }
-      } catch (e) {
-        console.warn(`Failed to extract metadata for ${file.name}:`, e);
-      }
-      return {msgtype, info};
+      return this.$matrixService.extractFileMetadata(file);
     },
     addDropEventListener() {
       const dropTarget = document.getElementById(this.dropTarget);

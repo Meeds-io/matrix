@@ -2559,3 +2559,98 @@ export function getChatAuthorizationStatus(spaceId) {
     }
   });
 }
+/**
+ * What a file is, in the terms a matrix message needs: its msgtype and the info
+ * block that goes with it, dimensions and duration included when the browser can
+ * read them.
+ * <p>
+ * Metadata extraction failing costs the metadata, never the send: an image whose
+ * dimensions could not be read still travels, as a message without them.
+ *
+ * @param {File} file the file about to be sent
+ * @returns {Promise<Object>} {msgtype, info}
+ */
+export async function extractFileMetadata(file) {
+  const type = file.type;
+  let msgtype = 'm.file';
+  const info = {
+    mimetype: type,
+    size: file.size
+  };
+  try {
+    if (type.startsWith('image/')) {
+      msgtype = 'm.image';
+      const image = new Image();
+      image.src = URL.createObjectURL(file);
+      await image.decode();
+      info.w = image.width;
+      info.h = image.height;
+    } else if (type.startsWith('video/')) {
+      msgtype = 'm.video';
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.src = URL.createObjectURL(file);
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          info.w = video.videoWidth;
+          info.h = video.videoHeight;
+          info.duration = Math.round(video.duration * 1000);
+          resolve();
+        };
+        video.onerror = reject;
+      });
+    } else if (type.startsWith('audio/')) {
+      msgtype = 'm.audio';
+      info.uAudio = true;
+      const audio = document.createElement('audio');
+      audio.preload = 'metadata';
+      audio.src = URL.createObjectURL(file);
+      await new Promise((resolve, reject) => {
+        audio.onloadedmetadata = () => {
+          info.duration = Math.round(audio.duration * 1000);
+          resolve();
+        };
+        audio.onerror = reject;
+      });
+    }
+  } catch (e) {
+    console.warn(`Failed to extract metadata for ${file.name}:`, e);
+  }
+  return {msgtype, info};
+}
+
+/**
+ * Sends one file into one room: the size gate, the mxc upload and the file
+ * message, in that order.
+ * <p>
+ * This is the path a file takes whatever asked for it — the composer's "+" menu,
+ * a contributed composer action, or an add-on outside this webapp firing
+ * {@link chatConstants.ACTION_SHARE_IN_CHAT}. The gate is checked here
+ * rather than by each caller, because a caller that forgets it is a caller that
+ * uploads a gigabyte before the server says no.
+ *
+ * @param {File} file the file to send
+ * @param {String} roomId the room it goes into
+ * @param {Function} onProgress called with 0..100 as the upload advances
+ * @returns {Promise<Object>} the sent message payload
+ * @throws {Error} with code 'FILE_TOO_LARGE' and the cap in bytes, before any upload
+ */
+export async function sendFileToRoom(file, roomId, onProgress) {
+  const maxUploadSize = await getMaxUploadSize();
+  if (maxUploadSize && file.size > maxUploadSize) {
+    const error = new Error('The file is over the homeserver upload cap');
+    error.code = 'FILE_TOO_LARGE';
+    error.maxUploadSize = maxUploadSize;
+    throw error;
+  }
+  const {msgtype, info} = await extractFileMetadata(file);
+  const url = await uploadMatrixFile(file, percent => onProgress && onProgress(percent));
+  const payload = {
+    msgtype,
+    body: file.name,
+    url,
+    info
+  };
+  await sendMessage(payload, roomId);
+  return payload;
+}
