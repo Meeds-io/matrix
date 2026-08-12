@@ -4,7 +4,8 @@
   ],
   "globals": {
     "matrixUserId": true,
-    "matrixServerName": true
+    "matrixServerName": true,
+    "meedsChat": true
   },
   "rules": {
     "vue/no-mutating-props": "warn",
