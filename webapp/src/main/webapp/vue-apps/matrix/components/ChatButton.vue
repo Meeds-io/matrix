@@ -19,6 +19,7 @@
 <template>
   <v-app>
     <v-btn
+      v-if="!hiddenButton"
       id="btnChatButtonNew"
       :title="$t('matrix.chat.button.tooltip')"
       class="text-xs-center"
@@ -81,6 +82,18 @@
 <script>
 
 export default {
+  props: {
+    /**
+     * Mounts the whole chat application — sync loop, rooms and every drawer —
+     * without rendering the topbar button. Used when the chat is opened from
+     * somewhere else, such as the Application Center quick action, on a page
+     * where the chat portlet is not displayed.
+     */
+    hiddenButton: {
+      type: Boolean,
+      default: false,
+    },
+  },
   data: () => ({
     presence: 'offline',
     open: false,
@@ -160,6 +173,8 @@ export default {
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
     document.addEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
+    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
+    document.addEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
     document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.addEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -191,6 +206,8 @@ export default {
     document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
     document.removeEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
+    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
+    document.removeEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
     document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -202,6 +219,12 @@ export default {
     this.releasePresencePollingOwner();
   },
   watch: {
+    totalUnreadMessages: {
+      immediate: true,
+      handler() {
+        this.announceTotalUnread();
+      },
+    },
     open() {
       if (this.open) {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
@@ -529,6 +552,14 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
+    },
+    // Lets the Application Center badge mirror the very number this button
+    // displays, rather than deriving a second one. Also called on request, for
+    // a badge mounted after the last change.
+    announceTotalUnread() {
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.CHAT_TOTAL_UNREAD_CHANGED, {
+        detail: this.totalUnreadMessages,
+      }));
     },
     openDrawer() {
       this.open = true;

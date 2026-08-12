@@ -45,6 +45,7 @@ const config = {
     matrixDocumentsExtension: './src/main/webapp/vue-apps/documents-extension/main.js',
     aiUxBindingExtensionMatrix: './src/main/webapp/vue-apps/ai-ux-binding/main.js',
     chatSearch: './src/main/webapp/vue-apps/chat-search/main.js',
+    matrixQuickActionExtensions: './src/main/webapp/vue-apps/quick-actions/main.js',
   },
   output: {
     path: path.join(__dirname, 'target/matrix/'),

@@ -1,0 +1,27 @@
+{
+    "descriptors": [
+        {
+            "name": "chat",
+            "overrideMode": "merge",
+            "override": false,
+            "enabled": true,
+            "application": {
+                "title": "Chat",
+                "description": "Chat application",
+                "icon": "fa-comments",
+                "type": "DRAWER",
+                "url": "chat",
+                "mandatory": false,
+                "active": true,
+                "mobile": true,
+                "default": true,
+                "pwa": false,
+                "order": 15,
+                "permissions": [
+                    "*:/platform/users",
+                    "*:/platform/externals"
+                ]
+            }
+        }
+    ]
+}
