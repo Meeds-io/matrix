@@ -40,6 +40,7 @@
     <io.meeds.social.version>7.3.x-SNAPSHOT</io.meeds.social.version>
     <addon.meeds.pwa.version>7.3.x-SNAPSHOT</addon.meeds.pwa.version>
     <addon.meeds.mcp-server.version>7.3.x-SNAPSHOT</addon.meeds.mcp-server.version>
+    <addon.meeds.app-center.version>7.3.x-SNAPSHOT</addon.meeds.app-center.version>
     <!-- Sonar properties -->
     <sonar.organization>meeds-io</sonar.organization>
   </properties>
@@ -63,6 +64,13 @@
         <groupId>io.meeds.mcp-server</groupId>
         <artifactId>mcp-server</artifactId>
         <version>${addon.meeds.mcp-server.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.meeds.app-center</groupId>
+        <artifactId>app-center</artifactId>
+        <version>${addon.meeds.app-center.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
