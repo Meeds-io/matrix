@@ -74,9 +74,11 @@ export default {
     document.dispatchEvent(new CustomEvent('meeds-chat-total-unread-request'));
     // The count only exists in the browser, so when no chat instance is on the
     // page — its topbar item unpinned by an administrator — one is mounted
-    // hidden to compute it. `matrixServerName` is only injected when the chat
-    // service is enabled for this user; without it there is nothing to count.
-    if (typeof matrixServerName !== 'undefined') {
+    // hidden to compute it. `meedsChat.chatEnabled` carries the same condition
+    // the topbar button renders on: enabled service, at least one room type,
+    // and this user allowed by the restricted groups. Without it there is
+    // nothing to count and a client would be mounted that cannot work.
+    if (typeof meedsChat !== 'undefined' && meedsChat.chatEnabled) {
       ensureChatApp();
     }
   },
