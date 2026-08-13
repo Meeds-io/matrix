@@ -66,6 +66,21 @@ export const chatConstants = {
    */
   CHAT_TOTAL_UNREAD_REQUEST: 'meeds-chat-total-unread-request',
 
+  /**
+   * Announced on `document` once a chat instance has registered its own
+   * document listeners, so a caller outside the chat application knows its
+   * events will actually be heard. The topbar container is a static JSP element
+   * present from HTML parse, long before the AMD bundle and its i18n have
+   * loaded: finding that element is not evidence that anyone is listening yet.
+   */
+  CHAT_READY: 'meeds-chat-ready',
+
+  /**
+   * Asks a chat instance to re-announce its readiness, for a caller that
+   * started listening after the announcement was made.
+   */
+  CHAT_READY_REQUEST: 'meeds-chat-ready-request',
+
   ENTER_CODE_KEY: 13,
 
   MESSAGES_LOAD_LIMIT: 25,

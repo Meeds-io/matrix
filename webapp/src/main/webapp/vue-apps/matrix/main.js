@@ -43,6 +43,7 @@ import ChatHeaderUserAvatar from './components/ChatHeaderUserAvatar.vue';
 import FileMessage from './components/message/FileMessage.vue';
 
 import {chatConstants} from './js/Constants.js';
+import {chatRootOptions} from './js/chatRootOptions.js';
 import * as matrixService from './js/MatrixService.js';
 import {registerChatExtensions} from './extension.js';
 import * as timeUtils from './js/timeUtils.js';
@@ -130,55 +131,9 @@ export function init(serverName) {
     Vue.createApp({
       template: `<matrix-chat-button id="matrixChatButton" serverName="${serverName}"/>`,
       vuetify: Vue.prototype.vuetifyOptions,
-      data() {
-        return {
-          serverName: serverName,
-          channel: channel,
-          fullPageMode: false,
-          fullPageMessagesContainerWidth: 420,
-          defaultRoomListContainerWidth: 404,
-          spaceCircleTemplate: null,
-          isSubspaceTemplate: false,
-          statusMap: {
-            available: '#2eb58c',
-            donotdisturb: '#bc4343',
-            offline: '#707070',
-            invisible: '#707070'
-          },
-        };
-      },
-      computed: {
-        isMobile() {
-          return this.$vuetify.breakpoint.name === 'xs' || this.$vuetify.breakpoint.name === 'sm';
-        },
-        canCreateSpaceRooms() {
-          return !!this.spaceCircleTemplate && meedsChat.spaceRoomsEnabled;
-        },
-        canCreatePrivateRooms() {
-          return meedsChat.privateRoomsEnabled;
-        },
-        canCreateRooms() {
-          return this.canCreateSpaceRooms || this.canCreatePrivateRooms;
-        },
-      },
-      created() {
-        this.checkCanCreateSpaceRooms();
-      },
-      methods: {
-        async checkCanCreateSpaceRooms() {
-          const templates = await this.$spaceTemplateService.getSpaceTemplates(false);
-          const circleTemplate = templates?.find(template => template.system && template.layout === 'circle' && !template.deleted);
-          this.spaceCircleTemplate = ((circleTemplate && !circleTemplate.extendedProperties)
-            || (circleTemplate.extendedProperties
-              && circleTemplate.extendedProperties['meeds.chat.authorized'] === 'true'
-              && circleTemplate.extendedProperties['meeds.chat.enabledByDefault'] === 'true'))
-            && circleTemplate || null;
-          if (this.spaceCircleTemplate) {
-            const subspaceTemplateIds = await this.$spaceTemplateService.getSubspaceTemplateIds() || [];
-            this.isSubspaceTemplate = subspaceTemplateIds.includes(this.spaceCircleTemplate.id);
-          }
-        },
-      },
+      // Shared with the hidden instance the Application Center badge mounts, so
+      // the drawers behave identically whichever one is on the page
+      ...chatRootOptions(serverName, channel),
       i18n
     },
     `#${appId}`, 'Matrix');

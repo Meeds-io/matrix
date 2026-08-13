@@ -175,6 +175,7 @@ export default {
     document.addEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
     document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
     document.addEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
+    document.addEventListener(this.$chatConstants.CHAT_READY_REQUEST, this.announceReady);
     document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.addEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -183,6 +184,9 @@ export default {
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     window.addEventListener('storage', this.handleLocaleStorageUpdate);
     this.$root.$on('delete-message',  this.openDeleteMessageDialog);
+    // Last, so that everything a caller may dispatch is already being listened
+    // to by the time this instance declares itself ready
+    this.announceReady();
   },
   mounted() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -208,6 +212,7 @@ export default {
     document.removeEventListener(this.$chatConstants.ACTION_SHARE_IN_CHAT, this.shareInChat);
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
     document.removeEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
+    document.removeEventListener(this.$chatConstants.CHAT_READY_REQUEST, this.announceReady);
     document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -560,6 +565,13 @@ export default {
       document.dispatchEvent(new CustomEvent(this.$chatConstants.CHAT_TOTAL_UNREAD_CHANGED, {
         detail: this.totalUnreadMessages,
       }));
+    },
+    // Tells callers outside the chat application that this instance is now
+    // listening. Finding the topbar container in the DOM is not enough: it is a
+    // static JSP element, present long before this component exists, so an
+    // event dispatched in between would be lost with no error and no retry.
+    announceReady() {
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.CHAT_READY));
     },
     openDrawer() {
       this.open = true;
