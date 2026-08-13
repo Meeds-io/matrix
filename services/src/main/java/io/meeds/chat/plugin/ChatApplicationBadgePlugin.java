@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.stereotype.Component;
 
 import io.meeds.appcenter.plugin.ApplicationBadgePlugin;
@@ -51,15 +52,22 @@ import jakarta.annotation.PostConstruct;
  * identifier and which catalog entry it belongs to.
  */
 @Component
+@ConditionalOnClass(ApplicationBadgePlugin.class)
 public class ChatApplicationBadgePlugin implements ApplicationBadgePlugin {
 
   public static final String             BADGE_NAME = "chatUnread";
 
   /**
    * Optional on purpose: the badge is a nicety, not something chat depends on.
-   * When the Application Center registry is absent — as in this module's own
-   * Spring test context — the plugin simply does not register instead of
-   * failing the whole context.
+   * When the Application Center registry <em>bean</em> is absent — as in this
+   * module's own Spring test context — the plugin simply does not register
+   * instead of failing the whole context.
+   * <p>
+   * The physical absence of the addon is a different problem, handled by the
+   * {@code @ConditionalOnClass} on the type: without it, component scanning
+   * would try to load a class whose interface is missing from the classpath and
+   * fail the context with a {@code NoClassDefFoundError} before this guard
+   * could ever run.
    */
   @Autowired(required = false)
   private ApplicationBadgePluginRegistry applicationBadgePluginRegistry;

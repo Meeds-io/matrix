@@ -32,6 +32,7 @@
     flat />
 </template>
 <script>
+import {chatConstants} from '../../matrix/js/Constants.js';
 import {ensureChatApp} from '../js/chatApp.js';
 
 export default {
@@ -67,11 +68,11 @@ export default {
     },
   },
   created() {
-    document.addEventListener('meeds-chat-total-unread-changed', this.updateCount);
+    document.addEventListener(chatConstants.CHAT_TOTAL_UNREAD_CHANGED, this.updateCount);
     // The chat instance announces its count on change; a badge mounted after
     // the last change asks for it, otherwise it stays empty until the next
     // message arrives
-    document.dispatchEvent(new CustomEvent('meeds-chat-total-unread-request'));
+    document.dispatchEvent(new CustomEvent(chatConstants.CHAT_TOTAL_UNREAD_REQUEST));
     // The count only exists in the browser, so when no chat instance is on the
     // page — its topbar item unpinned by an administrator — one is mounted
     // hidden to compute it. `meedsChat.chatEnabled` carries the same condition
@@ -83,7 +84,7 @@ export default {
     }
   },
   beforeDestroy() {
-    document.removeEventListener('meeds-chat-total-unread-changed', this.updateCount);
+    document.removeEventListener(chatConstants.CHAT_TOTAL_UNREAD_CHANGED, this.updateCount);
   },
   methods: {
     updateCount(event) {
