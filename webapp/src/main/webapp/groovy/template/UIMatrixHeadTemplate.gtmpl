@@ -14,11 +14,30 @@
     if(userMatrixId != null) {
       userMatrixId = "@" + userMatrixId + ":" + PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME);
     }
+    // Same condition as matrix.jsp uses to render the topbar button. The
+    // service being enabled is not enough: a deployment can disable both room
+    // types, or restrict chat to some groups, and a user outside them has no
+    // usable chat at all — so nothing may mount one for them.
+    boolean chatEnabled = false;
+    try {
+      String[] restrictedGroups = matrixService.getRestrictedGroups();
+      chatEnabled = (chatSettingsEntity == null
+                      || chatSettingsEntity.privateRoomsEnabled
+                      || chatSettingsEntity.spaceRoomsEnabled)
+                    && (restrictedGroups == null
+                        || restrictedGroups.length == 0
+                        || matrixService.isUserMemberOfGroups(userName, restrictedGroups));
+    } catch (Exception e) {
+      // This template renders in the head of every page: a group lookup that
+      // fails must cost the chat tile, never the page
+      chatEnabled = false;
+    }
 %>
     <script type="text/javascript">
       const meedsChat = {};
       matrixServerName = '<%= PropertyManager.getProperty(MatrixConstants.MATRIX_SERVER_NAME) %>';
       matrixUserId = '<%= userMatrixId %>';
+      meedsChat.chatEnabled = <%= chatEnabled %>;
       <% if (chatSettingsEntity != null && (chatSettingsEntity.privateRoomsEnabled || chatSettingsEntity.spaceRoomsEnabled)) {%>
       meedsChat.privateRoomsEnabled = <%= chatSettingsEntity != null ? chatSettingsEntity.privateRoomsEnabled : false %>;
       meedsChat.spaceRoomsEnabled = <%= chatSettingsEntity != null ? chatSettingsEntity.spaceRoomsEnabled : false %>;

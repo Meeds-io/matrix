@@ -39,6 +39,12 @@ extensionRegistry.registerExtension('QuickAction', 'Extension', {
   icon: 'fa-comments',
   name: 'quickActions.chat.name',
   description: 'quickActions.chat.description',
+  // The catalog entry is authorized for every platform user, but a deployment
+  // can disable both room types or restrict chat to some groups. App Center
+  // hides a Drawer application whose quick action reports itself disabled, so
+  // this is what keeps the tile — and the Matrix client its click would mount —
+  // away from a user who has no usable chat.
+  enabled: () => typeof meedsChat !== 'undefined' && !!meedsChat.chatEnabled,
   click: () => ensureChatApp()
     .then(() => document.dispatchEvent(new CustomEvent('meeds-chat-open-drawer'))),
 });
