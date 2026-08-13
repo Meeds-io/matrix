@@ -17,6 +17,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+import {chatConstants} from '../matrix/js/Constants.js';
 import {ensureChatApp} from './js/chatApp.js';
 
 /**
@@ -46,5 +47,5 @@ extensionRegistry.registerExtension('QuickAction', 'Extension', {
   // away from a user who has no usable chat.
   enabled: () => typeof meedsChat !== 'undefined' && !!meedsChat.chatEnabled,
   click: () => ensureChatApp()
-    .then(() => document.dispatchEvent(new CustomEvent('meeds-chat-open-drawer'))),
+    .then(() => document.dispatchEvent(new CustomEvent(chatConstants.ACTION_OPEN_CHAT_DRAWER))),
 });

@@ -17,11 +17,17 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-/** Id of the app mounted by the chat portlet in the topbar. */
+import {chatConstants} from '../../matrix/js/Constants.js';
+import {chatRootOptions} from '../../matrix/js/chatRootOptions.js';
+
+/** Id of the container the chat portlet mounts into in the topbar. */
 const TOPBAR_APP_ID = 'matrixChatButton';
 
 /** Id of the app mounted here when the topbar one is absent. */
 const QUICK_ACTION_APP_ID = 'chat-quick-actions';
+
+/** How long to wait for an already-present chat instance to start listening. */
+const READY_TIMEOUT_MS = 15000;
 
 /**
  * Single mount guard: several callers may need the chat application at the
@@ -31,8 +37,17 @@ const QUICK_ACTION_APP_ID = 'chat-quick-actions';
 let mountingPromise = null;
 
 /**
- * Ensures one chat application is present on the page, mounting a hidden one
- * when needed.
+ * Whether a chat instance has announced that its document listeners are
+ * registered. Tracked from module load so an announcement made before anyone
+ * asked is not missed.
+ */
+let chatReady = false;
+
+document.addEventListener(chatConstants.CHAT_READY, () => chatReady = true);
+
+/**
+ * Ensures one chat application is present on the page *and listening*,
+ * mounting a hidden one when needed.
  * <p>
  * The chat application owns a Matrix client: an authenticated session, a sync
  * loop, the room list and the unread counters. Mounting a second one alongside
@@ -41,24 +56,70 @@ let mountingPromise = null;
  * mounted only when the chat portlet is not on the page (its topbar item can be
  * unpinned by an administrator).
  *
- * @returns {Promise} resolved once an instance is present
+ * @returns {Promise} resolved once an instance is present and listening
  */
 export function ensureChatApp() {
-  if (document.querySelector(`#${TOPBAR_APP_ID}`) || document.querySelector(`#${QUICK_ACTION_APP_ID}`)) {
+  if (chatReady) {
     return Promise.resolve();
   }
+  // The topbar container is a static JSP element, in the DOM from HTML parse:
+  // finding it says an instance is coming, not that it can hear us yet
+  if (document.querySelector(`#${TOPBAR_APP_ID}`)) {
+    return whenChatReady();
+  }
   if (!mountingPromise) {
-    mountingPromise = new Promise(resolve =>
-      window.require(['SHARED/eXoVueI18n', 'PORTLET/matrix/Matrix'], exoi18n =>
-        initChatApp(exoi18n).then(resolve)));
+    mountingPromise = new Promise((resolve, reject) => {
+      window.require(
+        ['SHARED/eXoVueI18n', 'PORTLET/matrix/Matrix'],
+        exoi18n => initChatApp(exoi18n).then(resolve, reject),
+        error => reject(error));
+    })
+      .then(() => whenChatReady())
+      .catch(error => {
+        // Never keep a rejected promise: a cached failure would make every
+        // later click resolve nothing, silently and for the whole session
+        mountingPromise = null;
+        throw error;
+      });
   }
   return mountingPromise;
+}
+
+/**
+ * Resolves once a chat instance announces it is listening, asking it to
+ * re-announce in case it became ready before this call started listening.
+ * Resolves anyway after a timeout, so a caller is never left hanging.
+ *
+ * @returns {Promise} resolved when a chat instance is listening, or on timeout
+ */
+function whenChatReady() {
+  if (chatReady) {
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    let timer = null;
+    const onReady = () => {
+      chatReady = true;
+      clearTimeout(timer);
+      document.removeEventListener(chatConstants.CHAT_READY, onReady);
+      resolve();
+    };
+    timer = setTimeout(() => {
+      document.removeEventListener(chatConstants.CHAT_READY, onReady);
+      resolve();
+    }, READY_TIMEOUT_MS);
+    document.addEventListener(chatConstants.CHAT_READY, onReady);
+    document.dispatchEvent(new CustomEvent(chatConstants.CHAT_READY_REQUEST));
+  });
 }
 
 /**
  * Mounts the chat application with its button hidden: everything the drawers
  * and the badge need comes along — the sync loop, the rooms, the presence
  * polling — without a second chat icon appearing next to the quick actions.
+ *
+ * @param {Object} exoi18n the shared i18n module, loaded through AMD
+ * @returns {Promise} resolved once the hidden application is mounted
  */
 function initChatApp(exoi18n) {
   const lang = eXo.env.portal.language;
@@ -70,7 +131,7 @@ function initChatApp(exoi18n) {
   parent.id = QUICK_ACTION_APP_ID;
   document.querySelector('#vuetify-apps').appendChild(parent);
 
-  return new Promise(resolve => exoi18n.loadLanguageAsync(lang, urls)
+  return new Promise((resolve, reject) => exoi18n.loadLanguageAsync(lang, urls)
     .then(i18n => Vue.createApp({
       template: `
         <matrix-chat-button
@@ -78,67 +139,18 @@ function initChatApp(exoi18n) {
           :server-name="serverName"
           hidden-button />
       `,
-      data: () => ({
-        // Same root context the chat portlet provides in its own main.js: the
-        // drawers read these off $root. The globals come from
-        // UIMatrixHeadTemplate.gtmpl, which runs on every page — so they are
-        // available here even though the chat portlet itself is not displayed.
-        serverName: typeof matrixServerName === 'undefined' ? null : matrixServerName,
-        channel: new BroadcastChannel(TOPBAR_APP_ID),
-        fullPageMode: false,
-        fullPageMessagesContainerWidth: 420,
-        defaultRoomListContainerWidth: 404,
-        spaceCircleTemplate: null,
-        isSubspaceTemplate: false,
-        statusMap: {
-          available: '#2eb58c',
-          donotdisturb: '#bc4343',
-          offline: '#707070',
-          invisible: '#707070',
-        },
-      }),
-      computed: {
-        isMobile() {
-          return this.$vuetify?.breakpoint?.mobile;
-        },
-        canCreateSpaceRooms() {
-          // `meedsChat` is a const in the head template, so it lives in the
-          // global lexical scope and is not reachable through `window`
-          return !!this.spaceCircleTemplate
-            && typeof meedsChat !== 'undefined' && !!meedsChat.spaceRoomsEnabled;
-        },
-        canCreatePrivateRooms() {
-          return typeof meedsChat !== 'undefined' && !!meedsChat.privateRoomsEnabled;
-        },
-        canCreateRooms() {
-          return this.canCreateSpaceRooms || this.canCreatePrivateRooms;
-        },
-      },
-      created() {
-        this.checkCanCreateSpaceRooms();
-      },
+      // The globals come from UIMatrixHeadTemplate.gtmpl, which runs on every
+      // page — so they are available here even though the chat portlet itself
+      // is not displayed
+      ...chatRootOptions(
+        typeof matrixServerName === 'undefined' ? null : matrixServerName,
+        new BroadcastChannel(TOPBAR_APP_ID)),
       mounted() {
         document.dispatchEvent(new CustomEvent('hideTopBarLoading'));
         resolve();
       },
-      methods: {
-        // Same resolution the chat portlet performs in its own main.js, so the
-        // standalone drawer offers the very same room-creation affordances
-        async checkCanCreateSpaceRooms() {
-          const templates = await this.$spaceTemplateService.getSpaceTemplates(false);
-          const circleTemplate = templates?.find(template => template.system && template.layout === 'circle' && !template.deleted);
-          this.spaceCircleTemplate = ((circleTemplate && !circleTemplate.extendedProperties)
-            || (circleTemplate.extendedProperties
-              && circleTemplate.extendedProperties['meeds.chat.authorized'] === 'true'
-              && circleTemplate.extendedProperties['meeds.chat.enabledByDefault'] === 'true'))
-            && circleTemplate || null;
-          if (this.spaceCircleTemplate) {
-            const subspaceTemplateIds = await this.$spaceTemplateService.getSubspaceTemplateIds() || [];
-            this.isSubspaceTemplate = subspaceTemplateIds.includes(this.spaceCircleTemplate.id);
-          }
-        },
-      },
       vuetify: Vue.prototype.vuetifyOptions,
       i18n,
-    }, `#${parent.id}`, 'Chat Quick Action')));
+    }, `#${parent.id}`, 'Chat Quick Action'))
+    .catch(reject));
 }
