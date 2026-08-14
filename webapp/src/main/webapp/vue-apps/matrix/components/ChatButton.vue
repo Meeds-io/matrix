@@ -19,6 +19,7 @@
 <template>
   <v-app>
     <v-btn
+      v-if="!hiddenButton"
       id="btnChatButtonNew"
       :title="$t('matrix.chat.button.tooltip')"
       class="text-xs-center"
@@ -75,6 +76,18 @@
 <script>
 
 export default {
+  props: {
+    /**
+     * Mounts the whole chat application — sync loop, rooms and every drawer —
+     * without rendering the topbar button. Used when the chat is opened from
+     * somewhere else, such as the Application Center quick action, on a page
+     * where the chat portlet is not displayed.
+     */
+    hiddenButton: {
+      type: Boolean,
+      default: false,
+    },
+  },
   data: () => ({
     presence: 'offline',
     open: false,
@@ -153,6 +166,9 @@ export default {
     document.addEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.addEventListener('matrix-message-deleted', this.messageDeleted);
     document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+    document.addEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
+    document.addEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
+    document.addEventListener(this.$chatConstants.CHAT_READY_REQUEST, this.announceReady);
     document.addEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.addEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.addEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -161,6 +177,9 @@ export default {
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     window.addEventListener('storage', this.handleLocaleStorageUpdate);
     this.$root.$on('delete-message',  this.openDeleteMessageDialog);
+    // Last, so that everything a caller may dispatch is already being listened
+    // to by the time this instance declares itself ready
+    this.announceReady();
   },
   mounted() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -183,6 +202,9 @@ export default {
     document.removeEventListener('matrix-message-deleted', this.messageDeleted);
     document.removeEventListener('matrix-message-reaction-added', this.reactionReceived);
     document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_ROOM, this.openRoom);
+    document.removeEventListener(this.$chatConstants.ACTION_OPEN_CHAT_DRAWER, this.openDrawer);
+    document.removeEventListener(this.$chatConstants.CHAT_TOTAL_UNREAD_REQUEST, this.announceTotalUnread);
+    document.removeEventListener(this.$chatConstants.CHAT_READY_REQUEST, this.announceReady);
     document.removeEventListener('matrix-room-mark-full-read', this.updateUnreadMessages);
     document.removeEventListener('user-status-updated', this.handleCurrentUserStatusUpdated);
     document.removeEventListener('space-unmuted', this.handleSpaceUnmute);
@@ -194,6 +216,12 @@ export default {
     this.releasePresencePollingOwner();
   },
   watch: {
+    totalUnreadMessages: {
+      immediate: true,
+      handler() {
+        this.announceTotalUnread();
+      },
+    },
     open() {
       if (this.open) {
         this.$nextTick().then(() => this.$refs.meedsChatDrawer.open());
@@ -521,6 +549,21 @@ export default {
       } else {
         this.$root.$emit('alert-message', this.$t('matrix.chat.delete.message.error'), 'error');
       }
+    },
+    // Lets the Application Center badge mirror the very number this button
+    // displays, rather than deriving a second one. Also called on request, for
+    // a badge mounted after the last change.
+    announceTotalUnread() {
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.CHAT_TOTAL_UNREAD_CHANGED, {
+        detail: this.totalUnreadMessages,
+      }));
+    },
+    // Tells callers outside the chat application that this instance is now
+    // listening. Finding the topbar container in the DOM is not enough: it is a
+    // static JSP element, present long before this component exists, so an
+    // event dispatched in between would be lost with no error and no retry.
+    announceReady() {
+      document.dispatchEvent(new CustomEvent(this.$chatConstants.CHAT_READY));
     },
     openDrawer() {
       this.open = true;

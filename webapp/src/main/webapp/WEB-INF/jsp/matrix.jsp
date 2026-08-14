@@ -25,6 +25,10 @@ if (matrixService.isServiceEnabled() && (chatSettings == null || chatSettings.is
         const serverName = '<%= PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME)%>';
         app.init(serverName);
       });
+      eXo.env.portal.topbarDisplayedApps = eXo.env.portal.topbarDisplayedApps || [];
+      if (!eXo.env.portal.topbarDisplayedApps.includes('chat')) {
+        eXo.env.portal.topbarDisplayedApps.push('chat');
+      }
     </script>
   </div>
 </div>

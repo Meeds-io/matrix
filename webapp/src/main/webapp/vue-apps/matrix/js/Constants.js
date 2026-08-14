@@ -27,6 +27,45 @@ export const chatConstants = {
 
   ACTION_CHAT_OPEN_DISCUSSION_DRAWER: 'open-discussion-drawer',
 
+  /**
+   * Asks whichever chat instance is present on the page to open its rooms
+   * drawer. Dispatched on `document` so a caller outside the chat application —
+   * the Application Center quick action, for instance — can open it without
+   * holding a reference to the component.
+   */
+  ACTION_OPEN_CHAT_DRAWER: 'meeds-chat-open-drawer',
+
+  /**
+   * Announces the total unread messages count on `document`, so a display
+   * outside the chat application can mirror it. The count is authoritative in
+   * the browser: it is derived from the Matrix client sync state and never
+   * computed server side.
+   */
+  CHAT_TOTAL_UNREAD_CHANGED: 'meeds-chat-total-unread-changed',
+
+  /**
+   * Asks the chat instance to re-announce its current total unread count. A
+   * display mounted after the last change — the Application Center badge on a
+   * tile rendered when the launcher opens, typically — would otherwise stay
+   * empty until the next message arrives.
+   */
+  CHAT_TOTAL_UNREAD_REQUEST: 'meeds-chat-total-unread-request',
+
+  /**
+   * Announced on `document` once a chat instance has registered its own
+   * document listeners, so a caller outside the chat application knows its
+   * events will actually be heard. The topbar container is a static JSP element
+   * present from HTML parse, long before the AMD bundle and its i18n have
+   * loaded: finding that element is not evidence that anyone is listening yet.
+   */
+  CHAT_READY: 'meeds-chat-ready',
+
+  /**
+   * Asks a chat instance to re-announce its readiness, for a caller that
+   * started listening after the announcement was made.
+   */
+  CHAT_READY_REQUEST: 'meeds-chat-ready-request',
+
   ENTER_CODE_KEY: 13,
 
   MESSAGES_LOAD_LIMIT: 25,
