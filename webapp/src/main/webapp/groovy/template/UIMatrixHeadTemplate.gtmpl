@@ -23,8 +23,8 @@
       String[] restrictedGroups = matrixService.getRestrictedGroups();
       chatEnabled = (chatSettingsEntity == null
                       || chatSettingsEntity.privateRoomsEnabled
-                      || chatSettingsEntity.spaceRoomsEnabled)
-                    && (restrictedGroups == null
+                      || chatSettingsEntity.spaceRoomsEnabled) &&
+                    (restrictedGroups == null
                         || restrictedGroups.length == 0
                         || matrixService.isUserMemberOfGroups(userName, restrictedGroups));
     } catch (Exception e) {
