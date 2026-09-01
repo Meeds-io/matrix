@@ -46,14 +46,14 @@
         <v-menu
           v-if="isMyMessage || aiConciergeEnabled || canSaveAttachment || messageActions.length"
           v-model="showMoreActions"
-          content-class="l-auto r-0 border-radius"
-          :attach="`#message${message.origin_server_ts}`"
+          content-class="border-radius no-max-width"
+          :attach="`#message${message.origin_server_ts} .chat-message-hover-menu`"
           :top="openOnTop"
-          :nudge-top="openOnTop && 28 || -14"
-          absolute
+          nudge-bottom="4"
+          nudge-right="8"
           open-on-click
           close-on-content-click
-          offset-x
+          left
           offset-y>
           <template #activator="{ on, attrs }">
             <v-btn
@@ -318,7 +318,7 @@ export default {
     },
     adjustMenuPosition() {
       this.$nextTick(() => {
-        const activator = this.$refs.activator.$el;
+        const activator = this.$refs.activator?.$el;
         if (!activator) {
           return;
         }
