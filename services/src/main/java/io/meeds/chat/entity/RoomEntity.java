@@ -18,11 +18,18 @@
  */
 package io.meeds.chat.entity;
 
-import jakarta.persistence.*;
+import java.io.Serializable;
+
 import org.hibernate.annotations.DynamicUpdate;
 
-import java.io.Serial;
-import java.io.Serializable;
+import io.meeds.common.persistence.PortableSequence;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity(name = "MatrixRoom")
 @DynamicUpdate
@@ -32,8 +39,7 @@ public class RoomEntity implements Serializable {
   private static final long serialVersionUID = -4268296851540773942L;
 
   @Id
-  @SequenceGenerator(name = "SEQ_SPACE_MATRIX_ROOM_ID", sequenceName = "SEQ_SPACE_MATRIX_ROOM_ID", allocationSize = 1)
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "SEQ_SPACE_MATRIX_ROOM_ID")
+  @PortableSequence(name = "SEQ_SPACE_MATRIX_ROOM_ID")
   @Column(name = "ID")
   private Long              id;
 
