@@ -15,8 +15,9 @@
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 -->
 <template>
-  <exo-drawer
+  <pinneable-drawer
     ref="meedsChatDrawer"
+    app-name="chat"
     id="meedsChatDrawer"
     :loading="loading"
     :filter-placeholder="$t('matrix.rooms.filter.placeholder')"
@@ -130,7 +131,7 @@
         @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
-  </exo-drawer>
+  </pinneable-drawer>
 </template>
 <script>
 export default {
@@ -202,6 +203,14 @@ export default {
     loadingRooms() {
       this.checkLoading();
     },
+    rooms() {
+      // in standalone/detached rendering the drawer enters full page mode
+      // before the rooms finish loading: the expand handler then selects
+      // nothing, and no later event re-opens a discussion
+      if (this.fullPageMode && !this.selectedRoom && this.rooms?.length) {
+        this.openDiscussion(this.getLastOpenedRoom() || this.rooms[0]);
+      }
+    },
     searchTerm(term) {
       // The list filter was cleared elsewhere (e.g. a conversation was opened) —
       // reset this drawer's filter input so it matches the now-unfiltered list.
@@ -250,6 +259,9 @@ export default {
     },
     async openDiscussion(room) {
       this.selectedRoom = room;
+      // the chat body (and its messages pane) can be rendered by this very
+      // selection: give it the render tick, or the ref chain silently no-ops
+      await this.$nextTick();
       await this.$refs?.chatBody?.openDiscussion?.(room);
       this.$root.$emit('room-discussion-opened', room?.id);
 

@@ -25,7 +25,10 @@
     <skin-module>matrix</skin-module>
     <css-path>/css/matrix.css</css-path>
     <css-priority>120</css-priority>
-    <filtered>true</filtered>
+    <!-- unfiltered: the chat drawer also renders on pages carrying no matrix
+         portlet (the standalone app-viewer page of a detached chat), where a
+         filtered skin is never served -->
+    <filtered>false</filtered>
   </portal-skin>
 
   <portlet-skin>
