@@ -6,6 +6,7 @@
     :class="customHeaderClass"
     :go-back-button="!fullPageMode && !findActive"
     :filter-placeholder="$t('matrix.chat.search.placeholder')"
+    :no-external-overlay="noExternalOverlay"
     v-draggable="!fullPageMode"
     allow-expand
     right
@@ -98,6 +99,7 @@ export default {
       wasExpanded: false,
       findActive: false,
       findDebounce: null,
+      noExternalOverlay: false,
     };
   },
   props: {
@@ -228,6 +230,7 @@ export default {
       }
       this.room = room;
       if (!this.$refs.ChatDiscussionDrawer?.drawer) {
+        this.noExternalOverlay = !!this.$root.chatDocked;
         this.$refs.ChatDiscussionDrawer?.open();
         this.open = true;
       }
