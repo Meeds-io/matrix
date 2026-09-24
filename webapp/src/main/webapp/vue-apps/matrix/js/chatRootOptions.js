@@ -37,6 +37,7 @@ export function chatRootOptions(serverName, channel) {
         serverName: serverName,
         channel: channel,
         fullPageMode: false,
+        chatDocked: false,
         fullPageMessagesContainerWidth: 420,
         defaultRoomListContainerWidth: 404,
         spaceCircleTemplate: null,
