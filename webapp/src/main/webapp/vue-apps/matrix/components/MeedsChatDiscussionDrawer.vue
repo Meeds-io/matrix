@@ -1,12 +1,13 @@
 <template>
-  <exo-drawer
+  <pinneable-drawer
     id="ChatDiscussionDrawer"
     ref="ChatDiscussionDrawer"
+    app-name="chat"
+    no-dock
     :loading="loading || loadingRooms"
     :class="customHeaderClass"
     :go-back-button="!fullPageMode && !findActive"
     :filter-placeholder="$t('matrix.chat.search.placeholder')"
-    :no-external-overlay="noExternalOverlay"
     v-draggable="!fullPageMode"
     allow-expand
     right
@@ -79,7 +80,7 @@
         @room-active-changed="handleRoomActiveState"
         @loading="loading = $event" />
     </template>
-  </exo-drawer>
+  </pinneable-drawer>
 </template>
 <script>
 
@@ -99,7 +100,6 @@ export default {
       wasExpanded: false,
       findActive: false,
       findDebounce: null,
-      noExternalOverlay: false,
     };
   },
   props: {
@@ -139,7 +139,7 @@ export default {
   mounted() {
     // exo-drawer's built-in filter (showFilter) is reused as the "Find in conversation" UI.
     // Track it so the go-back arrow is hidden while searching and the search clears on close.
-    this.$watch(() => this.$refs.ChatDiscussionDrawer?.showFilter, showFilter => {
+    this.$watch(() => this.$refs.ChatDiscussionDrawer?.isFilterShown?.(), showFilter => {
       this.findActive = !!showFilter;
       if (!showFilter) {
         this.$root.$emit('conversation-search-close');
@@ -229,8 +229,7 @@ export default {
         this.$refs.ChatDiscussionDrawer?.resetFilter?.();
       }
       this.room = room;
-      if (!this.$refs.ChatDiscussionDrawer?.drawer) {
-        this.noExternalOverlay = !!this.$root.chatDocked;
+      if (!this.$refs.ChatDiscussionDrawer?.isOpened?.()) {
         this.$refs.ChatDiscussionDrawer?.open();
         this.open = true;
       }
