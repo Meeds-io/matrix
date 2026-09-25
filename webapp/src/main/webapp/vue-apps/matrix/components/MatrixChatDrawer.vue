@@ -281,7 +281,7 @@ export default {
       }
     },
     open() {
-      if (!this.$refs.meedsChatDrawer.drawer) {
+      if (!this.$refs.meedsChatDrawer.isOpened?.()) {
         this.$refs.meedsChatDrawer.open();
       }
     },
