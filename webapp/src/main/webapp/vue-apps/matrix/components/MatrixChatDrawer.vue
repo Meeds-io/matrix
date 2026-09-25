@@ -223,7 +223,6 @@ export default {
   },
   mounted() {
     this.checkLoading();
-    this.$watch(() => this.$refs.meedsChatDrawer?.docked, docked => this.$root.chatDocked = !!docked, {immediate: true});
   },
   methods: {
     handleRoomActiveState(id, isActive) {
@@ -282,7 +281,7 @@ export default {
       }
     },
     open() {
-      if (!this.$refs.meedsChatDrawer.drawer) {
+      if (!this.$refs.meedsChatDrawer.isOpened?.()) {
         this.$refs.meedsChatDrawer.open();
       }
     },
