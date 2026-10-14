@@ -1118,4 +1118,17 @@ class MatrixHttpClientTest {
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
     assertThrows(RuntimeException.class, () -> matrixHttpClient.searchMessages("q", null, 20, accessToken));
   }
+
+  /**
+   * The receipt carries no thread_id: Synapse refuses a "main" receipt on a
+   * thread reply, and only an unthreaded one clears the threads' notifications.
+   */
+  @Test
+  void sendReadReceiptIsUnthreaded() throws Exception {
+    matrixHttpClient.sendReadReceipt("!roomId", "$event/Id", accessToken);
+
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPostRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!roomId:matrix.exo.com/receipt/m.read/%24event%2FId"),
+                                                                   eq(accessToken),
+                                                                   eq("{}")));
+  }
 }

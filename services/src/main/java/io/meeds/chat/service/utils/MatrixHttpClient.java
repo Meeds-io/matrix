@@ -1650,9 +1650,10 @@ public class MatrixHttpClient {
     // carry ':', '/', '+' or '=' — it is a path segment, so it is encoded
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/receipt/m.read/"
         + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
-    // the web client sends the same threaded receipt: its sync handler resets
-    // the room badge only when thread_id is present
-    String payload = new JSONObject().put("thread_id", "main").toString();
+    // an unthreaded receipt: Synapse refuses a "main" receipt on a thread reply
+    // (M_INVALID_PARAM), and only an unthreaded one also clears the threads'
+    // notifications up to the event
+    String payload = new JSONObject().toString();
     HttpResponse<String> response = sendHttpPostRequest(url, accessToken, payload);
     if (response.statusCode() == 401) {
       throw new MatrixUnauthorizedException("Access token rejected while sending a read receipt to room " + matrixRoomId);

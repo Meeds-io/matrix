@@ -883,13 +883,13 @@ export default {
         return;
       }
       Promise.allSettled(unreadRooms.map(room =>
-        this.$matrixService.getRoomLastMessageEventId(room.id).then(eventId =>
-          eventId && this.$matrixService.markRoomAsFullyRead(room.id, eventId).then(() => {
+        this.$matrixService.getRoomLastEventId(room.id)
+          .then(eventId => this.$matrixService.markRoomAsFullyRead(room.id, eventId))
+          .then(() => {
             document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
               detail: {roomId: room.id}
             }));
           })
-        )
       )).then(results => {
         const failed = results.filter(result => result.status === 'rejected');
         failed.forEach(result => console.error('Failed to mark room as read:', result.reason));

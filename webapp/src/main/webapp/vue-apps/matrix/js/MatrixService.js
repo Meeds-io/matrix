@@ -379,8 +379,11 @@ async function handleReadReceiptEvent(event, roomId) {
       continue;
     }
 
+    // any event type: "mark as read" anchors on the room's newest event, which
+    // may be a reaction or a state event; the read indicators then sit on the
+    // last message, older than the receipt (loadReadReceiptsForMessage)
     const exists = await getEvent(roomId, eventId);
-    if (!exists || exists.type !== 'm.room.message') {
+    if (!exists) {
       continue;
     }
 
@@ -407,7 +410,9 @@ async function handleReadReceiptEvent(event, roomId) {
         detail: { roomId, eventId, userId, readData }
       }));
 
-      if (userId === matrixUserId && readData.thread_id) {
+      // an unthreaded or main-timeline receipt reads the room; a receipt
+      // inside a thread reads that thread only
+      if (userId === matrixUserId && (!readData.thread_id || readData.thread_id === 'main')) {
         // the room was read here or on another device: the popups this device
         // still displays for messages up to that point are stale
         closeRoomPopups(roomId, exists.origin_server_ts ?? newTimestamp);
@@ -1559,38 +1564,37 @@ function closeRoomPopups(roomId, upToTimestamp) {
     .catch(() => undefined);
 }
 
-export async function getRoomLastMessageEventId(roomId) {
-  const filter = {
-    types: ['m.room.message']
-  };
-
+/**
+ * The room's newest event, whatever its type: the read anchor of "mark as
+ * read". Synapse counts every notifying event after the receipt (a poll, an
+ * encrypted message…), so anchoring on the newest text message would leave
+ * those unread.
+ *
+ * @param {string} roomId Matrix room id
+ * @returns {Promise<string>} the event id; rejects when it cannot be read, so
+ *          a caller never shows a read state the server did not record
+ */
+export async function getRoomLastEventId(roomId) {
   const baseUrl = `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/messages`;
   const params = new URLSearchParams({
     dir: 'b',
     limit: '1',
-    filter: JSON.stringify(filter)
   });
 
-  try {
-    const response = await fetch(`${baseUrl}?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
-      }
-    });
-
-    if (!response.ok) {
-      console.error('Failed to fetch latest message:', await response.text());
-      return null;
+  const response = await fetch(`${baseUrl}?${params.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('matrix_access_token')}`
     }
-
-    const data = await response.json();
-    const lastMessage = data?.chunk?.[0];
-    return lastMessage?.event_id || null;
-
-  } catch (err) {
-    console.error('Error fetching latest message:', err);
-    return null;
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch the latest event of room ${roomId}: HTTP ${response.status}`);
   }
+  const data = await response.json();
+  const eventId = data?.chunk?.[0]?.event_id;
+  if (!eventId) {
+    throw new Error(`No event found in room ${roomId}`);
+  }
+  return eventId;
 }
 
 export async function formatMessage(message, room) {

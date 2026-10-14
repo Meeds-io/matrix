@@ -126,19 +126,18 @@ export default {
     },
     markAsRead() {
       this.$emit('close');
-      this.$matrixService.getRoomLastMessageEventId(this.room.id).then(eventId => {
-        if (!eventId) {
-          return;
-        }
-        this.$matrixService.markRoomAsFullyRead(this.room.id, eventId).then(() => {
+      this.$matrixService.getRoomLastEventId(this.room.id)
+        .then(eventId => this.$matrixService.markRoomAsFullyRead(this.room.id, eventId))
+        .then(() => {
           document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
             detail: {roomId: this.room.id}
           }));
           this.$root.$emit('alert-message', this.$t('matrix.room.markRead.success'), 'success');
-        }).catch(() => {
+        })
+        .catch(e => {
+          console.error('Failed to mark room as read:', this.room.id, e);
           this.$root.$emit('alert-message', this.$t('matrix.room.markRead.error'), 'error');
         });
-      });
     },
     muteRoom() {
       this.$matrixService.muteRoom(this.room.id, this.spaceId, this.isMuted).then(() => {
