@@ -1713,8 +1713,9 @@ public class MatrixService {
    * Returns the unread conversations of the given user, read <strong>as that
    * user</strong> via a Matrix {@code /sync}, so only the rooms the user has
    * joined are considered. Each entry carries the unread count and the recent
-   * messages, with a human readable title resolved from the user's conversations.
-   * Used by the {@code get_unread_chat_messages} MCP tool.
+   * messages, edits merged into the message they replace as in the room read,
+   * with a human readable title resolved from the user's conversations. Used
+   * by the {@code get_unread_chat_messages} MCP tool.
    *
    * @param userName the Meeds username acting
    * @return the user's unread conversations, never {@code null}
@@ -1732,13 +1733,10 @@ public class MatrixService {
       }
       List<ChatUnread> unread = new ArrayList<>();
       for (MatrixUnreadRoom unreadRoom : matrixHttpClient.getUnreadRooms(accessToken, 20)) {
-        List<ChatMessage> messages = new ArrayList<>();
-        // The /sync timeline is already in chronological order (oldest first).
-        for (MatrixMessage matrixMessage : unreadRoom.getMessages()) {
-          messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
-                                       matrixMessage.getMessageContent(),
-                                       matrixMessage.getTimeStamp()));
-        }
+        // the /sync timeline is oldest first, the merge of edits reads newest first
+        List<MatrixMessage> newestFirst = new ArrayList<>(unreadRoom.getMessages());
+        Collections.reverse(newestFirst);
+        List<ChatMessage> messages = toChronologicalMessages(newestFirst);
         unread.add(new ChatUnread(unreadRoom.getRoomId(),
                                   titlesByRoomId.get(unreadRoom.getRoomId()),
                                   unreadRoom.getUnreadCount(),
