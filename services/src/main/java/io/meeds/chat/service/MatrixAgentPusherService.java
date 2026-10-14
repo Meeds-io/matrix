@@ -281,8 +281,8 @@ public class MatrixAgentPusherService {
   /**
    * Resolves the push gateway url: the configured one, else the platform base
    * url followed by {@link io.meeds.chat.service.utils.MatrixConstants#PUSH_GATEWAY_PATH}.
-   * It must be an absolute http or https url whose path is exactly that one,
-   * the only path Synapse accepts.
+   * It must be an absolute http or https url whose raw path, as Synapse
+   * compares it, is exactly that one, the only path Synapse accepts.
    *
    * @return the url, null when it is invalid
    */
@@ -292,7 +292,7 @@ public class MatrixAgentPusherService {
     try {
       URI uri = new URI(url);
       boolean valid = ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))
-          && StringUtils.isNotBlank(uri.getHost()) && PUSH_GATEWAY_PATH.equals(uri.getPath()) && uri.getQuery() == null
+          && StringUtils.isNotBlank(uri.getHost()) && PUSH_GATEWAY_PATH.equals(uri.getRawPath()) && uri.getQuery() == null
           && uri.getFragment() == null;
       return valid ? url : null;
     } catch (URISyntaxException e) {
@@ -421,6 +421,13 @@ public class MatrixAgentPusherService {
    * {@link #MAX_RULE_UPDATES_PER_TURN}.</li>
    * </ol>
    * Every failure is logged and leaves the rest to the next turn.
+   * <p>
+   * The re-read of step 1 leaves a window: an account disabled or removed
+   * from its kind's group after it, during the turn's Synapse calls, still
+   * gets its pusher set and its rules disabled in this turn. Its first push is
+   * then rejected by the gateway, which no longer finds its kind or Matrix
+   * account, and a disabled account's pushers go with its deactivation; the
+   * left-kind turn queued by its removal restores its rules.
    *
    * @param login the platform login
    * @param turn the queued turn, null for a scheduled one
