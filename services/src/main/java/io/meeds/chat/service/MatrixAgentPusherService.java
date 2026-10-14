@@ -221,6 +221,25 @@ public class MatrixAgentPusherService {
   }
 
   /**
+   * What a platform listener calls once its own work is done: decides, on the
+   * calling thread, whether the account wants a pusher, and queues a turn
+   * carrying that decision and the account's Matrix id when it does. Nothing
+   * is queued for an account of no declared kind, and no Synapse call is made
+   * on the calling thread.
+   *
+   * @param login the platform login
+   */
+  public void enqueueIfDesired(String login) {
+    try {
+      if (isDesired(login)) {
+        enqueueDesired(login, matrixService.getMatrixIdForUser(login));
+      }
+    } catch (Exception e) {
+      LOG.warn("Could not tell whether the account {} wants a chat pusher, left to the scheduled job", login, e);
+    }
+  }
+
+  /**
    * Queues a turn for an account the calling thread found wanting a pusher,
    * after the listener's own work: the turn then uses that decision instead of
    * re-reading what the calling request may not have committed yet, for
