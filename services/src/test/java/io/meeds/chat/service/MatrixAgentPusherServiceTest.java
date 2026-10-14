@@ -202,6 +202,8 @@ class MatrixAgentPusherServiceTest {
             "https://acme.com/_matrix/push/v1/notify?x=1",
             "https://acme.com/_matrix/push/v1/notify#f",
             "https://acme.com/_matrix/push/v1/notify/",
+            // Synapse compares the raw path: an escaped letter is another path
+            "https://acme.com/_matrix/push/v1/%6Eotify",
             "not a url")
         .forEach(url -> {
           PropertyManager.setProperty(MATRIX_AGENTS_PUSH_GATEWAY_URL, url);
@@ -586,5 +588,60 @@ class MatrixAgentPusherServiceTest {
     service.enqueueIfDesired(LOGIN);
 
     assertTrue(scheduled.isEmpty());
+  }
+
+  /**
+   * The job selects its accounts once, then re-checks each one at its turn:
+   * an account disabled after the selection gets no pusher, and a turn whose
+   * re-check fails leaves the next account's turn untouched.
+   */
+  @Test
+  void jobRechecksEachSelectedAccountAtItsTurn() throws Exception {
+    User lea = user(true);
+    when(lea.getUserName()).thenReturn(LOGIN);
+    User max = user(true);
+    when(max.getUserName()).thenReturn("max");
+    User tom = user(true);
+    when(tom.getUserName()).thenReturn("tom");
+    io.meeds.social.core.identity.plugin.AccountKindPlugin agents = mock(io.meeds.social.core.identity.plugin.AccountKindPlugin.class);
+    when(agents.getGroupId()).thenReturn("/platform/agents");
+    when(accountKindService.getPlugins()).thenReturn(List.of(agents));
+    org.exoplatform.commons.utils.ListAccess<User> members = mock(org.exoplatform.commons.utils.ListAccess.class);
+    when(members.getSize()).thenReturn(3);
+    when(members.load(0, 3)).thenReturn(new User[] { lea, tom, max });
+    when(userHandler.findUsersByGroupId("/platform/agents")).thenReturn(members);
+    when(userHandler.findUserByName(LOGIN, UserStatus.ANY)).thenReturn(lea);
+    when(userHandler.findUserByName("tom", UserStatus.ANY)).thenReturn(tom);
+    when(userHandler.findUserByName("max", UserStatus.ANY)).thenReturn(max);
+    when(matrixService.getMatrixIdForUser(anyString())).thenAnswer(invocation -> "@" + invocation.getArgument(0) + ":matrix.exo.tn");
+    // tom's re-check at his turn fails; lea is disabled once selected
+    when(accountKindService.computeAccountKind(anyString())).thenReturn("agent");
+    when(accountKindService.computeAccountKind("tom")).thenReturn("agent").thenThrow(new IllegalStateException("IDM down"));
+    when(matrixHttpClient.getPushers(TOKEN, SYNAPSE_TIMEOUT)).thenReturn(List.of());
+    when(matrixHttpClient.getPushRules(TOKEN, SYNAPSE_TIMEOUT)).thenReturn(List.of());
+    MatrixAgentPusherService advisedEntryPoints = spy(service);
+    doAnswer(invocation -> {
+      java.util.Set<String> selected = service.findDesiredLogins();
+      when(lea.isEnabled()).thenReturn(false);
+      return selected;
+    }).when(advisedEntryPoints).getDesiredLogins();
+    doAnswer(invocation -> {
+      service.reconcileTurn(invocation.getArgument(0), null, invocation.getArgument(1));
+      return null;
+    }).when(advisedEntryPoints).reconcile(anyString(), anyString());
+    when(matrixService.isServiceEnabled()).thenReturn(true);
+    io.meeds.chat.job.MatrixAgentPusherJob job = new io.meeds.chat.job.MatrixAgentPusherJob();
+    org.springframework.test.util.ReflectionTestUtils.setField(job, "matrixService", matrixService);
+    org.springframework.test.util.ReflectionTestUtils.setField(job, "agentPusherService", advisedEntryPoints);
+
+    job.reconcileAgentPushers();
+
+    org.mockito.ArgumentCaptor<MatrixPusher> pushers = org.mockito.ArgumentCaptor.forClass(MatrixPusher.class);
+    verify(matrixHttpClient).setPusher(pushers.capture(), eq(TOKEN), eq(SYNAPSE_TIMEOUT));
+    assertEquals("max", pushers.getValue().profileTag());
+    assertEquals(service.getPushkey("max"), pushers.getValue().pushkey());
+    verify(advisedEntryPoints).reconcile(LOGIN, GATEWAY);
+    verify(advisedEntryPoints).reconcile("tom", GATEWAY);
+    verify(advisedEntryPoints).reconcile("max", GATEWAY);
   }
 }
