@@ -35,6 +35,7 @@ origin.
 ```
 Browser ──HTTPS──▶ reverse proxy (chat.acme.com)
                       ├── /               → eXo portal   (internal:8080)
+                      ├── /_matrix/push/v1/notify → eXo portal (internal:8080, /matrix/rest/matrix/notify)
                       └── /_matrix, /_synapse/client → Synapse (internal:8008)
 
 eXo backend (Java) ──HTTP──▶ Synapse admin/client API (internal:8008, direct)
@@ -366,7 +367,8 @@ To check the setup:
 
 > **Downgrading.** A platform version without this feature answers `500` to
 > the workers' pushes and Synapse keeps retrying; Synapse's admin API cannot
-> delete a pusher. Before downgrading, remove each worker's pushers: for
+> delete a pusher. Once the downgraded platform runs (before that, the
+> platform registers them again), remove each worker's pushers: for
 > every account of a declared kind, list its pushkeys with
 > `GET /_synapse/admin/v1/users/<matrix id>/pushers`, get a token for the
 > account with `POST /_synapse/admin/v1/users/<matrix id>/login` (admin
