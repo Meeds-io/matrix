@@ -928,12 +928,74 @@ public class MatrixService {
    * @throws Exception when the login or the read fails or times out
    */
   public MatrixMessage getRoomEventOrThrow(String eventId, String roomId, Duration timeout) throws Exception { // NOSONAR
+    MatrixMessage message = matrixHttpClient.getEventById(eventId, roomId, getMatrixAccessToken(timeout), timeout);
+    return message != null && "m.room.message".equals(message.getType()) ? message : null;
+  }
+
+  /**
+   * Finds the platform user of a Matrix id like {@link #findUserByMatrixId},
+   * every request bounded by {@code timeout} (the administrator login, when its
+   * token is not cached yet, and the user read) and every failure propagated.
+   *
+   * @param userMatrixId the Matrix id
+   * @param timeout the timeout of each request
+   * @return the platform login, null when no platform user has the Matrix
+   *         account's email
+   * @throws Exception when the login or the read fails or times out
+   */
+  public String findUserByMatrixIdOrThrow(String userMatrixId, Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userMatrixId)) {
+      throw new IllegalArgumentException("the user Matrix ID is required");
+    }
+    String simplifiedMatrixId = extractUserId(userMatrixId);
+    String cached = userMatrixIdsCache.get(simplifiedMatrixId);
+    if (cached != null) {
+      return cached;
+    }
+    String userName = findUserNameByEmail(matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken(timeout), timeout));
+    if (userName != null) {
+      userMatrixIdsCache.put(simplifiedMatrixId, userName);
+    }
+    return userName;
+  }
+
+  /**
+   * Returns the administrator's Matrix access token, logging in, bounded by
+   * {@code timeout}, when it is not cached yet.
+   *
+   * @param timeout the login request timeout
+   * @return the token
+   * @throws Exception when the login fails or times out
+   */
+  private String getMatrixAccessToken(Duration timeout) throws Exception { // NOSONAR
     if (StringUtils.isBlank(this.matrixAccessToken)) {
       String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
       this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken, timeout);
     }
-    MatrixMessage message = matrixHttpClient.getEventById(eventId, roomId, this.matrixAccessToken, timeout);
-    return message != null && "m.room.message".equals(message.getType()) ? message : null;
+    return this.matrixAccessToken;
+  }
+
+  /**
+   * Finds the platform user whose email is one of a Matrix user's email
+   * identifiers.
+   *
+   * @param userAsJson the Matrix user's details
+   * @return the login, null when no platform user matches
+   * @throws Exception when the details cannot be parsed or the users read
+   */
+  private String findUserNameByEmail(String userAsJson) throws Exception { // NOSONAR
+    JsonValue threePidsElement = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson).getElement("threepids");
+    Iterator<JsonValue> jsonIterator = threePidsElement == null ? Collections.emptyIterator() : threePidsElement.getElements();
+    while (jsonIterator.hasNext()) {
+      JsonValue threePids = jsonIterator.next();
+      if ("email".equals(threePids.getElement("medium").getStringValue())) {
+        User user = getUserByEmail(threePids.getElement("address").getStringValue());
+        if (user != null) {
+          return user.getUserName();
+        }
+      }
+    }
+    return null;
   }
 
   /**
@@ -994,19 +1056,10 @@ public class MatrixService {
       return userMatrixIdsCache.get(simplifiedMatrixId);
     }
     try {
-      String userAsJson = matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken());
-      Iterator<JsonValue> jsonIterator = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson)
-                                                                .getElement("threepids")
-                                                                .getElements();
-      while (jsonIterator.hasNext()) {
-        JsonValue threePids = jsonIterator.next();
-        if ("email".equals(threePids.getElement("medium").getStringValue())) {
-          User user = getUserByEmail(threePids.getElement("address").getStringValue());
-          if (user != null) {
-            userMatrixIdsCache.put(userMatrixId, user.getUserName());
-            return user.getUserName();
-          }
-        }
+      String userName = findUserNameByEmail(matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken()));
+      if (userName != null) {
+        userMatrixIdsCache.put(userMatrixId, userName);
+        return userName;
       }
     } catch (InterruptedException interruptedException) {
       Thread.currentThread().interrupt();
@@ -1782,8 +1835,9 @@ public class MatrixService {
    * composer sends: {@code m.in_reply_to}, an HTML {@code formatted_body} and
    * {@code m.mentions}. The mentions are exactly {@code mentionedMatrixIds},
    * chosen by the caller, never read from the text. The transaction id is
-   * derived from the replied-to event and the user, so a retried reply is not
-   * posted twice. The request is bounded by {@code timeout} and a failure is
+   * derived from the replied-to event and the user, so Synapse posts a reply
+   * retried with the same access token once; a retry after the token was
+   * refreshed is a new device, and Synapse posts it again. The request is bounded by {@code timeout} and a failure is
    * thrown.
    *
    * @param userName the Meeds username replying
