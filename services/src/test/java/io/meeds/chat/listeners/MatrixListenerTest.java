@@ -32,13 +32,16 @@ class MatrixListenerTest extends MatrixBaseTest {
     Mockito.verify(matrixHttpClient, Mockito.times(1))
            .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
     // Check disabling user
+    Mockito.clearInvocations(agentPusherService);
     organizationService.getUserHandler().setEnabled("raul", false, true);
     Mockito.verify(matrixHttpClient, Mockito.times(1)).disableAccount(anyString(), anyBoolean(), anyString());
+    Mockito.verify(agentPusherService, Mockito.never()).enqueueIfDesired(anyString());
 
-    // Check enabling user
+    // Check enabling user: a re-enabled digital worker's pusher turn is queued after the re-activation
     organizationService.getUserHandler().setEnabled("raul", true, true);
     Mockito.verify(matrixHttpClient, Mockito.times(2))
            .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+    Mockito.verify(agentPusherService, Mockito.times(1)).enqueueIfDesired("raul");
   }
 
   @Test
