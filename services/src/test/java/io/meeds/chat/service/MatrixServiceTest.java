@@ -62,6 +62,7 @@ import java.util.Map;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_ATTEMPTS;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_DELAY;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
 import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.*;
@@ -832,5 +833,48 @@ class MatrixServiceTest extends MatrixBaseTest {
     ghost.getProfile().setProperty(USER_MATRIX_ID, "");
     identityManager.updateProfile(ghost.getProfile());
     assertThrows(MatrixException.class, () -> matrixService.callAsUserOrThrow("ghost", timeout, token -> token));
+  }
+
+  /**
+   * Chat is open to everyone without a restriction, to the restricted groups'
+   * members, and to the accounts of a declared kind whatever the restriction.
+   */
+  @Test
+  void isChatUser() throws Exception {
+    String restriction = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    org.exoplatform.services.organization.OrganizationService organizationService =
+                                                                               ExoContainerContext.getService(org.exoplatform.services.organization.OrganizationService.class);
+    org.exoplatform.services.organization.Group workers = organizationService.getGroupHandler()
+                                                                             .findGroupById(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID);
+    if (workers == null) {
+      workers = organizationService.getGroupHandler().createGroupInstance();
+      workers.setGroupName(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID.substring(1));
+      workers.setLabel("Matrix test workers");
+      organizationService.getGroupHandler().addChild(null, workers, true);
+      workers = organizationService.getGroupHandler().findGroupById(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID);
+    }
+    organizationService.getMembershipHandler()
+                       .linkMembership(organizationService.getUserHandler().findUserByName("ghost"),
+                                       workers,
+                                       organizationService.getMembershipTypeHandler().findMembershipType("member"),
+                                       false);
+    try {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "");
+      assertTrue(matrixService.isChatUser("raul"));
+
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "/platform/administrators");
+      assertTrue(matrixService.isChatUser("root"));
+      assertFalse(matrixService.isChatUser("raul"));
+      assertTrue(matrixService.isChatUser("ghost"));
+      assertTrue(matrixService.getAccountKindGroups().contains(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID));
+    } finally {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, restriction == null ? "" : restriction);
+      org.exoplatform.services.organization.Membership membership =
+                                                                organizationService.getMembershipHandler()
+                                                                                   .findMembershipByUserGroupAndType("ghost",
+                                                                                                                     io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID,
+                                                                                                                     "member");
+      organizationService.getMembershipHandler().removeMembership(membership.getId(), false);
+    }
   }
 }
