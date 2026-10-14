@@ -362,8 +362,11 @@ To check the setup:
 
 1. `GET /_synapse/admin/v1/users/<worker matrix id>/pushers` (with the admin
    token) lists one pusher whose `app_id` is `exo.matrix.agent`.
-2. Mention the worker in a space room. The reverse proxy's access log shows
-   exactly one `POST /_matrix/push/v1/notify` for that message.
+2. Mention the worker in a space room. The platform log shows the hand-off
+   once: `Worker <login> mentioned in the room of the space <space id> by
+   <sender>, handed over`. The reverse proxy's access log shows a
+   `POST /_matrix/push/v1/notify` for it, among those of the room members
+   whose browsers have push enabled.
 
 > **Downgrading.** A platform version without this feature answers `500` to
 > the workers' pushes and Synapse keeps retrying; Synapse's admin API cannot
