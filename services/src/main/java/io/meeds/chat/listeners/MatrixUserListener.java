@@ -22,6 +22,7 @@ import io.meeds.chat.model.Room;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.utils.MatrixConstants;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
@@ -58,6 +59,9 @@ public class MatrixUserListener extends UserEventListener {
 
   @Autowired
   private SpaceService        spaceService;
+
+  @Autowired
+  private MatrixAgentPusherService agentPusherService;
 
   @PostConstruct
   public void init() {
@@ -124,6 +128,8 @@ public class MatrixUserListener extends UserEventListener {
           } catch (Exception e) {
             LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
           }
+          // a re-enabled digital worker gets its pusher back without waiting for the scheduled job
+          agentPusherService.enqueueIfDesired(user.getUserName());
         }
       }
     }
