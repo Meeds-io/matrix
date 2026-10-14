@@ -147,13 +147,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     Space space = event.getSpace();
     String userId = event.getTarget();
-    String[] restrictedGroupOfUsers = this.matrixService.getRestrictedGroups();
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     boolean accountCreated = false;
     try {
-      if (StringUtils.isBlank(matrixIdOfUser) && (restrictedGroupOfUsers == null || restrictedGroupOfUsers.length == 0
-          || (this.matrixService.isUserMemberOfGroups(userId, restrictedGroupOfUsers))) && !userId.equals(matrixUserAdmin)) {
+      if (StringUtils.isBlank(matrixIdOfUser) && !userId.equals(matrixUserAdmin) && matrixService.isChatUser(userId)) {
         Identity user;
         user = identityManager.getOrCreateUserIdentity(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true);
