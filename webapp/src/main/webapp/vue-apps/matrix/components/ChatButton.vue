@@ -701,12 +701,16 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      let roomsLoaded = false;
       this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
-        if (cachedRooms) {
+        // the cache only fills the list until the server answers: arriving
+        // later, it would bring back stale unread counts
+        if (cachedRooms && !roomsLoaded) {
           this.rooms = JSON.parse(cachedRooms);
         }
       });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
+        roomsLoaded = true;
         const loadedRooms = matrixRoomsObject.rooms || [];
         this.rooms = this.mergeRoomsWithCache(loadedRooms, this.rooms);
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
