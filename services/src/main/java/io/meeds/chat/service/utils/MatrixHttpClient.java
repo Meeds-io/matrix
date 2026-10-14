@@ -43,6 +43,7 @@ import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -1318,7 +1319,12 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String filter = URLEncoder.encode("{\"room\":{\"timeline\":{\"limit\":" + timelineLimit + "}}}", StandardCharsets.UTF_8);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/sync?timeout=0&filter=" + filter;
+    // Synapse caches /sync responses per identical request
+    // (caches.sync_response_cache_duration, 2m by default), read state
+    // included. A first sync ignores timeout, so a unique value only bypasses
+    // that cache.
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/sync?timeout="
+        + ThreadLocalRandom.current().nextInt(1, 1000) + "&filter=" + filter;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() == 401) {
