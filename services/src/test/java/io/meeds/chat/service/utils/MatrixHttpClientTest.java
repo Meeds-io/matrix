@@ -1493,4 +1493,119 @@ class MatrixHttpClientTest {
     assertNull(replyMessage.getRelatesToType());
     assertEquals("$question", replyMessage.getInReplyTo());
   }
+
+  /** The room read exposes the relation of a reply and of an edit, and drops an event without a body. */
+  @Test
+  void getRoomMessagesReadsTheRelations() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "chunk": [
+            {
+              "type": "m.room.message",
+              "event_id": "$edit",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 3000,
+              "content": {
+                "body": "* fixed",
+                "msgtype": "m.text",
+                "m.new_content": { "body": "fixed", "msgtype": "m.text" },
+                "m.relates_to": { "rel_type": "m.replace", "event_id": "$orig" }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$legacyEdit",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 2500,
+              "content": {
+                "body": "* legacy",
+                "msgtype": "m.text",
+                "m.relates_to": { "rel_type": "m.replace", "event_id": "$orig" }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$reply",
+              "sender": "@ghost:matrix.exo.com",
+              "origin_server_ts": 2000,
+              "content": {
+                "body": "answer",
+                "msgtype": "m.text",
+                "m.relates_to": { "m.in_reply_to": { "event_id": "$orig" } }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$redactedOriginal",
+              "content": {}
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$orig",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 1000,
+              "content": { "body": "typo", "msgtype": "m.text" }
+            }
+          ]
+        }""");
+
+    List<MatrixMessage> messages = matrixHttpClient.getRoomMessages("!room1", 50, accessToken);
+
+    assertEquals(4, messages.size());
+    MatrixMessage edit = messages.get(0);
+    assertEquals("m.replace", edit.getRelatesToType());
+    assertEquals("$orig", edit.getReplacedEventId());
+    assertEquals("fixed", edit.getEditedContent());
+    assertEquals("* fixed", edit.getMessageContent());
+    assertNull(messages.get(1).getEditedContent());
+    assertEquals("$orig", messages.get(1).getReplacedEventId());
+    assertEquals("$orig", messages.get(2).getInReplyTo());
+    assertNull(messages.get(2).getReplacedEventId());
+    assertNull(messages.get(3).getRelatesToType());
+    assertNull(messages.get(3).getReplacedEventId());
+  }
+
+  /** The bounded room read goes through the bounded request and throws a timeout. */
+  @Test
+  void getRoomMessagesWithTimeoutIsBoundedAndPropagatesAFailure() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        { "chunk": [ { "type": "m.room.message", "event_id": "$e", "content": { "body": "hi" } } ] }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(responseOK);
+
+    List<MatrixMessage> messages = matrixHttpClient.getRoomMessages("!room1", 50, accessToken, TIMEOUT);
+
+    assertEquals(1, messages.size());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!room1:matrix.exo.com/messages?dir=b&limit=50"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)));
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT)))
+                      .thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixHttpClient.getRoomMessages("!room1", 50, accessToken, TIMEOUT));
+  }
+
+  /** A message built by the caller is put as is, bounded, under the given transaction id. */
+  @Test
+  void sendMessageContentIsPutAsIsAndBounded() throws Exception {
+    when(responseOK.body()).thenReturn("{\"event_id\":\"$sentReply\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPutRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(responseOK);
+    JSONObject content = new JSONObject().put("msgtype", "m.text")
+                                         .put("body", "hi")
+                                         .put("m.mentions", new JSONObject().put("user_ids", List.of("@asker:matrix.exo.com")));
+
+    String eventId = matrixHttpClient.sendMessage("!room1", content, "txn-9", accessToken, TIMEOUT);
+
+    assertEquals("$sentReply", eventId);
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPutRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!room1:matrix.exo.com/send/m.room.message/txn-9"),
+                                                                     eq(accessToken),
+                                                                     payload.capture(),
+                                                                     eq(TIMEOUT)));
+    assertEquals(content.toString(), payload.getValue());
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPutRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixHttpClient.sendMessage("!room1", content, "txn-9", accessToken, TIMEOUT));
+  }
 }
