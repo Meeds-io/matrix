@@ -918,17 +918,20 @@ public class MatrixService {
   /**
    * Reads one message event with the administrator account, every request
    * bounded by {@code timeout}: the administrator login, when its token is not
-   * cached yet, and the read. Propagates every failure.
+   * cached yet, and the read. Propagates every failure. A room ID stored as its
+   * local part is completed with the server name, as the send and history
+   * reads do; a full room ID is read as given.
    *
    * @param eventId the event ID
-   * @param roomId the room ID
+   * @param roomId the room ID, as its local part or in full
    * @param timeout the timeout of each request
    * @return the message, null when the event is missing or not an
    *         {@code m.room.message}
    * @throws Exception when the login or the read fails or times out
    */
   public MatrixMessage getRoomEventOrThrow(String eventId, String roomId, Duration timeout) throws Exception { // NOSONAR
-    MatrixMessage message = matrixHttpClient.getEventById(eventId, roomId, getMatrixAccessToken(timeout), timeout);
+    String fullRoomId = roomId.contains(":") ? roomId : roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    MatrixMessage message = matrixHttpClient.getEventById(eventId, fullRoomId, getMatrixAccessToken(timeout), timeout);
     return message != null && "m.room.message".equals(message.getType()) ? message : null;
   }
 
