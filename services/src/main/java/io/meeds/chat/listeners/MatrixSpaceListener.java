@@ -25,6 +25,7 @@ import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
@@ -56,6 +57,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Autowired
   private MatrixService    matrixService;
+
+  @Autowired
+  private MatrixAgentPusherService agentPusherService;
 
   @Autowired
   private SpaceService     spaceService;
@@ -146,18 +150,24 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     String[] restrictedGroupOfUsers = this.matrixService.getRestrictedGroups();
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
+    boolean accountCreated = false;
     try {
       if (StringUtils.isBlank(matrixIdOfUser) && (restrictedGroupOfUsers == null || restrictedGroupOfUsers.length == 0
           || (this.matrixService.isUserMemberOfGroups(userId, restrictedGroupOfUsers))) && !userId.equals(matrixUserAdmin)) {
         Identity user;
         user = identityManager.getOrCreateUserIdentity(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true);
+        accountCreated = StringUtils.isNotBlank(matrixIdOfUser);
       }
 
       Room room = matrixService.getRoomBySpace(space);
       if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
         matrixService.joinUserToRoom(room.getRoomId(), matrixIdOfUser);
 
+      }
+      if (accountCreated) {
+        // the first space join creates a digital worker's Matrix account: its pusher follows
+        agentPusherService.enqueueIfDesired(userId);
       }
     } catch (Exception e) {
       if (e instanceof InterruptedException) {
