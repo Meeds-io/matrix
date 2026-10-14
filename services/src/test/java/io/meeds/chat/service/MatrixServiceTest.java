@@ -26,6 +26,7 @@ import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixUnreadRoom;
+import io.meeds.chat.service.utils.MatrixException;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
@@ -54,6 +55,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -784,5 +786,51 @@ class MatrixServiceTest extends MatrixBaseTest {
     matrixService.changeChatRoomReadability(room.getRoomId(), false);
     // 5 times including
     verify(matrixHttpClient, times(5)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+  }
+
+  /**
+   * The propagating variant mints its token with the bounded login, refreshes
+   * a rejected token once, and propagates what the plain variant swallows.
+   */
+  @Test
+  void callAsUserOrThrow() throws Exception {
+    Identity dragon = identityManager.getOrCreateUserIdentity("dragon");
+    dragon.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(dragon.getProfile());
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn("cachedToken");
+    // leaves "cachedToken" in the user's token cache, whatever an earlier test left there
+    matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      if (!"cachedToken".equals(token)) {
+        throw new MatrixUnauthorizedException("stale");
+      }
+      return token;
+    });
+    clearInvocations(matrixHttpClient);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn("freshToken");
+
+    String result = matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      if (!"freshToken".equals(token)) {
+        throw new MatrixUnauthorizedException("rejected");
+      }
+      return token;
+    });
+
+    assertEquals("freshToken", result);
+    verify(matrixHttpClient, times(1)).getAccessToken(anyString(), eq(timeout));
+    verify(matrixHttpClient, never()).getAccessToken(anyString());
+
+    IOException timedOut = new IOException("request timed out");
+    assertSame(timedOut, assertThrows(IOException.class, () -> matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      throw timedOut;
+    })));
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      throw new MatrixUnauthorizedException("rejected again");
+    }));
+
+    Identity ghost = identityManager.getOrCreateUserIdentity("ghost");
+    ghost.getProfile().setProperty(USER_MATRIX_ID, "");
+    identityManager.updateProfile(ghost.getProfile());
+    assertThrows(MatrixException.class, () -> matrixService.callAsUserOrThrow("ghost", timeout, token -> token));
   }
 }
