@@ -49,6 +49,7 @@
       :rooms="sortedRooms"
       :presence="presence"
       :loading-rooms="loading"
+      :can-mark-all-as-read="canMarkAllAsRead"
       :search-term="searchTerm"
       :message-results="messageResults"
       @room-active-changed="handleActiveRoomState"
