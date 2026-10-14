@@ -217,4 +217,25 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
     }
   }
 
+
+  /** Where chat is restricted, joining a space creates no chat account for a user outside the groups. */
+  @Test
+  void restrictedChatJoinCreatesNoAccountOutsideTheGroups() throws Exception {
+    String restriction = org.exoplatform.commons.utils.PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP);
+    org.exoplatform.commons.utils.PropertyManager.setProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP,
+                                                             "/platform/administrators");
+    try {
+      Space space = getSpaceInstance(1);
+      setMatrixId("raul", "");
+      clearInvocations(matrixHttpClient, agentPusherService);
+
+      matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
+
+      verify(matrixHttpClient, never()).saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+      verify(agentPusherService, never()).enqueueIfDesired(anyString());
+    } finally {
+      org.exoplatform.commons.utils.PropertyManager.setProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP,
+                                                               restriction == null ? "" : restriction);
+    }
+  }
 }

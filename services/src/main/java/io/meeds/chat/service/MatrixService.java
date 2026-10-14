@@ -41,6 +41,7 @@ import io.meeds.chat.service.utils.MatrixUserCall;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
+import io.meeds.social.core.identity.service.AccountKindService;
 import io.meeds.social.space.template.model.SpaceTemplate;
 import io.meeds.social.space.template.model.SpaceTemplateFilter;
 import io.meeds.social.space.template.service.SpaceTemplateService;
@@ -121,6 +122,9 @@ public class MatrixService {
 
   @Autowired
   private SpaceTemplateService           spaceTemplateService;
+
+  @Autowired
+  private AccountKindService             accountKindService;
 
   /**
    * -- GETTER -- Checks if the Matrix service is available
@@ -1045,6 +1049,31 @@ public class MatrixService {
    */
   public String cleanMatrixUsername(String userName) {
     return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
+  }
+
+  /**
+   * Tells whether a user may have a chat account: chat is restricted to no
+   * group, the user is a member of one of the restricted groups, or the user's
+   * account is of a kind an add-on declares (a digital worker), which uses
+   * chat wherever chat is restricted.
+   *
+   * @param userName the user name
+   * @return true when the user may have a chat account
+   * @throws Exception when the user's memberships cannot be read
+   */
+  public boolean isChatUser(String userName) throws Exception { // NOSONAR
+    String[] restrictedGroups = getRestrictedGroups();
+    return restrictedGroups.length == 0 || isUserMemberOfGroups(userName, restrictedGroups)
+        || accountKindService.computeAccountKind(userName) != null;
+  }
+
+  /**
+   * Lists the groups of the account kinds the add-ons declare.
+   *
+   * @return the groups' ids, never null
+   */
+  public List<String> getAccountKindGroups() {
+    return accountKindService.getPlugins().stream().map(plugin -> plugin.getGroupId()).toList();
   }
 
   /**

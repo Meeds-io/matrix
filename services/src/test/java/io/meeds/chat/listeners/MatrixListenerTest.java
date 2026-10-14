@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.*;
 
@@ -57,4 +58,25 @@ class MatrixListenerTest extends MatrixBaseTest {
            .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
   }
 
+
+  /** Where chat is restricted, a user outside the groups gets no chat account on save or login. */
+  @Test
+  void restrictedChatSkipsUsersOutsideTheGroups() throws Exception {
+    String restriction = org.exoplatform.commons.utils.PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    org.exoplatform.commons.utils.PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "/platform/administrators");
+    try {
+      Mockito.clearInvocations(matrixHttpClient);
+      organizationService.getUserHandler().saveUser(organizationService.getUserHandler().findUserByName("raul"), true);
+
+      org.exoplatform.social.core.identity.model.Identity ghostIdentity = identityManager.getOrCreateUserIdentity("ghost");
+      ghostIdentity.getProfile().setProperty(USER_MATRIX_ID, "");
+      identityManager.updateProfile(ghostIdentity.getProfile());
+      listenerService.broadcast("exo.core.security.ConversationRegistry.register", this, new ConversationState(new Identity("ghost")));
+
+      Mockito.verify(matrixHttpClient, Mockito.never())
+             .saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+    } finally {
+      org.exoplatform.commons.utils.PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, restriction == null ? "" : restriction);
+    }
+  }
 }
