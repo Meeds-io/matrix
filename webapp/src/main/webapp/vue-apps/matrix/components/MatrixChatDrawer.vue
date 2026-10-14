@@ -55,7 +55,7 @@
           <v-btn
             v-if="fullPageMode"
             :title="$t('matrix.chat.markAllRead.label')"
-            :disabled="!hasUnread"
+            :disabled="!canMarkAllAsRead"
             icon
             @click="markAllAsRead">
             <v-icon
@@ -94,9 +94,9 @@
         </v-icon>
       </v-btn>
       <v-btn
-        v-if="!fullPageMode && !selectedRoom"
+        v-if="!fullPageMode"
         :title="$t('matrix.chat.markAllRead.label')"
-        :disabled="!hasUnread"
+        :disabled="!canMarkAllAsRead"
         icon
         @click="markAllAsRead">
         <v-icon
@@ -191,6 +191,11 @@ export default {
     },
     hasUnread() {
       return (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
+    },
+    // the counts are known once the server answered: until then the list may
+    // show the cached ones
+    canMarkAllAsRead() {
+      return !this.loadingRooms && this.hasUnread;
     },
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
