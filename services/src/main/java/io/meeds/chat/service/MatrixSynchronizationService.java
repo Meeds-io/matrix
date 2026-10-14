@@ -18,6 +18,8 @@
  */
 package io.meeds.chat.service;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
 import io.meeds.chat.model.Room;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.utils.ListAccess;
@@ -145,6 +147,10 @@ public class MatrixSynchronizationService {
     if (restrictedGroups == null || restrictedGroups.length == 0) {
       restrictedGroups = new String[] { "/platform/users", "/platform/externals" };
     }
+    // the accounts of a declared kind (digital workers) use chat wherever chat is restricted
+    restrictedGroups = Stream.concat(Arrays.stream(restrictedGroups), matrixService.getAccountKindGroups().stream())
+                             .distinct()
+                             .toArray(String[]::new);
 
     for (String group : restrictedGroups) {
       RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
