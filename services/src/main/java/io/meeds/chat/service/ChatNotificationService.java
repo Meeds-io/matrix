@@ -408,10 +408,21 @@ public class ChatNotificationService {
       LOG.debug("Worker push for {} in {}: event {} is not a message, ignored", login, roomId, eventId);
       return;
     }
-    String senderLogin = StringUtils.isBlank(message.getSender()) ? null : matrixService.findUserByMatrixId(message.getSender());
-    if (StringUtils.equals(senderLogin, login) || !isMentioned(message, login)
-        || EDIT_RELATION_TYPE.equals(message.getRelatesToType())) {
+    String recipientMatrixId = getReceiverMatrixId(login);
+    if (StringUtils.isBlank(message.getSender()) || message.getSender().equals(recipientMatrixId)
+        || !isUserIncludedInMentions(message, recipientMatrixId) || EDIT_RELATION_TYPE.equals(message.getRelatesToType())) {
       LOG.debug("Worker push for {} in {}: event {} is not a mention to hand over, ignored", login, roomId, eventId);
+      return;
+    }
+    String senderLogin;
+    try {
+      senderLogin = matrixService.findUserByMatrixIdOrThrow(message.getSender(), MatrixAgentPusherService.SYNAPSE_TIMEOUT);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Worker push for {} in {}: sender of event {} lookup interrupted, ignored", login, roomId, eventId);
+      return;
+    } catch (Exception e) {
+      LOG.warn("Worker push for {} in {}: sender of event {} could not be resolved, ignored", login, roomId, eventId, e);
       return;
     }
     ChatRoomMention mention = new ChatRoomMention(ChatRoomKind.SPACE,
@@ -456,15 +467,17 @@ public class ChatNotificationService {
   }
 
   /**
-   * Tells whether an account belongs to a kind an add-on declares, false when
-   * that cannot be read, which keeps the account on the path of people.
+   * Tells whether an account belongs to a kind an add-on declares, from the
+   * kind social keeps on its profile, read through the identity cache: the
+   * check costs every push to a person no query. False when it cannot be read,
+   * which keeps the account on the path of people.
    *
    * @param userName the login
    * @return true for an account of a declared kind
    */
   private boolean isOfDeclaredKind(String userName) {
     try {
-      return accountKindService.computeAccountKind(userName) != null;
+      return accountKindService.getDisplayedKind(identityManager.getOrCreateUserIdentity(userName)) != null;
     } catch (Exception e) {
       LOG.debug("Account kind of {} could not be read", userName, e);
       return false;
@@ -775,15 +788,23 @@ public class ChatNotificationService {
   }
 
   private boolean isMentioned(MatrixMessage message, String userName) {
+    return isUserIncludedInMentions(message, getReceiverMatrixId(userName));
+  }
+
+  /**
+   * Returns the full Matrix id of a recipient from its profile, its login when
+   * the profile names none.
+   *
+   * @param userName the recipient's login
+   * @return the recipient's full Matrix id, or its login
+   */
+  private String getReceiverMatrixId(String userName) {
     Identity receiverIdentity = identityManager.getOrCreateUserIdentity(userName);
-    String matrixReceiverId = userName;
     if (receiverIdentity != null
         && StringUtils.isNotBlank((String) receiverIdentity.getProfile().getProperties().get(USER_MATRIX_ID))) {
-      matrixReceiverId = matrixService.getUserFullMatrixID((String) receiverIdentity.getProfile()
-                                                                                    .getProperties()
-                                                                                    .get(USER_MATRIX_ID));
+      return matrixService.getUserFullMatrixID((String) receiverIdentity.getProfile().getProperties().get(USER_MATRIX_ID));
     }
-    return isUserIncludedInMentions(message, matrixReceiverId);
+    return userName;
   }
 
   /**

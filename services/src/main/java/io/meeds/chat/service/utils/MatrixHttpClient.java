@@ -1255,10 +1255,46 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String encodedUserMatrixId = URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + encodedUserMatrixId;
+    return parseUserResponse(sendHttpGetRequest(userUrl(matrixIdOfUser), accessToken), matrixIdOfUser);
+  }
 
-    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+  /**
+   * Reads the details of a Matrix user like {@link #getUser(String, String)},
+   * the request bounded by {@code timeout}.
+   *
+   * @param matrixIdOfUser the Matrix id of the user
+   * @param accessToken the administrator's access token
+   * @param timeout the request timeout
+   * @return the user's details, as Synapse's admin API returns them
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public String getUser(String matrixIdOfUser, String accessToken, Duration timeout) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    return parseUserResponse(sendBoundedGetRequest(userUrl(matrixIdOfUser), accessToken, timeout), matrixIdOfUser);
+  }
+
+  /**
+   * Builds the admin API url of a Matrix user, its id percent-encoded.
+   *
+   * @param matrixIdOfUser the Matrix id of the user
+   * @return the url
+   */
+  private String userUrl(String matrixIdOfUser) {
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/"
+        + URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Answers the body of a user read, or throws on a non-2xx status.
+   *
+   * @param response the response
+   * @param matrixIdOfUser the Matrix id read, for the message
+   * @return the user's details
+   */
+  private String parseUserResponse(HttpResponse<String> response, String matrixIdOfUser) {
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
       return response.body();
     } else {
