@@ -77,10 +77,10 @@ public class ChatRoomSpaceScopeResolver implements SpaceScopeResolver {
     }
     try {
       Room room = matrixService.getById(objectId);
-      if (room == null || room.getSpaceId() == null
-          || !matrixService.extractRoomId(room.getRoomId()).equals(matrixService.extractRoomId(objectId))) {
+      if (room == null || !matrixService.extractRoomId(room.getRoomId()).equals(matrixService.extractRoomId(objectId))) {
         return null;
       }
+      // a direct message has no space
       return room.getSpaceId();
     } catch (Exception e) {
       LOG.debug("The space of the chat room {} could not be read", objectId, e);
