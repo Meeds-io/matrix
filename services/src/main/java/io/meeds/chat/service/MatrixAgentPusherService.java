@@ -30,7 +30,6 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -124,6 +123,12 @@ public class MatrixAgentPusherService {
 
   private static final int          USERS_PAGE_SIZE               = 100;
 
+  /** Runs the queued turns one after the other; replaced by tests. */
+  Executor                          executor;
+
+  /** The clock the carried decision is dated with; replaced by tests. */
+  Clock                             clock                         = Clock.systemUTC();
+
   private final ReentrantLock[]     locks                         = new ReentrantLock[LOCK_STRIPES];
 
   private final Map<String, AgentPusherTurn> pendingTurns         = new ConcurrentHashMap<>();
@@ -135,12 +140,6 @@ public class MatrixAgentPusherService {
   private AccountKindService        accountKindService;
 
   private OrganizationService       organizationService;
-
-  /** Runs the queued turns one after the other; replaced by tests. */
-  Executor                          executor;
-
-  /** The clock the carried decision is dated with; replaced by tests. */
-  Clock                             clock                         = Clock.systemUTC();
 
   /**
    * Creates the service.
