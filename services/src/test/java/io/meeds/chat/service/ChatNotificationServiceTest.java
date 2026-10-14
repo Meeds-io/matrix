@@ -145,7 +145,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     "m.text",
                                                     "@sender:matrix.meeds.tn",
                                                     new ArrayList<>(),
-                                                    123456789, null);
+                                                    123456789, null, null, null);
     when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
 
     when(userStateModel.getStatus()).thenReturn("available");
@@ -177,7 +177,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                    null,
                                                                                                    "@sender:matrix.meeds.tn",
                                                                                                    new ArrayList<>(),
-                                                                                                   123456790, null));
+                                                                                                   123456790, null, null, null));
     chatNotificationService.onMatrixPushReceived(eventId, roomId, "demo", "pushKey");
     verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
 
@@ -200,7 +200,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                    "m.text",
                                                                                                    demoIdOnMatrix,
                                                                                                    new ArrayList<>(),
-                                                                                                   123456791, null));
+                                                                                                   123456791, null, null, null));
     chatNotificationService.onMatrixPushReceived(eventId, roomId, "demo", "pushKey");
     verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
   }
@@ -240,7 +240,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                   "m.text",
                                                                                                   senderIdOnMatrix,
                                                                                                   new ArrayList<>(),
-                                                                                                  1000L, null));
+                                                                                                  1000L, null, null, null));
     when(matrixHttpClient.getEventById("evt2", roomId, accessToken))
                                                                     .thenReturn(new MatrixMessage("evt2",
                                                                                                   roomId,
@@ -249,7 +249,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                   "m.text",
                                                                                                   senderIdOnMatrix,
                                                                                                   new ArrayList<>(),
-                                                                                                  2000L, null));
+                                                                                                  2000L, null, null, null));
 
     chatNotificationService.onMatrixPushReceived("evt1", roomId, "john", "pushKey");
     chatNotificationService.onMatrixPushReceived("evt2", roomId, "john", "pushKey");
@@ -342,7 +342,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                   "m.text",
                                                                                                   senderIdOnMatrix,
                                                                                                   new ArrayList<>(),
-                                                                                                  3000L, null));
+                                                                                                  3000L, null, null, null));
     chatNotificationService.onMatrixPushReceived("evt3", roomId, "john", "pushKey");
     chatNotificationService.clearPendingMessages("john", roomId, 3000L);
     ArgumentCaptor<PwaDirectNotificationBuilder> allBuilders = ArgumentCaptor.forClass(PwaDirectNotificationBuilder.class);
@@ -379,7 +379,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                     123456789,
                                                     // a mention carries its HTML too: neither the notification
                                                     // nor the popup may show it
-                                                    "<a href=\"https://matrix.to/#/@demo:matrix.meeds.tn\">Demo</a> chat");
+                                                    "<a href=\"https://matrix.to/#/@demo:matrix.meeds.tn\">Demo</a> chat",
+                                                    null,
+                                                    null);
     when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
     // what the popup's builder reads, so the popup body can be checked below
     UserPortalConfigService mockedPortalConfigService = mock(UserPortalConfigService.class);
@@ -453,7 +455,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                      "m.text",
                                                                                                      senderIdOnMatrix,
                                                                                                      new ArrayList<>(),
-                                                                                                     5000L, null));
+                                                                                                     5000L, null, null, null));
     chatNotificationService.onMatrixPushReceived("evtRead", roomId, "demo", "pushKey");
     ArgumentCaptor<PwaDirectNotificationBuilder> builders = ArgumentCaptor.forClass(PwaDirectNotificationBuilder.class);
     verify(mockedPwaNotificationService).scheduleDirectNotification(eq("demo"), anyString(), anyLong(), builders.capture());
@@ -543,7 +545,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                                                                                                    "m.text",
                                                                                                                    "@tom:matrix.meeds.tn",
                                                                                                                    new ArrayList<>(),
-                                                                                                                   7000L, null));
+                                                                                                                   7000L, null, null, null));
     doReturn(null).when(settingService)
                   .get(Context.USER.id("demo"),
                        USER_CHAT_NOTIFICATION_SCOPE,
