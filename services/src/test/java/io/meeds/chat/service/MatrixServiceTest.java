@@ -360,6 +360,43 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals("ghost", conversation.getMessages().get(0).getSender());
   }
 
+  /** The unread read merges an edit into its original too: no "* " duplicate. */
+  @Test
+  void getUnreadConversationsMergesEdits() throws Exception {
+    Space space = getSpaceInstance(1);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage original = new MatrixMessage();
+    original.setEventId("$original");
+    original.setSender("@ghost:matrix.exo.tn");
+    original.setMessageContent("typo");
+    original.setTimeStamp(1000L);
+    MatrixMessage plain = new MatrixMessage();
+    plain.setEventId("$plain");
+    plain.setSender("@demo:matrix.exo.tn");
+    plain.setMessageContent("hi");
+    plain.setTimeStamp(2000L);
+    MatrixMessage edit = new MatrixMessage();
+    edit.setEventId("$edit");
+    edit.setSender("@ghost:matrix.exo.tn");
+    edit.setMessageContent("* fixed");
+    edit.setEditedContent("fixed");
+    edit.setRelatesToType("m.replace");
+    edit.setReplacedEventId("$original");
+    edit.setTimeStamp(3000L);
+    // the /sync timeline is oldest first
+    when(matrixHttpClient.getUnreadRooms(anyString(), anyInt()))
+        .thenReturn(List.of(new MatrixUnreadRoom(roomId, 3, List.of(original, plain, edit))));
+
+    List<ChatMessage> messages = matrixService.getUnreadConversations("dragon").get(0).getMessages();
+
+    assertEquals(List.of("fixed", "hi"), messages.stream().map(ChatMessage::getText).toList());
+    assertEquals(List.of(1000L, 2000L), messages.stream().map(ChatMessage::getTimestamp).toList());
+  }
+
   @Test
   void sendMessage() throws Exception {
     Space space = getSpaceInstance(1);
