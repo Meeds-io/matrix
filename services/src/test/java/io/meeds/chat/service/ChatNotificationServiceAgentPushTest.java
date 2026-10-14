@@ -84,7 +84,7 @@ class ChatNotificationServiceAgentPushTest {
   private ChatNotificationService chatNotificationService;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws Exception {
     lenient().when(matrixService.extractRoomId(anyString())).thenAnswer(invocation -> {
       String id = invocation.getArgument(0);
       return id.endsWith(":matrix.exo.tn") ? id.substring(0, id.indexOf(':')) : id;
@@ -95,8 +95,8 @@ class ChatNotificationServiceAgentPushTest {
     lea.setProfile(profile);
     lenient().when(identityManager.getOrCreateUserIdentity(LOGIN)).thenReturn(lea);
     lenient().when(matrixService.getUserFullMatrixID(LEA_MATRIX_ID)).thenReturn(LEA_MATRIX_ID);
-    lenient().when(matrixService.findUserByMatrixId("@max:matrix.exo.tn")).thenReturn("max");
-    lenient().when(matrixService.findUserByMatrixId(LEA_MATRIX_ID)).thenReturn(LOGIN);
+    lenient().when(matrixService.findUserByMatrixIdOrThrow("@max:matrix.exo.tn", MatrixAgentPusherService.SYNAPSE_TIMEOUT))
+             .thenReturn("max");
   }
 
   /**
@@ -214,20 +214,22 @@ class ChatNotificationServiceAgentPushTest {
   @Test
   void workerRecipientLeavesThePeoplesPathRightAfterTheRoomLookup() throws Exception {
     lenient().when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
-    lenient().when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
+    lenient().when(accountKindService.getDisplayedKind(any(Identity.class))).thenReturn("agent");
 
     chatNotificationService.onMatrixPushReceived(EVENT_ID, ROOM_ID, LOGIN, "jwt");
 
     verify(matrixService, never()).getRoomEvent(anyString(), anyString(), nullable(String.class));
     verify(matrixService, never()).getAccessToken(any());
     verifyNoInteractions(pwaNotificationService, listenerService);
+    // decided from the kind social keeps on the profile: no membership query per push
+    verify(accountKindService, never()).computeAccountKind(anyString());
   }
 
   /** A person keeps the path: the event is resolved as before. */
   @Test
   void personRecipientKeepsThePeoplesPath() throws Exception {
     when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
-    lenient().when(accountKindService.computeAccountKind("max")).thenReturn(null);
+    lenient().when(accountKindService.getDisplayedKind((Identity) null)).thenReturn(null);
 
     chatNotificationService.onMatrixPushReceived(EVENT_ID, ROOM_ID, "max", "jwt");
 
@@ -252,5 +254,47 @@ class ChatNotificationServiceAgentPushTest {
     message.setTimeStamp(1700000000000L);
     message.setRelatesToType(relatesToType);
     return message;
+  }
+
+  /** A sender with no platform account is handed over with no login, never with its Matrix id. */
+  @Test
+  void senderWithoutPlatformAccountIsHandedOverWithoutLogin() throws Exception {
+    when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
+    when(matrixService.getRoomEventOrThrow(EVENT_ID, ROOM_ID, MatrixAgentPusherService.SYNAPSE_TIMEOUT))
+        .thenReturn(message("@guest:matrix.exo.tn", List.of(LEA_MATRIX_ID), null));
+    when(matrixService.findUserByMatrixIdOrThrow("@guest:matrix.exo.tn", MatrixAgentPusherService.SYNAPSE_TIMEOUT)).thenReturn(null);
+
+    chatNotificationService.onAgentPushReceived(EVENT_ID, ROOM_ID, LOGIN);
+
+    ArgumentCaptor<ChatRoomMention> mention = ArgumentCaptor.forClass(ChatRoomMention.class);
+    verify(listenerService).broadcast(eq(AGENT_MENTIONED_EVENT), any(Room.class), mention.capture());
+    assertEquals(null, mention.getValue().senderLogin());
+    assertEquals("@guest:matrix.exo.tn", mention.getValue().senderMatrixId());
+  }
+
+  /** The worker's own message is told by its Matrix id, with no lookup. */
+  @Test
+  void ownMessageIsToldByMatrixIdWithoutLookup() throws Exception {
+    when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
+    when(matrixService.getRoomEventOrThrow(EVENT_ID, ROOM_ID, MatrixAgentPusherService.SYNAPSE_TIMEOUT))
+        .thenReturn(message(LEA_MATRIX_ID, List.of(LEA_MATRIX_ID), null));
+
+    chatNotificationService.onAgentPushReceived(EVENT_ID, ROOM_ID, LOGIN);
+
+    verify(matrixService, never()).findUserByMatrixIdOrThrow(anyString(), any());
+    verifyNoInteractions(listenerService);
+  }
+
+  @Test
+  void unresolvableSenderHandsNothingOver() throws Exception {
+    when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
+    when(matrixService.getRoomEventOrThrow(EVENT_ID, ROOM_ID, MatrixAgentPusherService.SYNAPSE_TIMEOUT))
+        .thenReturn(message("@max:matrix.exo.tn", List.of(LEA_MATRIX_ID), null));
+    when(matrixService.findUserByMatrixIdOrThrow("@max:matrix.exo.tn", MatrixAgentPusherService.SYNAPSE_TIMEOUT))
+        .thenThrow(new java.io.IOException("request timed out"));
+
+    chatNotificationService.onAgentPushReceived(EVENT_ID, ROOM_ID, LOGIN);
+
+    verifyNoInteractions(listenerService);
   }
 }
