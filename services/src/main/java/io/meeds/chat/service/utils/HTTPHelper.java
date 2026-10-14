@@ -100,6 +100,81 @@ public class HTTPHelper {
     return client.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
+  /**
+   * Sends a GET request whose whole exchange, response headers included, is
+   * bounded by {@code timeout}: an unresponsive Matrix server then fails the
+   * call with an {@link java.net.http.HttpTimeoutException} instead of holding
+   * the calling thread.
+   *
+   * @param url the request url
+   * @param token the bearer access token
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedGetRequest(String url, String token, Duration timeout) throws IOException,
+                                                                                                         InterruptedException {
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .timeout(timeout)
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .GET()
+                                     .build();
+    return newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  /**
+   * Sends a POST request bounded by {@code timeout}, see
+   * {@link #sendBoundedGetRequest(String, String, Duration)}.
+   *
+   * @param url the request url
+   * @param token the bearer access token, none when blank
+   * @param contentAsJson the JSON body
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedPostRequest(String url,
+                                                               String token,
+                                                               String contentAsJson,
+                                                               Duration timeout) throws IOException, InterruptedException {
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+                                             .uri(URI.create(url))
+                                             .timeout(timeout)
+                                             .POST(HttpRequest.BodyPublishers.ofString(contentAsJson));
+    if (StringUtils.isNotBlank(token)) {
+      builder.header(AUTHORIZATION, BEARER + token);
+    }
+    return newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  /**
+   * Sends a PUT request bounded by {@code timeout}, see
+   * {@link #sendBoundedGetRequest(String, String, Duration)}.
+   *
+   * @param url the request url
+   * @param token the bearer access token
+   * @param contentAsJson the JSON body
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedPutRequest(String url,
+                                                              String token,
+                                                              String contentAsJson,
+                                                              Duration timeout) throws IOException, InterruptedException {
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .timeout(timeout)
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .PUT(HttpRequest.BodyPublishers.ofString(contentAsJson))
+                                     .build();
+    return newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
   public static void sendInvitationToMembers(ArrayList<String> strings, String matrixRoomId) {
 
   }
