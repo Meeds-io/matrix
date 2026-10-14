@@ -32,6 +32,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -102,6 +103,8 @@ import io.meeds.chat.service.model.Presence;
 import io.meeds.chat.service.model.RoomEntity;
 import io.meeds.chat.service.model.RoomList;
 import io.meeds.chat.service.model.SpaceTemplateSetting;
+import io.meeds.chat.service.MatrixAgentPusherService;
+import io.meeds.social.core.identity.service.AccountKindService;
 import io.meeds.pwa.service.PwaNotificationService;
 import io.meeds.spring.web.security.PortalAuthenticationManager;
 import io.meeds.spring.web.security.WebSecurityConfiguration;
@@ -155,6 +158,12 @@ class MatrixRestTest {
 
   @MockitoBean
   PwaNotificationService               pwaNotificationService;
+
+  @MockitoBean
+  private MatrixAgentPusherService     agentPusherService;
+
+  @MockitoBean
+  private AccountKindService           accountKindService;
 
   MockedStatic<LinkProvider>           LINK_PROVIDER;
 
@@ -800,4 +809,90 @@ class MatrixRestTest {
            .andExpect(status().isInternalServerError());
   }
 
+
+  private static final String AGENT_PUSHKEY = "bGVh.bWFj";
+
+  private String agentPush(String pushkey) {
+    return """
+        {"notification":{"event_id":"$mention","room_id":"!room:matrix.meeds.tn",
+          "devices":[{"app_id":"exo.matrix.agent","pushkey":"%s","pushkey_ts":12345678}]}}
+        """.formatted(pushkey);
+  }
+
+  private void workerAccount(String matrixId, String kind) {
+    org.exoplatform.social.core.identity.model.Identity identity = new org.exoplatform.social.core.identity.model.Identity("lea");
+    org.exoplatform.social.core.identity.model.Profile profile = new org.exoplatform.social.core.identity.model.Profile(identity);
+    profile.setProperty(USER_MATRIX_ID, matrixId);
+    identity.setProfile(profile);
+    when(identityManager.getOrCreateUserIdentity("lea")).thenReturn(identity);
+    when(accountKindService.computeAccountKind("lea")).thenReturn(kind);
+  }
+
+  @Test
+  void workerPushIsHandedOverWhateverTheJwtSecret() throws Exception {
+    when(agentPusherService.getLoginOfPushkey(AGENT_PUSHKEY)).thenReturn("lea");
+    workerAccount("@lea:matrix.meeds.tn", "agent");
+
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY))
+                                                                        .contentType(MediaType.APPLICATION_JSON));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().json("{\"rejected\":[]}", true));
+    verify(chatNotificationService).onAgentPushReceived("$mention", "!room:matrix.meeds.tn", "lea");
+    verify(chatNotificationService, never()).onMatrixPushReceived(anyString(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void forgedWorkerKeyIsRejected() throws Exception {
+    when(agentPusherService.getLoginOfPushkey(AGENT_PUSHKEY)).thenReturn(null);
+
+    ResultActions response = mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY))
+                                                                        .contentType(MediaType.APPLICATION_JSON));
+
+    response.andExpect(status().isOk());
+    response.andExpect(content().json("{\"rejected\":[\"" + AGENT_PUSHKEY + "\"]}", true));
+    verify(chatNotificationService, never()).onAgentPushReceived(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void workerKeyOfAnAccountWithoutKindOrMatrixAccountIsRejected() throws Exception {
+    when(agentPusherService.getLoginOfPushkey(AGENT_PUSHKEY)).thenReturn("lea");
+    workerAccount("@lea:matrix.meeds.tn", null);
+    mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY)).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(content().json("{\"rejected\":[\"" + AGENT_PUSHKEY + "\"]}", true));
+
+    workerAccount("", "agent");
+    mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY)).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(content().json("{\"rejected\":[\"" + AGENT_PUSHKEY + "\"]}", true));
+
+    verify(chatNotificationService, never()).onAgentPushReceived(anyString(), anyString(), anyString());
+  }
+
+  /**
+   * A worker's push never gets an error answer, which would make Synapse
+   * retry that event before every later one of the worker's.
+   */
+  @Test
+  void workerPushFailureStillAnswersNothingRejected() throws Exception {
+    when(agentPusherService.getLoginOfPushkey(AGENT_PUSHKEY)).thenReturn("lea");
+    workerAccount("@lea:matrix.meeds.tn", "agent");
+    org.mockito.Mockito.doThrow(new IllegalStateException("boom"))
+                       .when(chatNotificationService)
+                       .onAgentPushReceived(anyString(), anyString(), anyString());
+    mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY)).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(content().json("{\"rejected\":[]}", true));
+
+    when(accountKindService.computeAccountKind("lea")).thenThrow(new IllegalStateException("IDM down"));
+    mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY)).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(content().json("{\"rejected\":[]}", true));
+
+    when(agentPusherService.getLoginOfPushkey(AGENT_PUSHKEY)).thenThrow(new IllegalStateException("no secret"));
+    mockMvc.perform(post(REST_PATH + "/notify").content(agentPush(AGENT_PUSHKEY)).contentType(MediaType.APPLICATION_JSON))
+           .andExpect(status().isOk())
+           .andExpect(content().json("{\"rejected\":[]}", true));
+  }
 }
