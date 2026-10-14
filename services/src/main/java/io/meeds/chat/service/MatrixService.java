@@ -1365,7 +1365,7 @@ public class MatrixService {
    * @return the user's Matrix access token, or {@code null}
    */
   private String getUserAccessToken(String userName, boolean forceRefresh) throws JsonException, IOException, InterruptedException {
-    return getUserAccessToken(userName, forceRefresh, null);
+    return getUserAccessToken(userName, null, forceRefresh, null);
   }
 
   /**
@@ -1374,11 +1374,13 @@ public class MatrixService {
    * by {@code timeout}, unbounded when null.
    *
    * @param userName the Meeds username
+   * @param knownMatrixId the user's Matrix id, null to read it from the profile
    * @param forceRefresh whether to bypass the cache and mint a new token
    * @param timeout the login request timeout, null for none
    * @return the user's Matrix access token, or {@code null}
    */
   private String getUserAccessToken(String userName,
+                                    String knownMatrixId,
                                     boolean forceRefresh,
                                     Duration timeout) throws JsonException, IOException, InterruptedException {
     if (!forceRefresh) {
@@ -1387,7 +1389,7 @@ public class MatrixService {
         return cachedToken;
       }
     }
-    String matrixId = getMatrixIdForUser(userName);
+    String matrixId = StringUtils.isBlank(knownMatrixId) ? getMatrixIdForUser(userName) : knownMatrixId;
     if (StringUtils.isBlank(matrixId)) {
       return null;
     }
@@ -1448,7 +1450,29 @@ public class MatrixService {
    * @throws Exception any failure of the login or of the operation
    */
   public <T> T callAsUserOrThrow(String userName, Duration timeout, MatrixUserCall<T> operation) throws Exception { // NOSONAR
-    String accessToken = getUserAccessToken(userName, false, timeout);
+    return callAsUserOrThrow(userName, null, timeout, operation);
+  }
+
+  /**
+   * Executes a Matrix operation on behalf of the given user like
+   * {@link #callAsUserOrThrow(String, Duration, MatrixUserCall)}, with the
+   * user's Matrix id as the caller knows it: a listener's request may not have
+   * committed the profile write that stores it yet.
+   *
+   * @param <T> the operation result type
+   * @param userName the Meeds username acting
+   * @param matrixId the user's Matrix id, null to read it from the profile
+   * @param timeout the login request timeout
+   * @param operation the operation to run with a valid access token
+   * @return the operation result
+   * @throws MatrixException when the user has no Matrix account
+   * @throws Exception any failure of the login or of the operation
+   */
+  public <T> T callAsUserOrThrow(String userName,
+                                 String matrixId,
+                                 Duration timeout,
+                                 MatrixUserCall<T> operation) throws Exception { // NOSONAR
+    String accessToken = getUserAccessToken(userName, matrixId, false, timeout);
     if (StringUtils.isBlank(accessToken)) {
       throw new MatrixException("User " + userName + " has no Matrix account");
     }
@@ -1456,7 +1480,7 @@ public class MatrixService {
       return operation.call(accessToken);
     } catch (MatrixUnauthorizedException unauthorized) {
       LOG.debug("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
-      String refreshedToken = getUserAccessToken(userName, true, timeout);
+      String refreshedToken = getUserAccessToken(userName, matrixId, true, timeout);
       if (StringUtils.isBlank(refreshedToken)) {
         throw new MatrixException("User " + userName + " has no Matrix account");
       }
