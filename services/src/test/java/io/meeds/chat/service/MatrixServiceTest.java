@@ -417,6 +417,22 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   /**
+   * The read anchor's event read, made with the user's own identity, completes a
+   * room ID stored as its local part with the server name too.
+   */
+  @Test
+  void getRoomEventAsUserReadsTheFullRoomId() throws Exception {
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
+    MatrixMessage message = new MatrixMessage();
+    when(matrixHttpClient.getEventById(eq("$read"), eq("!abc:matrix.exo.tn"), anyString())).thenReturn(message);
+
+    assertSame(message, matrixService.getRoomEventAsUser("dragon", "!abc", "$read"));
+  }
+
+  /**
    * The bounded lookup answers the platform login, null for a Matrix account
    * no platform user matches, and propagates a failure.
    */
