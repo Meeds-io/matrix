@@ -909,6 +909,27 @@ public class MatrixService {
   }
 
   /**
+   * Reads one message event with the administrator account, every request
+   * bounded by {@code timeout}: the administrator login, when its token is not
+   * cached yet, and the read. Propagates every failure.
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @param timeout the timeout of each request
+   * @return the message, null when the event is missing or not an
+   *         {@code m.room.message}
+   * @throws Exception when the login or the read fails or times out
+   */
+  public MatrixMessage getRoomEventOrThrow(String eventId, String roomId, Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(this.matrixAccessToken)) {
+      String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
+      this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken, timeout);
+    }
+    MatrixMessage message = matrixHttpClient.getEventById(eventId, roomId, this.matrixAccessToken, timeout);
+    return message != null && "m.room.message".equals(message.getType()) ? message : null;
+  }
+
+  /**
    * Retrieves the message related to the event ID
    *
    * @param eventId the event ID
