@@ -398,6 +398,25 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   /**
+   * The bounded event read completes a room ID stored as its local part with the
+   * server name, and reads a full room ID as given: Synapse finds an event only
+   * under its full room ID.
+   */
+  @Test
+  void getRoomEventOrThrowReadsTheFullRoomId() throws Exception {
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn(accessToken);
+    MatrixMessage message = new MatrixMessage();
+    message.setType("m.room.message");
+    when(matrixHttpClient.getEventById(eq("$event"), anyString(), anyString(), eq(timeout))).thenReturn(message);
+
+    assertSame(message, matrixService.getRoomEventOrThrow("$event", "!abc", timeout));
+    verify(matrixHttpClient).getEventById(eq("$event"), eq("!abc:matrix.exo.tn"), anyString(), eq(timeout));
+    assertSame(message, matrixService.getRoomEventOrThrow("$event", "!def:other.server", timeout));
+    verify(matrixHttpClient).getEventById(eq("$event"), eq("!def:other.server"), anyString(), eq(timeout));
+  }
+
+  /**
    * The bounded lookup answers the platform login, null for a Matrix account
    * no platform user matches, and propagates a failure.
    */
