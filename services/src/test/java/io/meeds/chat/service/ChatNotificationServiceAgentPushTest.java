@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -109,7 +110,7 @@ class ChatNotificationServiceAgentPushTest {
     chatNotificationService.onAgentPushReceived(EVENT_ID, ROOM_ID, LOGIN);
 
     verify(matrixService, never()).getRoomEventOrThrow(anyString(), anyString(), any());
-    verify(matrixService, never()).getRoomEvent(anyString(), anyString(), any(String.class));
+    verify(matrixService, never()).getRoomEvent(anyString(), anyString(), nullable(String.class));
     verify(matrixService, never()).getAccessToken(any());
     verifyNoInteractions(listenerService);
   }
@@ -212,12 +213,12 @@ class ChatNotificationServiceAgentPushTest {
    */
   @Test
   void workerRecipientLeavesThePeoplesPathRightAfterTheRoomLookup() throws Exception {
-    when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
-    when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
+    lenient().when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
+    lenient().when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
 
     chatNotificationService.onMatrixPushReceived(EVENT_ID, ROOM_ID, LOGIN, "jwt");
 
-    verify(matrixService, never()).getRoomEvent(anyString(), anyString(), any(String.class));
+    verify(matrixService, never()).getRoomEvent(anyString(), anyString(), nullable(String.class));
     verify(matrixService, never()).getAccessToken(any());
     verifyNoInteractions(pwaNotificationService, listenerService);
   }
@@ -226,7 +227,7 @@ class ChatNotificationServiceAgentPushTest {
   @Test
   void personRecipientKeepsThePeoplesPath() throws Exception {
     when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
-    when(accountKindService.computeAccountKind("max")).thenReturn(null);
+    lenient().when(accountKindService.computeAccountKind("max")).thenReturn(null);
 
     chatNotificationService.onMatrixPushReceived(EVENT_ID, ROOM_ID, "max", "jwt");
 
