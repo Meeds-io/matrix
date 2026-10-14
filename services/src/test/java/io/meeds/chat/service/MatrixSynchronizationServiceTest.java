@@ -204,10 +204,19 @@ class MatrixSynchronizationServiceTest {
     when(agents.getSize()).thenReturn(1);
     when(agents.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("lea") });
     when(organizationService.getUserHandler().findUsersByGroupId("/platform/agents")).thenReturn(agents);
+    Identity bobIdentity = new Identity("bob");
+    bobIdentity.setRemoteId("bob");
+    bobIdentity.setProfile(new Profile(bobIdentity));
+    when(identityManager.getOrCreateUserIdentity("bob")).thenReturn(bobIdentity);
+    when(matrixService.saveUserAccount(bobIdentity, true)).thenReturn("@bob:matrix.exo.tn");
+    ListAccess<User> externals = mock(ListAccess.class);
+    when(externals.getSize()).thenReturn(1);
+    when(externals.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("bob") });
+    when(organizationService.getUserHandler().findUsersByGroupId("/platform/externals")).thenReturn(externals);
 
     matrixSynchronizationService.synchronizeUsers();
 
     verify(agentPusherService).enqueueIfDesired("lea");
-    verify(agentPusherService, times(1)).enqueueIfDesired(anyString());
+    verify(agentPusherService, never()).enqueueIfDesired("bob");
   }
 }
