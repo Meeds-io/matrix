@@ -289,7 +289,8 @@ public class MatrixRest implements ResourceContainer {
     try {
       String login = agentPusherService.getLoginOfPushkey(pushKey);
       if (login == null || !hasMatrixAccount(login) || accountKindService.computeAccountKind(login) == null) {
-        LOG.info("Worker pusher key rejected{}", login == null ? "" : " for " + login);
+        // the endpoint is unauthenticated: a forged key must not fill the log
+        LOG.debug("Worker pusher key rejected{}", login == null ? "" : " for " + login);
         return REJECTED_ANSWER_FORMAT.formatted(JSONObject.quote(pushKey));
       }
       String roomId = notification.getElement("room_id") == null ? "" : notification.getElement("room_id").getStringValue();
