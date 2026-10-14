@@ -549,4 +549,42 @@ class MatrixAgentPusherServiceTest {
   private MatrixPushRule rule(String kind, String id, boolean enabled) {
     return new MatrixPushRule(kind, id, enabled, !id.contains("not_notifying") && !id.contains("suppress") && !id.contains("master"));
   }
+
+  @Test
+  void personsListenerTurnQueuesNothing() throws Exception {
+    when(accountKindService.computeAccountKind("john")).thenReturn(null);
+
+    service.enqueueIfDesired("john");
+
+    assertTrue(scheduled.isEmpty());
+    verifyNoInteractions(matrixHttpClient);
+  }
+
+  @Test
+  void workersListenerTurnCarriesTheCallingThreadsMatrixId() throws Exception {
+    desired();
+
+    service.enqueueIfDesired(LOGIN);
+
+    assertEquals(1, scheduled.size());
+    verifyNoInteractions(matrixHttpClient);
+    // the turn runs while the calling request has not committed its writes yet;
+    // these stubs stay unused: the carried decision and Matrix id stand in for them
+    lenient().when(accountKindService.computeAccountKind(LOGIN)).thenReturn(null);
+    lenient().when(matrixService.getMatrixIdForUser(LOGIN)).thenReturn(null);
+    when(matrixHttpClient.getPushers(TOKEN, SYNAPSE_TIMEOUT)).thenReturn(List.of());
+    when(matrixHttpClient.getPushRules(TOKEN, SYNAPSE_TIMEOUT)).thenReturn(List.of());
+    service.processPendingTurn(LOGIN);
+    verify(matrixService).callAsUserOrThrow(eq(LOGIN), eq(MATRIX_ID), eq(SYNAPSE_TIMEOUT), any());
+    verify(matrixHttpClient).setPusher(any(), eq(TOKEN), eq(SYNAPSE_TIMEOUT));
+  }
+
+  @Test
+  void unreadableListenerDecisionQueuesNothingAndDoesNotThrow() throws Exception {
+    when(accountKindService.computeAccountKind(LOGIN)).thenThrow(new IllegalStateException("IDM down"));
+
+    service.enqueueIfDesired(LOGIN);
+
+    assertTrue(scheduled.isEmpty());
+  }
 }
