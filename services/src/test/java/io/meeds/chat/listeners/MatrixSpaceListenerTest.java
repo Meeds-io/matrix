@@ -88,13 +88,14 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
   void joinedJoinsUserToLinkedRoom() throws Exception {
     Space space = getSpaceInstance(1);
     String raulMatrixId = setMatrixId("raul", "@raul:matrix.exo.tn");
-    clearInvocations(matrixHttpClient);
+    clearInvocations(matrixHttpClient, agentPusherService);
 
     matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
 
     verify(matrixHttpClient, times(1)).joinUserToRoom(eq(matrixRoomId), eq(raulMatrixId), eq(accessToken));
-    // the Matrix account existed: no pusher turn, the scheduled job keeps it
-    verify(agentPusherService, never()).enqueueIfDesired(anyString());
+    // the Matrix account existed (created with the user): the join still queues
+    // the account's pusher turn, which a person's own decision leaves empty
+    verify(agentPusherService, times(1)).enqueueIfDesired("raul");
   }
 
   /** The join that creates a Matrix account queues the account's pusher turn after the room join. */
