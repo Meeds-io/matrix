@@ -152,4 +152,13 @@ public class MatrixConstants {
    */
   public static final String                   MATRIX_AGENTS_PUSH_GATEWAY_URL              = "meeds.matrix.agents.pushGatewayUrl";
 
+  /**
+   * Platform event broadcast when a digital worker is mentioned in a chat
+   * room; its source is the room, its data a {@code ChatRoomMention}.
+   */
+  public static final String                   AGENT_MENTIONED_EVENT                       = "matrix.agent.mentioned";
+
+  /** Relation type of an edit, which replaces an earlier message. */
+  public static final String                   EDIT_RELATION_TYPE                          = "m.replace";
+
 }

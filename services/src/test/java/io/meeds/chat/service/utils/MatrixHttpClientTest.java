@@ -1468,4 +1468,29 @@ class MatrixHttpClientTest {
     assertEquals("hello", message.getMessageContent());
     MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(contains("/event/%24e%2F1"), eq(accessToken), eq(TIMEOUT)));
   }
+
+  /** An edit and a reply are told apart through the content's relation. */
+  @Test
+  void getEventByIdReadsTheRelation() throws Exception {
+    HttpResponse edit = mock(HttpResponse.class);
+    when(edit.statusCode()).thenReturn(200);
+    when(edit.body()).thenReturn("""
+        {"room_id":"!r:matrix.exo.com","type":"m.room.message","sender":"@a:matrix.exo.com","origin_server_ts":"1",
+         "content":{"msgtype":"m.text","body":"* fixed","m.new_content":{"body":"fixed"},
+                    "m.relates_to":{"rel_type":"m.replace","event_id":"$original"}}}""");
+    HttpResponse reply = mock(HttpResponse.class);
+    when(reply.statusCode()).thenReturn(200);
+    when(reply.body()).thenReturn("""
+        {"room_id":"!r:matrix.exo.com","type":"m.room.message","sender":"@a:matrix.exo.com","origin_server_ts":"1",
+         "content":{"msgtype":"m.text","body":"sure","m.relates_to":{"m.in_reply_to":{"event_id":"$question"}}}}""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(edit, reply);
+
+    MatrixMessage editMessage = matrixHttpClient.getEventById("$edit", "!r:matrix.exo.com", accessToken, TIMEOUT);
+    MatrixMessage replyMessage = matrixHttpClient.getEventById("$reply", "!r:matrix.exo.com", accessToken, TIMEOUT);
+
+    assertEquals("m.replace", editMessage.getRelatesToType());
+    assertNull(editMessage.getInReplyTo());
+    assertNull(replyMessage.getRelatesToType());
+    assertEquals("$question", replyMessage.getInReplyTo());
+  }
 }
