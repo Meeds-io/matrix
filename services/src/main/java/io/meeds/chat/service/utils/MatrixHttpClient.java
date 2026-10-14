@@ -1478,6 +1478,17 @@ public class MatrixHttpClient {
         if (format != null && HTML_MESSAGE_FORMAT.equals(format.getStringValue()) && formattedBody != null) {
           message.setFormattedContent(formattedBody.getStringValue());
         }
+        JsonValue relatesTo = content.getElement("m.relates_to");
+        if (relatesTo != null) {
+          JsonValue relationType = relatesTo.getElement("rel_type");
+          if (relationType != null) {
+            message.setRelatesToType(relationType.getStringValue());
+          }
+          JsonValue inReplyTo = relatesTo.getElement("m.in_reply_to");
+          if (inReplyTo != null && inReplyTo.getElement("event_id") != null) {
+            message.setInReplyTo(inReplyTo.getElement("event_id").getStringValue());
+          }
+        }
         JsonValue mentionsElement = content.getElement("m.mentions");
         if (mentionsElement != null) {
           JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
