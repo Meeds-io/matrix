@@ -36,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.*;
@@ -158,5 +159,27 @@ class MatrixSynchronizationServiceTest {
   void synchronizeUsers() throws JsonException, IOException, InterruptedException {
     matrixSynchronizationService.synchronizeUsers();
     verify(matrixService, times(6)).updateUserAvatar(any(), anyString());
+  }
+
+  /** The accounts of a declared kind get a chat account, whatever the restriction. */
+  @Test
+  void synchronizeUsersIncludesTheDeclaredKindsGroups() throws Exception {
+    when(matrixService.getRestrictedGroups()).thenReturn(new String[] { "/platform/externals" });
+    when(matrixService.getAccountKindGroups()).thenReturn(List.of("/platform/agents", "/platform/externals"));
+    Identity leaIdentity = new Identity("lea");
+    leaIdentity.setRemoteId("lea");
+    leaIdentity.setProfile(new Profile(leaIdentity));
+    when(identityManager.getOrCreateUserIdentity("lea")).thenReturn(leaIdentity);
+    ListAccess<User> agents = mock(ListAccess.class);
+    when(agents.getSize()).thenReturn(1);
+    when(agents.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("lea") });
+    when(organizationService.getUserHandler().findUsersByGroupId("/platform/agents")).thenReturn(agents);
+
+    matrixSynchronizationService.synchronizeUsers();
+
+    verify(organizationService.getUserHandler(), times(1)).findUsersByGroupId("/platform/externals");
+    verify(organizationService.getUserHandler(), times(1)).findUsersByGroupId("/platform/agents");
+    verify(organizationService.getUserHandler(), never()).findUsersByGroupId("/platform/users");
+    verify(matrixService).saveUserAccount(leaIdentity, true);
   }
 }
