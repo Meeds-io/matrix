@@ -70,7 +70,7 @@ public class MatrixHttpClient {
   private static final String PUSH_RULES_API_PATH   = "/_matrix/client/v3/pushrules/global/";
 
   /** The push rule kinds, in the order Synapse evaluates them. */
-  private static final List<String> PUSH_RULE_KINDS = List.of("override", "content", "room", "sender", "underride");
+  private static final List<String> PUSH_RULE_KINDS = List.of("override", "content", "postcontent", "room", "sender", "underride");
 
   /** The push rule action that makes a rule notify. */
   private static final String NOTIFY_ACTION         = "notify";
@@ -261,11 +261,10 @@ public class MatrixHttpClient {
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSH_RULES_API_PATH;
     HttpResponse<String> response = sendBoundedGetRequest(url, accessToken, timeout);
     checkClientApiResponse(response, "listing the push rules");
-    JSONObject global = new JSONObject(response.body()).optJSONObject("global");
+    // GET .../pushrules/global/ answers the rule kinds at the top level; only
+    // GET .../pushrules/ wraps them in a "global" object
+    JSONObject global = new JSONObject(response.body());
     List<MatrixPushRule> result = new ArrayList<>();
-    if (global == null) {
-      return result;
-    }
     for (String kind : PUSH_RULE_KINDS) {
       JSONArray rules = global.optJSONArray(kind);
       for (int i = 0; rules != null && i < rules.length(); i++) {
