@@ -18,6 +18,10 @@
  */
 package io.meeds.chat.service;
 
+import io.meeds.chat.constant.ChatRoomKind;
+import io.meeds.chat.model.ChatRoomMention;
+import io.meeds.social.core.identity.service.AccountKindService;
+import org.exoplatform.services.listener.ListenerService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
@@ -97,6 +101,12 @@ public class ChatNotificationService {
 
   @Autowired
   private SettingService            settingService;
+
+  @Autowired
+  private ListenerService           listenerService;
+
+  @Autowired
+  private AccountKindService        accountKindService;
 
   private static UserStateService   userStateService;
 
@@ -192,6 +202,11 @@ public class ChatNotificationService {
     Room room = matrixService.getById(roomId);
     if (room == null) {
       LOG.debug("Chat push for {} in {}: unknown room, ignored", userName, roomId);
+      return;
+    }
+    if (isOfDeclaredKind(userName)) {
+      // a digital worker's mentions reach it through its own pusher only
+      LOG.debug("Chat push for {} in {}: account of a declared kind, ignored", userName, roomId);
       return;
     }
     MatrixMessage message = resolveMessage(room, eventId, roomId, pushKey);
@@ -349,6 +364,110 @@ public class ChatNotificationService {
                          USER_CHAT_NOTIFICATION_SCOPE,
                          READ_WATERMARK_KEY_PREFIX + roomId,
                          SettingValue.create(String.valueOf(timestamp)));
+    }
+  }
+
+  /**
+   * Entry point of a digital worker's push, called by the push gateway once it
+   * verified the worker's pusher key. Hands over to the platform, as the
+   * {@code matrix.agent.mentioned} event, a message of a space room that
+   * mentions the worker through {@code m.mentions}, is not the worker's own
+   * and is not an edit; anything else is ignored.
+   * <p>
+   * The room kind is decided first, before anything is read from Synapse, and
+   * this is the only place the chat add-on decides it for a worker: an unknown
+   * room, a disabled one or a direct message returns at once, so a direct
+   * message, which has no space and would need the worker's own token, never
+   * holds the worker's pusher. A direct-message hand-off would start here.
+   * Every Synapse call is bounded, and every failure is logged and swallowed:
+   * the push gateway answers a worker's push with a success whatever happens,
+   * since Synapse would otherwise retry that event before any later one.
+   *
+   * @param eventId the Matrix event id
+   * @param roomId the Matrix room id
+   * @param login the mentioned worker's login
+   */
+  public void onAgentPushReceived(String eventId, String roomId, String login) {
+    Room room = getSpaceRoom(roomId);
+    if (room == null) {
+      LOG.debug("Worker push for {} in {}: not a space room, ignored", login, roomId);
+      return;
+    }
+    MatrixMessage message;
+    try {
+      message = matrixService.getRoomEventOrThrow(eventId, roomId, MatrixAgentPusherService.SYNAPSE_TIMEOUT);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Worker push for {} in {}: event {} read interrupted, ignored", login, roomId, eventId);
+      return;
+    } catch (Exception e) {
+      LOG.warn("Worker push for {} in {}: event {} could not be read, ignored", login, roomId, eventId, e);
+      return;
+    }
+    if (message == null) {
+      LOG.debug("Worker push for {} in {}: event {} is not a message, ignored", login, roomId, eventId);
+      return;
+    }
+    String senderLogin = StringUtils.isBlank(message.getSender()) ? null : matrixService.findUserByMatrixId(message.getSender());
+    if (StringUtils.equals(senderLogin, login) || !isMentioned(message, login)
+        || EDIT_RELATION_TYPE.equals(message.getRelatesToType())) {
+      LOG.debug("Worker push for {} in {}: event {} is not a mention to hand over, ignored", login, roomId, eventId);
+      return;
+    }
+    ChatRoomMention mention = new ChatRoomMention(ChatRoomKind.SPACE,
+                                                  eventId,
+                                                  roomId,
+                                                  room.getSpaceId(),
+                                                  login,
+                                                  senderLogin,
+                                                  message.getSender(),
+                                                  message.getMessageContent(),
+                                                  message.getMentionedUsers() == null ? List.of()
+                                                                                      : List.copyOf(message.getMentionedUsers()),
+                                                  message.getTimeStamp());
+    try {
+      listenerService.broadcast(AGENT_MENTIONED_EVENT, room, mention);
+      LOG.info("Worker {} mentioned in the room of the space {} by {}, handed over", login, room.getSpaceId(), senderLogin);
+    } catch (Exception e) {
+      LOG.warn("Worker push for {} in {}: event {} could not be handed over", login, roomId, eventId, e);
+    }
+  }
+
+  /**
+   * Finds the enabled room of a space whose id is exactly the given one, both
+   * normalised: the room lookup matches a prefix.
+   *
+   * @param roomId the Matrix room id, local or full
+   * @return the room, null when unknown, disabled, a direct message or
+   *         unreadable
+   */
+  private Room getSpaceRoom(String roomId) {
+    try {
+      Room room = StringUtils.isBlank(roomId) ? null : matrixService.getById(roomId);
+      if (room == null || room.getSpaceId() == null
+          || !matrixService.extractRoomId(room.getRoomId()).equals(matrixService.extractRoomId(roomId))) {
+        return null;
+      }
+      return room;
+    } catch (Exception e) {
+      LOG.debug("Room {} could not be resolved", roomId, e);
+      return null;
+    }
+  }
+
+  /**
+   * Tells whether an account belongs to a kind an add-on declares, false when
+   * that cannot be read, which keeps the account on the path of people.
+   *
+   * @param userName the login
+   * @return true for an account of a declared kind
+   */
+  private boolean isOfDeclaredKind(String userName) {
+    try {
+      return accountKindService.computeAccountKind(userName) != null;
+    } catch (Exception e) {
+      LOG.debug("Account kind of {} could not be read", userName, e);
+      return false;
     }
   }
 
