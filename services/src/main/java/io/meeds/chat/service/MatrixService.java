@@ -57,6 +57,7 @@ import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.file.model.FileItem;
 import org.exoplatform.commons.notification.channel.MailChannel;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.exoplatform.commons.notification.channel.WebChannel;
 import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.commons.utils.ListAccess;
@@ -82,6 +83,8 @@ import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
@@ -1584,25 +1587,126 @@ public class MatrixService {
       return Collections.emptyList();
     }
     String normalizedRoomId = extractRoomId(roomId);
-    boolean isParticipant = getUserConversations(userName).stream()
-                                                          .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
-    if (!isParticipant) {
+    if (!isParticipant(userName, normalizedRoomId)) {
       LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 200);
-    return callAsUser(userName, Collections.<ChatMessage> emptyList(), accessToken -> {
-      List<MatrixMessage> matrixMessages = matrixHttpClient.getRoomMessages(normalizedRoomId, effectiveLimit, accessToken);
-      List<ChatMessage> messages = new ArrayList<>();
-      for (MatrixMessage matrixMessage : matrixMessages) {
-        messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
-                                     matrixMessage.getMessageContent(),
-                                     matrixMessage.getTimeStamp()));
+    return callAsUser(userName,
+                      Collections.<ChatMessage> emptyList(),
+                      accessToken -> toChronologicalMessages(matrixHttpClient.getRoomMessages(normalizedRoomId,
+                                                                                              effectiveLimit,
+                                                                                              accessToken)));
+  }
+
+  /**
+   * Returns the most recent messages of a conversation like
+   * {@link #getRoomMessages(String, String, int)}, every request bounded by
+   * {@code timeout} and every failure propagated: a timeout, an unreachable
+   * Matrix or a user without a Matrix account is thrown, so the caller tells it
+   * from a conversation with nothing to read. A user who does not participate in
+   * the conversation reads nothing, as in the unbounded read.
+   *
+   * @param userName the Meeds username acting
+   * @param roomId the Matrix room id of the conversation, local part or full id
+   * @param limit the maximum number of messages to return (clamped to [1, 200])
+   * @param timeout the bound of each request
+   * @return the conversation messages, edits merged, oldest first, never
+   *         {@code null}
+   * @throws Exception any failure of the login or of the read
+   */
+  public List<ChatMessage> getRoomMessages(String userName,
+                                           String roomId,
+                                           int limit,
+                                           Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId)) {
+      return Collections.emptyList();
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    if (!isParticipant(userName, normalizedRoomId)) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
+      return Collections.emptyList();
+    }
+    int effectiveLimit = Math.clamp(limit, 1, 200);
+    return callAsUserOrThrow(userName,
+                             timeout,
+                             accessToken -> toChronologicalMessages(matrixHttpClient.getRoomMessages(normalizedRoomId,
+                                                                                                     effectiveLimit,
+                                                                                                     accessToken,
+                                                                                                     timeout)));
+  }
+
+  /**
+   * Tells whether a conversation, given by its local-part room id, is one of
+   * the user's conversations. Both sides of the comparison go through
+   * {@link #extractRoomId(String)}: a space room is stored as its local part, a
+   * direct message with its server name.
+   *
+   * @param userName the Meeds username
+   * @param normalizedRoomId the room id as {@link #extractRoomId(String)}
+   *          returns it
+   * @return true when the user's conversations contain the room
+   */
+  private boolean isParticipant(String userName, String normalizedRoomId) {
+    return getUserConversations(userName).stream()
+                                         .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
+  }
+
+  /**
+   * Maps the events of a room read, newest first, to the messages a client
+   * renders, oldest first: each {@code m.replace} edit is merged into the event
+   * it replaces, which is kept once under its own event id. An edit is applied
+   * only when its sender is the original's sender; among several, the latest
+   * {@code origin_server_ts} wins. An edit whose original is not in the page
+   * (older than it, or redacted) is dropped, as is an edit of another sender.
+   *
+   * @param events the {@code m.room.message} events, newest first
+   * @return the merged messages, oldest first
+   */
+  private List<ChatMessage> toChronologicalMessages(List<MatrixMessage> events) {
+    Map<String, MatrixMessage> originals = new HashMap<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() == null && event.getEventId() != null) {
+        originals.put(event.getEventId(), event);
       }
-      // The client API returns events newest-first (dir=b); flip to chronological.
-      Collections.reverse(messages);
-      return messages;
-    });
+    }
+    Map<String, MatrixMessage> latestEdits = new HashMap<>();
+    for (MatrixMessage event : events) {
+      MatrixMessage original = event.getReplacedEventId() == null ? null : originals.get(event.getReplacedEventId());
+      if (original != null && Objects.equals(original.getSender(), event.getSender())) {
+        latestEdits.merge(original.getEventId(),
+                          event,
+                          (known, candidate) -> candidate.getTimeStamp() > known.getTimeStamp() ? candidate : known);
+      }
+    }
+    List<ChatMessage> messages = new ArrayList<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() != null) {
+        continue;
+      }
+      MatrixMessage edit = event.getEventId() == null ? null : latestEdits.get(event.getEventId());
+      messages.add(new ChatMessage(extractUserId(event.getSender()),
+                                   edit == null ? event.getMessageContent() : editedText(edit),
+                                   event.getTimeStamp()));
+    }
+    // The client API returns events newest-first (dir=b); flip to chronological.
+    Collections.reverse(messages);
+    return messages;
+  }
+
+  /**
+   * Returns the text an {@code m.replace} event gives its original: the body of
+   * its {@code m.new_content}, or, for a client that sent none, its own body
+   * without the {@code "* "} marker Matrix prepends.
+   *
+   * @param edit the {@code m.replace} event
+   * @return the replacement text
+   */
+  private String editedText(MatrixMessage edit) {
+    if (edit.getEditedContent() != null) {
+      return edit.getEditedContent();
+    }
+    return StringUtils.removeStart(edit.getMessageContent(), "* ");
   }
 
   /**
@@ -1672,6 +1776,62 @@ public class MatrixService {
     return callAsUser(userName,
                       null,
                       accessToken -> matrixHttpClient.sendMessage(normalizedRoomId, text, UUID.randomUUID().toString(), accessToken));
+  }
+
+  /**
+   * Posts a reply <strong>as the given user</strong>, quoting the event it
+   * answers and mentioning the given Matrix users, with the content the web
+   * composer sends: {@code m.in_reply_to}, an HTML {@code formatted_body} and
+   * {@code m.mentions}. The mentions are exactly {@code mentionedMatrixIds},
+   * chosen by the caller, never read from the text. The transaction id is
+   * derived from the replied-to event and the user, so a retried reply is not
+   * posted twice. The request is bounded by {@code timeout} and a failure is
+   * thrown.
+   *
+   * @param userName the Meeds username replying
+   * @param roomId the Matrix room id of the conversation, local part or full id
+   * @param body the plain text body
+   * @param formattedBody the HTML body, null or blank to send the plain body
+   *          only
+   * @param inReplyToEventId the event id the reply answers
+   * @param mentionedMatrixIds the Matrix ids the reply mentions
+   * @param timeout the bound of each request
+   * @return the created event id, or {@code null} when nothing was sent because
+   *         an argument is blank or the user does not participate in the
+   *         conversation
+   * @throws Exception any failure of the login or of the send
+   */
+  public String sendReply(String userName,
+                          String roomId,
+                          String body,
+                          String formattedBody,
+                          String inReplyToEventId,
+                          List<String> mentionedMatrixIds,
+                          Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId) || StringUtils.isBlank(body)
+        || StringUtils.isBlank(inReplyToEventId)) {
+      return null;
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    if (!isParticipant(userName, normalizedRoomId)) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to send a reply", userName, normalizedRoomId);
+      return null;
+    }
+    JSONObject content = new JSONObject().put("msgtype", "m.text").put("body", body);
+    if (StringUtils.isNotBlank(formattedBody)) {
+      content.put("format", "org.matrix.custom.html").put("formatted_body", formattedBody);
+    }
+    content.put("m.relates_to", new JSONObject().put("m.in_reply_to", new JSONObject().put("event_id", inReplyToEventId)));
+    content.put("m.mentions",
+                new JSONObject().put("user_ids", new JSONArray(mentionedMatrixIds == null ? List.of() : mentionedMatrixIds)));
+    String transactionId = DigestUtils.sha256Hex(inReplyToEventId + ":" + userName);
+    return callAsUserOrThrow(userName,
+                             timeout,
+                             accessToken -> matrixHttpClient.sendMessage(normalizedRoomId,
+                                                                         content,
+                                                                         transactionId,
+                                                                         accessToken,
+                                                                         timeout));
   }
 
   /**
