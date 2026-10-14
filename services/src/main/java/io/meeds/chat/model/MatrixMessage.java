@@ -62,4 +62,13 @@ public class MatrixMessage {
   private List<String> mentionedUsers;
 
   private long         timeStamp;
+
+  /**
+   * The HTML {@code formatted_body} of a message whose content declares the
+   * {@code org.matrix.custom.html} format, as read by
+   * {@code MatrixHttpClient#getEventById}; null otherwise, and null in the
+   * messages the room and search reads build. The plain-text {@code body}
+   * stays in {@code messageContent}.
+   */
+  private String       formattedContent;
 }

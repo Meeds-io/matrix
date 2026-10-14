@@ -673,6 +673,95 @@ class MatrixHttpClientTest {
 
   }
 
+  /**
+   * A mention message carries an HTML {@code formatted_body} beside its plain
+   * {@code body}: the message content stays the plain text, which the mention
+   * notification and the push popup show, and the HTML goes to the formatted
+   * content only.
+   */
+  @Test
+  void getEventByIdKeepsThePlainBodyAndTheHtmlApart() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "content": {
+            "body": "Lea can you check?",
+            "format": "org.matrix.custom.html",
+            "formatted_body": "<a href=\\"https://matrix.to/#/@lea:matrix.exo.com\\">Lea</a> can you check?",
+            "msgtype": "m.text",
+            "m.mentions": {"user_ids": ["@lea:matrix.exo.com"]}
+          },
+          "event_id": "$mention",
+          "origin_server_ts": 1432735824653,
+          "room_id": "!room:matrix.exo.com",
+          "sender": "@john:matrix.exo.com",
+          "type": "m.room.message"
+        }
+        """);
+
+    MatrixMessage message = matrixHttpClient.getEventById("$mention", "!room:matrix.exo.com", accessToken);
+
+    assertEquals("Lea can you check?", message.getMessageContent());
+    assertEquals("<a href=\"https://matrix.to/#/@lea:matrix.exo.com\">Lea</a> can you check?", message.getFormattedContent());
+    assertEquals("m.text", message.getMessageType());
+    assertEquals(List.of("@lea:matrix.exo.com"), message.getMentionedUsers());
+  }
+
+  /**
+   * A {@code formatted_body} counts only when the content declares the
+   * {@code org.matrix.custom.html} format: without it, or with another format,
+   * there is no formatted content and the message content is the body.
+   */
+  @Test
+  void getEventByIdIgnoresAFormattedBodyWithoutTheHtmlFormat() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "content": {"body": "plain", "formatted_body": "<b>plain</b>", "msgtype": "m.text"},
+          "event_id": "$noformat", "origin_server_ts": 1, "room_id": "!room:matrix.exo.com",
+          "sender": "@john:matrix.exo.com", "type": "m.room.message"
+        }
+        """);
+    MatrixMessage message = matrixHttpClient.getEventById("$noformat", "!room:matrix.exo.com", accessToken);
+    assertEquals("plain", message.getMessageContent());
+    assertNull(message.getFormattedContent());
+
+    when(responseOK.body()).thenReturn("""
+        {
+          "content": {"body": "plain", "format": "org.example.other", "formatted_body": "<b>plain</b>", "msgtype": "m.text"},
+          "event_id": "$otherformat", "origin_server_ts": 1, "room_id": "!room:matrix.exo.com",
+          "sender": "@john:matrix.exo.com", "type": "m.room.message"
+        }
+        """);
+    message = matrixHttpClient.getEventById("$otherformat", "!room:matrix.exo.com", accessToken);
+    assertEquals("plain", message.getMessageContent());
+    assertNull(message.getFormattedContent());
+  }
+
+  /**
+   * An event id of a room version 3 room can contain {@code /} and {@code +}:
+   * the room id and the event id reach Synapse percent-encoded, so Synapse
+   * routes the request to the event endpoint instead of answering 404.
+   */
+  @Test
+  void getEventByIdEncodesTheRoomIdAndTheEventIdInThePath() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "content": {"body": "hello", "msgtype": "m.text"},
+          "event_id": "$a/b+c", "origin_server_ts": 1, "room_id": "!room:matrix.exo.com",
+          "sender": "@john:matrix.exo.com", "type": "m.room.message"
+        }
+        """);
+
+    List<String> requestedUrls = new java.util.ArrayList<>();
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(anyString(), anyString())).thenAnswer(invocation -> {
+      requestedUrls.add(invocation.getArgument(0));
+      return responseOK;
+    });
+
+    matrixHttpClient.getEventById("$a/b+c", "!room:matrix.exo.com", accessToken);
+
+    assertEquals(List.of("http://matrix:8008/_matrix/client/v3/rooms/%21room%3Amatrix.exo.com/event/%24a%2Fb%2Bc"), requestedUrls);
+  }
+
   @Test
   void invalidateAccessToken() {
     try {
