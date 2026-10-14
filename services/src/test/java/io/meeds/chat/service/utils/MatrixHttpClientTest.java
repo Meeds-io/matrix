@@ -1141,7 +1141,7 @@ class MatrixHttpClientTest {
       assertTrue(Integer.parseInt(timeout) > 0, url);
       timeouts.add(timeout);
     }
-    assertTrue(timeouts.size() > 1, "every unread sync sent the same request: " + timeouts);
+    assertEquals(5, timeouts.size(), "two unread syncs sent the same request: " + timeouts);
   }
 
   /**

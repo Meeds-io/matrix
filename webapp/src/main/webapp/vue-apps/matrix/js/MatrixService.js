@@ -85,8 +85,9 @@ export function loadChatRooms(currentMemberId) {
   // Synapse caches /sync responses per identical request
   // (caches.sync_response_cache_duration, 2m by default): a reload would replay
   // the previous answer, read state included. A first sync ignores timeout, so
-  // a unique value only bypasses that cache.
-  return sync(filter, null, 30000 + Math.floor(Math.random() * 1000)).then(resp => {
+  // a value taken from the clock, distinct over those 2 minutes, only bypasses
+  // that cache.
+  return sync(filter, null, 30000 + (Date.now() % 120000)).then(resp => {
     if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
