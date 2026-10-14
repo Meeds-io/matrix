@@ -139,4 +139,17 @@ public class MatrixConstants {
 
   public static final String                   SPACE_CHAT_ENABLED_BY_DEFAULT               = "meeds.chat.enabledByDefault";
 
+
+  /** Application id of a digital worker's pusher, told apart from the browsers' {@code exo.matrix.app}. */
+  public static final String                   AGENT_PUSHER_APP_ID                         = "exo.matrix.agent";
+
+  /** The only path Synapse accepts for an HTTP pusher's gateway url. */
+  public static final String                   PUSH_GATEWAY_PATH                           = "/_matrix/push/v1/notify";
+
+  /**
+   * The push gateway url of the digital workers' pushers; blank means the
+   * platform base url followed by {@link #PUSH_GATEWAY_PATH}.
+   */
+  public static final String                   MATRIX_AGENTS_PUSH_GATEWAY_URL              = "meeds.matrix.agents.pushGatewayUrl";
+
 }
