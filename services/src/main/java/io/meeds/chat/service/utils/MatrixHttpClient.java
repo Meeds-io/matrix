@@ -54,6 +54,9 @@ public class MatrixHttpClient {
   /** Marker Matrix prepends to the fallback body of an edit event ("* the new text"). */
   private static final String EDIT_FALLBACK_PREFIX  = "* ";
 
+  /** Format a message content declares when it carries an HTML {@code formatted_body}. */
+  private static final String HTML_MESSAGE_FORMAT   = "org.matrix.custom.html";
+
   /**
    * Get an authenticated access token for the administrative tasks
    *
@@ -1153,10 +1156,22 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Retrieves an event from Matrix by its Id
+   * Retrieves an event from Matrix by its Id. The message content is the
+   * plain-text {@code body}; the HTML {@code formatted_body} is kept apart in
+   * {@code MatrixMessage#getFormattedContent()} when the content declares the
+   * {@code org.matrix.custom.html} format. The room id and the event id are
+   * percent-encoded into the path: an event id of a room version 3 room can
+   * contain {@code /} and {@code +}, and an unencoded {@code /} makes Synapse
+   * answer 404.
    *
    * @param eventId the event ID
-   * @return Map representing the message
+   * @param roomId the room ID
+   * @param accessToken the access token used to read the event
+   * @return the message, null when the event is missing or not readable with
+   *         that token
+   * @throws IOException when the request fails
+   * @throws InterruptedException when the request is interrupted
+   * @throws JsonException when the response cannot be parsed
    */
   public MatrixMessage getEventById(String eventId, String roomId, String accessToken) throws IOException,
                                                                                        InterruptedException,
@@ -1164,7 +1179,8 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + roomId + "/event/" + eventId;
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + URLEncoder.encode(roomId, StandardCharsets.UTF_8)
+        + "/event/" + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -1182,9 +1198,11 @@ public class MatrixHttpClient {
         }
         if (content.getElement("msgtype") != null) {
           message.setMessageType(content.getElement("msgtype").getStringValue());
-          if ("m.text".equals(message.getMessageType()) && content.getElement("org.matrix.custom.html") != null) {
-            message.setMessageContent(jsonMessage.getElement("formatted_body").getStringValue());
-          }
+        }
+        JsonValue format = content.getElement("format");
+        JsonValue formattedBody = content.getElement("formatted_body");
+        if (format != null && HTML_MESSAGE_FORMAT.equals(format.getStringValue()) && formattedBody != null) {
+          message.setFormattedContent(formattedBody.getStringValue());
         }
         JsonValue mentionsElement = content.getElement("m.mentions");
         if (mentionsElement != null) {
