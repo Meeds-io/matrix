@@ -38,6 +38,7 @@
       ref="meedsChatDrawer"
       :rooms="sortedRooms"
       :loading-rooms="loading"
+      :can-mark-all-as-read="canMarkAllAsRead"
       :presence="presence"
       :search-term="searchTerm"
       :message-results="messageResults"
@@ -100,6 +101,7 @@ export default {
     totalUnreadMessages: 0,
     rooms: null,
     loading: false,
+    roomsChecked: false,
     messageEventQueue: [],
     processingMessageQueue: false,
     seenEventIds: new Map(),
@@ -264,6 +266,11 @@ export default {
       return rooms.filter(room =>
         normalize(room.name).includes(normalizedSearch)
       );
+    },
+    // "mark all as read" acts on every room, whatever the list filters show, and
+    // only once the server's counts replaced the cached ones
+    canMarkAllAsRead() {
+      return this.roomsChecked && (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
     },
     sortedRooms() {
       if (!Array.isArray(this.filteredRooms)) {
@@ -701,6 +708,7 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      this.roomsChecked = false;
       let roomsLoaded = false;
       this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
         // the cache only fills the list until the server answers: arriving
@@ -711,6 +719,7 @@ export default {
       });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
         roomsLoaded = true;
+        this.roomsChecked = true;
         const loadedRooms = matrixRoomsObject.rooms || [];
         this.rooms = this.mergeRoomsWithCache(loadedRooms, this.rooms);
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);

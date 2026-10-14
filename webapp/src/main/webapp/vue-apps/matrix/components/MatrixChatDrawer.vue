@@ -155,6 +155,10 @@ export default {
       type: Boolean,
       default: false
     },
+    canMarkAllAsRead: {
+      type: Boolean,
+      default: false
+    },
     presence: {
       type: String,
       default: 'available'
@@ -188,14 +192,6 @@ export default {
     },
     canCreateRooms() {
       return this.$root.canCreateRooms;
-    },
-    hasUnread() {
-      return (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
-    },
-    // the counts are known once the server answered: until then the list may
-    // show the cached ones
-    canMarkAllAsRead() {
-      return !this.loadingRooms && this.hasUnread;
     },
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
