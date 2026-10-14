@@ -71,4 +71,18 @@ public class MatrixMessage {
    * stays in {@code messageContent}.
    */
   private String       formattedContent;
+
+  /**
+   * The {@code rel_type} of the content's {@code m.relates_to}, as read by
+   * {@code MatrixHttpClient#getEventById}: {@code m.replace} for an edit;
+   * null when the event relates to nothing or only replies.
+   */
+  private String       relatesToType;
+
+  /**
+   * The event id the content's {@code m.relates_to.m.in_reply_to} names, as
+   * read by {@code MatrixHttpClient#getEventById}; null when the event is not
+   * a reply.
+   */
+  private String       inReplyTo;
 }
