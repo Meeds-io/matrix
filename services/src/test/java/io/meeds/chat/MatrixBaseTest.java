@@ -68,6 +68,7 @@ import org.exoplatform.social.core.storage.api.IdentityStorage;
 
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixService;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.kernel.test.AbstractSpringTest;
@@ -124,6 +125,10 @@ public class MatrixBaseTest extends AbstractSpringTest {
 
   @MockitoBean
   public MatrixHttpClient        matrixHttpClient;
+
+  /** Mocked so that no Spring test starts the turn thread; its own unit test covers it. */
+  @MockitoBean
+  public MatrixAgentPusherService agentPusherService;
 
   private static KernelBootstrap bootstrap;
 

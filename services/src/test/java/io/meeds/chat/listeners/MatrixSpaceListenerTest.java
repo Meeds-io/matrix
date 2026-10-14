@@ -37,13 +37,16 @@ import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class MatrixSpaceListenerTest extends MatrixBaseTest {
 
@@ -90,6 +93,24 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
     matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
 
     verify(matrixHttpClient, times(1)).joinUserToRoom(eq(matrixRoomId), eq(raulMatrixId), eq(accessToken));
+    // the Matrix account existed: no pusher turn, the scheduled job keeps it
+    verify(agentPusherService, never()).enqueueIfDesired(anyString());
+  }
+
+  /** The join that creates a Matrix account queues the account's pusher turn after the room join. */
+  @Test
+  void firstJoinCreatingTheMatrixAccountQueuesAPusherTurn() throws Exception {
+    Space space = getSpaceInstance(1);
+    setMatrixId("raul", "");
+    clearInvocations(matrixHttpClient, agentPusherService);
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean()))
+        .thenReturn("@raul:matrix.exo.tn");
+
+    matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
+
+    var order = inOrder(matrixHttpClient, agentPusherService);
+    order.verify(matrixHttpClient).joinUserToRoom(eq(matrixRoomId), anyString(), eq(accessToken));
+    order.verify(agentPusherService).enqueueIfDesired("raul");
   }
 
   @Test
