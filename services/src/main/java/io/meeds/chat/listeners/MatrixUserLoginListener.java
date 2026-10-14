@@ -74,9 +74,7 @@ public class MatrixUserLoginListener extends Listener<ConversationRegistry, Conv
     }
     RequestLifeCycle.begin(PortalContainer.getInstance());
     try {
-      String[] matrixRestrictedGroups = matrixService.getRestrictedGroups();
-      if (matrixRestrictedGroups != null && matrixRestrictedGroups.length > 0
-          && !matrixService.isUserMemberOfGroups(connectedUserIdentity.getUserId(), matrixRestrictedGroups)) {
+      if (!matrixService.isChatUser(connectedUserIdentity.getUserId())) {
         return;
       }
       String matrixUserId = matrixService.getMatrixIdForUser(userId);
