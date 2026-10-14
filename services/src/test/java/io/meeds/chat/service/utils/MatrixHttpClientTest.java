@@ -1608,4 +1608,21 @@ class MatrixHttpClientTest {
                       .thenThrow(new IOException("timed out"));
     assertThrows(IOException.class, () -> matrixHttpClient.sendMessage("!room1", content, "txn-9", accessToken, TIMEOUT));
   }
+
+  /** The bounded user read goes through the bounded request, the id encoded, and fails on an error status. */
+  @Test
+  void boundedGetUser() throws Exception {
+    HttpResponse found = mock(HttpResponse.class);
+    when(found.statusCode()).thenReturn(200);
+    when(found.body()).thenReturn("{\"name\":\"@a:matrix.exo.com\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(found, responseNotOK);
+
+    assertEquals("{\"name\":\"@a:matrix.exo.com\"}", matrixHttpClient.getUser("@a:matrix.exo.com", accessToken, TIMEOUT));
+    assertThrows(RuntimeException.class, () -> matrixHttpClient.getUser("@a:matrix.exo.com", accessToken, TIMEOUT));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_synapse/admin/v2/users/%40a%3Amatrix.exo.com"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)),
+                              times(2));
+  }
 }

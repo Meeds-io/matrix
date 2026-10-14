@@ -397,6 +397,26 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals(List.of(1000L, 2000L), messages.stream().map(ChatMessage::getTimestamp).toList());
   }
 
+  /**
+   * The bounded lookup answers the platform login, null for a Matrix account
+   * no platform user matches, and propagates a failure.
+   */
+  @Test
+  void findUserByMatrixIdOrThrow() throws Exception {
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn(accessToken);
+    when(matrixHttpClient.getUser(eq("@demo:matrix.meeds.tn"), any(), eq(timeout))).thenReturn("""
+        {"name":"@demo:matrix.meeds.tn","threepids":[{"medium":"email","address":"demo@localhost"}]}""");
+    when(matrixHttpClient.getUser(eq("@stranger:matrix.meeds.tn"), any(), eq(timeout))).thenReturn("""
+        {"name":"@stranger:matrix.meeds.tn","threepids":[{"medium":"email","address":"nobody@nowhere.tld"}]}""");
+    when(matrixHttpClient.getUser(eq("@slow:matrix.meeds.tn"), any(), eq(timeout))).thenThrow(new IOException("request timed out"));
+
+    assertEquals("demo", matrixService.findUserByMatrixIdOrThrow("@demo:matrix.meeds.tn", timeout));
+    assertNull(matrixService.findUserByMatrixIdOrThrow("@stranger:matrix.meeds.tn", timeout));
+    assertThrows(IOException.class, () -> matrixService.findUserByMatrixIdOrThrow("@slow:matrix.meeds.tn", timeout));
+    verify(matrixHttpClient, never()).getUser(anyString(), anyString());
+  }
+
   @Test
   void sendMessage() throws Exception {
     Space space = getSpaceInstance(1);
