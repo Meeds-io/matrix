@@ -21,8 +21,12 @@ package io.meeds.chat.service.utils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.http.HttpTimeoutException;
@@ -30,11 +34,65 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * The bounded requests against a real socket, through the JDK client the
+ * platform runs: the bound must hold over the response body, which the
+ * request's own timeout does not cover.
+ */
 class HTTPHelperTest {
+
+  private ServerSocket   server;
+
+  private CountDownLatch release = new CountDownLatch(1);
+
+  @BeforeEach
+  void startServer() throws Exception {
+    server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+    Thread serving = new Thread(() -> {
+      try (Socket socket = server.accept()) {
+        socket.getInputStream().read(new byte[4096]);
+        OutputStream out = socket.getOutputStream();
+        // headers then five bytes of a hundred-byte body, then a stall
+        out.write("HTTP/1.1 200 OK\r\nContent-Length: 100\r\nContent-Type: application/json\r\n\r\n{\"a\":".getBytes(StandardCharsets.US_ASCII));
+        out.flush();
+        release.await(30, TimeUnit.SECONDS);
+      } catch (Exception e) {
+        // the client gave up and closed the connection
+      }
+    });
+    serving.setDaemon(true);
+    serving.start();
+  }
+
+  @AfterEach
+  void stopServer() throws Exception {
+    release.countDown();
+    server.close();
+  }
+
+  @Test
+  void aBodyThatStallsIsBoundedByTheTimeout() {
+    String url = "http://127.0.0.1:" + server.getLocalPort() + "/_matrix/client/v3/pushers";
+
+    long start = System.nanoTime();
+    HttpTimeoutException timeout = assertTimeout(Duration.ofSeconds(10),
+                                                 () -> assertThrows(HttpTimeoutException.class,
+                                                                    () -> HTTPHelper.sendBoundedGetRequest(url,
+                                                                                                           "token",
+                                                                                                           Duration.ofSeconds(1))));
+    long elapsedMs = Duration.ofNanos(System.nanoTime() - start).toMillis();
+
+    assertTrue(elapsedMs >= 900 && elapsedMs < 5000, "gave up after " + elapsedMs + " ms");
+    assertEquals(true, timeout.getMessage().contains("127.0.0.1"));
+  }
 
   @Test
   void sendHttpGetRequestGivesUpOnAServerThatAcceptsTheConnectionAndNeverAnswers() throws Exception {
