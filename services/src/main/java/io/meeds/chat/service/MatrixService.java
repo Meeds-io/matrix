@@ -35,7 +35,9 @@ import io.meeds.chat.service.model.MediaInfo;
 import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.utils.MatrixException;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
+import io.meeds.chat.service.utils.MatrixUserCall;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
@@ -85,6 +87,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
@@ -1362,6 +1365,22 @@ public class MatrixService {
    * @return the user's Matrix access token, or {@code null}
    */
   private String getUserAccessToken(String userName, boolean forceRefresh) throws JsonException, IOException, InterruptedException {
+    return getUserAccessToken(userName, forceRefresh, null);
+  }
+
+  /**
+   * Returns a Matrix access token for the given Meeds user like
+   * {@link #getUserAccessToken(String, boolean)}; a login it needs is bounded
+   * by {@code timeout}, unbounded when null.
+   *
+   * @param userName the Meeds username
+   * @param forceRefresh whether to bypass the cache and mint a new token
+   * @param timeout the login request timeout, null for none
+   * @return the user's Matrix access token, or {@code null}
+   */
+  private String getUserAccessToken(String userName,
+                                    boolean forceRefresh,
+                                    Duration timeout) throws JsonException, IOException, InterruptedException {
     if (!forceRefresh) {
       String cachedToken = userAccessTokensCache.get(userName);
       if (StringUtils.isNotBlank(cachedToken)) {
@@ -1374,7 +1393,8 @@ public class MatrixService {
     }
     String matrixLocalPart = extractUserId(matrixId);
     String jwtToken = getJWTSessionToken(matrixLocalPart);
-    String accessToken = matrixHttpClient.getAccessToken(jwtToken);
+    String accessToken = timeout == null ? matrixHttpClient.getAccessToken(jwtToken)
+                                         : matrixHttpClient.getAccessToken(jwtToken, timeout);
     if (StringUtils.isNotBlank(accessToken)) {
       userAccessTokensCache.put(userName, accessToken);
     }
@@ -1392,7 +1412,7 @@ public class MatrixService {
    * @param operation the operation to run with a valid access token
    * @return the operation result, or {@code fallback}
    */
-  private <T> T callAsUser(String userName, T fallback, UserMatrixCall<T> operation) {
+  private <T> T callAsUser(String userName, T fallback, MatrixUserCall<T> operation) {
     try {
       String accessToken = getUserAccessToken(userName, false);
       if (StringUtils.isBlank(accessToken)) {
@@ -1412,6 +1432,39 @@ public class MatrixService {
   }
 
   /**
+   * Executes a Matrix operation on behalf of the given user like
+   * {@link #callAsUser}, but propagates every failure instead of answering a
+   * fallback, so a caller tells a timeout or an error from an empty result. A
+   * login it needs is bounded by {@code timeout}; the operation bounds its own
+   * requests. A token Synapse rejects (HTTP 401) is refreshed once and the
+   * operation retried once.
+   *
+   * @param <T> the operation result type
+   * @param userName the Meeds username acting
+   * @param timeout the login request timeout
+   * @param operation the operation to run with a valid access token
+   * @return the operation result
+   * @throws MatrixException when the user has no Matrix account
+   * @throws Exception any failure of the login or of the operation
+   */
+  public <T> T callAsUserOrThrow(String userName, Duration timeout, MatrixUserCall<T> operation) throws Exception { // NOSONAR
+    String accessToken = getUserAccessToken(userName, false, timeout);
+    if (StringUtils.isBlank(accessToken)) {
+      throw new MatrixException("User " + userName + " has no Matrix account");
+    }
+    try {
+      return operation.call(accessToken);
+    } catch (MatrixUnauthorizedException unauthorized) {
+      LOG.debug("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
+      String refreshedToken = getUserAccessToken(userName, true, timeout);
+      if (StringUtils.isBlank(refreshedToken)) {
+        throw new MatrixException("User " + userName + " has no Matrix account");
+      }
+      return operation.call(refreshedToken);
+    }
+  }
+
+  /**
    * Runs the operation with the given access token and, if Synapse rejects the
    * token (HTTP 401), refreshes it once and retries. Extracted from
    * {@link #callAsUser} so the retry stays a flat, single-purpose block.
@@ -1426,7 +1479,7 @@ public class MatrixService {
    */
   private <T> T callWithTokenRefresh(String userName,
                                      T fallback,
-                                     UserMatrixCall<T> operation,
+                                     MatrixUserCall<T> operation,
                                      String accessToken) throws Exception { // NOSONAR
     try {
       return operation.call(accessToken);
@@ -1438,11 +1491,6 @@ public class MatrixService {
       }
       return operation.call(refreshedToken);
     }
-  }
-
-  @FunctionalInterface
-  private interface UserMatrixCall<T> {
-    T call(String accessToken) throws Exception; // NOSONAR
   }
 
   /**
