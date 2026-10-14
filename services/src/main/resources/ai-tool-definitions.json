@@ -35,6 +35,7 @@
           "conversation_id"
         ]
       },
+      "space_scope": { "object_arg": "conversation_id", "resolver": "chat_room", "id_format": "matrix_room", "allowed_args": ["limit"] },
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
@@ -78,6 +79,7 @@
           "text"
         ]
       },
+      "space_scope": { "object_arg": "conversation_id", "resolver": "chat_room", "id_format": "matrix_room", "allowed_args": ["text"] },
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
