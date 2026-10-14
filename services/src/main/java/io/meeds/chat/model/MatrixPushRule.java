@@ -22,8 +22,9 @@ package io.meeds.chat.model;
  * One rule of a Matrix account's global push rule set
  * ({@code /_matrix/client/v3/pushrules/global/}).
  *
- * @param kind the rule kind: {@code override}, {@code content}, {@code room},
- *          {@code sender} or {@code underride}
+ * @param kind the rule kind: {@code override}, {@code content},
+ *          {@code postcontent}, {@code room}, {@code sender} or
+ *          {@code underride}
  * @param ruleId the rule id; a server-default rule's id starts with {@code .}
  * @param enabled whether the rule is enabled
  * @param notifying whether the rule's actions contain {@code notify}
