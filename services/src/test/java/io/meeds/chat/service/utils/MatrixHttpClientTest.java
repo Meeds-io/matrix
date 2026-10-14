@@ -1408,20 +1408,25 @@ class MatrixHttpClientTest {
     assertTrue(json.isNull("kind"));
   }
 
-  /** Every kind of the global rule set is listed, with its notify flag. */
+  /**
+   * Every kind of the global rule set is listed, with its notify flag, from
+   * the shape Synapse 1.155 answers on {@code GET .../pushrules/global/}: the
+   * kinds at the top level, with no {@code global} wrapper.
+   */
   @Test
   void getPushRules() throws Exception {
     HttpResponse listed = mock(HttpResponse.class);
     when(listed.statusCode()).thenReturn(200);
     when(listed.body()).thenReturn("""
-        {"global":{
-          "override":[{"rule_id":".m.rule.is_room_mention","enabled":true,"default":true,
-                       "actions":["notify",{"set_tweak":"highlight"}]},
-                      {"rule_id":".m.rule.suppress_notices","enabled":true,"actions":["dont_notify"]}],
-          "content":[{"rule_id":".m.rule.contains_user_name","enabled":false,"actions":["notify"]}],
-          "underride":[{"rule_id":".m.rule.message","enabled":true,"actions":["notify"]},
-                       {"rule_id":"custom","enabled":true,"actions":["notify"]}]
-        }}""");
+        {"override":[{"rule_id":".m.rule.is_room_mention","enabled":true,"default":true,
+                      "actions":["notify",{"set_tweak":"highlight"}]},
+                     {"rule_id":".m.rule.suppress_notices","enabled":true,"actions":["dont_notify"]}],
+         "content":[{"rule_id":".m.rule.contains_user_name","enabled":false,"actions":["notify"]}],
+         "postcontent":[],
+         "room":[],
+         "sender":[],
+         "underride":[{"rule_id":".m.rule.message","enabled":true,"actions":["notify"]},
+                      {"rule_id":"custom","enabled":true,"actions":["notify"]}]}""");
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(listed);
 
     List<MatrixPushRule> rules = matrixHttpClient.getPushRules(accessToken, TIMEOUT);
