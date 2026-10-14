@@ -1365,7 +1365,7 @@ class MatrixHttpClientTest {
                       "actions":["notify",{"set_tweak":"highlight"}]},
                      {"rule_id":".m.rule.suppress_notices","enabled":true,"actions":["dont_notify"]}],
          "content":[{"rule_id":".m.rule.contains_user_name","enabled":false,"actions":["notify"]}],
-         "postcontent":[],
+         "postcontent":[{"rule_id":".m.rule.unsubscribed_thread","enabled":true,"actions":[]}],
          "room":[],
          "sender":[],
          "underride":[{"rule_id":".m.rule.message","enabled":true,"actions":["notify"]},
@@ -1377,11 +1377,12 @@ class MatrixHttpClientTest {
     assertEquals(List.of(new MatrixPushRule("override", ".m.rule.is_room_mention", true, true),
                          new MatrixPushRule("override", ".m.rule.suppress_notices", true, false),
                          new MatrixPushRule("content", ".m.rule.contains_user_name", false, true),
+                         new MatrixPushRule("postcontent", ".m.rule.unsubscribed_thread", true, false),
                          new MatrixPushRule("underride", ".m.rule.message", true, true),
                          new MatrixPushRule("underride", "custom", true, true)),
                  rules);
     assertTrue(rules.get(0).isServerDefault());
-    assertFalse(rules.get(4).isServerDefault());
+    assertFalse(rules.get(5).isServerDefault());
     MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_matrix/client/v3/pushrules/global/"),
                                                                      eq(accessToken),
                                                                      eq(TIMEOUT)));
