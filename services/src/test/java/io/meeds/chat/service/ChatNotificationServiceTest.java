@@ -131,6 +131,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Test
   void onMatrixPushReceivedGuards() throws Exception {
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!pushGuardsRoom:matrix.meeds.tn");
     Space space = getSpaceInstance(2);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
     PwaNotificationService mockedPwaNotificationService = mock(PwaNotificationService.class);
@@ -205,6 +206,40 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
   }
 
+  /**
+   * A recipient that is not a member of the room's space gets nothing, and the
+   * event is not read: a pusher key alone does not open a space's room.
+   */
+  @Test
+  void onMatrixPushReceivedIgnoresARecipientOutsideTheSpace() throws Exception {
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!outsideTheSpaceRoom:matrix.meeds.tn");
+    Space space = getSpaceInstance(3);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    PwaNotificationService mockedPwaNotificationService = mock(PwaNotificationService.class);
+    lenient().when(mockedPwaNotificationService.canReceiveDirectNotifications(anyString(), anyString())).thenReturn(true);
+    ReflectionTestUtils.setField(chatNotificationService, "pwaNotificationService", mockedPwaNotificationService);
+    String eventId = "eventOutsideTheSpace";
+    MatrixMessage matrixMessage = new MatrixMessage(eventId,
+                                                    roomId,
+                                                    "m.room.message",
+                                                    "Message content",
+                                                    "m.text",
+                                                    "@sender:matrix.meeds.tn",
+                                                    new ArrayList<>(),
+                                                    123456789, null, null, null);
+    lenient().when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(matrixMessage);
+    lenient().when(userStateModel.getStatus()).thenReturn("available");
+
+    chatNotificationService.onMatrixPushReceived(eventId, roomId, "mary", "pushKey");
+
+    verify(matrixHttpClient, never()).getEventById(eq(eventId), anyString(), anyString());
+    verify(mockedPwaNotificationService, never()).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+
+    chatNotificationService.onMatrixPushReceived(eventId, roomId, "raul", "pushKey");
+
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("raul"), anyString(), anyLong(), any());
+  }
+
   @Test
   void buildRoomPopupAggregatesPerRoom() throws Exception {
     lenient().when(userStateModel.getStatus()).thenReturn("available");
@@ -228,7 +263,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
     Identity demoIdentity = identityManager.getOrCreateUserIdentity("demo");
     String senderIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!popupAggregatesRoom:matrix.meeds.tn");
     Space space = getSpaceInstance(4);
+    spaceService.addMember(space, "john");
     spacesToDelete.add(space);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
 
