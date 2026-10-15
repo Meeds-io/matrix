@@ -71,7 +71,10 @@ import jakarta.annotation.PreDestroy;
  * account of a kind an add-on declares (a digital worker), and keeps that
  * account's push rules down to the mentions of the account, so that Synapse
  * pushes to the platform the mentions of a worker that never opens a
- * browser, and nothing else.
+ * browser. The server defaults it leaves alone still notify an invitation
+ * ({@code .m.rule.invite_for_me}) and a room upgrade
+ * ({@code .m.rule.tombstone}); the push gateway drops both, since neither is
+ * a message.
  * <p>
  * The pusher's key is derived from the platform's Matrix JWT secret and the
  * login, never stored, and only lets the push gateway recognise the account

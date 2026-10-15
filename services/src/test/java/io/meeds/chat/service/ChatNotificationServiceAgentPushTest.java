@@ -22,6 +22,7 @@ import static io.meeds.chat.service.utils.MatrixConstants.AGENT_MENTIONED_EVENT;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -46,6 +47,8 @@ import org.exoplatform.services.listener.ListenerService;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.model.Profile;
 import org.exoplatform.social.core.manager.IdentityManager;
+import org.exoplatform.social.core.space.model.Space;
+import org.exoplatform.social.core.space.spi.SpaceService;
 
 import io.meeds.chat.constant.ChatRoomKind;
 import io.meeds.chat.model.ChatRoomMention;
@@ -80,6 +83,9 @@ class ChatNotificationServiceAgentPushTest {
   @Mock
   private PwaNotificationService  pwaNotificationService;
 
+  @Mock
+  private SpaceService            spaceService;
+
   @InjectMocks
   private ChatNotificationService chatNotificationService;
 
@@ -97,6 +103,25 @@ class ChatNotificationServiceAgentPushTest {
     lenient().when(matrixService.getUserFullMatrixID(LEA_MATRIX_ID)).thenReturn(LEA_MATRIX_ID);
     lenient().when(matrixService.findUserByMatrixIdOrThrow("@max:matrix.exo.tn", MatrixAgentPusherService.SYNAPSE_TIMEOUT))
              .thenReturn("max");
+    Space space = new Space();
+    space.setId("12");
+    lenient().when(spaceService.getSpaceById(anyLong())).thenReturn(space);
+    lenient().when(spaceService.isMember(space, LOGIN)).thenReturn(true);
+  }
+
+  /**
+   * A worker that is not a member of the room's space is handed nothing, and
+   * no Synapse read is made: the pusher key alone does not open a space.
+   */
+  @Test
+  void workerOutsideTheRoomsSpaceIsIgnoredBeforeAnySynapseCall() throws Exception {
+    when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 12L));
+    when(spaceService.isMember(any(Space.class), eq(LOGIN))).thenReturn(false);
+
+    chatNotificationService.onAgentPushReceived(EVENT_ID, ROOM_ID, LOGIN);
+
+    verify(matrixService, never()).getRoomEventOrThrow(anyString(), anyString(), any());
+    verifyNoInteractions(listenerService);
   }
 
   /**
