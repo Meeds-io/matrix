@@ -38,6 +38,7 @@
       ref="meedsChatDrawer"
       :rooms="sortedRooms"
       :loading-rooms="loading"
+      :can-mark-all-as-read="canMarkAllAsRead"
       :presence="presence"
       :search-term="searchTerm"
       :message-results="messageResults"
@@ -48,6 +49,7 @@
       :rooms="sortedRooms"
       :presence="presence"
       :loading-rooms="loading"
+      :can-mark-all-as-read="canMarkAllAsRead"
       :search-term="searchTerm"
       :message-results="messageResults"
       @room-active-changed="handleActiveRoomState"
@@ -100,6 +102,7 @@ export default {
     totalUnreadMessages: 0,
     rooms: null,
     loading: false,
+    roomsChecked: false,
     messageEventQueue: [],
     processingMessageQueue: false,
     seenEventIds: new Map(),
@@ -264,6 +267,11 @@ export default {
       return rooms.filter(room =>
         normalize(room.name).includes(normalizedSearch)
       );
+    },
+    // "mark all as read" acts on every room, whatever the list filters show, and
+    // only once the server's counts replaced the cached ones
+    canMarkAllAsRead() {
+      return this.roomsChecked && (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
     },
     sortedRooms() {
       if (!Array.isArray(this.filteredRooms)) {
@@ -701,12 +709,18 @@ export default {
     },
     loadRooms() {
       this.loading = true;
+      this.roomsChecked = false;
+      let roomsLoaded = false;
       this.$matrixService.retrieveCachedRooms().then(cachedRooms => {
-        if (cachedRooms) {
+        // the cache only fills the list until the server answers: arriving
+        // later, it would bring back stale unread counts
+        if (cachedRooms && !roomsLoaded) {
           this.rooms = JSON.parse(cachedRooms);
         }
       });
       this.$matrixService.loadChatRooms(localStorage.getItem('matrix_user_id')).then(matrixRoomsObject => {
+        roomsLoaded = true;
+        this.roomsChecked = true;
         const loadedRooms = matrixRoomsObject.rooms || [];
         this.rooms = this.mergeRoomsWithCache(loadedRooms, this.rooms);
         this.$root.$emit('chat-event-total-unread-updated', matrixRoomsObject.totalUnreadMessages);
@@ -883,13 +897,13 @@ export default {
         return;
       }
       Promise.allSettled(unreadRooms.map(room =>
-        this.$matrixService.getRoomLastMessageEventId(room.id).then(eventId =>
-          eventId && this.$matrixService.markRoomAsFullyRead(room.id, eventId).then(() => {
+        this.$matrixService.getRoomLastEventId(room.id)
+          .then(eventId => this.$matrixService.markRoomAsFullyRead(room.id, eventId))
+          .then(() => {
             document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
               detail: {roomId: room.id}
             }));
           })
-        )
       )).then(results => {
         const failed = results.filter(result => result.status === 'rejected');
         failed.forEach(result => console.error('Failed to mark room as read:', result.reason));

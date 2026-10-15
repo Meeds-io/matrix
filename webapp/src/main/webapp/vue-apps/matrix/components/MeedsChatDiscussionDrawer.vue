@@ -39,6 +39,18 @@
           </v-btn>
           <v-btn
             v-if="fullPageMode"
+            :title="$t('matrix.chat.markAllRead.label')"
+            :disabled="!canMarkAllAsRead"
+            icon
+            @click="markAllAsRead">
+            <v-icon
+              class="icon-default-color"
+              size="20">
+              fa-envelope-open-text
+            </v-icon>
+          </v-btn>
+          <v-btn
+            v-if="fullPageMode"
             icon
             @click="openFilter">
             <v-icon
@@ -108,6 +120,10 @@ export default {
       default: null
     },
     loadingRooms: {
+      type: Boolean,
+      default: false
+    },
+    canMarkAllAsRead: {
       type: Boolean,
       default: false
     },
@@ -251,6 +267,9 @@ export default {
     },
     openQuickCreateChatDiscussionDrawer() {
       this.$root.$emit(this.$chatConstants.ACTION_CHAT_OPEN_QUICK_CREATE_DISCUSSION_DRAWER);
+    },
+    markAllAsRead() {
+      this.$root.$emit('chat-mark-all-read');
     }
   }
 };

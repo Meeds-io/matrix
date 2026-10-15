@@ -32,11 +32,14 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1117,5 +1120,40 @@ class MatrixHttpClientTest {
   void searchMessagesServerError() {
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
     assertThrows(RuntimeException.class, () -> matrixHttpClient.searchMessages("q", null, 20, accessToken));
+  }
+
+  /**
+   * Each unread sync is a distinct request: Synapse replays its cached answer to
+   * an identical /sync request, read state included.
+   */
+  @Test
+  void getUnreadRoomsBypassesSyncResponseCache() throws Exception {
+    when(responseOK.body()).thenReturn("{\"rooms\":{\"join\":{}}}");
+    for (int i = 0; i < 5; i++) {
+      matrixHttpClient.getUnreadRooms(accessToken, 20);
+    }
+
+    ArgumentCaptor<String> urls = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(urls.capture(), eq(accessToken)), times(5));
+    Set<String> timeouts = new HashSet<>();
+    for (String url : urls.getAllValues()) {
+      String timeout = url.replaceAll(".*[?&]timeout=([^&]*).*", "$1");
+      assertTrue(Integer.parseInt(timeout) > 0, url);
+      timeouts.add(timeout);
+    }
+    assertEquals(5, timeouts.size(), "two unread syncs sent the same request: " + timeouts);
+  }
+
+  /**
+   * The receipt carries no thread_id: Synapse refuses a "main" receipt on a
+   * thread reply, and only an unthreaded one clears the threads' notifications.
+   */
+  @Test
+  void sendReadReceiptIsUnthreaded() throws Exception {
+    matrixHttpClient.sendReadReceipt("!roomId", "$event/Id", accessToken);
+
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPostRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!roomId:matrix.exo.com/receipt/m.read/%24event%2FId"),
+                                                                   eq(accessToken),
+                                                                   eq("{}")));
   }
 }
