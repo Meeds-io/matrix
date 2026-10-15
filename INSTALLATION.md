@@ -350,8 +350,9 @@ meeds.matrix.agents.pusher.cron=0 0/15 * * * *
 The reverse proxy must route the gateway path to the platform (Step 3).
 
 Synapse refuses to call a gateway whose host resolves, from Synapse, to an
-address its `ip_range_blacklist` lists: by default loopback, private,
-link-local, carrier-grade NAT, test and multicast ranges. Only in that case,
+address its `ip_range_blacklist` lists (by default Synapse's
+`DEFAULT_IP_RANGE_BLOCKLIST`: loopback, private, link-local, carrier-grade NAT,
+test, multicast and other reserved ranges). Only in that case,
 add that address — and only it — to `ip_range_whitelist` in
 `homeserver.yaml`:
 
