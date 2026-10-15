@@ -255,6 +255,7 @@ class ChatNotificationServiceAgentPushTest {
   void personRecipientKeepsThePeoplesPath() throws Exception {
     when(matrixService.getById(ROOM_ID)).thenReturn(room("!room", 7L));
     lenient().when(accountKindService.getDisplayedKind((Identity) null)).thenReturn(null);
+    when(spaceService.isMember(any(Space.class), eq("max"))).thenReturn(true);
 
     chatNotificationService.onMatrixPushReceived(EVENT_ID, ROOM_ID, "max", "jwt");
 
