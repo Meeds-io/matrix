@@ -379,6 +379,9 @@ public class ChatNotificationService {
    * room, a disabled one or a direct message returns at once, so a direct
    * message, which has no space and would need the worker's own token, never
    * holds the worker's pusher. A direct-message hand-off would start here.
+   * The worker must then be a member of the room's space: the pusher key is
+   * the only credential of the push, so the membership is checked here rather
+   * than inferred from Synapse pushing only the rooms the account joined.
    * Every Synapse call is bounded, and every failure is logged and swallowed:
    * the push gateway answers a worker's push with a success whatever happens,
    * since Synapse would otherwise retry that event before any later one.
@@ -391,6 +394,15 @@ public class ChatNotificationService {
     Room room = getSpaceRoom(roomId);
     if (room == null) {
       LOG.debug("Worker push for {} in {}: not a space room, ignored", login, roomId);
+      return;
+    }
+    try {
+      if (!isRoomMember(login, room)) {
+        LOG.debug("Worker push for {} in {}: not a member of the space {}, ignored", login, roomId, room.getSpaceId());
+        return;
+      }
+    } catch (Exception e) {
+      LOG.warn("Worker push for {} in {}: membership of the space {} could not be read, ignored", login, roomId, room.getSpaceId(), e);
       return;
     }
     MatrixMessage message;
