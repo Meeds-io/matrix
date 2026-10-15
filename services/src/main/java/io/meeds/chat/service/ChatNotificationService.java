@@ -189,7 +189,10 @@ public class ChatNotificationService {
    * opted out), and every message schedules a deferred self-contained popup
    * per subscribed device, cancelled at fire time if read meanwhile. One popup
    * per chatroom: it shows the latest unread message and how many more are
-   * unread, replacing the room's previous popup on the device.
+   * unread, replacing the room's previous popup on the device. A space room's
+   * event is read with the administrator account, so the recipient must be a
+   * member of the space: the pusher key names the recipient, and nothing else
+   * in the push proves it may read that room.
    *
    * @param eventId the Matrix event ID
    * @param roomId the Matrix room ID
@@ -207,6 +210,10 @@ public class ChatNotificationService {
     if (isOfDeclaredKind(userName)) {
       // a digital worker's mentions reach it through its own pusher only
       LOG.debug("Chat push for {} in {}: account of a declared kind, ignored", userName, roomId);
+      return;
+    }
+    if (room.getSpaceId() != null && !isRoomMember(userName, room)) {
+      LOG.debug("Chat push for {} in {}: not a member of the space {}, ignored", userName, roomId, room.getSpaceId());
       return;
     }
     MatrixMessage message = resolveMessage(room, eventId, roomId, pushKey);
