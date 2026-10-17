@@ -18,6 +18,9 @@
  */
 package io.meeds.chat.service;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 import io.meeds.chat.model.Room;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.utils.ListAccess;
@@ -51,18 +54,31 @@ public class MatrixSynchronizationService {
 
   private IdentityManager     identityManager;
 
+  private MatrixAgentPusherService agentPusherService;
+
   private static final int    SPACES_THRESHOLD   = 20;
 
   private static final int    LOADED_USERS_COUNT = 50;
 
+  /**
+   * Creates the synchronization service.
+   *
+   * @param matrixService the Matrix service
+   * @param spaceService the space service
+   * @param identityManager the identity manager
+   * @param organizationService the organization service
+   * @param agentPusherService the service keeping the digital workers' pushers
+   */
   public MatrixSynchronizationService(MatrixService matrixService,
                                       SpaceService spaceService,
                                       IdentityManager identityManager,
-                                      OrganizationService organizationService) {
+                                      OrganizationService organizationService,
+                                      MatrixAgentPusherService agentPusherService) {
     this.matrixService = matrixService;
     this.spaceService = spaceService;
     this.identityManager = identityManager;
     this.organizationService = organizationService;
+    this.agentPusherService = agentPusherService;
   }
 
   public void synchronizeSpaces() {
@@ -145,6 +161,11 @@ public class MatrixSynchronizationService {
     if (restrictedGroups == null || restrictedGroups.length == 0) {
       restrictedGroups = new String[] { "/platform/users", "/platform/externals" };
     }
+    // the accounts of a declared kind (digital workers) use chat wherever chat is restricted
+    List<String> accountKindGroups = matrixService.getAccountKindGroups();
+    restrictedGroups = Stream.concat(Arrays.stream(restrictedGroups), accountKindGroups.stream())
+                             .distinct()
+                             .toArray(String[]::new);
 
     for (String group : restrictedGroups) {
       RequestLifeCycle.begin(ExoContainerContext.getCurrentContainer());
@@ -188,6 +209,10 @@ public class MatrixSynchronizationService {
                 if (room != null && StringUtils.isNotBlank(room.getRoomId())) {
                   matrixService.joinUserToRoom(room.getRoomId(), userMatrixId);
                 }
+              }
+              // a worker's pusher, so that it hears its mentions without waiting for the job
+              if (accountKindGroups.contains(group)) {
+                agentPusherService.enqueueIfDesired(userIdentity.getRemoteId());
               }
             }
           }

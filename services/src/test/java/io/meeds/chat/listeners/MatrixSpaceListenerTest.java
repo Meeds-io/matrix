@@ -37,13 +37,16 @@ import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class MatrixSpaceListenerTest extends MatrixBaseTest {
 
@@ -85,11 +88,30 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
   void joinedJoinsUserToLinkedRoom() throws Exception {
     Space space = getSpaceInstance(1);
     String raulMatrixId = setMatrixId("raul", "@raul:matrix.exo.tn");
-    clearInvocations(matrixHttpClient);
+    clearInvocations(matrixHttpClient, agentPusherService);
 
     matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
 
     verify(matrixHttpClient, times(1)).joinUserToRoom(eq(matrixRoomId), eq(raulMatrixId), eq(accessToken));
+    // the Matrix account existed (created with the user): the join still queues
+    // the account's pusher turn, which a person's own decision leaves empty
+    verify(agentPusherService, times(1)).enqueueIfDesired("raul");
+  }
+
+  /** The join that creates a Matrix account queues the account's pusher turn after the room join. */
+  @Test
+  void firstJoinCreatingTheMatrixAccountQueuesAPusherTurn() throws Exception {
+    Space space = getSpaceInstance(1);
+    setMatrixId("raul", "");
+    clearInvocations(matrixHttpClient, agentPusherService);
+    when(matrixHttpClient.saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean()))
+        .thenReturn("@raul:matrix.exo.tn");
+
+    matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
+
+    var order = inOrder(matrixHttpClient, agentPusherService);
+    order.verify(matrixHttpClient).joinUserToRoom(eq(matrixRoomId), anyString(), eq(accessToken));
+    order.verify(agentPusherService).enqueueIfDesired("raul");
   }
 
   @Test
@@ -196,4 +218,25 @@ class MatrixSpaceListenerTest extends MatrixBaseTest {
     }
   }
 
+
+  /** Where chat is restricted, joining a space creates no chat account for a user outside the groups. */
+  @Test
+  void restrictedChatJoinCreatesNoAccountOutsideTheGroups() throws Exception {
+    String restriction = org.exoplatform.commons.utils.PropertyManager.getProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP);
+    org.exoplatform.commons.utils.PropertyManager.setProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP,
+                                                             "/platform/administrators");
+    try {
+      Space space = getSpaceInstance(1);
+      setMatrixId("raul", "");
+      clearInvocations(matrixHttpClient, agentPusherService);
+
+      matrixSpaceListener.joined(new SpaceLifeCycleEvent(space, "raul", SpaceLifeCycleEvent.Type.JOINED));
+
+      verify(matrixHttpClient, never()).saveUserAccount(any(), anyString(), anyBoolean(), anyString(), anyBoolean(), anyBoolean());
+      verify(agentPusherService, never()).enqueueIfDesired(anyString());
+    } finally {
+      org.exoplatform.commons.utils.PropertyManager.setProperty(io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP,
+                                                               restriction == null ? "" : restriction);
+    }
+  }
 }

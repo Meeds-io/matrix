@@ -19,6 +19,8 @@
 package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.MatrixMessage;
+import io.meeds.chat.model.MatrixPushRule;
+import io.meeds.chat.model.MatrixPusher;
 import io.meeds.chat.model.MatrixUnreadRoom;
 import io.meeds.chat.service.model.MediaInfo;
 import org.apache.commons.codec.digest.HmacAlgorithms;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
@@ -49,6 +52,9 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 
 @Component
 public class MatrixHttpClient {
+  /** Longest wait a bounded login spends on a 429 answer before its one retry. */
+  public static final Duration MAX_RATE_LIMIT_WAIT = Duration.ofSeconds(5);
+
   private static final Log    LOG                   = ExoLogger.getLogger(MatrixHttpClient.class.toString());
 
   /** Marker Matrix prepends to the fallback body of an edit event ("* the new text"). */
@@ -56,6 +62,18 @@ public class MatrixHttpClient {
 
   /** Format a message content declares when it carries an HTML {@code formatted_body}. */
   private static final String HTML_MESSAGE_FORMAT   = "org.matrix.custom.html";
+
+  /** Client API path of the pushers of the account owning the access token. */
+  private static final String PUSHERS_API_PATH      = "/_matrix/client/v3/pushers";
+
+  /** Client API path of the global push rules of the account owning the access token. */
+  private static final String PUSH_RULES_API_PATH   = "/_matrix/client/v3/pushrules/global/";
+
+  /** The push rule kinds, in the order Synapse evaluates them. */
+  private static final List<String> PUSH_RULE_KINDS = List.of("override", "content", "postcontent", "room", "sender", "underride");
+
+  /** The push rule action that makes a rule notify. */
+  private static final String NOTIFY_ACTION         = "notify";
 
   /**
    * Get an authenticated access token for the administrative tasks
@@ -107,6 +125,216 @@ public class MatrixHttpClient {
       throw e;
     }
 
+  }
+
+  /**
+   * Logs in with a JWT like {@link #getAccessToken(String)}, with a bounded
+   * wait: each request is bounded by {@code timeout}, and a 429 answer is
+   * waited for at most once, never more than {@link #MAX_RATE_LIMIT_WAIT},
+   * before one retry. Any other failure, a second 429 included, throws.
+   *
+   * @param userJWTToken the JWT of the account to log in
+   * @param timeout the timeout of each request
+   * @return the access token
+   * @throws IOException when a request fails or times out
+   * @throws InterruptedException when the wait or a request is interrupted
+   */
+  public String getAccessToken(String userJWTToken, Duration timeout) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    if (StringUtils.isEmpty(userJWTToken)) {
+      throw new IllegalArgumentException(MATRIX_ADMIN_USERNAME_IS_REQUIRED);
+    }
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/r0/login";
+    String payload = new JSONObject().put("type", "org.matrix.login.jwt").put("token", userJWTToken).toString();
+    HttpResponse<String> response = sendBoundedPostRequest(url, "", payload, timeout);
+    if (response.statusCode() == 429) {
+      long retryAfterMs = new JSONObject(response.body()).optLong("retry_after_ms", MAX_RATE_LIMIT_WAIT.toMillis());
+      Thread.sleep(Math.max(0, Math.min(retryAfterMs, MAX_RATE_LIMIT_WAIT.toMillis())));
+      response = sendBoundedPostRequest(url, "", payload, timeout);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Could not log in on Matrix with a JWT, Matrix server returned HTTP " + response.statusCode());
+    }
+    return new JSONObject(response.body()).getString("access_token");
+  }
+
+  /**
+   * Lists the pushers of the account owning the access token.
+   *
+   * @param accessToken the account's access token
+   * @param timeout the request timeout
+   * @return the account's pushers, never null
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public List<MatrixPusher> getPushers(String accessToken, Duration timeout) throws IOException, InterruptedException {
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSHERS_API_PATH;
+    HttpResponse<String> response = sendBoundedGetRequest(url, accessToken, timeout);
+    checkClientApiResponse(response, "listing the pushers");
+    JSONArray pushers = new JSONObject(response.body()).optJSONArray("pushers");
+    List<MatrixPusher> result = new ArrayList<>();
+    if (pushers == null) {
+      return result;
+    }
+    for (int i = 0; i < pushers.length(); i++) {
+      JSONObject pusher = pushers.getJSONObject(i);
+      JSONObject data = pusher.optJSONObject("data");
+      result.add(new MatrixPusher(pusher.optString("app_id", null),
+                                  pusher.optString("pushkey", null),
+                                  pusher.optString("kind", null),
+                                  pusher.optString("app_display_name", null),
+                                  pusher.optString("device_display_name", null),
+                                  pusher.optString("profile_tag", null),
+                                  pusher.optString("lang", null),
+                                  data == null ? null : data.optString("url", null)));
+    }
+    return result;
+  }
+
+  /**
+   * Sets an HTTP pusher of the account owning the access token, which pushes
+   * event ids only ({@code event_id_only}). Synapse replaces any pusher of the
+   * same {@code appId} and {@code pushkey}, and keeps the account's other
+   * pushers ({@code append} false only concerns another account holding the
+   * same pushkey).
+   *
+   * @param pusher the pusher to set
+   * @param accessToken the account's access token
+   * @param timeout the request timeout
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public void setPusher(MatrixPusher pusher, String accessToken, Duration timeout) throws IOException, InterruptedException {
+    JSONObject payload = new JSONObject().put("app_id", pusher.appId())
+                                         .put("pushkey", pusher.pushkey())
+                                         .put("kind", pusher.kind())
+                                         .put("app_display_name", pusher.appDisplayName())
+                                         .put("device_display_name", pusher.deviceDisplayName())
+                                         .put("profile_tag", pusher.profileTag())
+                                         .put("lang", pusher.lang())
+                                         .put("data", new JSONObject().put("format", "event_id_only").put("url", pusher.url()))
+                                         .put("append", false);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSHERS_API_PATH + "/set";
+    checkClientApiResponse(sendBoundedPostRequest(url, accessToken, payload.toString(), timeout), "setting a pusher");
+  }
+
+  /**
+   * Deletes a pusher of the account owning the access token: the client API
+   * deletes a pusher by setting its pair ({@code appId}, {@code pushkey}) with
+   * a null kind.
+   *
+   * @param appId the pusher's application id
+   * @param pushkey the pusher's key
+   * @param accessToken the account's access token
+   * @param timeout the request timeout
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public void deletePusher(String appId, String pushkey, String accessToken, Duration timeout) throws IOException,
+                                                                                               InterruptedException {
+    JSONObject payload = new JSONObject().put("app_id", appId).put("pushkey", pushkey).put("kind", JSONObject.NULL);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSHERS_API_PATH + "/set";
+    checkClientApiResponse(sendBoundedPostRequest(url, accessToken, payload.toString(), timeout), "deleting a pusher");
+  }
+
+  /**
+   * Lists the global push rules of the account owning the access token, every
+   * kind, server defaults included.
+   *
+   * @param accessToken the account's access token
+   * @param timeout the request timeout
+   * @return the account's global push rules, never null
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public List<MatrixPushRule> getPushRules(String accessToken, Duration timeout) throws IOException, InterruptedException {
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSH_RULES_API_PATH;
+    HttpResponse<String> response = sendBoundedGetRequest(url, accessToken, timeout);
+    checkClientApiResponse(response, "listing the push rules");
+    // GET .../pushrules/global/ answers the rule kinds at the top level; only
+    // GET .../pushrules/ wraps them in a "global" object
+    JSONObject global = new JSONObject(response.body());
+    List<MatrixPushRule> result = new ArrayList<>();
+    for (String kind : PUSH_RULE_KINDS) {
+      JSONArray rules = global.optJSONArray(kind);
+      for (int i = 0; rules != null && i < rules.length(); i++) {
+        JSONObject rule = rules.getJSONObject(i);
+        result.add(new MatrixPushRule(kind,
+                                      rule.optString("rule_id", null),
+                                      rule.optBoolean("enabled", true),
+                                      isNotifying(rule.optJSONArray("actions"))));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Enables or disables one global push rule of the account owning the access
+   * token. The rule id is percent-encoded into the path.
+   *
+   * @param kind the rule kind
+   * @param ruleId the rule id
+   * @param enabled the state to set
+   * @param accessToken the account's access token
+   * @param timeout the request timeout
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public void setPushRuleEnabled(String kind,
+                                 String ruleId,
+                                 boolean enabled,
+                                 String accessToken,
+                                 Duration timeout) throws IOException, InterruptedException {
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + PUSH_RULES_API_PATH + kind + "/"
+        + URLEncoder.encode(ruleId, StandardCharsets.UTF_8) + "/enabled";
+    String payload = new JSONObject().put("enabled", enabled).toString();
+    checkClientApiResponse(sendBoundedPutRequest(url, accessToken, payload, timeout), "updating the push rule " + ruleId);
+  }
+
+  /**
+   * Tells whether a push rule's actions contain {@code notify}.
+   *
+   * @param actions the rule's actions, strings or objects
+   * @return true when one action is the string {@code notify}
+   */
+  private boolean isNotifying(JSONArray actions) {
+    for (int i = 0; actions != null && i < actions.length(); i++) {
+      if (NOTIFY_ACTION.equals(actions.opt(i))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Throws the exception a client API response calls for: a rejected token, or
+   * any other non-2xx answer.
+   *
+   * @param response the response
+   * @param operation the operation, for the message
+   * @throws MatrixUnauthorizedException on a 401
+   * @throws MatrixException on another non-2xx status
+   */
+  private void checkClientApiResponse(HttpResponse<String> response, String operation) {
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while " + operation);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error while %s, Matrix server returned HTTP %s".formatted(operation,
+                                                                                         String.valueOf(response.statusCode())));
+    }
   }
 
   /**
@@ -1026,10 +1254,46 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String encodedUserMatrixId = URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/" + encodedUserMatrixId;
+    return parseUserResponse(sendHttpGetRequest(userUrl(matrixIdOfUser), accessToken), matrixIdOfUser);
+  }
 
-    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+  /**
+   * Reads the details of a Matrix user like {@link #getUser(String, String)},
+   * the request bounded by {@code timeout}.
+   *
+   * @param matrixIdOfUser the Matrix id of the user
+   * @param accessToken the administrator's access token
+   * @param timeout the request timeout
+   * @return the user's details, as Synapse's admin API returns them
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  public String getUser(String matrixIdOfUser, String accessToken, Duration timeout) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    return parseUserResponse(sendBoundedGetRequest(userUrl(matrixIdOfUser), accessToken, timeout), matrixIdOfUser);
+  }
+
+  /**
+   * Builds the admin API url of a Matrix user, its id percent-encoded.
+   *
+   * @param matrixIdOfUser the Matrix id of the user
+   * @return the url
+   */
+  private String userUrl(String matrixIdOfUser) {
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/"
+        + URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Answers the body of a user read, or throws on a non-2xx status.
+   *
+   * @param response the response
+   * @param matrixIdOfUser the Matrix id read, for the message
+   * @return the user's details
+   */
+  private String parseUserResponse(HttpResponse<String> response, String matrixIdOfUser) {
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
       return response.body();
     } else {
@@ -1179,10 +1443,55 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + URLEncoder.encode(roomId, StandardCharsets.UTF_8)
-        + "/event/" + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
+    return parseEventResponse(sendHttpGetRequest(eventUrl(eventId, roomId), accessToken), eventId);
+  }
 
-    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+  /**
+   * Reads one event like {@link #getEventById(String, String, String)}, the
+   * request bounded by {@code timeout}.
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @param accessToken the access token used to read the event
+   * @param timeout the request timeout
+   * @return the message, null when the event is missing or not readable with
+   *         that token
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   * @throws JsonException when the response cannot be parsed
+   */
+  public MatrixMessage getEventById(String eventId,
+                                    String roomId,
+                                    String accessToken,
+                                    Duration timeout) throws IOException, InterruptedException, JsonException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    return parseEventResponse(sendBoundedGetRequest(eventUrl(eventId, roomId), accessToken, timeout), eventId);
+  }
+
+  /**
+   * Builds the client API url of one event, the room id and the event id
+   * percent-encoded into the path.
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @return the url
+   */
+  private String eventUrl(String eventId, String roomId) {
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + URLEncoder.encode(roomId, StandardCharsets.UTF_8)
+        + "/event/" + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Parses the answer of an event read.
+   *
+   * @param response the response
+   * @param eventId the event ID read
+   * @return the message, null on a 404
+   * @throws JsonException when the response cannot be parsed
+   */
+  private MatrixMessage parseEventResponse(HttpResponse<String> response, String eventId) throws JsonException {
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
       JsonValue jsonMessage = new JsonGeneratorImpl().createJsonObjectFromString(response.body());
       MatrixMessage message = new MatrixMessage();
@@ -1204,6 +1513,7 @@ public class MatrixHttpClient {
         if (format != null && HTML_MESSAGE_FORMAT.equals(format.getStringValue()) && formattedBody != null) {
           message.setFormattedContent(formattedBody.getStringValue());
         }
+        readRelation(content, message);
         JsonValue mentionsElement = content.getElement("m.mentions");
         if (mentionsElement != null) {
           JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
@@ -1248,14 +1558,61 @@ public class MatrixHttpClient {
   public List<MatrixMessage> getRoomMessages(String matrixRoomId,
                                              int limit,
                                              String accessToken) throws IOException, InterruptedException, JsonException {
+    return parseRoomMessagesResponse(sendHttpGetRequest(roomMessagesUrl(matrixRoomId, limit), accessToken), matrixRoomId);
+  }
+
+  /**
+   * Reads the most recent messages of a room like
+   * {@link #getRoomMessages(String, int, String)}, the request bounded by
+   * {@code timeout}: a timeout or a transport failure is thrown, never answered
+   * as an empty list.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param limit the maximum number of events to fetch
+   * @param accessToken the requesting user's Matrix access token
+   * @param timeout the request timeout
+   * @return the {@code m.room.message} events the user can see, newest first
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   * @throws JsonException when the response cannot be parsed
+   */
+  public List<MatrixMessage> getRoomMessages(String matrixRoomId,
+                                             int limit,
+                                             String accessToken,
+                                             Duration timeout) throws IOException, InterruptedException, JsonException {
+    return parseRoomMessagesResponse(sendBoundedGetRequest(roomMessagesUrl(matrixRoomId, limit), accessToken, timeout),
+                                     matrixRoomId);
+  }
+
+  /**
+   * Builds the client API url reading the latest events of a room,
+   * newest first.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param limit the maximum number of events to fetch
+   * @return the url
+   */
+  private String roomMessagesUrl(String matrixRoomId, int limit) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit="
-        + limit;
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit=" + limit;
+  }
 
-    HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
+  /**
+   * Turns the response of a room messages read into the textual messages it
+   * carries: an empty list when the user may not read the room (HTTP 403/404).
+   *
+   * @param response the client API response
+   * @param matrixRoomId the room local part the events belong to
+   * @return the {@code m.room.message} events with a body, in response order
+   * @throws MatrixUnauthorizedException when the access token is rejected
+   * @throws MatrixException on any other error status
+   * @throws JsonException when the response cannot be parsed
+   */
+  private List<MatrixMessage> parseRoomMessagesResponse(HttpResponse<String> response,
+                                                       String matrixRoomId) throws JsonException {
     if (response.statusCode() == 401) {
       throw new MatrixUnauthorizedException("Access token rejected while reading messages of room " + matrixRoomId);
     }
@@ -1317,7 +1674,41 @@ public class MatrixHttpClient {
     if (content.getElement("msgtype") != null) {
       message.setMessageType(content.getElement("msgtype").getStringValue());
     }
+    readRelation(content, message);
     return message;
+  }
+
+  /**
+   * Copies the {@code m.relates_to} of a message content into the message: the
+   * relation type, the replied-to event, and for an {@code m.replace} edit the
+   * replaced event and the new body of its {@code m.new_content}.
+   *
+   * @param content the message content
+   * @param message the message parsed from that content, updated in place
+   */
+  private void readRelation(JsonValue content, MatrixMessage message) {
+    JsonValue relatesTo = content.getElement("m.relates_to");
+    if (relatesTo == null) {
+      return;
+    }
+    JsonValue relationType = relatesTo.getElement("rel_type");
+    if (relationType != null) {
+      message.setRelatesToType(relationType.getStringValue());
+    }
+    JsonValue inReplyTo = relatesTo.getElement("m.in_reply_to");
+    JsonValue repliedEventId = inReplyTo == null ? null : inReplyTo.getElement("event_id");
+    if (repliedEventId != null) {
+      message.setInReplyTo(repliedEventId.getStringValue());
+    }
+    JsonValue replacedEventId = relatesTo.getElement("event_id");
+    if ("m.replace".equals(message.getRelatesToType()) && replacedEventId != null) {
+      message.setReplacedEventId(replacedEventId.getStringValue());
+      JsonValue newContent = content.getElement("m.new_content");
+      JsonValue newBody = newContent == null ? null : newContent.getElement("body");
+      if (newBody != null) {
+        message.setEditedContent(newBody.getStringValue());
+      }
+    }
   }
 
   /**
@@ -1629,15 +2020,65 @@ public class MatrixHttpClient {
                             String text,
                             String transactionId,
                             String accessToken) throws IOException, InterruptedException, JsonException {
+    String payload = new JSONObject().put("msgtype", "m.text").put("body", text).toString();
+    return parseSendResponse(sendHttpPutRequest(sendMessageUrl(matrixRoomId, transactionId), accessToken, payload), matrixRoomId);
+  }
+
+  /**
+   * Sends a message built by the caller to a room as the user owning the given
+   * access token, the request bounded by {@code timeout}: a timeout or a
+   * transport failure is thrown. The content is sent as is, so a reply, its
+   * HTML body and its mentions travel exactly as the caller shaped them.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param content the {@code m.room.message} content
+   * @param transactionId a client transaction id; the same id for the same
+   *          room and user makes a retry idempotent
+   * @param accessToken the requesting user's Matrix access token
+   * @param timeout the request timeout
+   * @return the created event id
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   * @throws JsonException when the response cannot be parsed
+   */
+  public String sendMessage(String matrixRoomId,
+                            JSONObject content,
+                            String transactionId,
+                            String accessToken,
+                            Duration timeout) throws IOException, InterruptedException, JsonException {
+    return parseSendResponse(sendBoundedPutRequest(sendMessageUrl(matrixRoomId, transactionId),
+                                                   accessToken,
+                                                   content.toString(),
+                                                   timeout),
+                             matrixRoomId);
+  }
+
+  /**
+   * Builds the client API url sending a message to a room.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param transactionId the client transaction id
+   * @return the url
+   */
+  private String sendMessageUrl(String matrixRoomId, String transactionId) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
-        + "/send/m.room.message/" + transactionId;
-    String payload = new JSONObject().put("msgtype", "m.text").put("body", text).toString();
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/send/m.room.message/" + transactionId;
+  }
 
-    HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
+  /**
+   * Reads the event id out of the response of a message send.
+   *
+   * @param response the client API response
+   * @param matrixRoomId the room the message was sent to
+   * @return the created event id
+   * @throws MatrixUnauthorizedException when the access token is rejected
+   * @throws MatrixException on any other error status
+   * @throws JsonException when the response cannot be parsed
+   */
+  private String parseSendResponse(HttpResponse<String> response, String matrixRoomId) throws JsonException {
     if (response.statusCode() == 401) {
       throw new MatrixUnauthorizedException("Access token rejected while sending a message to room " + matrixRoomId);
     }

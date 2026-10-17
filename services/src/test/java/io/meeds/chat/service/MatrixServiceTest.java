@@ -26,6 +26,7 @@ import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.MatrixUnreadRoom;
+import io.meeds.chat.service.utils.MatrixException;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.Room;
@@ -47,6 +48,9 @@ import org.exoplatform.social.core.manager.IdentityManager;
 import org.exoplatform.social.core.model.AvatarAttachment;
 import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
+import org.json.JSONObject;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,12 +58,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_ATTEMPTS;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_DELAY;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
 import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.*;
@@ -352,6 +358,98 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertEquals(1, conversation.getMessages().size());
     assertEquals("are you there?", conversation.getMessages().get(0).getText());
     assertEquals("ghost", conversation.getMessages().get(0).getSender());
+  }
+
+  /** The unread read merges an edit into its original too: no "* " duplicate. */
+  @Test
+  void getUnreadConversationsMergesEdits() throws Exception {
+    Space space = getSpaceInstance(1);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+
+    MatrixMessage original = new MatrixMessage();
+    original.setEventId("$original");
+    original.setSender("@ghost:matrix.exo.tn");
+    original.setMessageContent("typo");
+    original.setTimeStamp(1000L);
+    MatrixMessage plain = new MatrixMessage();
+    plain.setEventId("$plain");
+    plain.setSender("@demo:matrix.exo.tn");
+    plain.setMessageContent("hi");
+    plain.setTimeStamp(2000L);
+    MatrixMessage edit = new MatrixMessage();
+    edit.setEventId("$edit");
+    edit.setSender("@ghost:matrix.exo.tn");
+    edit.setMessageContent("* fixed");
+    edit.setEditedContent("fixed");
+    edit.setRelatesToType("m.replace");
+    edit.setReplacedEventId("$original");
+    edit.setTimeStamp(3000L);
+    // the /sync timeline is oldest first
+    when(matrixHttpClient.getUnreadRooms(anyString(), anyInt()))
+        .thenReturn(List.of(new MatrixUnreadRoom(roomId, 3, List.of(original, plain, edit))));
+
+    List<ChatMessage> messages = matrixService.getUnreadConversations("dragon").get(0).getMessages();
+
+    assertEquals(List.of("fixed", "hi"), messages.stream().map(ChatMessage::getText).toList());
+    assertEquals(List.of(1000L, 2000L), messages.stream().map(ChatMessage::getTimestamp).toList());
+  }
+
+  /**
+   * The bounded event read completes a room ID stored as its local part with the
+   * server name, and reads a full room ID as given: Synapse finds an event only
+   * under its full room ID.
+   */
+  @Test
+  void getRoomEventOrThrowReadsTheFullRoomId() throws Exception {
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn(accessToken);
+    MatrixMessage message = new MatrixMessage();
+    message.setType("m.room.message");
+    when(matrixHttpClient.getEventById(eq("$event"), anyString(), anyString(), eq(timeout))).thenReturn(message);
+
+    assertSame(message, matrixService.getRoomEventOrThrow("$event", "!abc", timeout));
+    verify(matrixHttpClient).getEventById(eq("$event"), eq("!abc:matrix.exo.tn"), anyString(), eq(timeout));
+    assertSame(message, matrixService.getRoomEventOrThrow("$event", "!def:other.server", timeout));
+    verify(matrixHttpClient).getEventById(eq("$event"), eq("!def:other.server"), anyString(), eq(timeout));
+  }
+
+  /**
+   * The read anchor's event read, made with the user's own identity, completes a
+   * room ID stored as its local part with the server name too.
+   */
+  @Test
+  void getRoomEventAsUserReadsTheFullRoomId() throws Exception {
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+    when(matrixHttpClient.getAccessToken(anyString())).thenReturn(accessToken);
+    MatrixMessage message = new MatrixMessage();
+    when(matrixHttpClient.getEventById(eq("$read"), eq("!abc:matrix.exo.tn"), anyString())).thenReturn(message);
+
+    assertSame(message, matrixService.getRoomEventAsUser("dragon", "!abc", "$read"));
+  }
+
+  /**
+   * The bounded lookup answers the platform login, null for a Matrix account
+   * no platform user matches, and propagates a failure.
+   */
+  @Test
+  void findUserByMatrixIdOrThrow() throws Exception {
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn(accessToken);
+    when(matrixHttpClient.getUser(eq("@demo:matrix.meeds.tn"), any(), eq(timeout))).thenReturn("""
+        {"name":"@demo:matrix.meeds.tn","threepids":[{"medium":"email","address":"demo@localhost"}]}""");
+    when(matrixHttpClient.getUser(eq("@stranger:matrix.meeds.tn"), any(), eq(timeout))).thenReturn("""
+        {"name":"@stranger:matrix.meeds.tn","threepids":[{"medium":"email","address":"nobody@nowhere.tld"}]}""");
+    when(matrixHttpClient.getUser(eq("@slow:matrix.meeds.tn"), any(), eq(timeout))).thenThrow(new IOException("request timed out"));
+
+    assertEquals("demo", matrixService.findUserByMatrixIdOrThrow("@demo:matrix.meeds.tn", timeout));
+    assertNull(matrixService.findUserByMatrixIdOrThrow("@stranger:matrix.meeds.tn", timeout));
+    assertThrows(IOException.class, () -> matrixService.findUserByMatrixIdOrThrow("@slow:matrix.meeds.tn", timeout));
+    verify(matrixHttpClient, never()).getUser(anyString(), anyString());
   }
 
   @Test
@@ -784,5 +882,356 @@ class MatrixServiceTest extends MatrixBaseTest {
     matrixService.changeChatRoomReadability(room.getRoomId(), false);
     // 5 times including
     verify(matrixHttpClient, times(5)).updateRoomSettings(anyString(), any(MatrixRoomPermissions.class), anyString());
+  }
+
+  /**
+   * The propagating variant mints its token with the bounded login, refreshes
+   * a rejected token once, and propagates what the plain variant swallows.
+   */
+  @Test
+  void callAsUserOrThrow() throws Exception {
+    Identity dragon = identityManager.getOrCreateUserIdentity("dragon");
+    dragon.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(dragon.getProfile());
+    Duration timeout = Duration.ofSeconds(10);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn("cachedToken");
+    // leaves "cachedToken" in the user's token cache, whatever an earlier test left there
+    matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      if (!"cachedToken".equals(token)) {
+        throw new MatrixUnauthorizedException("stale");
+      }
+      return token;
+    });
+    clearInvocations(matrixHttpClient);
+    when(matrixHttpClient.getAccessToken(anyString(), eq(timeout))).thenReturn("freshToken");
+
+    String result = matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      if (!"freshToken".equals(token)) {
+        throw new MatrixUnauthorizedException("rejected");
+      }
+      return token;
+    });
+
+    assertEquals("freshToken", result);
+    verify(matrixHttpClient, times(1)).getAccessToken(anyString(), eq(timeout));
+    verify(matrixHttpClient, never()).getAccessToken(anyString());
+
+    IOException timedOut = new IOException("request timed out");
+    assertSame(timedOut, assertThrows(IOException.class, () -> matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      throw timedOut;
+    })));
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixService.callAsUserOrThrow("dragon", timeout, token -> {
+      throw new MatrixUnauthorizedException("rejected again");
+    }));
+
+    Identity ghost = identityManager.getOrCreateUserIdentity("ghost");
+    ghost.getProfile().setProperty(USER_MATRIX_ID, "");
+    identityManager.updateProfile(ghost.getProfile());
+    assertThrows(MatrixException.class, () -> matrixService.callAsUserOrThrow("ghost", timeout, token -> token));
+  }
+
+  /**
+   * Chat is open to everyone without a restriction, to the restricted groups'
+   * members, and to the accounts of a declared kind whatever the restriction.
+   */
+  @Test
+  void isChatUser() throws Exception {
+    String restriction = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    org.exoplatform.services.organization.OrganizationService organizationService =
+                                                                               ExoContainerContext.getService(org.exoplatform.services.organization.OrganizationService.class);
+    org.exoplatform.services.organization.Group workers = organizationService.getGroupHandler()
+                                                                             .findGroupById(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID);
+    if (workers == null) {
+      workers = organizationService.getGroupHandler().createGroupInstance();
+      workers.setGroupName(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID.substring(1));
+      workers.setLabel("Matrix test workers");
+      organizationService.getGroupHandler().addChild(null, workers, true);
+      workers = organizationService.getGroupHandler().findGroupById(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID);
+    }
+    organizationService.getMembershipHandler()
+                       .linkMembership(organizationService.getUserHandler().findUserByName("ghost"),
+                                       workers,
+                                       organizationService.getMembershipTypeHandler().findMembershipType("member"),
+                                       false);
+    try {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "");
+      assertTrue(matrixService.isChatUser("raul"));
+
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "/platform/administrators");
+      assertTrue(matrixService.isChatUser("root"));
+      assertFalse(matrixService.isChatUser("raul"));
+      assertTrue(matrixService.isChatUser("ghost"));
+      assertTrue(matrixService.getAccountKindGroups().contains(io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID));
+    } finally {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, restriction == null ? "" : restriction);
+      org.exoplatform.services.organization.Membership membership =
+                                                                organizationService.getMembershipHandler()
+                                                                                   .findMembershipByUserGroupAndType("ghost",
+                                                                                                                     io.meeds.chat.listeners.TestWorkerKindPlugin.GROUP_ID,
+                                                                                                                     "member");
+      organizationService.getMembershipHandler().removeMembership(membership.getId(), false);
+    }
+  }
+
+  // ---- Room read: edits merged -------------------------------------------------------------
+
+  @Test
+  void getRoomMessagesMergesEditsIntoTheirOriginal() throws Exception {
+    String roomId = actingInSpaceRoom();
+    MatrixMessage plain = message("$plain", "@demo:matrix.exo.tn", "untouched", 1000L);
+    MatrixMessage edited = message("$edited", "@demo:matrix.exo.tn", "typo", 2000L);
+    MatrixMessage withNewContent = edit("$e1", "$edited", "@demo:matrix.exo.tn", "* fixed", "fixed", 3000L);
+    MatrixMessage original = message("$legacy", "@ghost:matrix.exo.tn", "old", 4000L);
+    MatrixMessage withoutNewContent = edit("$e2", "$legacy", "@ghost:matrix.exo.tn", "* legacy fixed", null, 5000L);
+    // newest first, as the client API returns them
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenReturn(List.of(withoutNewContent,
+                                                                                                withNewContent,
+                                                                                                original,
+                                                                                                edited,
+                                                                                                plain));
+
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50);
+
+    assertEquals(List.of("untouched", "fixed", "legacy fixed"), messages.stream().map(ChatMessage::getText).toList());
+    assertEquals(List.of(1000L, 2000L, 4000L), messages.stream().map(ChatMessage::getTimestamp).toList());
+    assertEquals(List.of("demo", "demo", "ghost"), messages.stream().map(ChatMessage::getSender).toList());
+  }
+
+  @Test
+  void getRoomMessagesIgnoresAnEditFromAnotherSender() throws Exception {
+    String roomId = actingInSpaceRoom();
+    MatrixMessage original = message("$orig", "@demo:matrix.exo.tn", "mine", 1000L);
+    MatrixMessage forged = edit("$e1", "$orig", "@ghost:matrix.exo.tn", "* forged", "forged", 2000L);
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenReturn(List.of(forged, original));
+
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50);
+
+    assertEquals(1, messages.size());
+    assertEquals("mine", messages.get(0).getText());
+    assertEquals("demo", messages.get(0).getSender());
+  }
+
+  @Test
+  void getRoomMessagesKeepsTheLatestOfSeveralEdits() throws Exception {
+    String roomId = actingInSpaceRoom();
+    MatrixMessage original = message("$orig", "@demo:matrix.exo.tn", "v0", 1000L);
+    MatrixMessage first = edit("$e1", "$orig", "@demo:matrix.exo.tn", "* v1", "v1", 2000L);
+    MatrixMessage second = edit("$e2", "$orig", "@demo:matrix.exo.tn", "* v2", "v2", 3000L);
+    // the later edit arrives before the earlier one in the page, and again after it
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenReturn(List.of(second, first, original));
+    assertEquals("v2", matrixService.getRoomMessages("dragon", roomId, 50).get(0).getText());
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenReturn(List.of(first, second, original));
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50);
+    assertEquals(1, messages.size());
+    assertEquals("v2", messages.get(0).getText());
+  }
+
+  @Test
+  void getRoomMessagesDropsAnEditWhoseOriginalIsNotInThePage() throws Exception {
+    String roomId = actingInSpaceRoom();
+    MatrixMessage kept = message("$kept", "@demo:matrix.exo.tn", "kept", 3000L);
+    // the original is older than the page, or redacted (the read drops an event without a body)
+    MatrixMessage orphan = edit("$e1", "$outOfPageOrRedacted", "@demo:matrix.exo.tn", "* orphan", "orphan", 4000L);
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString())).thenReturn(List.of(orphan, kept));
+
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50);
+
+    assertEquals(1, messages.size());
+    assertEquals("kept", messages.get(0).getText());
+  }
+
+  @Test
+  void getRoomMessagesWithTimeoutMergesEditsAndPropagatesATimeout() throws Exception {
+    String roomId = actingInSpaceRoom();
+    Duration timeout = Duration.ofSeconds(5);
+    MatrixMessage original = message("$orig", "@demo:matrix.exo.tn", "v0", 1000L);
+    MatrixMessage edit = edit("$e1", "$orig", "@demo:matrix.exo.tn", "* v1", "v1", 2000L);
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString(), eq(timeout))).thenReturn(List.of(edit, original));
+
+    List<ChatMessage> messages = matrixService.getRoomMessages("dragon", roomId, 50, timeout);
+    assertEquals(1, messages.size());
+    assertEquals("v1", messages.get(0).getText());
+
+    when(matrixHttpClient.getRoomMessages(eq(roomId), anyInt(), anyString(), eq(timeout))).thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixService.getRoomMessages("dragon", roomId, 50, timeout));
+    verify(matrixHttpClient, never()).getRoomMessages(eq(roomId), anyInt(), anyString());
+
+    // a conversation the user does not participate in is not read
+    assertTrue(matrixService.getRoomMessages("dragon", "!notMyRoom", 50, timeout).isEmpty());
+    verify(matrixHttpClient, never()).getRoomMessages(eq("!notMyRoom"), anyInt(), anyString(), any(Duration.class));
+  }
+
+  @Test
+  void getRoomMessagesWithTimeoutAcceptsBothRoomIdShapes() throws Exception {
+    // a space room stored as its local part (what createRoom answers after cutting the server name)
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!localSpaceRoom");
+    Room spaceRoom = matrixService.getRoomBySpace(getSpaceInstance(1));
+    assertEquals("!localSpaceRoom", spaceRoom.getRoomId());
+    // a DM stored with the full id, the server name being the test's
+    Room dm = new Room();
+    dm.setRoomId("!fullDmRoom:matrix.exo.tn");
+    dm.setFirstParticipant("dragon");
+    dm.setSecondParticipant("raul");
+    matrixService.createDirectMessagingRoom(dm);
+    actingAsDragon();
+    Duration timeout = Duration.ofSeconds(5);
+    MatrixMessage message = message("$m", "@demo:matrix.exo.tn", "hello", 1000L);
+    when(matrixHttpClient.getRoomMessages(eq("!localSpaceRoom"), anyInt(), anyString(), eq(timeout))).thenReturn(List.of(message));
+    when(matrixHttpClient.getRoomMessages(eq("!fullDmRoom"), anyInt(), anyString(), eq(timeout))).thenReturn(List.of(message));
+
+    assertEquals(1, matrixService.getRoomMessages("dragon", "!localSpaceRoom", 50, timeout).size());
+    assertEquals(1, matrixService.getRoomMessages("dragon", "!localSpaceRoom:matrix.exo.tn", 50, timeout).size());
+    assertEquals(1, matrixService.getRoomMessages("dragon", "!fullDmRoom", 50, timeout).size());
+    assertEquals(1, matrixService.getRoomMessages("dragon", "!fullDmRoom:matrix.exo.tn", 50, timeout).size());
+  }
+
+  // ---- sendReply -----------------------------------------------------------------------------
+
+  @Test
+  void sendReplyPostsTheComposerContentWithADeterministicTransactionId() throws Exception {
+    String roomId = actingInSpaceRoom();
+    Duration timeout = Duration.ofSeconds(5);
+    ArgumentCaptor<JSONObject> content = ArgumentCaptor.forClass(JSONObject.class);
+    ArgumentCaptor<String> transactionId = ArgumentCaptor.forClass(String.class);
+    when(matrixHttpClient.sendMessage(eq(roomId), any(JSONObject.class), anyString(), anyString(), eq(timeout))).thenReturn("$reply");
+
+    String eventId = matrixService.sendReply("dragon",
+                                             roomId,
+                                             "@asker answer",
+                                             "<a href=\"https://matrix.to/#/@asker:matrix.exo.tn\">Asker</a> answer",
+                                             "$question",
+                                             List.of("@asker:matrix.exo.tn"),
+                                             timeout);
+
+    assertEquals("$reply", eventId);
+    verify(matrixHttpClient).sendMessage(eq(roomId), content.capture(), transactionId.capture(), anyString(), eq(timeout));
+    JSONObject sent = content.getValue();
+    assertEquals("m.text", sent.getString("msgtype"));
+    assertEquals("@asker answer", sent.getString("body"));
+    assertEquals("org.matrix.custom.html", sent.getString("format"));
+    assertEquals("<a href=\"https://matrix.to/#/@asker:matrix.exo.tn\">Asker</a> answer", sent.getString("formatted_body"));
+    assertEquals("$question", sent.getJSONObject("m.relates_to").getJSONObject("m.in_reply_to").getString("event_id"));
+    assertEquals(List.of("@asker:matrix.exo.tn"), sent.getJSONObject("m.mentions").getJSONArray("user_ids").toList());
+    assertEquals(6, sent.length());
+    assertEquals(DigestUtils.sha256Hex("$question:dragon"), transactionId.getValue());
+  }
+
+  @Test
+  void sendReplyMentionsOnlyTheGivenIdsNotTheOnesInTheText() throws Exception {
+    String roomId = actingInSpaceRoom();
+    Duration timeout = Duration.ofSeconds(5);
+    ArgumentCaptor<JSONObject> content = ArgumentCaptor.forClass(JSONObject.class);
+    when(matrixHttpClient.sendMessage(eq(roomId), any(JSONObject.class), anyString(), anyString(), eq(timeout))).thenReturn("$reply");
+
+    matrixService.sendReply("dragon",
+                            roomId,
+                            "ping @someone:matrix.exo.tn and @room",
+                            "<b>ping @someone:matrix.exo.tn</b>",
+                            "$question",
+                            List.of("@asker:matrix.exo.tn"),
+                            timeout);
+
+    verify(matrixHttpClient).sendMessage(eq(roomId), content.capture(), anyString(), anyString(), eq(timeout));
+    assertEquals(List.of("@asker:matrix.exo.tn"),
+                 content.getValue().getJSONObject("m.mentions").getJSONArray("user_ids").toList());
+  }
+
+  @Test
+  void sendReplyTransactionIdDependsOnTheRepliedEventOnly() throws Exception {
+    String roomId = actingInSpaceRoom();
+    Duration timeout = Duration.ofSeconds(5);
+    ArgumentCaptor<String> transactionId = ArgumentCaptor.forClass(String.class);
+    when(matrixHttpClient.sendMessage(eq(roomId), any(JSONObject.class), anyString(), anyString(), eq(timeout))).thenReturn("$reply");
+
+    matrixService.sendReply("dragon", roomId, "first try", null, "$question", List.of(), timeout);
+    matrixService.sendReply("dragon", roomId, "retried with other words", null, "$question", List.of(), timeout);
+    matrixService.sendReply("dragon", roomId, "first try", null, "$otherQuestion", List.of(), timeout);
+
+    verify(matrixHttpClient, times(3)).sendMessage(eq(roomId), any(JSONObject.class), transactionId.capture(), anyString(), eq(timeout));
+    List<String> ids = transactionId.getAllValues();
+    assertEquals(ids.get(0), ids.get(1));
+    assertNotEquals(ids.get(0), ids.get(2));
+  }
+
+  @Test
+  void sendReplyByANonMemberSendsNothing() throws Exception {
+    actingInSpaceRoom();
+    Duration timeout = Duration.ofSeconds(5);
+
+    assertNull(matrixService.sendReply("dragon", "!notMyRoom", "answer", null, "$question", List.of("@asker:matrix.exo.tn"), timeout));
+
+    verify(matrixHttpClient, never()).sendMessage(anyString(), any(JSONObject.class), anyString(), anyString(), any(Duration.class));
+  }
+
+  @Test
+  void sendReplyPropagatesATimeoutAndAcceptsBothRoomIdShapes() throws Exception {
+    when(matrixHttpClient.createRoom(anyString(), anyString(), anyString())).thenReturn("!localSpaceRoom");
+    matrixService.getRoomBySpace(getSpaceInstance(1));
+    actingAsDragon();
+    Duration timeout = Duration.ofSeconds(5);
+    when(matrixHttpClient.sendMessage(eq("!localSpaceRoom"), any(JSONObject.class), anyString(), anyString(), eq(timeout))).thenReturn("$reply");
+
+    assertEquals("$reply", matrixService.sendReply("dragon", "!localSpaceRoom:matrix.exo.tn", "a", null, "$q", List.of(), timeout));
+    assertEquals("$reply", matrixService.sendReply("dragon", "!localSpaceRoom", "a", null, "$q", List.of(), timeout));
+
+    when(matrixHttpClient.sendMessage(eq("!localSpaceRoom"), any(JSONObject.class), anyString(), anyString(), eq(timeout))).thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixService.sendReply("dragon", "!localSpaceRoom", "a", null, "$q", List.of(), timeout));
+  }
+
+  /**
+   * Gives "dragon" a Matrix account and a space room he participates in.
+   *
+   * @return the room id as stored
+   */
+  private String actingInSpaceRoom() {
+    String roomId = matrixService.getRoomBySpace(getSpaceInstance(1)).getRoomId();
+    actingAsDragon();
+    return roomId;
+  }
+
+  /**
+   * Gives "dragon" a Matrix account so the service can mint a user token.
+   */
+  private void actingAsDragon() {
+    Identity actingIdentity = identityManager.getOrCreateUserIdentity("dragon");
+    actingIdentity.getProfile().setProperty(USER_MATRIX_ID, "@dragon:matrix.exo.tn");
+    identityManager.updateProfile(actingIdentity.getProfile());
+  }
+
+  /**
+   * Builds a textual message event as the room read returns it.
+   *
+   * @param eventId the event id
+   * @param sender the sender's Matrix id
+   * @param text the body
+   * @param timestamp the origin server timestamp
+   * @return the message
+   */
+  private MatrixMessage message(String eventId, String sender, String text, long timestamp) {
+    MatrixMessage message = new MatrixMessage();
+    message.setEventId(eventId);
+    message.setSender(sender);
+    message.setMessageContent(text);
+    message.setTimeStamp(timestamp);
+    return message;
+  }
+
+  /**
+   * Builds an {@code m.replace} event as the room read returns it.
+   *
+   * @param eventId the edit's own event id
+   * @param replacedEventId the event it replaces
+   * @param sender the sender's Matrix id
+   * @param body the fallback body, with its "* " marker
+   * @param newBody the body of m.new_content, null when the client sent none
+   * @param timestamp the origin server timestamp
+   * @return the edit event
+   */
+  private MatrixMessage edit(String eventId, String replacedEventId, String sender, String body, String newBody, long timestamp) {
+    MatrixMessage edit = message(eventId, sender, body, timestamp);
+    edit.setRelatesToType("m.replace");
+    edit.setReplacedEventId(replacedEventId);
+    edit.setEditedContent(newBody);
+    return edit;
   }
 }

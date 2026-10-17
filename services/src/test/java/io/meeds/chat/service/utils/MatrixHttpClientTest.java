@@ -20,6 +20,8 @@ package io.meeds.chat.service.utils;
 
 import io.meeds.chat.model.Events;
 import io.meeds.chat.model.MatrixMessage;
+import io.meeds.chat.model.MatrixPushRule;
+import io.meeds.chat.model.MatrixPusher;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUnreadRoom;
 import io.meeds.chat.model.MatrixUserPermission;
@@ -32,19 +34,25 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.json.JSONObject;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class MatrixHttpClientTest {
+
+  private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   MockedStatic<HTTPHelper> MATRIX_HTTP_HELPER;
 
@@ -1206,5 +1214,364 @@ class MatrixHttpClientTest {
   void searchMessagesServerError() {
     MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
     assertThrows(RuntimeException.class, () -> matrixHttpClient.searchMessages("q", null, 20, accessToken));
+  }
+
+  /** The bounded login retries once after a 429, waiting what Synapse asked for. */
+  @Test
+  void boundedLoginRetriesOnceAfterRateLimit() throws Exception {
+    HttpResponse limited = mock(HttpResponse.class);
+    when(limited.statusCode()).thenReturn(429);
+    when(limited.body()).thenReturn("{\"retry_after_ms\":50}");
+    HttpResponse granted = mock(HttpResponse.class);
+    when(granted.statusCode()).thenReturn(200);
+    when(granted.body()).thenReturn("{\"access_token\":\"boundedToken\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(limited, granted);
+
+    assertEquals("boundedToken", matrixHttpClient.getAccessToken(jwtToken, TIMEOUT));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPostRequest(contains("/login"), eq(""), contains(jwtToken), eq(TIMEOUT)),
+                              times(2));
+  }
+
+  /** A second 429 fails the login instead of waiting again. */
+  @Test
+  void boundedLoginFailsOnSecondRateLimit() {
+    HttpResponse limited = mock(HttpResponse.class);
+    when(limited.statusCode()).thenReturn(429);
+    when(limited.body()).thenReturn("{\"retry_after_ms\":10}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(limited);
+
+    assertThrows(MatrixException.class, () -> matrixHttpClient.getAccessToken(jwtToken, TIMEOUT));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)),
+                              times(2));
+  }
+
+  /** A 429 asking for a minute is waited for five seconds at most. */
+  @Test
+  void boundedLoginCapsTheRateLimitWait() {
+    HttpResponse limited = mock(HttpResponse.class);
+    when(limited.statusCode()).thenReturn(429);
+    when(limited.body()).thenReturn("{\"retry_after_ms\":60000}");
+    HttpResponse granted = mock(HttpResponse.class);
+    when(granted.statusCode()).thenReturn(200);
+    when(granted.body()).thenReturn("{\"access_token\":\"boundedToken\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(limited, granted);
+
+    long start = System.nanoTime();
+    assertTimeout(Duration.ofSeconds(8), () -> matrixHttpClient.getAccessToken(jwtToken, TIMEOUT));
+    long elapsedMs = Duration.ofNanos(System.nanoTime() - start).toMillis();
+    assertTrue(elapsedMs >= 4900 && elapsedMs < 7000, "waited " + elapsedMs + " ms");
+  }
+
+  /** The pushers listing keeps the fields the reconcile compares. */
+  @Test
+  void getPushers() throws Exception {
+    HttpResponse listed = mock(HttpResponse.class);
+    when(listed.statusCode()).thenReturn(200);
+    when(listed.body()).thenReturn("""
+        {"pushers":[
+          {"app_id":"exo.matrix.agent","pushkey":"bGVh.mac","kind":"http","profile_tag":"lea",
+           "data":{"format":"event_id_only","url":"https://acme.com/_matrix/push/v1/notify"}},
+          {"app_id":"exo.matrix.app","pushkey":"jwt","kind":"http"}
+        ]}""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(listed);
+
+    List<MatrixPusher> pushers = matrixHttpClient.getPushers(accessToken, TIMEOUT);
+
+    assertEquals(2, pushers.size());
+    assertEquals("exo.matrix.agent", pushers.get(0).appId());
+    assertEquals("bGVh.mac", pushers.get(0).pushkey());
+    assertEquals("https://acme.com/_matrix/push/v1/notify", pushers.get(0).url());
+    assertNull(pushers.get(1).url());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_matrix/client/v3/pushers"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)));
+  }
+
+  /** A rejected token and a server error are told apart. */
+  @Test
+  void getPushersErrors() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(unauthorized, responseNotOK);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.getPushers(accessToken, TIMEOUT));
+    assertThrows(MatrixException.class, () -> matrixHttpClient.getPushers(accessToken, TIMEOUT));
+  }
+
+  /** A pusher is set as an event-id-only HTTP pusher, without appending. */
+  @Test
+  void setPusher() throws Exception {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(responseOK);
+    MatrixPusher pusher = new MatrixPusher("exo.matrix.agent",
+                                           "bGVh.mac",
+                                           "http",
+                                           "eXo digital worker",
+                                           "Server",
+                                           "lea",
+                                           "en",
+                                           "https://acme.com/_matrix/push/v1/notify");
+
+    matrixHttpClient.setPusher(pusher, accessToken, TIMEOUT);
+
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPostRequest(eq("http://matrix:8008/_matrix/client/v3/pushers/set"),
+                                                                      eq(accessToken),
+                                                                      payload.capture(),
+                                                                      eq(TIMEOUT)));
+    JSONObject json = new JSONObject(payload.getValue());
+    assertEquals("exo.matrix.agent", json.getString("app_id"));
+    assertEquals("bGVh.mac", json.getString("pushkey"));
+    assertEquals("http", json.getString("kind"));
+    assertEquals("lea", json.getString("profile_tag"));
+    assertFalse(json.getBoolean("append"));
+    assertEquals("event_id_only", json.getJSONObject("data").getString("format"));
+    assertEquals("https://acme.com/_matrix/push/v1/notify", json.getJSONObject("data").getString("url"));
+  }
+
+  /** A pusher is deleted by setting its pair with a null kind. */
+  @Test
+  void deletePusher() throws Exception {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPostRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(responseOK);
+
+    matrixHttpClient.deletePusher("exo.matrix.agent", "old.key", accessToken, TIMEOUT);
+
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPostRequest(contains("/pushers/set"),
+                                                                      eq(accessToken),
+                                                                      payload.capture(),
+                                                                      eq(TIMEOUT)));
+    JSONObject json = new JSONObject(payload.getValue());
+    assertEquals("old.key", json.getString("pushkey"));
+    assertTrue(json.has("kind"));
+    assertTrue(json.isNull("kind"));
+  }
+
+  /**
+   * Every kind of the global rule set is listed, with its notify flag, from
+   * the shape Synapse 1.155 answers on {@code GET .../pushrules/global/}: the
+   * kinds at the top level, with no {@code global} wrapper.
+   */
+  @Test
+  void getPushRules() throws Exception {
+    HttpResponse listed = mock(HttpResponse.class);
+    when(listed.statusCode()).thenReturn(200);
+    when(listed.body()).thenReturn("""
+        {"override":[{"rule_id":".m.rule.is_room_mention","enabled":true,"default":true,
+                      "actions":["notify",{"set_tweak":"highlight"}]},
+                     {"rule_id":".m.rule.suppress_notices","enabled":true,"actions":["dont_notify"]}],
+         "content":[{"rule_id":".m.rule.contains_user_name","enabled":false,"actions":["notify"]}],
+         "postcontent":[{"rule_id":".m.rule.unsubscribed_thread","enabled":true,"actions":[]}],
+         "room":[],
+         "sender":[],
+         "underride":[{"rule_id":".m.rule.message","enabled":true,"actions":["notify"]},
+                      {"rule_id":"custom","enabled":true,"actions":["notify"]}]}""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(listed);
+
+    List<MatrixPushRule> rules = matrixHttpClient.getPushRules(accessToken, TIMEOUT);
+
+    assertEquals(List.of(new MatrixPushRule("override", ".m.rule.is_room_mention", true, true),
+                         new MatrixPushRule("override", ".m.rule.suppress_notices", true, false),
+                         new MatrixPushRule("content", ".m.rule.contains_user_name", false, true),
+                         new MatrixPushRule("postcontent", ".m.rule.unsubscribed_thread", true, false),
+                         new MatrixPushRule("underride", ".m.rule.message", true, true),
+                         new MatrixPushRule("underride", "custom", true, true)),
+                 rules);
+    assertTrue(rules.get(0).isServerDefault());
+    assertFalse(rules.get(5).isServerDefault());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_matrix/client/v3/pushrules/global/"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)));
+  }
+
+  /** A rule's enabled flag is set through its own path, the id encoded. */
+  @Test
+  void setPushRuleEnabled() throws Exception {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPutRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(responseOK);
+
+    matrixHttpClient.setPushRuleEnabled("override", ".m.rule.is_room_mention", false, accessToken, TIMEOUT);
+
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPutRequest(eq("http://matrix:8008/_matrix/client/v3/pushrules/global/override/.m.rule.is_room_mention/enabled"),
+                                                                     eq(accessToken),
+                                                                     eq("{\"enabled\":false}"),
+                                                                     eq(TIMEOUT)));
+  }
+
+  /** The bounded event read goes through the bounded request with its timeout. */
+  @Test
+  void boundedGetEventById() throws Exception {
+    HttpResponse event = mock(HttpResponse.class);
+    when(event.statusCode()).thenReturn(200);
+    when(event.body()).thenReturn("""
+        {"room_id":"!r:matrix.exo.com","type":"m.room.message","sender":"@a:matrix.exo.com",
+         "origin_server_ts":"1700000000000","content":{"msgtype":"m.text","body":"hello"}}""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(event);
+
+    MatrixMessage message = matrixHttpClient.getEventById("$e/1", "!r:matrix.exo.com", accessToken, TIMEOUT);
+
+    assertEquals("hello", message.getMessageContent());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(contains("/event/%24e%2F1"), eq(accessToken), eq(TIMEOUT)));
+  }
+
+  /** An edit and a reply are told apart through the content's relation. */
+  @Test
+  void getEventByIdReadsTheRelation() throws Exception {
+    HttpResponse edit = mock(HttpResponse.class);
+    when(edit.statusCode()).thenReturn(200);
+    when(edit.body()).thenReturn("""
+        {"room_id":"!r:matrix.exo.com","type":"m.room.message","sender":"@a:matrix.exo.com","origin_server_ts":"1",
+         "content":{"msgtype":"m.text","body":"* fixed","m.new_content":{"body":"fixed"},
+                    "m.relates_to":{"rel_type":"m.replace","event_id":"$original"}}}""");
+    HttpResponse reply = mock(HttpResponse.class);
+    when(reply.statusCode()).thenReturn(200);
+    when(reply.body()).thenReturn("""
+        {"room_id":"!r:matrix.exo.com","type":"m.room.message","sender":"@a:matrix.exo.com","origin_server_ts":"1",
+         "content":{"msgtype":"m.text","body":"sure","m.relates_to":{"m.in_reply_to":{"event_id":"$question"}}}}""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(edit, reply);
+
+    MatrixMessage editMessage = matrixHttpClient.getEventById("$edit", "!r:matrix.exo.com", accessToken, TIMEOUT);
+    MatrixMessage replyMessage = matrixHttpClient.getEventById("$reply", "!r:matrix.exo.com", accessToken, TIMEOUT);
+
+    assertEquals("m.replace", editMessage.getRelatesToType());
+    assertNull(editMessage.getInReplyTo());
+    assertNull(replyMessage.getRelatesToType());
+    assertEquals("$question", replyMessage.getInReplyTo());
+  }
+
+  /** The room read exposes the relation of a reply and of an edit, and drops an event without a body. */
+  @Test
+  void getRoomMessagesReadsTheRelations() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        {
+          "chunk": [
+            {
+              "type": "m.room.message",
+              "event_id": "$edit",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 3000,
+              "content": {
+                "body": "* fixed",
+                "msgtype": "m.text",
+                "m.new_content": { "body": "fixed", "msgtype": "m.text" },
+                "m.relates_to": { "rel_type": "m.replace", "event_id": "$orig" }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$legacyEdit",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 2500,
+              "content": {
+                "body": "* legacy",
+                "msgtype": "m.text",
+                "m.relates_to": { "rel_type": "m.replace", "event_id": "$orig" }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$reply",
+              "sender": "@ghost:matrix.exo.com",
+              "origin_server_ts": 2000,
+              "content": {
+                "body": "answer",
+                "msgtype": "m.text",
+                "m.relates_to": { "m.in_reply_to": { "event_id": "$orig" } }
+              }
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$redactedOriginal",
+              "content": {}
+            },
+            {
+              "type": "m.room.message",
+              "event_id": "$orig",
+              "sender": "@demo:matrix.exo.com",
+              "origin_server_ts": 1000,
+              "content": { "body": "typo", "msgtype": "m.text" }
+            }
+          ]
+        }""");
+
+    List<MatrixMessage> messages = matrixHttpClient.getRoomMessages("!room1", 50, accessToken);
+
+    assertEquals(4, messages.size());
+    MatrixMessage edit = messages.get(0);
+    assertEquals("m.replace", edit.getRelatesToType());
+    assertEquals("$orig", edit.getReplacedEventId());
+    assertEquals("fixed", edit.getEditedContent());
+    assertEquals("* fixed", edit.getMessageContent());
+    assertNull(messages.get(1).getEditedContent());
+    assertEquals("$orig", messages.get(1).getReplacedEventId());
+    assertEquals("$orig", messages.get(2).getInReplyTo());
+    assertNull(messages.get(2).getReplacedEventId());
+    assertNull(messages.get(3).getRelatesToType());
+    assertNull(messages.get(3).getReplacedEventId());
+  }
+
+  /** The bounded room read goes through the bounded request and throws a timeout. */
+  @Test
+  void getRoomMessagesWithTimeoutIsBoundedAndPropagatesAFailure() throws Exception {
+    when(responseOK.body()).thenReturn("""
+        { "chunk": [ { "type": "m.room.message", "event_id": "$e", "content": { "body": "hi" } } ] }""");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT))).thenReturn(responseOK);
+
+    List<MatrixMessage> messages = matrixHttpClient.getRoomMessages("!room1", 50, accessToken, TIMEOUT);
+
+    assertEquals(1, messages.size());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!room1:matrix.exo.com/messages?dir=b&limit=50"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)));
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT)))
+                      .thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixHttpClient.getRoomMessages("!room1", 50, accessToken, TIMEOUT));
+  }
+
+  /** A message built by the caller is put as is, bounded, under the given transaction id. */
+  @Test
+  void sendMessageContentIsPutAsIsAndBounded() throws Exception {
+    when(responseOK.body()).thenReturn("{\"event_id\":\"$sentReply\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPutRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(responseOK);
+    JSONObject content = new JSONObject().put("msgtype", "m.text")
+                                         .put("body", "hi")
+                                         .put("m.mentions", new JSONObject().put("user_ids", List.of("@asker:matrix.exo.com")));
+
+    String eventId = matrixHttpClient.sendMessage("!room1", content, "txn-9", accessToken, TIMEOUT);
+
+    assertEquals("$sentReply", eventId);
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedPutRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/!room1:matrix.exo.com/send/m.room.message/txn-9"),
+                                                                     eq(accessToken),
+                                                                     payload.capture(),
+                                                                     eq(TIMEOUT)));
+    assertEquals(content.toString(), payload.getValue());
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedPutRequest(anyString(), anyString(), anyString(), eq(TIMEOUT)))
+                      .thenThrow(new IOException("timed out"));
+    assertThrows(IOException.class, () -> matrixHttpClient.sendMessage("!room1", content, "txn-9", accessToken, TIMEOUT));
+  }
+
+  /** The bounded user read goes through the bounded request, the id encoded, and fails on an error status. */
+  @Test
+  void boundedGetUser() throws Exception {
+    HttpResponse found = mock(HttpResponse.class);
+    when(found.statusCode()).thenReturn(200);
+    when(found.body()).thenReturn("{\"name\":\"@a:matrix.exo.com\"}");
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendBoundedGetRequest(anyString(), anyString(), eq(TIMEOUT)))
+                      .thenReturn(found, responseNotOK);
+
+    assertEquals("{\"name\":\"@a:matrix.exo.com\"}", matrixHttpClient.getUser("@a:matrix.exo.com", accessToken, TIMEOUT));
+    assertThrows(RuntimeException.class, () -> matrixHttpClient.getUser("@a:matrix.exo.com", accessToken, TIMEOUT));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendBoundedGetRequest(eq("http://matrix:8008/_synapse/admin/v2/users/%40a%3Amatrix.exo.com"),
+                                                                     eq(accessToken),
+                                                                     eq(TIMEOUT)),
+                              times(2));
   }
 }

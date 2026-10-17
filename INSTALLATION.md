@@ -35,6 +35,7 @@ origin.
 ```
 Browser ──HTTPS──▶ reverse proxy (chat.acme.com)
                       ├── /               → eXo portal   (internal:8080)
+                      ├── /_matrix/push/v1/notify → eXo portal (internal:8080, /matrix/rest/matrix/notify)
                       └── /_matrix, /_synapse/client → Synapse (internal:8008)
 
 eXo backend (Java) ──HTTP──▶ Synapse admin/client API (internal:8008, direct)
@@ -222,6 +223,16 @@ server {
 
     # ssl_certificate / ssl_certificate_key ...
 
+    # Synapse's pushers (the browsers' and the digital workers') call the
+    # platform here. Without this exact-match block, /_matrix below sends
+    # the call to Synapse itself and every push fails.
+    location = /_matrix/push/v1/notify {
+        proxy_pass http://exo-platform:8080/matrix/rest/matrix/notify;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $host;
+    }
+
     location ~ ^(/_matrix|/_synapse/client) {
         proxy_pass http://synapse:8008;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -239,6 +250,12 @@ server {
     }
 }
 ```
+
+The `location =` block must stay a separate exact match: Synapse's pushers
+only accept the path `/_matrix/push/v1/notify`, and the platform serves that
+gateway at `/matrix/rest/matrix/notify`. The adt-provisioned servers already
+carry the equivalent rule (an Apache `RewriteRule` ahead of their `/_matrix`
+proxy).
 
 Start the stack:
 
@@ -300,14 +317,71 @@ meeds.matrix.jwt.secret=<same value as homeserver.yaml>
 # localparts have their own constraints. Optional — defaults to "u".
 meeds.matrix.username.prefix=u
 
-# Comma-separated eXo group ids excluded from chat/Matrix provisioning.
-# Optional — no group excluded if unset.
+# Comma-separated eXo group ids restricting chat/Matrix provisioning: only
+# the members of these groups get a chat account. Optional — when unset,
+# every user gets one. Digital workers (accounts of a kind an add-on
+# declares) always get one, whatever this property says.
 meeds.matrix.restricted.users.groupId=/platform/externals
 ```
 
 Restart the eXo server so `MatrixService` picks up the properties (they are
 read via `PropertyManager`, evaluated at `@PostConstruct` startup and again
 per-call — a restart is the safest way to confirm they took effect).
+
+### Push gateway for digital workers
+
+The platform registers a Matrix pusher (`app_id` `exo.matrix.agent`) for each
+digital worker, so that Synapse notifies the platform when the worker is
+mentioned. Synapse calls the push gateway over HTTP; two optional properties
+tune it:
+
+```properties
+# Push gateway URL that Synapse calls. Optional — when blank, it is the
+# platform's base URL followed by /_matrix/push/v1/notify. A value must be an
+# absolute http or https URL whose path is exactly /_matrix/push/v1/notify
+# (Synapse refuses any other path).
+meeds.matrix.agents.pushGatewayUrl=
+
+# Schedule of the job that registers the missing pushers (Spring cron,
+# read at boot). Optional — defaults to every 15 minutes.
+meeds.matrix.agents.pusher.cron=0 0/15 * * * *
+```
+
+The reverse proxy must route the gateway path to the platform (Step 3).
+
+Synapse refuses to call a gateway whose host resolves, from Synapse, to an
+address its `ip_range_blacklist` lists (by default Synapse's
+`DEFAULT_IP_RANGE_BLOCKLIST`: loopback, private, link-local, carrier-grade NAT,
+test, multicast and other reserved ranges). Only in that case,
+add that address — and only it — to `ip_range_whitelist` in
+`homeserver.yaml`:
+
+```yaml
+ip_range_whitelist:
+  - "10.0.0.12/32"      # the address the gateway host resolves to
+```
+
+To check the setup:
+
+1. `GET /_synapse/admin/v1/users/<worker matrix id>/pushers` (with the admin
+   token) lists one pusher whose `app_id` is `exo.matrix.agent`.
+2. Mention the worker in a space room. The platform log shows the hand-off
+   once: `Worker <login> mentioned in the room of the space <space id> by
+   <sender>, handed over`. The reverse proxy's access log shows a
+   `POST /_matrix/push/v1/notify` for it, among those of the room members
+   whose browsers have push enabled.
+
+> **Downgrading.** A platform version without this feature answers `500` to
+> the workers' pushes and Synapse keeps retrying; Synapse's admin API cannot
+> delete a pusher. Once the downgraded platform runs (before that, the
+> platform registers them again), remove each worker's pushers: for
+> every account of a declared kind, list its pushkeys with
+> `GET /_synapse/admin/v1/users/<matrix id>/pushers`, get a token for the
+> account with `POST /_synapse/admin/v1/users/<matrix id>/login` (admin
+> token), then for each pushkey call `POST /_matrix/client/v3/pushers/set`
+> with that token and the body
+> `{"app_id": "exo.matrix.agent", "pushkey": "<pushkey>", "kind": null}`.
+> The browsers' pushers (`app_id` `exo.matrix.app`) are not touched.
 
 ## Step 6 — Verify
 
