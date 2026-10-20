@@ -486,16 +486,19 @@ export default {
     },
     async markRoomAsRead(roomId) {
       if (this.messages?.length) {
-        const eventId = await this.$matrixService.getRoomLastMessageEventId(roomId);
-        if (eventId === this.lastMarkedReadEventId) {
-          return;
-        }
-        this.$matrixService.markRoomAsFullyRead(roomId, eventId).then(() => {
+        try {
+          const eventId = await this.$matrixService.getRoomLastEventId(roomId);
+          if (eventId === this.lastMarkedReadEventId) {
+            return;
+          }
+          await this.$matrixService.markRoomAsFullyRead(roomId, eventId);
           document.dispatchEvent(new CustomEvent('matrix-room-mark-full-read', {
             detail: {roomId: roomId}
           }));
           this.lastMarkedReadEventId = eventId;
-        }).catch(e => console.error('Failed to mark room as read:', roomId, e));
+        } catch (e) {
+          console.error('Failed to mark room as read:', roomId, e);
+        }
       }
     },
     resetLocalUnseenData({detail: {roomId, userId}}) {
