@@ -83,11 +83,11 @@ export function loadChatRooms(currentMemberId) {
     }
   };
   // Synapse caches /sync responses per identical request
-  // (caches.sync_response_cache_duration, 2m by default): a reload would replay
-  // the previous answer, read state included. A first sync ignores timeout, so
-  // a value taken from the clock, distinct over those 2 minutes, only bypasses
-  // that cache.
-  return sync(filter, null, 30000 + (Date.now() % 120000)).then(resp => {
+  // (caches.sync_response_cache_duration, a deployment setting, 2m by default):
+  // a reload would replay the previous answer, read state included. A first
+  // sync ignores its timeout, so a value taken from the clock over a range no
+  // cache duration reaches (about 11 days) only bypasses that cache.
+  return sync(filter, null, 30000, Date.now() % 1000000000).then(resp => {
     if (!resp?.ok) {
       throw new Error('Response code indicates a server error', resp);
     } else {
@@ -197,7 +197,19 @@ export function updateDMRoomsAccountData(matrixIDUser, matrixUserDMRooms) {
   });
 }
 
-export function sync(filter, since, timeoutMs = 30000) {
+/**
+ * Calls Synapse's /sync.
+ *
+ * @param {object|string} filter the filter, or the id of an uploaded one
+ * @param {string} since the stream position to sync from, none for a first sync
+ * @param {number} timeoutMs how long Synapse may hold the request; the browser
+ *        aborts it 5 seconds later
+ * @param {number} [requestTimeout] the timeout sent to Synapse instead of
+ *        timeoutMs, without changing when the browser aborts: a first sync
+ *        ignores it, so a distinct value only changes the request's cache key
+ * @returns {Promise<Response>} the fetch response
+ */
+export function sync(filter, since, timeoutMs = 30000, requestTimeout) {
   const params = new URLSearchParams();
 
   if (filter) {
@@ -209,8 +221,8 @@ export function sync(filter, since, timeoutMs = 30000) {
   if (since) {
     params.append('since', since);
   }
-  if (timeoutMs) {
-    params.append('timeout', timeoutMs);
+  if (requestTimeout ?? timeoutMs) {
+    params.append('timeout', requestTimeout ?? timeoutMs);
   }
 
   const controller = new AbortController();

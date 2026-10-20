@@ -1145,6 +1145,26 @@ class MatrixHttpClientTest {
   }
 
   /**
+   * A new client, on another node or after a restart, starts from the clock:
+   * starting every client at the same value would repeat a previous request
+   * within Synapse's sync response cache.
+   */
+  @Test
+  void getUnreadRoomsTimeoutStartsFromTheClock() throws Exception {
+    when(responseOK.body()).thenReturn("{\"rooms\":{\"join\":{}}}");
+    long before = System.currentTimeMillis();
+    MatrixHttpClient newClient = new MatrixHttpClient();
+    long after = System.currentTimeMillis();
+    newClient.getUnreadRooms(accessToken, 20);
+
+    ArgumentCaptor<String> url = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(url.capture(), eq(accessToken)));
+    long timeout = Long.parseLong(url.getValue().replaceAll(".*[?&]timeout=([^&]*).*", "$1"));
+    assertTrue(timeout >= 1 + before % 1_000_000_000L && timeout <= 1 + after % 1_000_000_000L,
+               "timeout " + timeout + " not taken from the clock between " + before + " and " + after);
+  }
+
+  /**
    * The receipt carries no thread_id: Synapse refuses a "main" receipt on a
    * thread reply, and only an unthreaded one clears the threads' notifications.
    */
