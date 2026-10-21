@@ -1300,7 +1300,7 @@ class MatrixServiceTest extends MatrixBaseTest {
   /**
    * The refusals, each before anything is created on Matrix: a blank or the
    * user's own username, an unknown user, a recipient without a chat account,
-   * direct messages disabled, and a recipient outside the chat's restricted
+   * direct messages disabled, and either user outside the chat's restricted
    * groups. A blank text sends nothing.
    */
   @Test
@@ -1329,12 +1329,16 @@ class MatrixServiceTest extends MatrixBaseTest {
 
     String restriction = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
     try {
+      setMatrixId("root", "root");
       PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "/platform/administrators");
-      assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("root", "jame", "hi"));
-      assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("jame", "root", "hi"));
+      assertEquals("User jame has no access to the chat",
+                   assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("root", "jame", "hi")).getMessage());
+      assertEquals("User jame has no access to the chat",
+                   assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("jame", "root", "hi")).getMessage());
     } finally {
       PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, restriction == null ? "" : restriction);
     }
+
     verify(matrixHttpClient, never()).createDirectMessagingRoom(anyString(), anyString());
   }
 
@@ -1352,10 +1356,20 @@ class MatrixServiceTest extends MatrixBaseTest {
     dm.setFirstParticipant("dragon");
     dm.setSecondParticipant("john");
     matrixService.createDirectMessagingRoom(dm);
+    Profile johnProfile = identityManager.getOrCreateUserIdentity("john").getProfile();
+    Object johnFullName = johnProfile.getProperty(Profile.FULL_NAME);
+    johnProfile.setProperty(Profile.FULL_NAME, "Alice Liddell");
+    identityManager.updateProfile(johnProfile);
     try {
       List<ChatConversation> dms = matrixService.getUserConversations("dragon", "dm", "JOHN", null);
       assertEquals(List.of(dmRoomId), dms.stream().map(ChatConversation::getRoomId).toList());
       assertEquals("john", dms.get(0).getUserName());
+      assertEquals("Alice Liddell", dms.get(0).getTitle());
+      assertEquals(List.of(dmRoomId),
+                   matrixService.getUserConversations("dragon", "dm", "liddell", null)
+                                .stream()
+                                .map(ChatConversation::getRoomId)
+                                .toList());
 
       assertTrue(matrixService.getUserConversations("dragon", "space", "john", null).isEmpty());
       assertTrue(matrixService.getUserConversations("dragon", "dm", "nobody", null).isEmpty());
@@ -1369,6 +1383,8 @@ class MatrixServiceTest extends MatrixBaseTest {
       assertTrue(all.stream().anyMatch(conversation -> spaceRoomId.equals(conversation.getRoomId())));
       assertEquals(1, matrixService.getUserConversations("dragon", null, null, 1).size());
     } finally {
+      johnProfile.setProperty(Profile.FULL_NAME, johnFullName);
+      identityManager.updateProfile(johnProfile);
       matrixService.deleteRoom(dmRoomId);
     }
   }
