@@ -56,6 +56,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.json.JSONObject;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +66,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -79,6 +81,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class MatrixServiceTest extends MatrixBaseTest {
+
+  private final Map<String, Object> matrixIdsToRestore = new HashMap<>();
 
   @Autowired
   MatrixService   matrixService;
@@ -1311,6 +1315,7 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertThrows(ObjectNotFoundException.class, () -> matrixService.sendDirectMessage("ghost", "nobodyHere", "hi"));
 
     Identity jame = identityManager.getOrCreateUserIdentity("jame");
+    matrixIdsToRestore.putIfAbsent("jame", jame.getProfile().getProperty(USER_MATRIX_ID));
     jame.getProfile().getProperties().remove(USER_MATRIX_ID);
     identityManager.updateProfile(jame.getProfile());
     assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("ghost", "jame", "hi"));
@@ -1390,13 +1395,36 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   /**
-   * Sets the Matrix id a user's profile carries.
+   * Gives back the Matrix ids {@link #setMatrixId(String, String)} replaced, so
+   * that a later test of the suite, which shares the profiles, finds a user
+   * without a Matrix account still without one.
+   */
+  @Override
+  @AfterEach
+  protected void tearDown() {
+    matrixIdsToRestore.forEach((userName, matrixId) -> {
+      Profile profile = identityManager.getOrCreateUserIdentity(userName).getProfile();
+      if (matrixId == null) {
+        profile.getProperties().remove(USER_MATRIX_ID);
+      } else {
+        profile.setProperty(USER_MATRIX_ID, matrixId);
+      }
+      identityManager.updateProfile(profile);
+    });
+    matrixIdsToRestore.clear();
+    super.tearDown();
+  }
+
+  /**
+   * Sets the Matrix id a user's profile carries, the previous one being given
+   * back at the end of the test.
    *
    * @param userName the user
    * @param matrixId the Matrix id to store
    */
   private void setMatrixId(String userName, String matrixId) {
     Identity identity = identityManager.getOrCreateUserIdentity(userName);
+    matrixIdsToRestore.putIfAbsent(userName, identity.getProfile().getProperty(USER_MATRIX_ID));
     identity.getProfile().setProperty(USER_MATRIX_ID, matrixId);
     identityManager.updateProfile(identity.getProfile());
   }
