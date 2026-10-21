@@ -43,4 +43,7 @@ public class ChatConversation {
   /** Meeds space identifier for space rooms, {@code null} for direct messages. */
   private Long spaceId;
 
+  /** Username of the other participant for a direct message, {@code null} for space rooms. */
+  private String userName;
+
 }
