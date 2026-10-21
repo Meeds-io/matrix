@@ -713,8 +713,10 @@ public class MatrixService {
    * @param userName the username of the user opening the conversation
    * @param recipientUserName the username of the other participant
    * @return the direct messaging room
-   * @throws ObjectNotFoundException when no enabled user has that username
-   * @throws IllegalAccessException when the user may not message that user
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why: direct messages disabled, a user outside the
+   *           chat, a disabled or deleted recipient, or one with no chat account
    * @throws IllegalArgumentException when a username is blank or both are the
    *           same
    * @throws Exception any failure of the room creation on Matrix
@@ -722,9 +724,6 @@ public class MatrixService {
   public Room getOrCreateDirectMessagingRoom(String userName, String recipientUserName) throws Exception { // NOSONAR
     if (StringUtils.isBlank(userName) || StringUtils.isBlank(recipientUserName)) {
       throw new IllegalArgumentException("chat.directMessage.usernameRequired");
-    }
-    if (userName.equals(recipientUserName)) {
-      throw new IllegalArgumentException("chat.directMessage.selfNotAllowed");
     }
     ChatSettingsEntity chatSettings = loadChatSettings();
     if (chatSettings != null && !chatSettings.isPrivateRoomsEnabled()) {
@@ -734,26 +733,34 @@ public class MatrixService {
       throw new IllegalAccessException("User " + userName + " has no access to the chat");
     }
     Identity recipientIdentity = identityManager.getOrCreateUserIdentity(recipientUserName);
-    if (recipientIdentity == null || recipientIdentity.isDeleted() || !recipientIdentity.isEnable()) {
+    if (recipientIdentity == null) {
       throw new ObjectNotFoundException("No user " + recipientUserName);
     }
-    if (!isChatUser(recipientUserName)) {
-      throw new IllegalAccessException("User " + recipientUserName + " has no access to the chat");
+    // the username as the platform stores it, whatever the case the caller typed
+    String recipient = recipientIdentity.getRemoteId();
+    if (userName.equals(recipient)) {
+      throw new IllegalArgumentException("chat.directMessage.selfNotAllowed");
     }
-    Room room = matrixRoomStorage.getDirectMessagingRoom(userName, recipientUserName);
+    if (recipientIdentity.isDeleted() || !recipientIdentity.isEnable()) {
+      throw new IllegalAccessException("User " + recipient + " is not an active user");
+    }
+    if (!isChatUser(recipient)) {
+      throw new IllegalAccessException("User " + recipient + " has no access to the chat");
+    }
+    Room room = matrixRoomStorage.getDirectMessagingRoom(userName, recipient);
     if (room != null) {
       return room;
     }
-    String recipientMatrixId = getMatrixIdForUser(recipientUserName);
+    String recipientMatrixId = getMatrixIdForUser(recipient);
     if (StringUtils.isBlank(recipientMatrixId)) {
-      throw new IllegalAccessException("User " + recipientUserName + " has no chat account");
+      throw new IllegalAccessException("User " + recipient + " has no chat account");
     }
     String fullRecipientMatrixId = toFullMatrixUserId(recipientMatrixId);
     String roomId = callAsUserOrThrow(userName,
                                       null,
                                       accessToken -> matrixHttpClient.createDirectMessagingRoom(fullRecipientMatrixId,
                                                                                                 accessToken));
-    room = matrixRoomStorage.saveDirectMessagingRoom(userName, recipientUserName, roomId);
+    room = matrixRoomStorage.saveDirectMessagingRoom(userName, recipient, roomId);
     updateDirectRoomsAccountData(userName);
     return room;
   }
@@ -768,8 +775,9 @@ public class MatrixService {
    * @param text the plain text message to send
    * @return the created event id, or {@code null} when the text is blank or the
    *         message could not be sent
-   * @throws ObjectNotFoundException when no enabled user has that username
-   * @throws IllegalAccessException when the user may not message that user
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why
    * @throws IllegalArgumentException when a username is blank or both are the
    *           same
    * @throws Exception any failure of the room creation on Matrix

@@ -93,10 +93,10 @@ class ChatMcpToolTest {
     assertTrue(unknown.startsWith("ERROR"));
     assertTrue(unknown.contains("No user has the username 'nobody'"));
 
-    when(matrixService.sendDirectMessage(USER, "outsider", "Hi")).thenThrow(new IllegalAccessException("no chat"));
+    when(matrixService.sendDirectMessage(USER, "outsider", "Hi")).thenThrow(new IllegalAccessException("User outsider is not an active user"));
     String refused = chatMcpTool.sendDirectMessage("outsider", "Hi");
     assertTrue(refused.startsWith("ERROR"));
-    assertTrue(refused.contains("cannot send a direct message to 'outsider'"));
+    assertTrue(refused.contains("cannot send a direct message to 'outsider': User outsider is not an active user."));
 
     when(matrixService.sendDirectMessage(USER, USER, "Hi")).thenThrow(new IllegalArgumentException("chat.directMessage.selfNotAllowed"));
     String self = chatMcpTool.sendDirectMessage(USER, "Hi");
@@ -107,6 +107,16 @@ class ChatMcpToolTest {
     String misconfigured = chatMcpTool.sendDirectMessage("morgan", "Hi");
     assertTrue(misconfigured.startsWith("ERROR"));
     assertTrue(misconfigured.contains("chat service is unavailable"));
+
+    when(matrixService.sendDirectMessage(USER, "slow", "Hi")).thenThrow(new InterruptedException());
+    try {
+      String interrupted = chatMcpTool.sendDirectMessage("slow", "Hi");
+      assertTrue(interrupted.startsWith("ERROR"));
+      assertTrue(interrupted.contains("NOT sent"));
+      assertTrue(Thread.currentThread().isInterrupted());
+    } finally {
+      Thread.interrupted();
+    }
 
     when(matrixService.sendDirectMessage(USER, "morgan", "Hello")).thenReturn(null);
     String failed = chatMcpTool.sendDirectMessage("morgan", "Hello");

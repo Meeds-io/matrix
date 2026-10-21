@@ -119,7 +119,8 @@ public class ChatMcpTool implements McpToolPlugin {
    * @param username the username of the recipient
    * @param text the plain text message to send
    * @return the outcome, worded for the agent: the event id when the message was
-   *         sent, why it was not otherwise
+   *         sent, why it was not otherwise; the reason of a refusal is the
+   *         service's, written for the agent
    */
   public String sendDirectMessage(String username, String text) {
     try {
@@ -131,8 +132,11 @@ public class ChatMcpTool implements McpToolPlugin {
       return "ERROR: the message was NOT sent. No user has the username '" + username
           + "': find the user's username first. Do not tell the user it was sent.";
     } catch (IllegalAccessException e) {
-      return "ERROR: the message was NOT sent. The current user cannot send a direct message to '" + username
-          + "' (direct messages are disabled, or one of the two users has no access to the chat). Do not tell the user it was sent.";
+      return "ERROR: the message was NOT sent. The current user cannot send a direct message to '" + username + "': "
+          + e.getMessage() + ". Do not tell the user it was sent.";
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Sending a direct message to {} was interrupted", username, e);
     } catch (IllegalArgumentException e) {
       if (StringUtils.startsWith(e.getMessage(), "chat.directMessage.")) {
         return "ERROR: the message was NOT sent. A recipient username other than the current user's is required. "

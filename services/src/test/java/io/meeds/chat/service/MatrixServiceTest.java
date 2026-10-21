@@ -1348,6 +1348,71 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   /**
+   * A disabled or a deleted recipient is refused as not active, apart from an
+   * unknown username, before anything is created on Matrix. The identities are
+   * stubbed on a spy of the identity manager: disabling a real user runs the
+   * whole user listener chain.
+   */
+  @Test
+  void sendDirectMessageRefusesAnInactiveRecipient() throws Exception {
+    setMatrixId("ghost", "ghost");
+    IdentityManager realIdentityManager = (IdentityManager) ReflectionTestUtils.getField(matrixService, "identityManager");
+    IdentityManager identityManagerSpy = spy(realIdentityManager);
+    Identity disabled = new Identity("disabledId");
+    disabled.setRemoteId("disabledUser");
+    disabled.setEnable(false);
+    lenient().doReturn(disabled).when(identityManagerSpy).getOrCreateUserIdentity("disabledUser");
+    Identity deleted = new Identity("deletedId");
+    deleted.setRemoteId("deletedUser");
+    deleted.setDeleted(true);
+    lenient().doReturn(deleted).when(identityManagerSpy).getOrCreateUserIdentity("deletedUser");
+    ReflectionTestUtils.setField(matrixService, "identityManager", identityManagerSpy);
+    try {
+      assertEquals("User disabledUser is not an active user",
+                   assertThrows(IllegalAccessException.class,
+                                () -> matrixService.sendDirectMessage("ghost", "disabledUser", "hi")).getMessage());
+      assertEquals("User deletedUser is not an active user",
+                   assertThrows(IllegalAccessException.class,
+                                () -> matrixService.sendDirectMessage("ghost", "deletedUser", "hi")).getMessage());
+      verify(matrixHttpClient, never()).createDirectMessagingRoom(anyString(), anyString());
+    } finally {
+      ReflectionTestUtils.setField(matrixService, "identityManager", realIdentityManager);
+    }
+  }
+
+  /**
+   * A username typed in another case resolves to the stored one, which is the
+   * one checked and recorded: the conversation is found again by the stored
+   * username, and the sender typing their own name in another case is refused.
+   */
+  @Test
+  void sendDirectMessageUsesTheStoredUsername() throws Exception {
+    setMatrixId("ghost", "ghost");
+    setMatrixId("mary", "mary");
+    IdentityManager realIdentityManager = (IdentityManager) ReflectionTestUtils.getField(matrixService, "identityManager");
+    IdentityManager identityManagerSpy = spy(realIdentityManager);
+    lenient().doReturn(realIdentityManager.getOrCreateUserIdentity("mary")).when(identityManagerSpy).getOrCreateUserIdentity("MARY");
+    lenient().doReturn(realIdentityManager.getOrCreateUserIdentity("ghost")).when(identityManagerSpy).getOrCreateUserIdentity("Ghost");
+    ReflectionTestUtils.setField(matrixService, "identityManager", identityManagerSpy);
+    String createdRoomId = "!caseDmRoom:matrix.exo.tn";
+    when(matrixHttpClient.createDirectMessagingRoom(eq("@mary:matrix.exo.tn"), anyString())).thenReturn(createdRoomId);
+    when(matrixHttpClient.sendMessage(eq("!caseDmRoom"), eq("hello"), anyString(), anyString())).thenReturn("$case1");
+    try {
+      assertEquals("$case1", matrixService.sendDirectMessage("ghost", "MARY", "hello"));
+      Room room = matrixService.getDirectMessagingRoom("ghost", "mary");
+      assertNotNull(room);
+      assertEquals(createdRoomId, room.getRoomId());
+
+      assertThrows(IllegalArgumentException.class, () -> matrixService.sendDirectMessage("ghost", "Ghost", "hi"));
+    } finally {
+      ReflectionTestUtils.setField(matrixService, "identityManager", realIdentityManager);
+      if (matrixService.getDirectMessagingRoom("ghost", "mary") != null) {
+        matrixService.deleteRoom(createdRoomId);
+      }
+    }
+  }
+
+  /**
    * The conversations of a type, and those whose title or other participant's
    * username contains the query, case and accents ignored, up to the limit.
    */
