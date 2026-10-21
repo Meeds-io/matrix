@@ -40,6 +40,11 @@ import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.model.TopbarConfiguration;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
+import org.exoplatform.commons.api.settings.SettingService;
+import org.exoplatform.commons.api.settings.SettingValue;
+import org.exoplatform.commons.api.settings.data.Context;
+import org.exoplatform.commons.api.settings.data.Scope;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.social.core.identity.model.Identity;
@@ -63,6 +68,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static io.meeds.chat.service.utils.MatrixConstants.CHAT_SETTINGS;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_ATTEMPTS;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_DELAY;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_RESTRICTED_USERS_GROUP;
@@ -1233,5 +1239,149 @@ class MatrixServiceTest extends MatrixBaseTest {
     edit.setReplacedEventId(replacedEventId);
     edit.setEditedContent(newBody);
     return edit;
+  }
+
+  /**
+   * A user with no direct message yet: the room is created on Matrix as the
+   * sender with the recipient invited, recorded on the platform, the sender's
+   * m.direct account data updated, and the message lands in that room. A second
+   * message reuses the room without creating another.
+   */
+  @Test
+  void sendDirectMessageOpensTheConversationWhenThereIsNone() throws Exception {
+    setMatrixId("ghost", "ghost");
+    setMatrixId("mary", "mary");
+    String createdRoomId = "!createdDmRoom:matrix.exo.tn";
+    when(matrixHttpClient.createDirectMessagingRoom(eq("@mary:matrix.exo.tn"), anyString())).thenReturn(createdRoomId);
+    when(matrixHttpClient.sendMessage(eq("!createdDmRoom"), eq("hello Mary"), anyString(), anyString())).thenReturn("$dm1");
+    when(matrixHttpClient.sendMessage(eq("!createdDmRoom"), eq("again"), anyString(), anyString())).thenReturn("$dm2");
+    try {
+      assertEquals("$dm1", matrixService.sendDirectMessage("ghost", "mary", "hello Mary"));
+
+      Room room = matrixService.getDirectMessagingRoom("mary", "ghost");
+      assertNotNull(room);
+      assertEquals(createdRoomId, room.getRoomId());
+      @SuppressWarnings("unchecked")
+      ArgumentCaptor<Map<String, String[]>> accountData = ArgumentCaptor.forClass(Map.class);
+      verify(matrixHttpClient).setDirectRoomsAccountData(eq("@ghost:matrix.exo.tn"), accountData.capture(), anyString());
+      assertArrayEquals(new String[] { createdRoomId }, accountData.getValue().get("@mary:matrix.exo.tn"));
+
+      assertEquals("$dm2", matrixService.sendDirectMessage("ghost", "mary", "again"));
+      verify(matrixHttpClient, times(1)).createDirectMessagingRoom(anyString(), anyString());
+    } finally {
+      matrixService.deleteRoom(createdRoomId);
+    }
+  }
+
+  /**
+   * A user with a direct message already, whoever opened it: the message lands
+   * in it and nothing is created.
+   */
+  @Test
+  void sendDirectMessageUsesTheExistingConversation() throws Exception {
+    setMatrixId("raul", "raul");
+    setMatrixId("paul", "paul");
+    String existingRoomId = "!existingDmRoom:matrix.exo.tn";
+    Room dm = new Room();
+    dm.setRoomId(existingRoomId);
+    dm.setFirstParticipant("paul");
+    dm.setSecondParticipant("raul");
+    matrixService.createDirectMessagingRoom(dm);
+    when(matrixHttpClient.sendMessage(eq("!existingDmRoom"), eq("hi Paul"), anyString(), anyString())).thenReturn("$dm3");
+    try {
+      assertEquals("$dm3", matrixService.sendDirectMessage("raul", "paul", "hi Paul"));
+      verify(matrixHttpClient, never()).createDirectMessagingRoom(anyString(), anyString());
+      verify(matrixHttpClient, never()).setDirectRoomsAccountData(anyString(), any(), anyString());
+    } finally {
+      matrixService.deleteRoom(existingRoomId);
+    }
+  }
+
+  /**
+   * The refusals, each before anything is created on Matrix: a blank or the
+   * user's own username, an unknown user, a recipient without a chat account,
+   * direct messages disabled, and a recipient outside the chat's restricted
+   * groups. A blank text sends nothing.
+   */
+  @Test
+  void sendDirectMessageRefusesWhereTheChatDoes() throws Exception {
+    setMatrixId("ghost", "ghost");
+    assertThrows(IllegalArgumentException.class, () -> matrixService.sendDirectMessage("ghost", " ", "hi"));
+    assertThrows(IllegalArgumentException.class, () -> matrixService.sendDirectMessage("ghost", "ghost", "hi"));
+    assertThrows(ObjectNotFoundException.class, () -> matrixService.sendDirectMessage("ghost", "nobodyHere", "hi"));
+
+    Identity jame = identityManager.getOrCreateUserIdentity("jame");
+    jame.getProfile().getProperties().remove(USER_MATRIX_ID);
+    identityManager.updateProfile(jame.getProfile());
+    assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("ghost", "jame", "hi"));
+
+    assertNull(matrixService.sendDirectMessage("ghost", "jame", " "));
+
+    SettingService settingService = (SettingService) ReflectionTestUtils.getField(matrixService, "settingService");
+    settingService.set(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS, new SettingValue<>(new ChatSettings(true, false, true).toString()));
+    try {
+      setMatrixId("jame", "jame");
+      assertFalse(matrixService.loadChatSettings().isPrivateRoomsEnabled());
+      assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("ghost", "jame", "hi"));
+    } finally {
+      settingService.remove(Context.GLOBAL, Scope.APPLICATION, CHAT_SETTINGS);
+    }
+
+    String restriction = PropertyManager.getProperty(MATRIX_RESTRICTED_USERS_GROUP);
+    try {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, "/platform/administrators");
+      assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("root", "jame", "hi"));
+      assertThrows(IllegalAccessException.class, () -> matrixService.sendDirectMessage("jame", "root", "hi"));
+    } finally {
+      PropertyManager.setProperty(MATRIX_RESTRICTED_USERS_GROUP, restriction == null ? "" : restriction);
+    }
+    verify(matrixHttpClient, never()).createDirectMessagingRoom(anyString(), anyString());
+  }
+
+  /**
+   * The conversations of a type, and those whose title or other participant's
+   * username contains the query, case and accents ignored, up to the limit.
+   */
+  @Test
+  void getUserConversationsFiltersByTypeQueryAndLimit() throws Exception {
+    Space space = getSpaceInstance(1);
+    String spaceRoomId = matrixService.getRoomBySpace(space).getRoomId();
+    String dmRoomId = "!filteredDmRoom:matrix.exo.tn";
+    Room dm = new Room();
+    dm.setRoomId(dmRoomId);
+    dm.setFirstParticipant("dragon");
+    dm.setSecondParticipant("john");
+    matrixService.createDirectMessagingRoom(dm);
+    try {
+      List<ChatConversation> dms = matrixService.getUserConversations("dragon", "dm", "JOHN", null);
+      assertEquals(List.of(dmRoomId), dms.stream().map(ChatConversation::getRoomId).toList());
+      assertEquals("john", dms.get(0).getUserName());
+
+      assertTrue(matrixService.getUserConversations("dragon", "space", "john", null).isEmpty());
+      assertTrue(matrixService.getUserConversations("dragon", "dm", "nobody", null).isEmpty());
+
+      List<ChatConversation> spaces = matrixService.getUserConversations("dragon", "space", "MY SPÂCE 1", null);
+      assertEquals(List.of(spaceRoomId), spaces.stream().map(ChatConversation::getRoomId).toList());
+      assertNull(spaces.get(0).getUserName());
+
+      List<ChatConversation> all = matrixService.getUserConversations("dragon", null, null, null);
+      assertTrue(all.stream().anyMatch(conversation -> dmRoomId.equals(conversation.getRoomId())));
+      assertTrue(all.stream().anyMatch(conversation -> spaceRoomId.equals(conversation.getRoomId())));
+      assertEquals(1, matrixService.getUserConversations("dragon", null, null, 1).size());
+    } finally {
+      matrixService.deleteRoom(dmRoomId);
+    }
+  }
+
+  /**
+   * Sets the Matrix id a user's profile carries.
+   *
+   * @param userName the user
+   * @param matrixId the Matrix id to store
+   */
+  private void setMatrixId(String userName, String matrixId) {
+    Identity identity = identityManager.getOrCreateUserIdentity(userName);
+    identity.getProfile().setProperty(USER_MATRIX_ID, matrixId);
+    identityManager.updateProfile(identity.getProfile());
   }
 }

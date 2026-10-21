@@ -1574,4 +1574,57 @@ class MatrixHttpClientTest {
                                                                      eq(TIMEOUT)),
                               times(2));
   }
+
+  /**
+   * The room is created with the web chat's payload: a trusted private room
+   * flagged as direct, the recipient invited; Synapse's full room id is
+   * returned as is.
+   */
+  @Test
+  void createDirectMessagingRoom() throws Exception {
+    when(responseOK.body()).thenReturn("{\"room_id\":\"!dm1:matrix.exo.com\"}");
+    assertEquals("!dm1:matrix.exo.com", matrixHttpClient.createDirectMessagingRoom("@mary:matrix.exo.com", accessToken));
+
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPostRequest(eq("http://matrix:8008/_matrix/client/v3/createRoom"),
+                                                                    eq(accessToken),
+                                                                    payload.capture()));
+    JSONObject sent = new JSONObject(payload.getValue());
+    assertEquals("trusted_private_chat", sent.getString("preset"));
+    assertEquals("private", sent.getString("visibility"));
+    assertTrue(sent.getBoolean("is_direct"));
+    assertEquals("[\"@mary:matrix.exo.com\"]", sent.getJSONArray("invite").toString());
+    assertEquals("forbidden", sent.getJSONArray("initial_state").getJSONObject(0).getJSONObject("content").getString("guest_access"));
+  }
+
+  @Test
+  void createDirectMessagingRoomErrors() {
+    HttpResponse unauthorized = mock(HttpResponse.class);
+    when(unauthorized.statusCode()).thenReturn(401);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(unauthorized);
+    assertThrows(MatrixUnauthorizedException.class, () -> matrixHttpClient.createDirectMessagingRoom("@mary:matrix.exo.com", accessToken));
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPostRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(MatrixException.class, () -> matrixHttpClient.createDirectMessagingRoom("@mary:matrix.exo.com", accessToken));
+  }
+
+  /**
+   * The account data goes to the user's m.direct, the user id encoded in the
+   * path, each room listed under the other participant's id.
+   */
+  @Test
+  void setDirectRoomsAccountData() throws Exception {
+    matrixHttpClient.setDirectRoomsAccountData("@ghost:matrix.exo.com",
+                                               java.util.Map.of("@mary:matrix.exo.com", new String[] { "!dm1:matrix.exo.com" }),
+                                               accessToken);
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(eq("http://matrix:8008/_matrix/client/v3/user/%40ghost%3Amatrix.exo.com/account_data/m.direct"),
+                                                                   eq(accessToken),
+                                                                   payload.capture()));
+    assertEquals("[\"!dm1:matrix.exo.com\"]", new JSONObject(payload.getValue()).getJSONArray("@mary:matrix.exo.com").toString());
+
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), anyString())).thenReturn(responseNotOK);
+    assertThrows(MatrixException.class,
+                 () -> matrixHttpClient.setDirectRoomsAccountData("@ghost:matrix.exo.com", java.util.Map.of(), accessToken));
+  }
 }

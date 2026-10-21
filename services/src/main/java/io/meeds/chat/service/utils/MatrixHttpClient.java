@@ -449,6 +449,66 @@ public class MatrixHttpClient {
     return "";
   }
 
+  /**
+   * Creates a direct messaging room as the user owning the access token, with
+   * the payload the web chat sends: a private, trusted room flagged as direct,
+   * the other participant invited, guests forbidden.
+   *
+   * @param inviteeMatrixId the full Matrix id of the other participant
+   * @param accessToken the creating user's Matrix access token
+   * @return the full id of the created room, as Synapse returns it
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails
+   * @throws InterruptedException when the request is interrupted
+   */
+  public String createDirectMessagingRoom(String inviteeMatrixId, String accessToken) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    JSONObject payload = new JSONObject().put("preset", "trusted_private_chat")
+                                         .put("visibility", "private")
+                                         .put("invite", new JSONArray().put(inviteeMatrixId))
+                                         .put("is_direct", true)
+                                         .put("initial_state",
+                                              new JSONArray().put(new JSONObject().put("type", "m.room.guest_access")
+                                                                                  .put("state_key", "")
+                                                                                  .put("content",
+                                                                                       new JSONObject().put("guest_access",
+                                                                                                            "forbidden"))));
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/createRoom";
+    HttpResponse<String> response = sendHttpPostRequest(url, accessToken, payload.toString());
+    checkClientApiResponse(response, "creating a direct messaging room");
+    return new JSONObject(response.body()).getString("room_id");
+  }
+
+  /**
+   * Replaces the {@code m.direct} account data of the user owning the access
+   * token, which tells Matrix clients which of their rooms are direct messages
+   * and with whom.
+   *
+   * @param userMatrixId the full Matrix id of the user
+   * @param directRooms the room ids of the user's direct messages, by the full
+   *          Matrix id of the other participant
+   * @param accessToken the user's Matrix access token
+   * @throws MatrixUnauthorizedException when the token is rejected
+   * @throws MatrixException when Synapse answers another error
+   * @throws IOException when the request fails
+   * @throws InterruptedException when the request is interrupted
+   */
+  public void setDirectRoomsAccountData(String userMatrixId,
+                                        Map<String, String[]> directRooms,
+                                        String accessToken) throws IOException, InterruptedException {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    JSONObject payload = new JSONObject();
+    directRooms.forEach((matrixId, roomIds) -> payload.put(matrixId, new JSONArray(roomIds)));
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/user/"
+        + URLEncoder.encode(userMatrixId, StandardCharsets.UTF_8) + "/account_data/m.direct";
+    checkClientApiResponse(sendHttpPutRequest(url, accessToken, payload.toString()), "updating the direct rooms account data");
+  }
+
   public String createUserAccount(User user, String token) {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
