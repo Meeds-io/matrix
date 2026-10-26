@@ -55,7 +55,7 @@
           <v-btn
             v-if="fullPageMode"
             :title="$t('matrix.chat.markAllRead.label')"
-            :disabled="!hasUnread"
+            :disabled="!canMarkAllAsRead"
             icon
             @click="markAllAsRead">
             <v-icon
@@ -94,9 +94,9 @@
         </v-icon>
       </v-btn>
       <v-btn
-        v-if="!fullPageMode && !selectedRoom"
+        v-if="!fullPageMode"
         :title="$t('matrix.chat.markAllRead.label')"
-        :disabled="!hasUnread"
+        :disabled="!canMarkAllAsRead"
         icon
         @click="markAllAsRead">
         <v-icon
@@ -155,6 +155,10 @@ export default {
       type: Boolean,
       default: false
     },
+    canMarkAllAsRead: {
+      type: Boolean,
+      default: false
+    },
     presence: {
       type: String,
       default: 'available'
@@ -188,9 +192,6 @@ export default {
     },
     canCreateRooms() {
       return this.$root.canCreateRooms;
-    },
-    hasUnread() {
-      return (this.rooms || []).some(room => (room.unreadMessages || 0) > 0);
     },
     aiConciergeEnabled() {
       return eXo.env.portal.aiConciergeEnabled;
