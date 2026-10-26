@@ -43,6 +43,7 @@ import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.meeds.chat.service.utils.HTTPHelper.*;
 import static io.meeds.chat.service.utils.MatrixConstants.*;
@@ -53,6 +54,17 @@ public class MatrixHttpClient {
 
   /** Marker Matrix prepends to the fallback body of an edit event ("* the new text"). */
   private static final String EDIT_FALLBACK_PREFIX  = "* ";
+
+  /** About 11 days in milliseconds: wider than any sync response cache duration. */
+  private static final int    UNREAD_SYNC_TIMEOUT_RANGE = 1_000_000_000;
+
+  /**
+   * Gives each unread sync its own timeout value (see getUnreadRooms), seeded
+   * from the clock so that another node, or this one after a restart, does not
+   * walk the same values.
+   */
+  private final AtomicInteger unreadSyncCounter     =
+                                                  new AtomicInteger((int) (System.currentTimeMillis() % UNREAD_SYNC_TIMEOUT_RANGE));
 
   /**
    * Get an authenticated access token for the administrative tasks
@@ -1318,7 +1330,14 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String filter = URLEncoder.encode("{\"room\":{\"timeline\":{\"limit\":" + timelineLimit + "}}}", StandardCharsets.UTF_8);
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/sync?timeout=0&filter=" + filter;
+    // Synapse caches /sync responses per identical request
+    // (caches.sync_response_cache_duration, a deployment setting, 2m by
+    // default), read state included. A first sync ignores its timeout, so a
+    // value distinct over a range no cache duration reaches only bypasses that
+    // cache.
+    int timeout = 1 + Math.floorMod(unreadSyncCounter.getAndIncrement(), UNREAD_SYNC_TIMEOUT_RANGE);
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_matrix/client/v3/sync?timeout=" + timeout + "&filter="
+        + filter;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() == 401) {
@@ -1650,9 +1669,10 @@ public class MatrixHttpClient {
     // carry ':', '/', '+' or '=' — it is a path segment, so it is encoded
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/receipt/m.read/"
         + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
-    // the web client sends the same threaded receipt: its sync handler resets
-    // the room badge only when thread_id is present
-    String payload = new JSONObject().put("thread_id", "main").toString();
+    // an unthreaded receipt: Synapse refuses a "main" receipt on a thread reply
+    // (M_INVALID_PARAM), and only an unthreaded one also clears the threads'
+    // notifications up to the event
+    String payload = new JSONObject().toString();
     HttpResponse<String> response = sendHttpPostRequest(url, accessToken, payload);
     if (response.statusCode() == 401) {
       throw new MatrixUnauthorizedException("Access token rejected while sending a read receipt to room " + matrixRoomId);
