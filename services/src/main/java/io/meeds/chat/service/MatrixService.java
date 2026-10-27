@@ -701,8 +701,155 @@ public class MatrixService {
   }
 
   /**
+   * Returns the direct messaging room between a user and another one, and
+   * creates it when it does not exist yet, as the web chat does: the room is
+   * created on Matrix as the user, the other participant invited, then it is
+   * recorded on the platform and the user's {@code m.direct} account data is
+   * updated. The user may open a direct message only where the chat lets them:
+   * direct messages are enabled, both users may use the chat
+   * ({@link #isChatUser(String)}), and the other participant is an enabled user
+   * with a chat account.
+   *
+   * @param userName the username of the user opening the conversation
+   * @param recipientUserName the username of the other participant
+   * @return the direct messaging room
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why: direct messages disabled, a user outside the
+   *           chat, a disabled or deleted recipient, or one with no chat account
+   * @throws IllegalArgumentException when a username is blank or both are the
+   *           same
+   * @throws Exception any failure of the room creation on Matrix
+   */
+  public Room getOrCreateDirectMessagingRoom(String userName, String recipientUserName) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(recipientUserName)) {
+      throw new IllegalArgumentException("chat.directMessage.usernameRequired");
+    }
+    ChatSettingsEntity chatSettings = loadChatSettings();
+    if (chatSettings != null && !chatSettings.isPrivateRoomsEnabled()) {
+      throw new IllegalAccessException("Direct messages are disabled");
+    }
+    if (!isChatUser(userName)) {
+      throw new IllegalAccessException("User " + userName + " has no access to the chat");
+    }
+    Identity recipientIdentity = identityManager.getOrCreateUserIdentity(recipientUserName);
+    if (recipientIdentity == null) {
+      throw new ObjectNotFoundException("No user " + recipientUserName);
+    }
+    // the username as the platform stores it, whatever the case the caller typed
+    String recipient = recipientIdentity.getRemoteId();
+    if (userName.equals(recipient)) {
+      throw new IllegalArgumentException("chat.directMessage.selfNotAllowed");
+    }
+    if (recipientIdentity.isDeleted() || !recipientIdentity.isEnable()) {
+      throw new IllegalAccessException("User " + recipient + " is not an active user");
+    }
+    if (!isChatUser(recipient)) {
+      throw new IllegalAccessException("User " + recipient + " has no access to the chat");
+    }
+    Room room = matrixRoomStorage.getDirectMessagingRoom(userName, recipient);
+    if (room != null) {
+      return room;
+    }
+    String recipientMatrixId = getMatrixIdForUser(recipient);
+    if (StringUtils.isBlank(recipientMatrixId)) {
+      throw new IllegalAccessException("User " + recipient + " has no chat account");
+    }
+    String fullRecipientMatrixId = toFullMatrixUserId(recipientMatrixId);
+    String roomId = callAsUserOrThrow(userName,
+                                      null,
+                                      accessToken -> matrixHttpClient.createDirectMessagingRoom(fullRecipientMatrixId,
+                                                                                                accessToken));
+    room = matrixRoomStorage.saveDirectMessagingRoom(userName, recipient, roomId);
+    updateDirectRoomsAccountData(userName);
+    return room;
+  }
+
+  /**
+   * Sends a text message to another user <strong>as the given user</strong>, in
+   * their direct messaging room, which is created first when they have none.
+   * Used by the {@code send_direct_message} MCP tool.
+   *
+   * @param userName the username of the user sending the message
+   * @param recipientUserName the username of the recipient
+   * @param text the plain text message to send
+   * @return the created event id, or {@code null} when the text is blank or the
+   *         message could not be sent
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why
+   * @throws IllegalArgumentException when a username is blank or both are the
+   *           same
+   * @throws Exception any failure of the room creation on Matrix
+   */
+  public String sendDirectMessage(String userName, String recipientUserName, String text) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(text)) {
+      return null;
+    }
+    Room room = getOrCreateDirectMessagingRoom(userName, recipientUserName);
+    return sendMessage(userName, room.getRoomId(), text);
+  }
+
+  /**
+   * Builds the {@code m.direct} account data of a user from the direct
+   * messaging rooms the platform records: each room id keyed by the full
+   * Matrix id of the other participant.
+   *
+   * @param userName the username of the user
+   * @return the user's direct rooms, by the other participant's full Matrix id
+   */
+  private Map<String, String[]> getDirectRoomsAccountData(String userName) {
+    Map<String, String[]> directRooms = new HashMap<>();
+    for (Room room : getMatrixDMRoomsOfUser(userName)) {
+      String other = userName.equals(room.getFirstParticipant()) ? room.getSecondParticipant() : room.getFirstParticipant();
+      Identity otherIdentity = identityManager.getOrCreateUserIdentity(other);
+      Object otherMatrixId = otherIdentity == null ? null : otherIdentity.getProfile().getProperty(USER_MATRIX_ID);
+      if (otherMatrixId != null && StringUtils.isNotBlank(otherMatrixId.toString())) {
+        directRooms.put(toFullMatrixUserId(otherMatrixId.toString()), new String[] { room.getRoomId() });
+      }
+    }
+    return directRooms;
+  }
+
+  /**
+   * Writes the user's direct rooms into their {@code m.direct} account data on
+   * Matrix, so that Matrix clients list the rooms as direct messages. A failure
+   * is logged and does not undo the room it follows.
+   *
+   * @param userName the username of the user
+   */
+  private void updateDirectRoomsAccountData(String userName) {
+    String matrixId = getMatrixIdForUser(userName);
+    if (StringUtils.isBlank(matrixId)) {
+      return;
+    }
+    Map<String, String[]> directRooms = getDirectRoomsAccountData(userName);
+    boolean updated = callAsUser(userName, false, accessToken -> {
+      matrixHttpClient.setDirectRoomsAccountData(toFullMatrixUserId(matrixId), directRooms, accessToken);
+      return true;
+    });
+    if (!updated) {
+      LOG.warn("Could not update the direct rooms account data of user {}", userName);
+    }
+  }
+
+  /**
+   * Completes a Matrix user id stored as its local part with the server name; a
+   * full id is returned as is.
+   *
+   * @param matrixId the Matrix user id, local part or full id
+   * @return the full Matrix user id
+   */
+  private String toFullMatrixUserId(String matrixId) {
+    if (matrixId.startsWith("@") && matrixId.contains(":")) {
+      return matrixId;
+    }
+    return "@" + matrixId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+  }
+
+  /**
    * Loads all the one to one rooms of a defined user
-   * 
+   *
    * @param user the username of the user
    * @return List of Room
    */
@@ -1396,7 +1543,7 @@ public class MatrixService {
       }
       String other = userName.equals(room.getFirstParticipant()) ? room.getSecondParticipant()
                                                                  : room.getFirstParticipant();
-      conversations.add(new ChatConversation(room.getRoomId(), "dm", getUserDisplayName(other), null));
+      conversations.add(new ChatConversation(room.getRoomId(), "dm", getUserDisplayName(other), null, other));
     }
 
     // Space rooms the user is a member of
@@ -1410,7 +1557,8 @@ public class MatrixService {
             conversations.add(new ChatConversation(room.getRoomId(),
                                                    "space",
                                                    space.getDisplayName(),
-                                                   Long.valueOf(space.getId())));
+                                                   Long.valueOf(space.getId()),
+                                                   null));
           }
         }
       }
@@ -1418,6 +1566,43 @@ public class MatrixService {
       LOG.warn("Could not list space conversations for user {}", userName, e);
     }
     return conversations;
+  }
+
+  /**
+   * Lists the conversations the given user participates in, as
+   * {@link #getUserConversations(String)} does, keeping those of a type and
+   * those whose title, or for a direct message the other participant's
+   * username, contains a text. The match ignores case and accents.
+   *
+   * @param userName the Meeds username
+   * @param type {@code "dm"} or {@code "space"} to keep one type only, blank to
+   *          keep both
+   * @param query the text to look for, blank to keep every conversation
+   * @param limit the maximum number of conversations to return, {@code null}
+   *          for no maximum
+   * @return the matching conversations, never {@code null}
+   */
+  public List<ChatConversation> getUserConversations(String userName, String type, String query, Integer limit) {
+    String normalizedQuery = normalizeForMatch(query);
+    return getUserConversations(userName).stream()
+                                         .filter(conversation -> StringUtils.isBlank(type)
+                                             || type.trim().equalsIgnoreCase(conversation.getType()))
+                                         .filter(conversation -> normalizedQuery.isEmpty()
+                                             || normalizeForMatch(conversation.getTitle()).contains(normalizedQuery)
+                                             || normalizeForMatch(conversation.getUserName()).contains(normalizedQuery))
+                                         .limit(limit == null ? Long.MAX_VALUE : Math.max(1, limit))
+                                         .toList();
+  }
+
+  /**
+   * Prepares a text for a case and accent insensitive match.
+   *
+   * @param text the text, possibly {@code null}
+   * @return the trimmed text without accents in lower case, empty for a blank
+   *         text
+   */
+  private String normalizeForMatch(String text) {
+    return StringUtils.isBlank(text) ? "" : StringUtils.stripAccents(text.trim()).toLowerCase(Locale.ROOT);
   }
 
   private String getUserDisplayName(String userName) {
