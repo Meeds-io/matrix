@@ -20,6 +20,11 @@ package io.meeds.chat.mcp;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
+import org.exoplatform.services.log.ExoLogger;
+import org.exoplatform.services.log.Log;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -40,17 +45,26 @@ import io.meeds.mcp.server.plugin.McpToolPlugin;
 @Service
 public class ChatMcpTool implements McpToolPlugin {
 
+  private static final Log LOG = ExoLogger.getLogger(ChatMcpTool.class);
+
   @Autowired
   protected MatrixService matrixService;
 
   /**
    * Lists the chat conversations (direct messages and space rooms) the current
-   * user participates in. Tool name: {@code list_chat_conversations}.
+   * user participates in, optionally of one type and matching a text. Tool name:
+   * {@code list_chat_conversations}.
    *
-   * @return the current user's conversations
+   * @param type {@code "dm"} or {@code "space"} to list one type only; both when
+   *          omitted
+   * @param query a text the conversation title, or a direct message's other
+   *          participant username, contains; every conversation when omitted
+   * @param limit the maximum number of conversations to return; no maximum when
+   *          omitted
+   * @return the current user's matching conversations
    */
-  public List<ChatConversation> listChatConversations() {
-    return matrixService.getUserConversations(getCurrentUserName());
+  public List<ChatConversation> listChatConversations(String type, String query, Integer limit) {
+    return matrixService.getUserConversations(getCurrentUserName(), type, query, limit);
   }
 
   /**
@@ -95,6 +109,45 @@ public class ChatMcpTool implements McpToolPlugin {
           + "access to it, or the chat service is unavailable. Do not tell the user it was sent.";
     }
     return "The message was sent successfully (event id: " + eventId + ").";
+  }
+
+  /**
+   * Sends a text message to a user, on the current user's behalf, in their
+   * direct message, which is opened first when they have none. Tool name:
+   * {@code send_direct_message}.
+   *
+   * @param username the username of the recipient
+   * @param text the plain text message to send
+   * @return the outcome, worded for the agent: the event id when the message was
+   *         sent, why it was not otherwise; the reason of a refusal is the
+   *         service's, written for the agent
+   */
+  public String sendDirectMessage(String username, String text) {
+    try {
+      String eventId = matrixService.sendDirectMessage(getCurrentUserName(), username, text);
+      if (eventId != null) {
+        return "The message was sent successfully (event id: " + eventId + ").";
+      }
+    } catch (ObjectNotFoundException e) {
+      return "ERROR: the message was NOT sent. No user has the username '" + username
+          + "': find the user's username first. Do not tell the user it was sent.";
+    } catch (IllegalAccessException e) {
+      return "ERROR: the message was NOT sent. The current user cannot send a direct message to '" + username + "': "
+          + e.getMessage() + ". Do not tell the user it was sent.";
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.warn("Sending a direct message to {} was interrupted", username, e);
+    } catch (IllegalArgumentException e) {
+      if (StringUtils.startsWith(e.getMessage(), "chat.directMessage.")) {
+        return "ERROR: the message was NOT sent. A recipient username other than the current user's is required. "
+            + "Do not tell the user it was sent.";
+      }
+      LOG.warn("Could not send a direct message to {}", username, e);
+    } catch (Exception e) {
+      LOG.warn("Could not send a direct message to {}", username, e);
+    }
+    return "ERROR: the message was NOT sent. The text may be empty, or the chat service is unavailable. "
+        + "Do not tell the user it was sent.";
   }
 
   /**
