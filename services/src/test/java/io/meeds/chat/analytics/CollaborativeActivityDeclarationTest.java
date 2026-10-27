@@ -36,11 +36,13 @@ import tools.jackson.databind.ObjectMapper;
  * chat message is the one event the chat records, sent from the browser
  * through the analytics websocket (ChatButton.vue, sendMessageStatistics:
  * module Chat, operation sendMessage, the room's space as the spaceId
- * parameter). It is declared twice on purpose: as an operation, so that the
- * stored events count, and as a browser operation, so that the websocket
- * path accepts it under its declared module for a member of the space. The
- * strings are the ones the Vue component sends; the label keys are matched
- * by hand against the webapp's Portlets_en.properties.
+ * parameter). It is declared as a browser operation, which is what makes it
+ * count, on the websocket path under its declared module for a member of the
+ * space and for the messages stored before this version, and listed under
+ * operations as the spec's table does. A direct message counts too, in the
+ * platform-wide figures only: it carries no space. The strings are the ones
+ * the Vue component sends; the label keys are matched by hand against the
+ * webapp's Portlets_en.properties.
  */
 class CollaborativeActivityDeclarationTest {
 
@@ -68,8 +70,10 @@ class CollaborativeActivityDeclarationTest {
     assertFalse(declaration.containsKey("excludedActivityTypes"));
 
     Map<String, Object> labels = (Map<String, Object>) declaration.get("labels");
-    assertEquals(List.of("matrix.collaborativeActivity.help.counted.sendMessage"), labels.get("counted"));
-    assertEquals(List.of("matrix.collaborativeActivity.help.notCounted.directMessage"), labels.get("notCounted"));
+    assertEquals(List.of("matrix.collaborativeActivity.help.counted.sendMessage",
+                         "matrix.collaborativeActivity.help.counted.directMessage"),
+                 labels.get("counted"));
+    assertFalse(labels.containsKey("notCounted"), "a direct message counts platform-wide, so nothing of the chat is left out");
   }
 
 }
