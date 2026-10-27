@@ -3,10 +3,24 @@
     {
       "name": "list_chat_conversations",
       "title": "List Chat Conversations",
-      "description": "List the chat conversations the current user participates in, including direct messages and space rooms. Returns each conversation's Matrix room id, type ('dm' or 'space'), title and, for space rooms, the Meeds space id. Use this to discover which conversations exist before reading or summarizing their messages.",
+      "description": "List the chat conversations the current user participates in, including direct messages and space rooms. Returns each conversation's Matrix room id, type ('dm' or 'space'), title, the Meeds space id for a space room and the other participant's username for a direct message. Filter with type and query rather than listing everything: list_chat_conversations(type='dm', query='Morgan') returns the direct messages whose other participant's name or username contains 'Morgan'. Use this to find a conversation before reading or summarizing its messages. To send a message to one person, use send_direct_message with their username instead.",
       "input_schema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["dm", "space"],
+            "description": "Optional: 'dm' to list direct messages only, 'space' to list space rooms only; omit to list both"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional text the conversation title (a space name, or the other participant's name for a direct message) or the other participant's username contains; case and accents are ignored"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Optional maximum number of conversations to return (e.g. 20)"
+          }
+        }
       },
       "annotations": {
         "readOnlyHint": true,
@@ -61,7 +75,7 @@
     {
       "name": "send_chat_message",
       "title": "Send Chat Message",
-      "description": "Send a text message to one of the current user's chat conversations, on the user's behalf. Use the conversation id ('roomId') returned by list_chat_conversations. Returns the created message event id.",
+      "description": "Send a text message to one of the current user's chat conversations, on the user's behalf. Use the conversation id ('roomId') returned by list_chat_conversations. Returns the created message event id. To message one person, use send_direct_message with their username instead: it needs no conversation id.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -80,6 +94,35 @@
         ]
       },
       "space_scope": { "object_arg": "conversation_id", "resolver": "chat_room", "id_format": "matrix_room", "allowed_args": ["text"] },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "require_approval": true
+    },
+    {
+      "name": "send_direct_message",
+      "title": "Send Direct Message",
+      "description": "Send a text message to a user, on the current user's behalf, in their direct message conversation, which is opened when the two users have none yet. Takes the recipient's username: find it with search_users when the user names someone by their full name. No need to list the conversations first. Returns the created message event id, or why the message was not sent.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Username (login) of the recipient, e.g. 'morgan'"
+          },
+          "text": {
+            "type": "string",
+            "description": "Plain text message to send"
+          }
+        },
+        "required": [
+          "username",
+          "text"
+        ]
+      },
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
