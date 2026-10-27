@@ -22,6 +22,7 @@ import io.meeds.chat.model.ChatConversation;
 import io.meeds.chat.model.ChatMessage;
 import io.meeds.chat.model.ChatUnread;
 import io.meeds.chat.service.MatrixService;
+import org.exoplatform.commons.exception.ObjectNotFoundException;
 import org.exoplatform.services.security.ConversationState;
 import org.exoplatform.services.security.Identity;
 import org.junit.jupiter.api.AfterEach;
@@ -57,9 +58,70 @@ class ChatMcpToolTest {
   @Test
   void listChatConversations() {
     List<ChatConversation> conversations = List.of(new ChatConversation());
-    when(matrixService.getUserConversations(USER)).thenReturn(conversations);
-    assertSame(conversations, chatMcpTool.listChatConversations());
-    verify(matrixService).getUserConversations(USER);
+    when(matrixService.getUserConversations(USER, null, null, null)).thenReturn(conversations);
+    assertSame(conversations, chatMcpTool.listChatConversations(null, null, null));
+    verify(matrixService).getUserConversations(USER, null, null, null);
+  }
+
+  /**
+   * The type, query and limit the agent passes reach the service as they are,
+   * for the current user.
+   */
+  @Test
+  void listChatConversationsPassesTheFilters() {
+    List<ChatConversation> conversations = List.of(new ChatConversation());
+    when(matrixService.getUserConversations(USER, "dm", "Morgan", 5)).thenReturn(conversations);
+    assertSame(conversations, chatMcpTool.listChatConversations("dm", "Morgan", 5));
+  }
+
+  @Test
+  void sendDirectMessageSuccess() throws Exception {
+    when(matrixService.sendDirectMessage(USER, "morgan", "Hello")).thenReturn("$evt2");
+    String result = chatMcpTool.sendDirectMessage("morgan", "Hello");
+    assertTrue(result.contains("$evt2"));
+    assertTrue(result.contains("sent successfully"));
+  }
+
+  /**
+   * Each refusal is told apart for the agent, and none claims the message was
+   * sent.
+   */
+  @Test
+  void sendDirectMessageRefusalsDoNotClaimSuccess() throws Exception {
+    when(matrixService.sendDirectMessage(USER, "nobody", "Hi")).thenThrow(new ObjectNotFoundException("No user nobody"));
+    String unknown = chatMcpTool.sendDirectMessage("nobody", "Hi");
+    assertTrue(unknown.startsWith("ERROR"));
+    assertTrue(unknown.contains("No user has the username 'nobody'"));
+
+    when(matrixService.sendDirectMessage(USER, "outsider", "Hi")).thenThrow(new IllegalAccessException("User outsider is not an active user"));
+    String refused = chatMcpTool.sendDirectMessage("outsider", "Hi");
+    assertTrue(refused.startsWith("ERROR"));
+    assertTrue(refused.contains("cannot send a direct message to 'outsider': User outsider is not an active user."));
+
+    when(matrixService.sendDirectMessage(USER, USER, "Hi")).thenThrow(new IllegalArgumentException("chat.directMessage.selfNotAllowed"));
+    String self = chatMcpTool.sendDirectMessage(USER, "Hi");
+    assertTrue(self.startsWith("ERROR"));
+    assertTrue(self.contains("other than the current user's"));
+
+    when(matrixService.sendDirectMessage(USER, "morgan", "Hi")).thenThrow(new IllegalArgumentException("The URL of the Matrix server is required"));
+    String misconfigured = chatMcpTool.sendDirectMessage("morgan", "Hi");
+    assertTrue(misconfigured.startsWith("ERROR"));
+    assertTrue(misconfigured.contains("chat service is unavailable"));
+
+    when(matrixService.sendDirectMessage(USER, "slow", "Hi")).thenThrow(new InterruptedException());
+    try {
+      String interrupted = chatMcpTool.sendDirectMessage("slow", "Hi");
+      assertTrue(interrupted.startsWith("ERROR"));
+      assertTrue(interrupted.contains("NOT sent"));
+      assertTrue(Thread.currentThread().isInterrupted());
+    } finally {
+      Thread.interrupted();
+    }
+
+    when(matrixService.sendDirectMessage(USER, "morgan", "Hello")).thenReturn(null);
+    String failed = chatMcpTool.sendDirectMessage("morgan", "Hello");
+    assertTrue(failed.startsWith("ERROR"));
+    assertTrue(failed.contains("NOT sent"));
   }
 
   @Test

@@ -33,7 +33,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The chat tools' space scope: in a run limited to a space, a room can be
  * read and written to through its id, which the chat_room resolver ties to
- * the space; nothing lists or searches the user's conversations.
+ * the space; nothing lists or searches the user's conversations, or messages
+ * a user by username.
  */
 class ChatToolDefinitionsTest {
 
@@ -60,7 +61,12 @@ class ChatToolDefinitionsTest {
     assertEquals("[\"text\"]", write.getJSONArray("allowed_args").toString());
     assertTrue(tools.get("send_chat_message").getBoolean("require_approval"));
 
-    for (String unscoped : new String[] { "search_chat_messages", "list_chat_conversations", "get_unread_chat_messages" }) {
+    assertTrue(tools.get("send_direct_message").getBoolean("require_approval"));
+    assertEquals("[\"username\",\"text\"]",
+                 tools.get("send_direct_message").getJSONObject("input_schema").getJSONArray("required").toString());
+
+    for (String unscoped : new String[] { "search_chat_messages", "list_chat_conversations", "get_unread_chat_messages",
+        "send_direct_message" }) {
       assertFalse(tools.get(unscoped).has("space_scope"), unscoped);
     }
   }
