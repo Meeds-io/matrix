@@ -64,14 +64,6 @@ public class MatrixHttpClient {
   /** About 11 days in milliseconds: wider than any sync response cache duration. */
   private static final int    UNREAD_SYNC_TIMEOUT_RANGE = 1_000_000_000;
 
-  /**
-   * Gives each unread sync its own timeout value (see getUnreadRooms), seeded
-   * from the clock so that another node, or this one after a restart, does not
-   * walk the same values.
-   */
-  private final AtomicInteger unreadSyncCounter     =
-                                                  new AtomicInteger((int) (System.currentTimeMillis() % UNREAD_SYNC_TIMEOUT_RANGE));
-
   /** Format a message content declares when it carries an HTML {@code formatted_body}. */
   private static final String HTML_MESSAGE_FORMAT   = "org.matrix.custom.html";
 
@@ -86,6 +78,14 @@ public class MatrixHttpClient {
 
   /** The push rule action that makes a rule notify. */
   private static final String NOTIFY_ACTION         = "notify";
+
+  /**
+   * Gives each unread sync its own timeout value (see getUnreadRooms), seeded
+   * from the clock so that another node, or this one after a restart, does not
+   * walk the same values.
+   */
+  private final AtomicInteger unreadSyncCounter     =
+                                                  new AtomicInteger((int) (System.currentTimeMillis() % UNREAD_SYNC_TIMEOUT_RANGE));
 
   /**
    * Get an authenticated access token for the administrative tasks
@@ -313,40 +313,6 @@ public class MatrixHttpClient {
         + URLEncoder.encode(ruleId, StandardCharsets.UTF_8) + "/enabled";
     String payload = new JSONObject().put("enabled", enabled).toString();
     checkClientApiResponse(sendBoundedPutRequest(url, accessToken, payload, timeout), "updating the push rule " + ruleId);
-  }
-
-  /**
-   * Tells whether a push rule's actions contain {@code notify}.
-   *
-   * @param actions the rule's actions, strings or objects
-   * @return true when one action is the string {@code notify}
-   */
-  private boolean isNotifying(JSONArray actions) {
-    for (int i = 0; actions != null && i < actions.length(); i++) {
-      if (NOTIFY_ACTION.equals(actions.opt(i))) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Throws the exception a client API response calls for: a rejected token, or
-   * any other non-2xx answer.
-   *
-   * @param response the response
-   * @param operation the operation, for the message
-   * @throws MatrixUnauthorizedException on a 401
-   * @throws MatrixException on another non-2xx status
-   */
-  private void checkClientApiResponse(HttpResponse<String> response, String operation) {
-    if (response.statusCode() == 401) {
-      throw new MatrixUnauthorizedException("Access token rejected while " + operation);
-    }
-    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new MatrixException("Error while %s, Matrix server returned HTTP %s".formatted(operation,
-                                                                                         String.valueOf(response.statusCode())));
-    }
   }
 
   /**
@@ -1288,34 +1254,6 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Builds the admin API url of a Matrix user, its id percent-encoded.
-   *
-   * @param matrixIdOfUser the Matrix id of the user
-   * @return the url
-   */
-  private String userUrl(String matrixIdOfUser) {
-    return PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/"
-        + URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
-  }
-
-  /**
-   * Answers the body of a user read, or throws on a non-2xx status.
-   *
-   * @param response the response
-   * @param matrixIdOfUser the Matrix id read, for the message
-   * @return the user's details
-   */
-  private String parseUserResponse(HttpResponse<String> response, String matrixIdOfUser) {
-    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-      return response.body();
-    } else {
-      throw new RuntimeException("Error retrieving the details of the user %s ,Matrix server returned HTTP %s error %s".formatted(matrixIdOfUser,
-                                                                                                                                  String.valueOf(response.statusCode()),
-                                                                                                                                  response.body()));
-    }
-  }
-
-  /**
    * Set the user presence on Matrix server
    * 
    * @param matrixIdOfUser the ID of the user n Matrix
@@ -1483,78 +1421,6 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Builds the client API url of one event, the room id and the event id
-   * percent-encoded into the path.
-   *
-   * @param eventId the event ID
-   * @param roomId the room ID
-   * @return the url
-   */
-  private String eventUrl(String eventId, String roomId) {
-    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + URLEncoder.encode(roomId, StandardCharsets.UTF_8)
-        + "/event/" + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
-  }
-
-  /**
-   * Parses the answer of an event read.
-   *
-   * @param response the response
-   * @param eventId the event ID read
-   * @return the message, null on a 404
-   * @throws JsonException when the response cannot be parsed
-   */
-  private MatrixMessage parseEventResponse(HttpResponse<String> response, String eventId) throws JsonException {
-    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-      JsonValue jsonMessage = new JsonGeneratorImpl().createJsonObjectFromString(response.body());
-      MatrixMessage message = new MatrixMessage();
-      message.setEventId(eventId);
-      message.setRoomId(jsonMessage.getElement("room_id").getStringValue());
-      message.setType(jsonMessage.getElement("type").getStringValue());
-      message.setSender(jsonMessage.getElement("sender").getStringValue());
-      message.setTimeStamp(Long.parseLong(jsonMessage.getElement("origin_server_ts").getStringValue()));
-      if (jsonMessage.getElement("content") != null) {
-        JsonValue content = jsonMessage.getElement("content");
-        if(content.getElement("body") != null) {
-          message.setMessageContent(content.getElement("body").getStringValue());
-        }
-        if (content.getElement("msgtype") != null) {
-          message.setMessageType(content.getElement("msgtype").getStringValue());
-        }
-        JsonValue format = content.getElement("format");
-        JsonValue formattedBody = content.getElement("formatted_body");
-        if (format != null && HTML_MESSAGE_FORMAT.equals(format.getStringValue()) && formattedBody != null) {
-          message.setFormattedContent(formattedBody.getStringValue());
-        }
-        readRelation(content, message);
-        JsonValue mentionsElement = content.getElement("m.mentions");
-        if (mentionsElement != null) {
-          JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
-          if (mentionedUsersElement != null) {
-            Iterator<JsonValue> mentionedUsersIterator = mentionedUsersElement.getElements();
-            List<String> mentionedUsers = new ArrayList<>();
-            while (mentionedUsersIterator.hasNext()) {
-              JsonValue nextMentioned = mentionedUsersIterator.next();
-              mentionedUsers.add(nextMentioned.getStringValue());
-            }
-            message.setMentionedUsers(mentionedUsers);
-          }
-        }
-      }
-      return message;
-    } else {
-      if (response.statusCode() != 404) {
-        throw new RuntimeException("Error retrieving the message of the event %s ,Matrix server returned HTTP %s error %s".formatted(eventId,
-                                                                                                                                     String.valueOf(response.statusCode()),
-                                                                                                                                     response.body()));
-      } else {
-        // if the event is missing or the user has not the right to access it (event in
-        // a private room)
-        return null;
-      }
-    }
-  }
-
-  /**
    * Retrieves the most recent messages of a room as the user owning the given
    * access token, using the Matrix client API
    * ({@code /_matrix/client/v3/rooms/{roomId}/messages}). Synapse enforces the
@@ -1597,63 +1463,6 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Builds the client API url reading the latest events of a room,
-   * newest first.
-   *
-   * @param matrixRoomId the room local part (without the server name suffix)
-   * @param limit the maximum number of events to fetch
-   * @return the url
-   */
-  private String roomMessagesUrl(String matrixRoomId, int limit) {
-    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
-      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
-    }
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit=" + limit;
-  }
-
-  /**
-   * Turns the response of a room messages read into the textual messages it
-   * carries: an empty list when the user may not read the room (HTTP 403/404).
-   *
-   * @param response the client API response
-   * @param matrixRoomId the room local part the events belong to
-   * @return the {@code m.room.message} events with a body, in response order
-   * @throws MatrixUnauthorizedException when the access token is rejected
-   * @throws MatrixException on any other error status
-   * @throws JsonException when the response cannot be parsed
-   */
-  private List<MatrixMessage> parseRoomMessagesResponse(HttpResponse<String> response,
-                                                       String matrixRoomId) throws JsonException {
-    if (response.statusCode() == 401) {
-      throw new MatrixUnauthorizedException("Access token rejected while reading messages of room " + matrixRoomId);
-    }
-    if (response.statusCode() == 403 || response.statusCode() == 404) {
-      // The user is not a member of the room or cannot see its history
-      LOG.debug("User is not allowed to read messages of room {} (HTTP {})", matrixRoomId, response.statusCode());
-      return new ArrayList<>();
-    }
-    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new MatrixException("Error retrieving messages of room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
-                                                                                                                          String.valueOf(response.statusCode()),
-                                                                                                                          response.body()));
-    }
-    List<MatrixMessage> messages = new ArrayList<>();
-    JsonValue chunk = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("chunk");
-    if (chunk == null || !chunk.isArray()) {
-      return messages;
-    }
-    Iterator<JsonValue> events = chunk.getElements();
-    while (events.hasNext()) {
-      MatrixMessage message = parseMessageEvent(events.next(), matrixRoomId);
-      if (message != null) {
-        messages.add(message);
-      }
-    }
-    return messages;
-  }
-
-  /**
    * Parses a single Matrix timeline event into a {@link MatrixMessage}, or returns
    * {@code null} when the event is not a textual {@code m.room.message}.
    *
@@ -1688,39 +1497,6 @@ public class MatrixHttpClient {
     }
     readRelation(content, message);
     return message;
-  }
-
-  /**
-   * Copies the {@code m.relates_to} of a message content into the message: the
-   * relation type, the replied-to event, and for an {@code m.replace} edit the
-   * replaced event and the new body of its {@code m.new_content}.
-   *
-   * @param content the message content
-   * @param message the message parsed from that content, updated in place
-   */
-  private void readRelation(JsonValue content, MatrixMessage message) {
-    JsonValue relatesTo = content.getElement("m.relates_to");
-    if (relatesTo == null) {
-      return;
-    }
-    JsonValue relationType = relatesTo.getElement("rel_type");
-    if (relationType != null) {
-      message.setRelatesToType(relationType.getStringValue());
-    }
-    JsonValue inReplyTo = relatesTo.getElement("m.in_reply_to");
-    JsonValue repliedEventId = inReplyTo == null ? null : inReplyTo.getElement("event_id");
-    if (repliedEventId != null) {
-      message.setInReplyTo(repliedEventId.getStringValue());
-    }
-    JsonValue replacedEventId = relatesTo.getElement("event_id");
-    if ("m.replace".equals(message.getRelatesToType()) && replacedEventId != null) {
-      message.setReplacedEventId(replacedEventId.getStringValue());
-      JsonValue newContent = content.getElement("m.new_content");
-      JsonValue newBody = newContent == null ? null : newContent.getElement("body");
-      if (newBody != null) {
-        message.setEditedContent(newBody.getStringValue());
-      }
-    }
   }
 
   /**
@@ -2073,43 +1849,6 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Builds the client API url sending a message to a room.
-   *
-   * @param matrixRoomId the room local part (without the server name suffix)
-   * @param transactionId the client transaction id
-   * @return the url
-   */
-  private String sendMessageUrl(String matrixRoomId, String transactionId) {
-    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
-      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
-    }
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/send/m.room.message/" + transactionId;
-  }
-
-  /**
-   * Reads the event id out of the response of a message send.
-   *
-   * @param response the client API response
-   * @param matrixRoomId the room the message was sent to
-   * @return the created event id
-   * @throws MatrixUnauthorizedException when the access token is rejected
-   * @throws MatrixException on any other error status
-   * @throws JsonException when the response cannot be parsed
-   */
-  private String parseSendResponse(HttpResponse<String> response, String matrixRoomId) throws JsonException {
-    if (response.statusCode() == 401) {
-      throw new MatrixUnauthorizedException("Access token rejected while sending a message to room " + matrixRoomId);
-    }
-    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new MatrixException("Error sending a message to room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
-                                                                                                                        String.valueOf(response.statusCode()),
-                                                                                                                        response.body()));
-    }
-    return new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("event_id").getStringValue();
-  }
-
-  /**
    * Posts an {@code m.read} receipt on behalf of a user: a Matrix read
    * receipt is a high-water mark, everything up to the event becomes read.
    *
@@ -2195,5 +1934,266 @@ public class MatrixHttpClient {
     String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
     String url = String.format("%s/_synapse/admin/v1/media/%s/%s", serverUrl, serverName, mediaId);
     return HTTPHelper.sendHttpDeleteRequest(url, accessToken, "");
+  }
+
+  /**
+   * Tells whether a push rule's actions contain {@code notify}.
+   *
+   * @param actions the rule's actions, strings or objects
+   * @return true when one action is the string {@code notify}
+   */
+  private boolean isNotifying(JSONArray actions) {
+    for (int i = 0; actions != null && i < actions.length(); i++) {
+      if (NOTIFY_ACTION.equals(actions.opt(i))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Throws the exception a client API response calls for: a rejected token, or
+   * any other non-2xx answer.
+   *
+   * @param response the response
+   * @param operation the operation, for the message
+   * @throws MatrixUnauthorizedException on a 401
+   * @throws MatrixException on another non-2xx status
+   */
+  private void checkClientApiResponse(HttpResponse<String> response, String operation) {
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while " + operation);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error while %s, Matrix server returned HTTP %s".formatted(operation,
+                                                                                         String.valueOf(response.statusCode())));
+    }
+  }
+
+  /**
+   * Builds the admin API url of a Matrix user, its id percent-encoded.
+   *
+   * @param matrixIdOfUser the Matrix id of the user
+   * @return the url
+   */
+  private String userUrl(String matrixIdOfUser) {
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v2/users/"
+        + URLEncoder.encode(matrixIdOfUser, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Answers the body of a user read, or throws on a non-2xx status.
+   *
+   * @param response the response
+   * @param matrixIdOfUser the Matrix id read, for the message
+   * @return the user's details
+   */
+  private String parseUserResponse(HttpResponse<String> response, String matrixIdOfUser) {
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      return response.body();
+    } else {
+      throw new RuntimeException("Error retrieving the details of the user %s ,Matrix server returned HTTP %s error %s".formatted(matrixIdOfUser,
+                                                                                                                                  String.valueOf(response.statusCode()),
+                                                                                                                                  response.body()));
+    }
+  }
+
+  /**
+   * Builds the client API url of one event, the room id and the event id
+   * percent-encoded into the path.
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID
+   * @return the url
+   */
+  private String eventUrl(String eventId, String roomId) {
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + URLEncoder.encode(roomId, StandardCharsets.UTF_8)
+        + "/event/" + URLEncoder.encode(eventId, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Parses the answer of an event read.
+   *
+   * @param response the response
+   * @param eventId the event ID read
+   * @return the message, null on a 404
+   * @throws JsonException when the response cannot be parsed
+   */
+  private MatrixMessage parseEventResponse(HttpResponse<String> response, String eventId) throws JsonException {
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      JsonValue jsonMessage = new JsonGeneratorImpl().createJsonObjectFromString(response.body());
+      MatrixMessage message = new MatrixMessage();
+      message.setEventId(eventId);
+      message.setRoomId(jsonMessage.getElement("room_id").getStringValue());
+      message.setType(jsonMessage.getElement("type").getStringValue());
+      message.setSender(jsonMessage.getElement("sender").getStringValue());
+      message.setTimeStamp(Long.parseLong(jsonMessage.getElement("origin_server_ts").getStringValue()));
+      if (jsonMessage.getElement("content") != null) {
+        JsonValue content = jsonMessage.getElement("content");
+        if(content.getElement("body") != null) {
+          message.setMessageContent(content.getElement("body").getStringValue());
+        }
+        if (content.getElement("msgtype") != null) {
+          message.setMessageType(content.getElement("msgtype").getStringValue());
+        }
+        JsonValue format = content.getElement("format");
+        JsonValue formattedBody = content.getElement("formatted_body");
+        if (format != null && HTML_MESSAGE_FORMAT.equals(format.getStringValue()) && formattedBody != null) {
+          message.setFormattedContent(formattedBody.getStringValue());
+        }
+        readRelation(content, message);
+        JsonValue mentionsElement = content.getElement("m.mentions");
+        if (mentionsElement != null) {
+          JsonValue mentionedUsersElement = mentionsElement.getElement("user_ids");
+          if (mentionedUsersElement != null) {
+            Iterator<JsonValue> mentionedUsersIterator = mentionedUsersElement.getElements();
+            List<String> mentionedUsers = new ArrayList<>();
+            while (mentionedUsersIterator.hasNext()) {
+              JsonValue nextMentioned = mentionedUsersIterator.next();
+              mentionedUsers.add(nextMentioned.getStringValue());
+            }
+            message.setMentionedUsers(mentionedUsers);
+          }
+        }
+      }
+      return message;
+    } else {
+      if (response.statusCode() != 404) {
+        throw new RuntimeException("Error retrieving the message of the event %s ,Matrix server returned HTTP %s error %s".formatted(eventId,
+                                                                                                                                     String.valueOf(response.statusCode()),
+                                                                                                                                     response.body()));
+      } else {
+        // if the event is missing or the user has not the right to access it (event in
+        // a private room)
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Builds the client API url reading the latest events of a room,
+   * newest first.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param limit the maximum number of events to fetch
+   * @return the url
+   */
+  private String roomMessagesUrl(String matrixRoomId, int limit) {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit=" + limit;
+  }
+
+  /**
+   * Turns the response of a room messages read into the textual messages it
+   * carries: an empty list when the user may not read the room (HTTP 403/404).
+   *
+   * @param response the client API response
+   * @param matrixRoomId the room local part the events belong to
+   * @return the {@code m.room.message} events with a body, in response order
+   * @throws MatrixUnauthorizedException when the access token is rejected
+   * @throws MatrixException on any other error status
+   * @throws JsonException when the response cannot be parsed
+   */
+  private List<MatrixMessage> parseRoomMessagesResponse(HttpResponse<String> response,
+                                                       String matrixRoomId) throws JsonException {
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while reading messages of room " + matrixRoomId);
+    }
+    if (response.statusCode() == 403 || response.statusCode() == 404) {
+      // The user is not a member of the room or cannot see its history
+      LOG.debug("User is not allowed to read messages of room {} (HTTP {})", matrixRoomId, response.statusCode());
+      return new ArrayList<>();
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error retrieving messages of room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                          String.valueOf(response.statusCode()),
+                                                                                                                          response.body()));
+    }
+    List<MatrixMessage> messages = new ArrayList<>();
+    JsonValue chunk = new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("chunk");
+    if (chunk == null || !chunk.isArray()) {
+      return messages;
+    }
+    Iterator<JsonValue> events = chunk.getElements();
+    while (events.hasNext()) {
+      MatrixMessage message = parseMessageEvent(events.next(), matrixRoomId);
+      if (message != null) {
+        messages.add(message);
+      }
+    }
+    return messages;
+  }
+
+  /**
+   * Copies the {@code m.relates_to} of a message content into the message: the
+   * relation type, the replied-to event, and for an {@code m.replace} edit the
+   * replaced event and the new body of its {@code m.new_content}.
+   *
+   * @param content the message content
+   * @param message the message parsed from that content, updated in place
+   */
+  private void readRelation(JsonValue content, MatrixMessage message) {
+    JsonValue relatesTo = content.getElement("m.relates_to");
+    if (relatesTo == null) {
+      return;
+    }
+    JsonValue relationType = relatesTo.getElement("rel_type");
+    if (relationType != null) {
+      message.setRelatesToType(relationType.getStringValue());
+    }
+    JsonValue inReplyTo = relatesTo.getElement("m.in_reply_to");
+    JsonValue repliedEventId = inReplyTo == null ? null : inReplyTo.getElement("event_id");
+    if (repliedEventId != null) {
+      message.setInReplyTo(repliedEventId.getStringValue());
+    }
+    JsonValue replacedEventId = relatesTo.getElement("event_id");
+    if ("m.replace".equals(message.getRelatesToType()) && replacedEventId != null) {
+      message.setReplacedEventId(replacedEventId.getStringValue());
+      JsonValue newContent = content.getElement("m.new_content");
+      JsonValue newBody = newContent == null ? null : newContent.getElement("body");
+      if (newBody != null) {
+        message.setEditedContent(newBody.getStringValue());
+      }
+    }
+  }
+
+  /**
+   * Builds the client API url sending a message to a room.
+   *
+   * @param matrixRoomId the room local part (without the server name suffix)
+   * @param transactionId the client transaction id
+   * @return the url
+   */
+  private String sendMessageUrl(String matrixRoomId, String transactionId) {
+    if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
+      throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
+    }
+    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    return PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/send/m.room.message/" + transactionId;
+  }
+
+  /**
+   * Reads the event id out of the response of a message send.
+   *
+   * @param response the client API response
+   * @param matrixRoomId the room the message was sent to
+   * @return the created event id
+   * @throws MatrixUnauthorizedException when the access token is rejected
+   * @throws MatrixException on any other error status
+   * @throws JsonException when the response cannot be parsed
+   */
+  private String parseSendResponse(HttpResponse<String> response, String matrixRoomId) throws JsonException {
+    if (response.statusCode() == 401) {
+      throw new MatrixUnauthorizedException("Access token rejected while sending a message to room " + matrixRoomId);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new MatrixException("Error sending a message to room %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
+                                                                                                                        String.valueOf(response.statusCode()),
+                                                                                                                        response.body()));
+    }
+    return new JsonGeneratorImpl().createJsonObjectFromString(response.body()).getElement("event_id").getStringValue();
   }
 }
