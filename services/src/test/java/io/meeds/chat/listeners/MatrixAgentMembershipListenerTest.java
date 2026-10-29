@@ -89,8 +89,8 @@ class MatrixAgentMembershipListenerTest extends MatrixBaseTest {
   }
 
   /**
-   * When matrix's {@code postDelete} runs, another thread, the one a left-kind
-   * turn runs on, sees the membership gone; before the delete, the same read
+   * When matrix's {@code postDelete} hands the delete to the pusher service,
+   * another thread, the one a left-kind turn runs on, sees the membership gone; before the delete, the same read
    * from that thread sees it, so the probe can tell. The test container's
    * organization service is portal's in-memory one, which has no transaction:
    * here this pins the probe and the listener's queuing, not the commit order,
@@ -113,54 +113,33 @@ class MatrixAgentMembershipListenerTest extends MatrixBaseTest {
     doAnswer(invocation -> {
       seenByTheTurnThread.set(readFromOtherThread(container));
       return null;
-    }).when(agentPusherService).enqueueLeftKind(LOGIN);
+    }).when(agentPusherService).onMembershipDeleted(LOGIN, TestWorkerKindPlugin.GROUP_ID);
     clearInvocations(agentPusherService);
 
     Membership membership = membershipHandler.findMembershipByUserGroupAndType(LOGIN, TestWorkerKindPlugin.GROUP_ID, "member");
     membershipHandler.removeMembership(membership.getId(), true);
 
-    verify(agentPusherService).enqueueLeftKind(LOGIN);
+    verify(agentPusherService).onMembershipDeleted(LOGIN, TestWorkerKindPlugin.GROUP_ID);
     assertNotNull(seenByTheTurnThread.get());
     assertTrue(seenByTheTurnThread.get().isEmpty(), "matrix's listener runs after the delete is committed");
   }
 
+  /**
+   * The listener decides nothing: every deleted membership goes to the pusher
+   * service, whose decision is pinned in {@code MatrixAgentPusherServiceTest}.
+   */
   @Test
-  void leavingAnotherGroupQueuesNothing() throws Exception {
+  void everyDeletedMembershipIsHandedToThePusherService() {
     clearInvocations(agentPusherService);
-    Membership membership = new org.exoplatform.services.organization.impl.MembershipImpl();
-    ((org.exoplatform.services.organization.impl.MembershipImpl) membership).setUserName(LOGIN);
-    ((org.exoplatform.services.organization.impl.MembershipImpl) membership).setGroupId("/platform/users");
+    org.exoplatform.services.organization.impl.MembershipImpl membership =
+                                                                  new org.exoplatform.services.organization.impl.MembershipImpl();
+    membership.setUserName(LOGIN);
+    membership.setGroupId("/platform/users");
 
     membershipListener.postDelete(membership);
 
+    verify(agentPusherService).onMembershipDeleted(LOGIN, "/platform/users");
     verify(agentPusherService, never()).enqueueLeftKind(anyString());
-  }
-
-  @Test
-  void leavingTheKindGroupWhileStillInItQueuesNothing() throws Exception {
-    Group group = workersGroup();
-    User user = organizationService.getUserHandler().findUserByName(LOGIN);
-    MembershipHandler membershipHandler = organizationService.getMembershipHandler();
-    membershipHandler.linkMembership(user,
-                                     group,
-                                     organizationService.getMembershipTypeHandler().findMembershipType("member"),
-                                     true);
-    try {
-      clearInvocations(agentPusherService);
-      org.exoplatform.services.organization.impl.MembershipImpl otherType =
-                                                                     new org.exoplatform.services.organization.impl.MembershipImpl();
-      otherType.setUserName(LOGIN);
-      otherType.setGroupId(TestWorkerKindPlugin.GROUP_ID);
-      otherType.setMembershipType("manager");
-
-      // another membership of the same group was deleted: the account keeps its kind
-      membershipListener.postDelete(otherType);
-
-      verify(agentPusherService, never()).enqueueLeftKind(anyString());
-    } finally {
-      Membership membership = membershipHandler.findMembershipByUserGroupAndType(LOGIN, TestWorkerKindPlugin.GROUP_ID, "member");
-      membershipHandler.removeMembership(membership.getId(), true);
-    }
   }
 
   private Group workersGroup() throws Exception {
