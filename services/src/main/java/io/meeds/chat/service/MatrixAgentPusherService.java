@@ -339,6 +339,30 @@ public class MatrixAgentPusherService {
   }
 
   /**
+   * Decides whether the push gateway accepts a worker pusher's key: its MAC
+   * matches, and the account it names still belongs to the group of a kind an
+   * add-on declares and still has a Matrix account. The kind is computed from
+   * the group memberships, as {@link #isDesired} does when the pusher is
+   * registered, and not read from the kind shown on the profile: the
+   * gateway is unauthenticated, so the key is accepted on the same rule that
+   * registered it, and a failure to read the memberships is thrown rather
+   * than answered as an account of no kind. The enabled flag is not read: a
+   * disabled account's pushers are deleted by its Synapse deactivation.
+   *
+   * @param pushkey the pushkey Synapse pushed with
+   * @return the login, null when the key must be rejected
+   * @throws IllegalStateException when the account's memberships cannot be
+   *           read
+   */
+  public String getPushableLogin(String pushkey) {
+    String login = getLoginOfPushkey(pushkey);
+    if (login == null || accountKindService.computeAccountKind(login) == null) {
+      return null;
+    }
+    return StringUtils.isBlank(matrixService.getMatrixIdForUser(login)) ? null : login;
+  }
+
+  /**
    * Tells whether a push rule belongs to the set this service manages on a
    * worker's account: every server-default underride rule that notifies, the
    * legacy name-match and room-mention overrides, and the legacy user-name

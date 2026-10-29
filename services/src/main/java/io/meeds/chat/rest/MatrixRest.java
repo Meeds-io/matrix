@@ -28,6 +28,7 @@ import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixSynchronizationService;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.model.*;
@@ -54,9 +55,6 @@ import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
 import org.exoplatform.services.resources.ResourceBundleService;
 import org.exoplatform.services.rest.resource.ResourceContainer;
-import io.meeds.chat.service.MatrixAgentPusherService;
-import io.meeds.social.core.identity.service.AccountKindService;
-import org.json.JSONObject;
 import org.exoplatform.social.core.identity.model.Identity;
 import org.exoplatform.social.core.identity.provider.OrganizationIdentityProvider;
 import org.exoplatform.social.core.manager.IdentityManager;
@@ -64,6 +62,7 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -113,8 +112,6 @@ public class MatrixRest implements ResourceContainer {
   @Autowired
   private MatrixAgentPusherService     agentPusherService;
 
-  @Autowired
-  private AccountKindService           accountKindService;
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
@@ -272,14 +269,11 @@ public class MatrixRest implements ResourceContainer {
   }
 
   /**
-   * Answers the push of a digital worker's pusher. The key names the worker
-   * and is checked against its MAC; a malformed or forged key, or one whose
-   * worker no longer has a Matrix account or a declared kind, is rejected, and
-   * Synapse then deletes that pusher. The worker's enabled flag is not read: a
-   * disabled worker's pushers are deleted by its deactivation, and the cache
-   * may not have seen a re-enable yet. Every other outcome, a failure
-   * included, answers that nothing is rejected: an error answer would make
-   * Synapse retry this event before any later one of the worker's.
+   * Answers the push of a digital worker's pusher. A key the pusher service
+   * does not accept ({@link MatrixAgentPusherService#getPushableLogin}) is
+   * rejected, and Synapse then deletes that pusher. Every other outcome, a
+   * failure included, answers that nothing is rejected: an error answer would
+   * make Synapse retry this event before any later one of the worker's.
    *
    * @param notification the {@code notification} object of the push
    * @param pushKey the pusher's key
@@ -287,10 +281,10 @@ public class MatrixRest implements ResourceContainer {
    */
   private String onAgentPush(JsonValue notification, String pushKey) {
     try {
-      String login = agentPusherService.getLoginOfPushkey(pushKey);
-      if (login == null || !hasMatrixAccount(login) || accountKindService.computeAccountKind(login) == null) {
+      String login = agentPusherService.getPushableLogin(pushKey);
+      if (login == null) {
         // the endpoint is unauthenticated: a forged key must not fill the log
-        LOG.debug("Worker pusher key rejected{}", login == null ? "" : " for " + login);
+        LOG.debug("Worker pusher key rejected");
         return REJECTED_ANSWER_FORMAT.formatted(JSONObject.quote(pushKey));
       }
       String roomId = notification.getElement("room_id") == null ? "" : notification.getElement("room_id").getStringValue();
@@ -302,18 +296,6 @@ public class MatrixRest implements ResourceContainer {
       LOG.warn("Problem handling a worker push received from Matrix", e);
     }
     return NOTHING_REJECTED_ANSWER;
-  }
-
-  /**
-   * Tells whether an account still has a Matrix account.
-   *
-   * @param login the platform login
-   * @return true when its profile names a Matrix id
-   */
-  private boolean hasMatrixAccount(String login) {
-    Identity identity = identityManager.getOrCreateUserIdentity(login);
-    return identity != null && identity.getProfile() != null
-        && StringUtils.isNotBlank((String) identity.getProfile().getProperty(USER_MATRIX_ID));
   }
 
   @GetMapping("linkRoom")

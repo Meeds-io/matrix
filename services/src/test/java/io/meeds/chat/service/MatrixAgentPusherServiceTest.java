@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -67,6 +68,7 @@ import org.exoplatform.services.organization.OrganizationService;
 import org.exoplatform.services.organization.User;
 import org.exoplatform.services.organization.UserHandler;
 import org.exoplatform.services.organization.UserStatus;
+import org.exoplatform.social.core.identity.model.Identity;
 
 import io.meeds.chat.model.MatrixPushRule;
 import io.meeds.chat.model.MatrixPusher;
@@ -156,6 +158,58 @@ class MatrixAgentPusherServiceTest {
     PropertyManager.setProperty(MATRIX_JWT_SECRET, "another-test-secret-of-at-least-thirty-two-bytes");
 
     assertNull(service.getLoginOfPushkey(pushkey));
+  }
+
+  @Test
+  void gatewayAcceptsTheKeyOfAWorkerWithAKindAndAMatrixAccount() {
+    when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
+    when(matrixService.getMatrixIdForUser(LOGIN)).thenReturn(MATRIX_ID);
+
+    assertEquals(LOGIN, service.getPushableLogin(service.getPushkey(LOGIN)));
+  }
+
+  /**
+   * The kind is computed from the memberships, the rule that registered the
+   * pusher, never read from the kind the profile shows.
+   */
+  @Test
+  void gatewayRejectsTheKeyOfAnAccountOfNoKind() {
+    when(accountKindService.computeAccountKind(LOGIN)).thenReturn(null);
+
+    assertNull(service.getPushableLogin(service.getPushkey(LOGIN)));
+    verify(accountKindService, never()).getDisplayedKind(any(Identity.class));
+    verify(matrixService, never()).getMatrixIdForUser(anyString());
+  }
+
+  @Test
+  void gatewayRejectsTheKeyOfAWorkerWithoutMatrixAccount() {
+    when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
+    when(matrixService.getMatrixIdForUser(LOGIN)).thenReturn(null, "");
+
+    assertNull(service.getPushableLogin(service.getPushkey(LOGIN)));
+    assertNull(service.getPushableLogin(service.getPushkey(LOGIN)));
+  }
+
+  @Test
+  void gatewayRejectsAForgedKeyWithoutReadingTheAccount() {
+    String pushkey = service.getPushkey(LOGIN);
+
+    assertNull(service.getPushableLogin("bWF4." + pushkey.substring(pushkey.indexOf('.') + 1)));
+    assertNull(service.getPushableLogin(null));
+    verifyNoInteractions(accountKindService, matrixService);
+  }
+
+  /**
+   * Unreadable memberships are thrown, never answered as an account of no
+   * kind: the gateway then answers that nothing is rejected, and the pusher
+   * of a worker stays registered through an IDM outage.
+   */
+  @Test
+  void gatewayDecisionThrowsWhenTheMembershipsCannotBeRead() {
+    when(accountKindService.computeAccountKind(LOGIN)).thenThrow(new IllegalStateException("IDM down"));
+    String pushkey = service.getPushkey(LOGIN);
+
+    assertThrows(IllegalStateException.class, () -> service.getPushableLogin(pushkey));
   }
 
   /**
