@@ -243,6 +243,15 @@ class MatrixAgentPusherServiceTest {
     assertFalse(MatrixAgentPusherService.isManagedRule(rule("room", ".m.rule.room", true)));
   }
 
+  /**
+   * Synapse 1.155.0, sent each url below as a pusher's {@code data.url},
+   * refused with a 400 ({@code 'url' must have a path of
+   * '/_matrix/push/v1/notify'}) the other path, the trailing slash and the
+   * escaped letter, and accepted both valid urls; it also accepted the query,
+   * the fragment and the ftp scheme, which this check refuses on its own: a
+   * pusher Synapse could not call would never notify. The 400 answer is
+   * replayed in {@code MatrixHttpClientSynapseRecordingTest}.
+   */
   @Test
   void gatewayUrl() {
     PropertyManager.setProperty(MATRIX_AGENTS_PUSH_GATEWAY_URL, "");
