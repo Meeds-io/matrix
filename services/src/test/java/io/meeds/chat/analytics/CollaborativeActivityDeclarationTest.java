@@ -70,9 +70,8 @@ class CollaborativeActivityDeclarationTest {
     assertFalse(declaration.containsKey("excludedActivityTypes"));
 
     Map<String, Object> labels = (Map<String, Object>) declaration.get("labels");
-    assertEquals(List.of("matrix.collaborativeActivity.help.counted.sendMessage",
-                         "matrix.collaborativeActivity.help.counted.directMessage"),
-                 labels.get("counted"));
+    assertEquals("matrix.collaborativeActivity.help.title", labels.get("title"));
+    assertEquals(List.of("matrix.collaborativeActivity.help.counted"), labels.get("counted"));
     assertFalse(labels.containsKey("notCounted"), "a direct message counts platform-wide, so nothing of the chat is left out");
   }
 

@@ -5,9 +5,7 @@
     { "operation": "sendMessage", "module": "Chat" }
   ],
   "labels": {
-    "counted": [
-      "matrix.collaborativeActivity.help.counted.sendMessage",
-      "matrix.collaborativeActivity.help.counted.directMessage"
-    ]
+    "title": "matrix.collaborativeActivity.help.title",
+    "counted": ["matrix.collaborativeActivity.help.counted"]
   }
 }
