@@ -382,6 +382,15 @@ To check the setup:
 > with that token and the body
 > `{"app_id": "exo.matrix.agent", "pushkey": "<pushkey>", "kind": null}`.
 > The browsers' pushers (`app_id` `exo.matrix.app`) are not touched.
+> The workers' push rules this feature disabled stay disabled after a
+> downgrade: every server-default underride rule that notifies, the
+> `.m.rule.contains_display_name`, `.m.rule.is_room_mention` and
+> `.m.rule.roomnotif` overrides and the `.m.rule.contains_user_name` content
+> rule. That is harmless for an account that never opens a browser. To
+> restore one, call `PUT /_matrix/client/v3/pushrules/global/<kind>/<rule id>/enabled`
+> with the same account token and the body `{"enabled": true}`; the rules
+> and their kinds are listed by `GET /_matrix/client/v3/pushrules/` with that
+> token.
 
 ## Step 6 — Verify
 
