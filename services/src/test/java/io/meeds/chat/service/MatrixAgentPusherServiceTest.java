@@ -75,6 +75,7 @@ import io.meeds.chat.model.MatrixPusher;
 import io.meeds.chat.service.utils.MatrixException;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.service.utils.MatrixUserCall;
+import io.meeds.social.core.identity.plugin.AccountKindPlugin;
 import io.meeds.social.core.identity.service.AccountKindService;
 
 @ExtendWith(MockitoExtension.class)
@@ -89,6 +90,8 @@ class MatrixAgentPusherServiceTest {
   private static final String      TOKEN       = "leaToken";
 
   private static final Instant     NOW         = Instant.parse("2026-10-14T12:00:00Z");
+
+  private static final String      KIND_GROUP  = "/platform/agents";
 
   @Mock
   private MatrixService            matrixService;
@@ -530,6 +533,67 @@ class MatrixAgentPusherServiceTest {
     // a pending account's newer desired turn still replaces its own
     service.enqueueDesired("worker0", "@worker0:matrix.exo.tn");
     assertEquals(MatrixAgentPusherService.MAX_PENDING_DESIRED_TURNS + 1, scheduled.size());
+  }
+
+  @Test
+  void leavingTheLastKindGroupQueuesALeftKindTurn() {
+    when(matrixService.isServiceEnabled()).thenReturn(true);
+    when(accountKindService.getPluginByGroup(KIND_GROUP)).thenReturn(mock(AccountKindPlugin.class));
+    when(accountKindService.computeAccountKind(LOGIN)).thenReturn(null);
+
+    service.onMembershipDeleted(LOGIN, KIND_GROUP);
+
+    assertEquals(1, scheduled.size());
+    // a left-kind turn is never dropped by a full queue, nor replaced by a desired one
+    service.enqueueDesired(LOGIN, MATRIX_ID);
+    assertEquals(1, scheduled.size());
+  }
+
+  /**
+   * Another membership of a kind's group was deleted, the account keeps its
+   * kind.
+   */
+  @Test
+  void leavingAKindGroupWhileStillOfAKindQueuesNothing() {
+    when(matrixService.isServiceEnabled()).thenReturn(true);
+    when(accountKindService.getPluginByGroup(KIND_GROUP)).thenReturn(mock(AccountKindPlugin.class));
+    when(accountKindService.computeAccountKind(LOGIN)).thenReturn("agent");
+
+    service.onMembershipDeleted(LOGIN, KIND_GROUP);
+
+    assertTrue(scheduled.isEmpty());
+  }
+
+  @Test
+  void leavingAnotherGroupReadsNoMembershipAndQueuesNothing() {
+    when(matrixService.isServiceEnabled()).thenReturn(true);
+    when(accountKindService.getPluginByGroup("/platform/users")).thenReturn(null);
+
+    service.onMembershipDeleted(LOGIN, "/platform/users");
+
+    assertTrue(scheduled.isEmpty());
+    verify(accountKindService, never()).computeAccountKind(anyString());
+  }
+
+  @Test
+  void membershipDeletedWhileChatIsDisabledQueuesNothing() {
+    when(matrixService.isServiceEnabled()).thenReturn(false);
+
+    service.onMembershipDeleted(LOGIN, KIND_GROUP);
+
+    assertTrue(scheduled.isEmpty());
+    verifyNoInteractions(accountKindService);
+  }
+
+  @Test
+  void unreadableMembershipsAfterADeleteQueueNothingAndDoNotThrow() {
+    when(matrixService.isServiceEnabled()).thenReturn(true);
+    when(accountKindService.getPluginByGroup(KIND_GROUP)).thenReturn(mock(AccountKindPlugin.class));
+    when(accountKindService.computeAccountKind(LOGIN)).thenThrow(new IllegalStateException("IDM down"));
+
+    service.onMembershipDeleted(LOGIN, KIND_GROUP);
+
+    assertTrue(scheduled.isEmpty());
   }
 
   /**

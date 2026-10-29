@@ -270,6 +270,29 @@ public class MatrixAgentPusherService {
   }
 
   /**
+   * What the membership listener calls once a membership is deleted: queues a
+   * left-kind turn when the membership was in the group of an account kind and
+   * the account now belongs to no kind's group. Nothing is queued while chat
+   * is disabled, for another group, or when the memberships cannot be read,
+   * which leaves the account's push rules as they are.
+   *
+   * @param login the platform login of the deleted membership
+   * @param groupId the group of the deleted membership
+   */
+  public void onMembershipDeleted(String login, String groupId) {
+    if (!matrixService.isServiceEnabled() || accountKindService.getPluginByGroup(groupId) == null) {
+      return;
+    }
+    try {
+      if (accountKindService.computeAccountKind(login) == null) {
+        enqueueLeftKind(login);
+      }
+    } catch (Exception e) {
+      LOG.warn("Could not tell whether the account {} left its account kind, its push rules are left as they are", login, e);
+    }
+  }
+
+  /**
    * Runs the pending turn of an account, in a transaction of its own, on the
    * turn thread.
    *
