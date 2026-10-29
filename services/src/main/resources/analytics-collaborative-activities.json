@@ -1,0 +1,11 @@
+{
+  "modules": ["Chat"],
+  "operations": ["sendMessage"],
+  "browserOperations": [
+    { "operation": "sendMessage", "module": "Chat" }
+  ],
+  "labels": {
+    "title": "matrix.collaborativeActivity.help.title",
+    "counted": ["matrix.collaborativeActivity.help.counted"]
+  }
+}
