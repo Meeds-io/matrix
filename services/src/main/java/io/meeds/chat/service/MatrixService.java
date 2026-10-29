@@ -962,45 +962,6 @@ public class MatrixService {
   }
 
   /**
-   * Returns the administrator's Matrix access token, logging in, bounded by
-   * {@code timeout}, when it is not cached yet.
-   *
-   * @param timeout the login request timeout
-   * @return the token
-   * @throws Exception when the login fails or times out
-   */
-  private String getMatrixAccessToken(Duration timeout) throws Exception { // NOSONAR
-    if (StringUtils.isBlank(this.matrixAccessToken)) {
-      String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
-      this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken, timeout);
-    }
-    return this.matrixAccessToken;
-  }
-
-  /**
-   * Finds the platform user whose email is one of a Matrix user's email
-   * identifiers.
-   *
-   * @param userAsJson the Matrix user's details
-   * @return the login, null when no platform user matches
-   * @throws Exception when the details cannot be parsed or the users read
-   */
-  private String findUserNameByEmail(String userAsJson) throws Exception { // NOSONAR
-    JsonValue threePidsElement = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson).getElement("threepids");
-    Iterator<JsonValue> jsonIterator = threePidsElement == null ? Collections.emptyIterator() : threePidsElement.getElements();
-    while (jsonIterator.hasNext()) {
-      JsonValue threePids = jsonIterator.next();
-      if ("email".equals(threePids.getElement("medium").getStringValue())) {
-        User user = getUserByEmail(threePids.getElement("address").getStringValue());
-        if (user != null) {
-          return user.getUserName();
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
    * Retrieves the message related to the event ID
    *
    * @param eventId the event ID
@@ -1447,18 +1408,6 @@ public class MatrixService {
   }
 
   /**
-   * Completes a room ID stored as its local part with the server name, since
-   * Synapse finds an event only under its full room ID; a full room ID is
-   * returned as given.
-   *
-   * @param roomId the room ID, as its local part or in full
-   * @return the full room ID
-   */
-  private String toFullRoomId(String roomId) {
-    return roomId.contains(":") ? roomId : roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
-  }
-
-  /**
    * Marks a room as read for a user up to an event, with the user's own Matrix
    * identity (server-side read anchor): posts the {@code m.read} receipt so
    * every client of the user converges through Matrix sync.
@@ -1706,79 +1655,6 @@ public class MatrixService {
   }
 
   /**
-   * Tells whether a conversation, given by its local-part room id, is one of
-   * the user's conversations. Both sides of the comparison go through
-   * {@link #extractRoomId(String)}: a space room is stored as its local part, a
-   * direct message with its server name.
-   *
-   * @param userName the Meeds username
-   * @param normalizedRoomId the room id as {@link #extractRoomId(String)}
-   *          returns it
-   * @return true when the user's conversations contain the room
-   */
-  private boolean isParticipant(String userName, String normalizedRoomId) {
-    return getUserConversations(userName).stream()
-                                         .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
-  }
-
-  /**
-   * Maps the events of a room read, newest first, to the messages a client
-   * renders, oldest first: each {@code m.replace} edit is merged into the event
-   * it replaces, which is kept once under its own event id. An edit is applied
-   * only when its sender is the original's sender; among several, the latest
-   * {@code origin_server_ts} wins. An edit whose original is not in the page
-   * (older than it, or redacted) is dropped, as is an edit of another sender.
-   *
-   * @param events the {@code m.room.message} events, newest first
-   * @return the merged messages, oldest first
-   */
-  private List<ChatMessage> toChronologicalMessages(List<MatrixMessage> events) {
-    Map<String, MatrixMessage> originals = new HashMap<>();
-    for (MatrixMessage event : events) {
-      if (event.getReplacedEventId() == null && event.getEventId() != null) {
-        originals.put(event.getEventId(), event);
-      }
-    }
-    Map<String, MatrixMessage> latestEdits = new HashMap<>();
-    for (MatrixMessage event : events) {
-      MatrixMessage original = event.getReplacedEventId() == null ? null : originals.get(event.getReplacedEventId());
-      if (original != null && Objects.equals(original.getSender(), event.getSender())) {
-        latestEdits.merge(original.getEventId(),
-                          event,
-                          (known, candidate) -> candidate.getTimeStamp() > known.getTimeStamp() ? candidate : known);
-      }
-    }
-    List<ChatMessage> messages = new ArrayList<>();
-    for (MatrixMessage event : events) {
-      if (event.getReplacedEventId() != null) {
-        continue;
-      }
-      MatrixMessage edit = event.getEventId() == null ? null : latestEdits.get(event.getEventId());
-      messages.add(new ChatMessage(extractUserId(event.getSender()),
-                                   edit == null ? event.getMessageContent() : editedText(edit),
-                                   event.getTimeStamp()));
-    }
-    // The client API returns events newest-first (dir=b); flip to chronological.
-    Collections.reverse(messages);
-    return messages;
-  }
-
-  /**
-   * Returns the text an {@code m.replace} event gives its original: the body of
-   * its {@code m.new_content}, or, for a client that sent none, its own body
-   * without the {@code "* "} marker Matrix prepends.
-   *
-   * @param edit the {@code m.replace} event
-   * @return the replacement text
-   */
-  private String editedText(MatrixMessage edit) {
-    if (edit.getEditedContent() != null) {
-      return edit.getEditedContent();
-    }
-    return StringUtils.removeStart(edit.getMessageContent(), "* ");
-  }
-
-  /**
    * Returns the unread conversations of the given user, read <strong>as that
    * user</strong> via a Matrix {@code /sync}, so only the rooms the user has
    * joined are considered. Each entry carries the unread count and the recent
@@ -2021,5 +1897,129 @@ public class MatrixService {
       }
       return results;
     });
+  }
+
+  /**
+   * Returns the administrator's Matrix access token, logging in, bounded by
+   * {@code timeout}, when it is not cached yet.
+   *
+   * @param timeout the login request timeout
+   * @return the token
+   * @throws Exception when the login fails or times out
+   */
+  private String getMatrixAccessToken(Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(this.matrixAccessToken)) {
+      String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
+      this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken, timeout);
+    }
+    return this.matrixAccessToken;
+  }
+
+  /**
+   * Finds the platform user whose email is one of a Matrix user's email
+   * identifiers.
+   *
+   * @param userAsJson the Matrix user's details
+   * @return the login, null when no platform user matches
+   * @throws Exception when the details cannot be parsed or the users read
+   */
+  private String findUserNameByEmail(String userAsJson) throws Exception { // NOSONAR
+    JsonValue threePidsElement = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson).getElement("threepids");
+    Iterator<JsonValue> jsonIterator = threePidsElement == null ? Collections.emptyIterator() : threePidsElement.getElements();
+    while (jsonIterator.hasNext()) {
+      JsonValue threePids = jsonIterator.next();
+      if ("email".equals(threePids.getElement("medium").getStringValue())) {
+        User user = getUserByEmail(threePids.getElement("address").getStringValue());
+        if (user != null) {
+          return user.getUserName();
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Completes a room ID stored as its local part with the server name, since
+   * Synapse finds an event only under its full room ID; a full room ID is
+   * returned as given.
+   *
+   * @param roomId the room ID, as its local part or in full
+   * @return the full room ID
+   */
+  private String toFullRoomId(String roomId) {
+    return roomId.contains(":") ? roomId : roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+  }
+
+  /**
+   * Tells whether a conversation, given by its local-part room id, is one of
+   * the user's conversations. Both sides of the comparison go through
+   * {@link #extractRoomId(String)}: a space room is stored as its local part, a
+   * direct message with its server name.
+   *
+   * @param userName the Meeds username
+   * @param normalizedRoomId the room id as {@link #extractRoomId(String)}
+   *          returns it
+   * @return true when the user's conversations contain the room
+   */
+  private boolean isParticipant(String userName, String normalizedRoomId) {
+    return getUserConversations(userName).stream()
+                                         .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
+  }
+
+  /**
+   * Maps the events of a room read, newest first, to the messages a client
+   * renders, oldest first: each {@code m.replace} edit is merged into the event
+   * it replaces, which is kept once under its own event id. An edit is applied
+   * only when its sender is the original's sender; among several, the latest
+   * {@code origin_server_ts} wins. An edit whose original is not in the page
+   * (older than it, or redacted) is dropped, as is an edit of another sender.
+   *
+   * @param events the {@code m.room.message} events, newest first
+   * @return the merged messages, oldest first
+   */
+  private List<ChatMessage> toChronologicalMessages(List<MatrixMessage> events) {
+    Map<String, MatrixMessage> originals = new HashMap<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() == null && event.getEventId() != null) {
+        originals.put(event.getEventId(), event);
+      }
+    }
+    Map<String, MatrixMessage> latestEdits = new HashMap<>();
+    for (MatrixMessage event : events) {
+      MatrixMessage original = event.getReplacedEventId() == null ? null : originals.get(event.getReplacedEventId());
+      if (original != null && Objects.equals(original.getSender(), event.getSender())) {
+        latestEdits.merge(original.getEventId(),
+                          event,
+                          (known, candidate) -> candidate.getTimeStamp() > known.getTimeStamp() ? candidate : known);
+      }
+    }
+    List<ChatMessage> messages = new ArrayList<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() != null) {
+        continue;
+      }
+      MatrixMessage edit = event.getEventId() == null ? null : latestEdits.get(event.getEventId());
+      messages.add(new ChatMessage(extractUserId(event.getSender()),
+                                   edit == null ? event.getMessageContent() : editedText(edit),
+                                   event.getTimeStamp()));
+    }
+    // The client API returns events newest-first (dir=b); flip to chronological.
+    Collections.reverse(messages);
+    return messages;
+  }
+
+  /**
+   * Returns the text an {@code m.replace} event gives its original: the body of
+   * its {@code m.new_content}, or, for a client that sent none, its own body
+   * without the {@code "* "} marker Matrix prepends.
+   *
+   * @param edit the {@code m.replace} event
+   * @return the replacement text
+   */
+  private String editedText(MatrixMessage edit) {
+    if (edit.getEditedContent() != null) {
+      return edit.getEditedContent();
+    }
+    return StringUtils.removeStart(edit.getMessageContent(), "* ");
   }
 }
