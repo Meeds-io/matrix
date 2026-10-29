@@ -90,10 +90,11 @@ class MatrixAgentMembershipListenerTest extends MatrixBaseTest {
 
   /**
    * When matrix's {@code postDelete} hands the delete to the pusher service,
-   * another thread, the one a left-kind turn runs on, sees the membership gone; before the delete, the same read
-   * from that thread sees it, so the probe can tell. The test container's
-   * organization service is portal's in-memory one, which has no transaction:
-   * here this pins the probe and the listener's queuing, not the commit order,
+   * another thread, the one a left-kind turn runs on, sees the membership
+   * gone; before the delete, the same read from that thread sees it, so the
+   * probe can tell. The test container's organization service is portal's
+   * in-memory one, which has no transaction: here this pins the probe and the
+   * listener's delegation, not the commit order,
    * which {@link #registeredAfterCoresMembershipUpdateListener()} pins through
    * the listeners' order and the live check against the IDM store confirms.
    */

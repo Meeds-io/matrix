@@ -268,36 +268,6 @@ public class MatrixRest implements ResourceContainer {
 
   }
 
-  /**
-   * Answers the push of a digital worker's pusher. A key the pusher service
-   * does not accept ({@link MatrixAgentPusherService#getPushableLogin}) is
-   * rejected, and Synapse then deletes that pusher. Every other outcome, a
-   * failure included, answers that nothing is rejected: an error answer would
-   * make Synapse retry this event before any later one of the worker's.
-   *
-   * @param notification the {@code notification} object of the push
-   * @param pushKey the pusher's key
-   * @return the JSON answer
-   */
-  private String onAgentPush(JsonValue notification, String pushKey) {
-    try {
-      String login = agentPusherService.getPushableLogin(pushKey);
-      if (login == null) {
-        // the endpoint is unauthenticated: a forged key must not fill the log
-        LOG.debug("Worker pusher key rejected");
-        return REJECTED_ANSWER_FORMAT.formatted(JSONObject.quote(pushKey));
-      }
-      String roomId = notification.getElement("room_id") == null ? "" : notification.getElement("room_id").getStringValue();
-      String eventId = notification.getElement("event_id") == null ? "" : notification.getElement("event_id").getStringValue();
-      if (StringUtils.isNotBlank(eventId) && StringUtils.isNotBlank(roomId)) {
-        chatNotificationService.onAgentPushReceived(eventId, roomId, login);
-      }
-    } catch (Exception e) {
-      LOG.warn("Problem handling a worker push received from Matrix", e);
-    }
-    return NOTHING_REJECTED_ANSWER;
-  }
-
   @GetMapping("linkRoom")
   @Secured("users")
   @Operation(summary = "Set the matrix room bound to the current space", method = "POST", description = "Set the id of the matrix room bound to the current space")
@@ -767,6 +737,36 @@ public class MatrixRest implements ResourceContainer {
           "chatAuthorizedForSpace": %s
         }
         """.formatted(chatAuthorizedForSpace);
+  }
+
+  /**
+   * Answers the push of a digital worker's pusher. A key the pusher service
+   * does not accept ({@link MatrixAgentPusherService#getPushableLogin}) is
+   * rejected, and Synapse then deletes that pusher. Every other outcome, a
+   * failure included, answers that nothing is rejected: an error answer would
+   * make Synapse retry this event before any later one of the worker's.
+   *
+   * @param notification the {@code notification} object of the push
+   * @param pushKey the pusher's key
+   * @return the JSON answer
+   */
+  private String onAgentPush(JsonValue notification, String pushKey) {
+    try {
+      String login = agentPusherService.getPushableLogin(pushKey);
+      if (login == null) {
+        // the endpoint is unauthenticated: a forged key must not fill the log
+        LOG.debug("Worker pusher key rejected");
+        return REJECTED_ANSWER_FORMAT.formatted(JSONObject.quote(pushKey));
+      }
+      String roomId = notification.getElement("room_id") == null ? "" : notification.getElement("room_id").getStringValue();
+      String eventId = notification.getElement("event_id") == null ? "" : notification.getElement("event_id").getStringValue();
+      if (StringUtils.isNotBlank(eventId) && StringUtils.isNotBlank(roomId)) {
+        chatNotificationService.onAgentPushReceived(eventId, roomId, login);
+      }
+    } catch (Exception e) {
+      LOG.warn("Problem handling a worker push received from Matrix", e);
+    }
+    return NOTHING_REJECTED_ANSWER;
   }
 
   private String checkAndParseUserFromToken(String token) {
