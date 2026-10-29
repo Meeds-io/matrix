@@ -21,22 +21,20 @@ package io.meeds.chat.listeners;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import org.exoplatform.services.log.ExoLogger;
-import org.exoplatform.services.log.Log;
 import org.exoplatform.services.organization.Membership;
 import org.exoplatform.services.organization.MembershipEventListener;
 import org.exoplatform.services.organization.OrganizationService;
 
 import io.meeds.chat.service.MatrixAgentPusherService;
-import io.meeds.chat.service.MatrixService;
-import io.meeds.social.core.identity.service.AccountKindService;
 
 import jakarta.annotation.PostConstruct;
 
 /**
- * Queues a left-kind turn when an account leaves the group of every account
- * kind it belonged to, so that its managed push rules return to the server
- * default once the turn finds it no longer wants a chat pusher.
+ * Hands every deleted membership to
+ * {@link MatrixAgentPusherService#onMembershipDeleted}, which queues a
+ * left-kind turn when an account leaves the group of every account kind it
+ * belonged to, so that its managed push rules return to the server default
+ * once the turn finds it no longer wants a chat pusher.
  * <p>
  * It is registered from {@link #init()}, a Spring bean's
  * {@code @PostConstruct}, and not as a kernel plugin, because it must run
@@ -50,16 +48,8 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class MatrixAgentMembershipListener extends MembershipEventListener {
 
-  private static final Log         LOG = ExoLogger.getLogger(MatrixAgentMembershipListener.class);
-
   @Autowired
   private OrganizationService      organizationService;
-
-  @Autowired
-  private AccountKindService       accountKindService;
-
-  @Autowired
-  private MatrixService            matrixService;
 
   @Autowired
   private MatrixAgentPusherService agentPusherService;
@@ -73,23 +63,13 @@ public class MatrixAgentMembershipListener extends MembershipEventListener {
   }
 
   /**
-   * Queues a left-kind turn when the deleted membership was in an account
-   * kind's group and the account now belongs to no kind's group.
+   * Hands the deleted membership to the pusher service, which decides whether
+   * the account left its account kind.
    *
    * @param membership the deleted membership
    */
   @Override
   public void postDelete(Membership membership) {
-    if (!matrixService.isServiceEnabled() || accountKindService.getPluginByGroup(membership.getGroupId()) == null) {
-      return;
-    }
-    String login = membership.getUserName();
-    try {
-      if (accountKindService.computeAccountKind(login) == null) {
-        agentPusherService.enqueueLeftKind(login);
-      }
-    } catch (Exception e) {
-      LOG.warn("Could not tell whether the account {} left its account kind, its push rules are left as they are", login, e);
-    }
+    agentPusherService.onMembershipDeleted(membership.getUserName(), membership.getGroupId());
   }
 }
