@@ -249,8 +249,10 @@ class MatrixAgentPusherServiceTest {
    * '/_matrix/push/v1/notify'}) the other path, the trailing slash and the
    * escaped letter, and accepted both valid urls; it also accepted the query,
    * the fragment and the ftp scheme, which this check refuses on its own: a
-   * pusher Synapse could not call would never notify. The 400 answer is
-   * replayed in {@code MatrixHttpClientSynapseRecordingTest}.
+   * pusher Synapse could not call would never notify. The relative path and
+   * the text that is not a url were not sent. The 400 answer is replayed in
+   * {@code MatrixHttpClientSynapseRecordingTest}; the other answers are not
+   * recorded.
    */
   @Test
   void gatewayUrl() {
