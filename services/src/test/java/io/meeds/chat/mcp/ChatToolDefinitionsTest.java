@@ -64,4 +64,36 @@ class ChatToolDefinitionsTest {
       assertFalse(tools.get(unscoped).has("space_scope"), unscoped);
     }
   }
+
+  /**
+   * Each space-scoped write declares in {@code space_role} the role the member
+   * who asks a digital worker for it must hold in the call's space
+   * (EXO-91405), and no space-scoped read declares one: a member of the room
+   * writes in it, so the message is {@code member}.
+   * Mutants: the write's role dropped or changed, or the read given one.
+   *
+   * @throws Exception when the shipped definitions can't be read
+   */
+  @Test
+  void spaceScopedWritesDeclareTheAskersSpaceRole() throws Exception {
+    Map<String, String> roles = new HashMap<>();
+    try (InputStream definitions = getClass().getResourceAsStream("/ai-tool-definitions.json")) {
+      JSONArray array = new JSONObject(new String(definitions.readAllBytes())).getJSONArray("tools");
+      for (int i = 0; i < array.length(); i++) {
+        JSONObject tool = array.getJSONObject(i);
+        JSONObject scope = tool.optJSONObject("space_scope");
+        if (scope == null) {
+          continue;
+        }
+        JSONObject annotations = tool.optJSONObject("annotations");
+        if (annotations != null && annotations.optBoolean("readOnlyHint")) {
+          assertFalse(scope.has("space_role"), tool.getString("name"));
+        } else {
+          assertTrue(scope.has("space_role"), tool.getString("name"));
+          roles.put(tool.getString("name"), scope.getString("space_role"));
+        }
+      }
+    }
+    assertEquals(Map.of("send_chat_message", "member"), roles);
+  }
 }
