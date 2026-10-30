@@ -25,8 +25,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
@@ -98,6 +103,116 @@ public class HTTPHelper {
                                      .method("DELETE", HttpRequest.BodyPublishers.ofString(contentAsJson))
                                      .build();
     return client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  /**
+   * Sends a GET request whose whole exchange, the response body included, is
+   * bounded by {@code timeout}: an unresponsive Matrix server, or one that
+   * stalls in the middle of a body, then fails the call with an
+   * {@link java.net.http.HttpTimeoutException} instead of holding the calling
+   * thread. See {@link #sendBounded(HttpRequest, Duration)}.
+   *
+   * @param url the request url
+   * @param token the bearer access token
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedGetRequest(String url, String token, Duration timeout) throws IOException,
+                                                                                                         InterruptedException {
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .timeout(timeout)
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .GET()
+                                     .build();
+    return sendBounded(request, timeout);
+  }
+
+  /**
+   * Sends a POST request bounded by {@code timeout}, see
+   * {@link #sendBoundedGetRequest(String, String, Duration)}.
+   *
+   * @param url the request url
+   * @param token the bearer access token, none when blank
+   * @param contentAsJson the JSON body
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedPostRequest(String url,
+                                                               String token,
+                                                               String contentAsJson,
+                                                               Duration timeout) throws IOException, InterruptedException {
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+                                             .uri(URI.create(url))
+                                             .timeout(timeout)
+                                             .POST(HttpRequest.BodyPublishers.ofString(contentAsJson));
+    if (StringUtils.isNotBlank(token)) {
+      builder.header(AUTHORIZATION, BEARER + token);
+    }
+    return sendBounded(builder.build(), timeout);
+  }
+
+  /**
+   * Sends a PUT request bounded by {@code timeout}, see
+   * {@link #sendBoundedGetRequest(String, String, Duration)}.
+   *
+   * @param url the request url
+   * @param token the bearer access token
+   * @param contentAsJson the JSON body
+   * @param timeout the request timeout
+   * @return the response
+   * @throws IOException when the request fails or times out
+   * @throws InterruptedException when the request is interrupted
+   */
+  protected static HttpResponse<String> sendBoundedPutRequest(String url,
+                                                              String token,
+                                                              String contentAsJson,
+                                                              Duration timeout) throws IOException, InterruptedException {
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .timeout(timeout)
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .PUT(HttpRequest.BodyPublishers.ofString(contentAsJson))
+                                     .build();
+    return sendBounded(request, timeout);
+  }
+
+  /**
+   * Sends a request and waits for its whole response, body included, at most
+   * {@code timeout}. The request's own timeout only covers the wait for the
+   * response headers (the JDK client cancels its timer once they arrive), so
+   * the wait is bounded here, on the future the asynchronous send completes
+   * once the body is read; on expiry the exchange is cancelled.
+   *
+   * @param request the request, carrying the same timeout for its headers
+   * @param timeout the bound of the whole exchange
+   * @return the response
+   * @throws java.net.http.HttpTimeoutException when the exchange outlasts the
+   *           timeout
+   * @throws IOException when the exchange fails
+   * @throws InterruptedException when the wait is interrupted
+   */
+  private static HttpResponse<String> sendBounded(HttpRequest request, Duration timeout) throws IOException,
+                                                                                         InterruptedException {
+    CompletableFuture<HttpResponse<String>> response = newHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    try {
+      return response.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      response.cancel(true);
+      throw new HttpTimeoutException("Request to " + request.uri().getHost() + " timed out after " + timeout);
+    } catch (InterruptedException e) {
+      response.cancel(true);
+      throw e;
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof IOException ioException) {
+        throw ioException;
+      }
+      throw new IOException(e.getCause());
+    }
   }
 
   public static void sendInvitationToMembers(ArrayList<String> strings, String matrixRoomId) {

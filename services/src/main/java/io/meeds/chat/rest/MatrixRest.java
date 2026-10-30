@@ -28,6 +28,7 @@ import io.meeds.chat.model.ChatSearchResult;
 import io.meeds.chat.service.model.ChatSettingsEntity;
 import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixSynchronizationService;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.model.*;
@@ -61,6 +62,7 @@ import org.exoplatform.social.core.space.model.Space;
 import org.exoplatform.social.core.space.spi.SpaceService;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -79,6 +81,12 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 public class MatrixRest implements ResourceContainer {
 
   private static final Log             LOG = ExoLogger.getLogger(MatrixRest.class.toString());
+
+  /** The push gateway answer when no pusher is rejected. */
+  private static final String          NOTHING_REJECTED_ANSWER = "{ \"rejected\": [] }";
+
+  /** The push gateway answer rejecting one pusher, whose key is a JSON string. */
+  private static final String          REJECTED_ANSWER_FORMAT  = "{ \"rejected\": [%s] }";
 
   @Autowired
   private SpaceService                 spaceService;
@@ -100,6 +108,10 @@ public class MatrixRest implements ResourceContainer {
 
   @Autowired
   private ChatNotificationService      chatNotificationService;
+
+  @Autowired
+  private MatrixAgentPusherService     agentPusherService;
+
   @GetMapping
   @Secured("users")
   @Operation(summary = "Get the matrix room bound to the current space", method = "GET", description = "Get the id of the matrix room bound to the current space")
@@ -213,6 +225,10 @@ public class MatrixRest implements ResourceContainer {
       if (notifJsonValue.getElement("devices").getElements().hasNext()) {
         JsonValue device = notifJsonValue.getElement("devices").getElements().next();
         pushKey = device.getElement("pushkey").getStringValue();
+        JsonValue appId = device.getElement("app_id");
+        if (appId != null && AGENT_PUSHER_APP_ID.equals(appId.getStringValue())) {
+          return onAgentPush(notifJsonValue, pushKey);
+        }
         if (StringUtils.isNotBlank(pushKey)) {
           String userName;
           try {
@@ -721,6 +737,36 @@ public class MatrixRest implements ResourceContainer {
           "chatAuthorizedForSpace": %s
         }
         """.formatted(chatAuthorizedForSpace);
+  }
+
+  /**
+   * Answers the push of a digital worker's pusher. A key the pusher service
+   * does not accept ({@link MatrixAgentPusherService#getPushableLogin}) is
+   * rejected, and Synapse then deletes that pusher. Every other outcome, a
+   * failure included, answers that nothing is rejected: an error answer would
+   * make Synapse retry this event before any later one of the worker's.
+   *
+   * @param notification the {@code notification} object of the push
+   * @param pushKey the pusher's key
+   * @return the JSON answer
+   */
+  private String onAgentPush(JsonValue notification, String pushKey) {
+    try {
+      String login = agentPusherService.getPushableLogin(pushKey);
+      if (login == null) {
+        // the endpoint is unauthenticated: a forged key must not fill the log
+        LOG.debug("Worker pusher key rejected");
+        return REJECTED_ANSWER_FORMAT.formatted(JSONObject.quote(pushKey));
+      }
+      String roomId = notification.getElement("room_id") == null ? "" : notification.getElement("room_id").getStringValue();
+      String eventId = notification.getElement("event_id") == null ? "" : notification.getElement("event_id").getStringValue();
+      if (StringUtils.isNotBlank(eventId) && StringUtils.isNotBlank(roomId)) {
+        chatNotificationService.onAgentPushReceived(eventId, roomId, login);
+      }
+    } catch (Exception e) {
+      LOG.warn("Problem handling a worker push received from Matrix", e);
+    }
+    return NOTHING_REJECTED_ANSWER;
   }
 
   private String checkAndParseUserFromToken(String token) {
