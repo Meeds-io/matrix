@@ -79,7 +79,7 @@
           "text"
         ]
       },
-      "space_scope": { "object_arg": "conversation_id", "resolver": "chat_room", "id_format": "matrix_room", "allowed_args": ["text"] },
+      "space_scope": { "object_arg": "conversation_id", "resolver": "chat_room", "id_format": "matrix_room", "allowed_args": ["text"], "space_role": "member" },
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
