@@ -30,11 +30,8 @@
               <v-list-item-title class="text-title">
                 {{ $t('matrix.chat.spaceSettings.title') }}
               </v-list-item-title>
-              <v-list-item-title class="pt-2">
-                {{ $t('matrix.chat.spaceSettings.title') }}
-              </v-list-item-title>
-              <v-list-item-subtitle>
-                {{ $t('matrix.chat.spaceSettings.description') }}
+              <v-list-item-subtitle class="chat-space-settings-summary text-wrap">
+                {{ summary }}
               </v-list-item-subtitle>
             </v-list-item-content>
             <v-list-item-action>
@@ -123,6 +120,14 @@ export default {
     },
     roomDisabled() {
       return this.spaceChatStatus === 'DISABLED';
+    },
+    /**
+     * @returns {String} whether the space has its chat room, as one line
+     */
+    summary() {
+      return this.spaceChatEnabled
+        ? this.$t('matrix.chat.spaceSettings.summary.enabled')
+        : this.$t('matrix.chat.spaceSettings.summary.disabled');
     },
     displayLoading() {
       return this.progress || this.spaceChatStatus === 'DISABLE_IN_PROGRESS' || this.spaceChatStatus === 'ENABLE_IN_PROGRESS';
