@@ -65,6 +65,7 @@ export default {
   },
   data: () => ({
     spaceChatStatus: 'ENABLED',
+    statusKnown: false,
     displayed: true,
     progress: true,
     updateInterval: 0,
@@ -75,7 +76,8 @@ export default {
     //check if space's chat is enabled
     this.$matrixService.getChatAuthorizationStatus(this.spaceId).then(spaceChatStatus => {
       if (spaceChatStatus.chatAuthorizedForSpace) {
-        this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
+        return this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
+          this.statusKnown = true;
           if (room) {
             this.spaceChatStatus = room.status;
             if (room.status === 'ENABLED' || room.status === 'DISABLED') {
@@ -123,9 +125,12 @@ export default {
     },
     /**
      * @returns {String} whether the space has its chat room, or is creating or
-     *          removing it, as one line
+     *          removing it, as one line; nothing until its status is read
      */
     summary() {
+      if (!this.statusKnown) {
+        return null;
+      }
       switch (this.spaceChatStatus) {
       case 'ENABLE_IN_PROGRESS':
         return this.$t('matrix.chat.spaceSettings.summary.enabling');
