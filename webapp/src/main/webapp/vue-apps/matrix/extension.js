@@ -50,6 +50,7 @@ export function registerChatExtensions(chatTitle) {
             await matrixService.getSpaceRoom(params.spaceId);
             return true;
           } catch (e) {
+            // A read that fails hides the row: its component would hide itself on the same failure
             return false;
           }
         },
