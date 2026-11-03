@@ -40,6 +40,15 @@ export function registerChatExtensions(chatTitle) {
         id: 'meeds-chat-space-settings',
         vueComponent: Vue.options.components['matrix-chat-space-settings'],
         rank: 10,
+        // The line shows only where the space may have a chat room, as its component decides
+        isEnabled: async function (params) {
+          try {
+            const status = await matrixService.getChatAuthorizationStatus(params.spaceId);
+            return !!status?.chatAuthorizedForSpace;
+          } catch (e) {
+            return false;
+          }
+        },
       });
 
       extensionRegistry.registerComponent('SpacePopover', 'space-popover-action', {
