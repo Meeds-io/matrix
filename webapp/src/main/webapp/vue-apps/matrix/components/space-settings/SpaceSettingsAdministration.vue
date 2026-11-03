@@ -72,38 +72,7 @@ export default {
     updateInterval: 0,
   }),
   created() {
-    //check if space's chat is enabled
-    this.$matrixService.getChatAuthorizationStatus(this.spaceId).then(spaceChatStatus => {
-      if (spaceChatStatus.chatAuthorizedForSpace) {
-        return this.$matrixService.getSpaceRoom(this.spaceId).then(room => {
-          this.statusKnown = true;
-          if (room) {
-            this.spaceChatStatus = room.status;
-            if (room.status === 'ENABLED' || room.status === 'DISABLED') {
-              this.progress = false;
-            } else {
-              this.progress = true;
-              this.startCheckingStatus();
-            }
-          } else {
-            this.spaceChatStatus = 'DISABLED';
-            this.progress = false;
-          }
-        }).catch(error => {
-          if (error) {
-            this.spaceChatStatus = 'DISABLED';
-            this.displayed = false;
-            this.progress = false;
-          }
-        });
-      } else {
-        this.displayed = false;
-        this.progress = false;
-      }
-    }).catch(() => {
-      this.displayed = false;
-      this.progress = false;
-    });
+    this.readStatus();
 
     document.addEventListener('hideSettingsApps', (event) => {
       if (event?.detail && this.id !== event.detail) {
@@ -149,6 +118,50 @@ export default {
     }
   },
   methods: {
+    /**
+     * Reads whether the space may have a chat room, then the room's status.
+     * The row hides itself when the space may not have one, or when either
+     * read fails, as the registration's isEnabled decides; its state line
+     * stays empty until the room is read.
+     *
+     * @returns {Promise} resolved once the status is read or the row hidden
+     */
+    async readStatus() {
+      let authorized;
+      try {
+        const spaceChatStatus = await this.$matrixService.getChatAuthorizationStatus(this.spaceId);
+        authorized = !!spaceChatStatus?.chatAuthorizedForSpace;
+      } catch (e) {
+        // A permission that cannot be read hides the row, as the registration's isEnabled does
+        authorized = false;
+      }
+      if (!authorized) {
+        this.displayed = false;
+        this.progress = false;
+        return;
+      }
+      try {
+        const room = await this.$matrixService.getSpaceRoom(this.spaceId);
+        this.statusKnown = true;
+        if (room) {
+          this.spaceChatStatus = room.status;
+          if (room.status === 'ENABLED' || room.status === 'DISABLED') {
+            this.progress = false;
+          } else {
+            this.progress = true;
+            this.startCheckingStatus();
+          }
+        } else {
+          this.spaceChatStatus = 'DISABLED';
+          this.progress = false;
+        }
+      } catch (e) {
+        // A room that cannot be read hides the row, as the registration's isEnabled does
+        this.spaceChatStatus = 'DISABLED';
+        this.displayed = false;
+        this.progress = false;
+      }
+    },
     enableOrDisableChat(status) {
       this.progress = true;
       this.$matrixService.enableOrDisableChat(this.spaceId, status).then(() => {
