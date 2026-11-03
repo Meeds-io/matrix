@@ -947,7 +947,7 @@ export function loadRoomMessages(roomId, from, to) {
 
 // Attachment message types found in a Matrix room timeline.
 const ATTACHMENT_MSG_TYPES = ['m.file', 'm.image', 'm.video', 'm.audio'];
-const HEIF_MIME_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
+const HEIF_MIME_TYPES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']);
 // The canvas area limit reported for iOS Safari, 4096 x 4096 pixels (not
 // verified on a device): a larger photo is scaled down to fit it
 const MAX_CANVAS_PIXELS = 16777216;
@@ -2671,7 +2671,7 @@ export async function normalizeImageFile(file, maxUploadSize) {
  * @returns {Boolean} true for a HEIC/HEIF type
  */
 export function isHeifMimeType(mimetype) {
-  return HEIF_MIME_TYPES.includes((mimetype || '').split(';')[0].trim().toLowerCase());
+  return HEIF_MIME_TYPES.has((mimetype || '').split(';')[0].trim().toLowerCase());
 }
 
 function isHeifImage(file) {
