@@ -129,7 +129,7 @@ export default {
       switch (this.spaceChatStatus) {
       case 'ENABLE_IN_PROGRESS':
         return this.$t('matrix.chat.spaceSettings.summary.enabling');
-      case 'DISABLE_IN_PROGRESS':
+      case 'DISABLED_IN_PROGRESS':
         return this.$t('matrix.chat.spaceSettings.summary.disabling');
       case 'DISABLED':
         return this.$t('matrix.chat.spaceSettings.summary.disabled');
@@ -138,7 +138,7 @@ export default {
       }
     },
     displayLoading() {
-      return this.progress || this.spaceChatStatus === 'DISABLE_IN_PROGRESS' || this.spaceChatStatus === 'ENABLE_IN_PROGRESS';
+      return this.progress || this.spaceChatStatus === 'DISABLED_IN_PROGRESS' || this.spaceChatStatus === 'ENABLE_IN_PROGRESS';
     }
   },
   methods: {
