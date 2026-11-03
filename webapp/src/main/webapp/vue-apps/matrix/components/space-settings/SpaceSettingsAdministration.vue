@@ -122,12 +122,20 @@ export default {
       return this.spaceChatStatus === 'DISABLED';
     },
     /**
-     * @returns {String} whether the space has its chat room, as one line
+     * @returns {String} whether the space has its chat room, or is creating or
+     *          removing it, as one line
      */
     summary() {
-      return this.spaceChatEnabled
-        ? this.$t('matrix.chat.spaceSettings.summary.enabled')
-        : this.$t('matrix.chat.spaceSettings.summary.disabled');
+      switch (this.spaceChatStatus) {
+      case 'ENABLE_IN_PROGRESS':
+        return this.$t('matrix.chat.spaceSettings.summary.enabling');
+      case 'DISABLE_IN_PROGRESS':
+        return this.$t('matrix.chat.spaceSettings.summary.disabling');
+      case 'DISABLED':
+        return this.$t('matrix.chat.spaceSettings.summary.disabled');
+      default:
+        return this.$t('matrix.chat.spaceSettings.summary.enabled');
+      }
     },
     displayLoading() {
       return this.progress || this.spaceChatStatus === 'DISABLE_IN_PROGRESS' || this.spaceChatStatus === 'ENABLE_IN_PROGRESS';
