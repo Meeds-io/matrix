@@ -19,39 +19,36 @@
 <template>
   <v-app>
     <template>
-      <v-card
+      <!-- One row, drawn as the rows of the user Settings page; Space settings draws the card around it -->
+      <div
         id="chatSpaceSetting"
-        class="card-border-radius"
-        flat
         v-if="displayed & !loading">
-        <v-list class="pa-0">
-          <v-list-item class="pa-0">
-            <v-list-item-content>
-              <v-list-item-title class="text-title">
-                {{ $t('matrix.chat.spaceSettings.title') }}
-              </v-list-item-title>
-              <v-list-item-subtitle class="chat-space-settings-summary text-wrap">
-                {{ summary }}
-              </v-list-item-subtitle>
-            </v-list-item-content>
-            <v-list-item-action>
-              <v-switch
-                v-show="!displayLoading"
-                v-model="spaceChatEnabled"
-                @change="enableOrDisableChat(!spaceChatEnabled)"
-                class="pt-5"
-                :title="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)"
-                :aria-label="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)" />
-              <v-progress-circular
-                v-show="displayLoading"
-                color="primary"
-                size="32"
-                indeterminate
-                class="my-auto" />
-            </v-list-item-action>
-          </v-list-item>
-        </v-list>
-      </v-card>
+        <v-list-item two-line>
+          <v-list-item-content>
+            <v-list-item-title class="text-color">
+              {{ $t('matrix.chat.spaceSettings.title') }}
+            </v-list-item-title>
+            <v-list-item-subtitle class="chat-space-settings-summary text-wrap">
+              {{ summary }}
+            </v-list-item-subtitle>
+          </v-list-item-content>
+          <v-list-item-action>
+            <v-switch
+              v-show="!displayLoading"
+              v-model="spaceChatEnabled"
+              @change="enableOrDisableChat(!spaceChatEnabled)"
+              class="ma-0"
+              :title="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)"
+              :aria-label="this.$t(`matrix.chat.spaceSettings.switch.label.${this.switchAriaLabel}`)" />
+            <v-progress-circular
+              v-show="displayLoading"
+              color="primary"
+              size="32"
+              indeterminate
+              class="my-auto" />
+          </v-list-item-action>
+        </v-list-item>
+      </div>
     </template>
   </v-app>
 </template>
