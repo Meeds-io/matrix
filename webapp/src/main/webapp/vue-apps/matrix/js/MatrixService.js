@@ -2640,12 +2640,12 @@ export async function normalizeImageFile(file, maxUploadSize) {
     return file;
   }
   const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  const canvas = document.createElement('canvas');
   try {
-    const image = new Image();
     image.src = objectUrl;
     await image.decode();
     const scale = Math.min(1, Math.sqrt(MAX_CANVAS_PIXELS / (image.naturalWidth * image.naturalHeight)));
-    const canvas = document.createElement('canvas');
     canvas.width = Math.floor(image.naturalWidth * scale);
     canvas.height = Math.floor(image.naturalHeight * scale);
     canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -2659,6 +2659,11 @@ export async function normalizeImageFile(file, maxUploadSize) {
     console.debug(`Could not convert ${file.name} to JPEG, it is sent as is`, e); // eslint-disable-line no-console
     return file;
   } finally {
+    // Released now rather than at garbage collection: a batch of photos
+    // would otherwise hold one full-size canvas each.
+    canvas.width = 0;
+    canvas.height = 0;
+    image.removeAttribute('src');
     URL.revokeObjectURL(objectUrl);
   }
 }
