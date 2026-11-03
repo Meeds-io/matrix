@@ -131,7 +131,7 @@ export default {
       try {
         const spaceChatStatus = await this.$matrixService.getChatAuthorizationStatus(this.spaceId);
         authorized = !!spaceChatStatus?.chatAuthorizedForSpace;
-      } catch (e) {
+      } catch {
         // A permission that cannot be read hides the row, as the registration's isEnabled does
         authorized = false;
       }
@@ -155,7 +155,7 @@ export default {
           this.spaceChatStatus = 'DISABLED';
           this.progress = false;
         }
-      } catch (e) {
+      } catch {
         // A room that cannot be read hides the row, as the registration's isEnabled does
         this.spaceChatStatus = 'DISABLED';
         this.displayed = false;
