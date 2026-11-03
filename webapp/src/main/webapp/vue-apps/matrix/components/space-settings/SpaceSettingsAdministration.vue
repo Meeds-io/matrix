@@ -101,6 +101,9 @@ export default {
         this.displayed = false;
         this.progress = false;
       }
+    }).catch(() => {
+      this.displayed = false;
+      this.progress = false;
     }).finally(() => this.loading = false);
 
     document.addEventListener('hideSettingsApps', (event) => {
