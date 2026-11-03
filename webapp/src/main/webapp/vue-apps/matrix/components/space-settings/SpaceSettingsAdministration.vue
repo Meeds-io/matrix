@@ -19,10 +19,14 @@
 <template>
   <v-app>
     <template>
-      <!-- One row, drawn as the rows of the user Settings page; Space settings draws the card around it -->
+      <!--
+        One row, drawn as the rows of the user Settings page; Space settings
+        draws the card around it. Its registration already read that the row
+        shows, so it is drawn at once, its state line empty until read.
+      -->
       <div
         id="chatSpaceSetting"
-        v-if="displayed & !loading">
+        v-if="displayed">
         <v-list-item two-line>
           <v-list-item-content>
             <v-list-item-title class="text-color">
@@ -66,10 +70,8 @@ export default {
     displayed: true,
     progress: true,
     updateInterval: 0,
-    loading: false
   }),
   created() {
-    this.loading = true;
     //check if space's chat is enabled
     this.$matrixService.getChatAuthorizationStatus(this.spaceId).then(spaceChatStatus => {
       if (spaceChatStatus.chatAuthorizedForSpace) {
@@ -101,7 +103,7 @@ export default {
     }).catch(() => {
       this.displayed = false;
       this.progress = false;
-    }).finally(() => this.loading = false);
+    });
 
     document.addEventListener('hideSettingsApps', (event) => {
       if (event?.detail && this.id !== event.detail) {
