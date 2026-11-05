@@ -1305,7 +1305,8 @@ class MatrixServiceTest extends MatrixBaseTest {
    * Two first messages at once: the other call records the room while this one
    * creates its own on Matrix. The recorded room is reused and no second row is
    * saved, so the pair keeps resolving to a single room, and the asker's
-   * {@code m.direct} names that room.
+   * {@code m.direct} names that room. The room created on Matrix is left as it
+   * is, the recipient's invite included: nothing kicks from it.
    */
   @Test
   void sendDirectMessageReusesTheRoomRecordedWhileCreatingOne() throws Exception {
@@ -1330,6 +1331,7 @@ class MatrixServiceTest extends MatrixBaseTest {
       ArgumentCaptor<Map<String, String[]>> accountData = ArgumentCaptor.forClass(Map.class);
       verify(matrixHttpClient).setDirectRoomsAccountData(eq("@ghost:matrix.exo.tn"), accountData.capture(), anyString());
       assertArrayEquals(new String[] { recordedRoomId }, accountData.getValue().get("@jame:matrix.exo.tn"));
+      verify(matrixHttpClient, never()).kickUserFromRoom(anyString(), anyString(), anyString(), anyString());
     } finally {
       if (matrixService.getById(unusedRoomId, true) != null) {
         matrixService.deleteRoom(unusedRoomId);
