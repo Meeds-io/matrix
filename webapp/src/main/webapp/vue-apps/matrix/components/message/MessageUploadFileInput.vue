@@ -250,9 +250,13 @@ export default {
         this.$refs.fileInput?.$el?.querySelector('input')?.click();
       });
     },
-    async handleFileChange(files) {
+    async handleFileChange(pickedFiles) {
       this.isUploading = true;
 
+      const files = [];
+      for (const pickedFile of pickedFiles) {
+        files.push(await this.$matrixService.normalizeImageFile(pickedFile, this.maxUploadSize));
+      }
       const totalBytes = this.getTotalBytes(files);
       let uploadedBytes = 0;
 
