@@ -51,13 +51,15 @@ export default {
       this.downloadChatAttachment(attachment);
     },
     /**
-     * Whether the attachment is an image, hence previewable from its URL alone.
+     * Whether the attachment is an image the preview can show from its URL
+     * alone; a HEIC/HEIF photo, which most browsers cannot display, downloads.
      *
      * @param {Object} attachment the attachment
-     * @returns {Boolean} true for an image
+     * @returns {Boolean} true for a previewable image
      */
     isChatImageAttachment(attachment) {
-      return (attachment?.mimetype || '').toLowerCase().startsWith('image/');
+      const mimetype = attachment?.mimetype || '';
+      return mimetype.toLowerCase().startsWith('image/') && !this.$matrixService.isHeifMimeType(mimetype);
     },
     /**
      * Opens an image in the platform preview dialog straight from its URL, nothing is

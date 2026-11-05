@@ -947,6 +947,11 @@ export function loadRoomMessages(roomId, from, to) {
 
 // Attachment message types found in a Matrix room timeline.
 const ATTACHMENT_MSG_TYPES = ['m.file', 'm.image', 'm.video', 'm.audio'];
+const HEIF_MIME_TYPES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']);
+// The canvas area limit reported for iOS Safari, 4096 x 4096 pixels (not
+// verified on a device): a larger photo is scaled down to fit it
+const MAX_CANVAS_PIXELS = 16777216;
+const JPEG_QUALITY = 0.9;
 
 // Lists the attachments (files, images, audio, video) shared in a room by paging
 // back through its timeline. Returned newest-first.
@@ -2617,12 +2622,75 @@ export function getChatAuthorizationStatus(spaceId) {
   });
 }
 /**
+ * A HEIC/HEIF photo, which an iPhone sends when the photo is picked as a file,
+ * converted to JPEG when this browser can decode it, so that members whose
+ * browser cannot display a HEIC (Chrome among them) see the photo; any other
+ * file, or a photo this browser cannot convert, unchanged.
+ * <p>
+ * The photo is scaled down to fit {@link MAX_CANVAS_PIXELS}. A conversion that
+ * would exceed the homeserver's upload cap while the photo itself fits it
+ * keeps the photo.
+ *
+ * @param {File} file the file about to be sent
+ * @param {Number} [maxUploadSize] the homeserver's upload cap in bytes
+ * @returns {Promise<File>} the file to send
+ */
+export async function normalizeImageFile(file, maxUploadSize) {
+  if (!isHeifImage(file)) {
+    return file;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  const canvas = document.createElement('canvas');
+  try {
+    image.src = objectUrl;
+    await image.decode();
+    const scale = Math.min(1, Math.sqrt(MAX_CANVAS_PIXELS / (image.naturalWidth * image.naturalHeight)));
+    canvas.width = Math.floor(image.naturalWidth * scale);
+    canvas.height = Math.floor(image.naturalHeight * scale);
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    const jpeg = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+    if (!jpeg || (maxUploadSize && jpeg.size > maxUploadSize && file.size <= maxUploadSize)) {
+      return file;
+    }
+    const name = `${file.name.replace(/\.(heic|heif)$/i, '')}.jpg`;
+    return new File([jpeg], name, {type: 'image/jpeg', lastModified: file.lastModified});
+  } catch (e) {
+    console.debug(`Could not convert ${file.name} to JPEG, it is sent as is`, e); // eslint-disable-line no-console
+    return file;
+  } finally {
+    // Released now rather than at garbage collection: a batch of photos
+    // would otherwise hold one full-size canvas each.
+    canvas.width = 0;
+    canvas.height = 0;
+    image.removeAttribute('src');
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+/**
+ * Whether a MIME type is HEIC/HEIF, which most browsers, Chrome among them,
+ * cannot display.
+ *
+ * @param {String} mimetype the MIME type, parameters allowed
+ * @returns {Boolean} true for a HEIC/HEIF type
+ */
+export function isHeifMimeType(mimetype) {
+  return HEIF_MIME_TYPES.has((mimetype || '').split(';')[0].trim().toLowerCase());
+}
+
+function isHeifImage(file) {
+  return isHeifMimeType(file?.type) || (!file?.type && /\.(heic|heif)$/i.test(file?.name || ''));
+}
+
+/**
  * What a file is, in the terms a matrix message needs: its msgtype and the info
  * block that goes with it, dimensions and duration included when the browser can
  * read them.
  * <p>
- * Metadata extraction failing costs the metadata, never the send: an image whose
- * dimensions could not be read still travels, as a message without them.
+ * Metadata extraction failing costs the metadata, never the send. An image this
+ * browser cannot decode, and a HEIC/HEIF photo, which most browsers cannot
+ * display, travel as a file message.
  *
  * @param {File} file the file about to be sent
  * @returns {Promise<Object>} {msgtype, info}
@@ -2636,12 +2704,14 @@ export async function extractFileMetadata(file) {
   };
   try {
     if (type.startsWith('image/')) {
-      msgtype = 'm.image';
-      const image = new Image();
-      image.src = URL.createObjectURL(file);
-      await image.decode();
-      info.w = image.width;
-      info.h = image.height;
+      if (!isHeifImage(file)) {
+        const image = new Image();
+        image.src = URL.createObjectURL(file);
+        await image.decode();
+        msgtype = 'm.image';
+        info.w = image.width;
+        info.h = image.height;
+      }
     } else if (type.startsWith('video/')) {
       msgtype = 'm.video';
       const video = document.createElement('video');
@@ -2686,14 +2756,15 @@ export async function extractFileMetadata(file) {
  * rather than by each caller, because a caller that forgets it is a caller that
  * uploads a gigabyte before the server says no.
  *
- * @param {File} file the file to send
+ * @param {File} pickedFile the file to send, a HEIC/HEIF photo converted first ({@link normalizeImageFile})
  * @param {String} roomId the room it goes into
  * @param {Function} onProgress called with 0..100 as the upload advances
  * @returns {Promise<Object>} the sent message payload
  * @throws {Error} with code 'FILE_TOO_LARGE' and the cap in bytes, before any upload
  */
-export async function sendFileToRoom(file, roomId, onProgress) {
+export async function sendFileToRoom(pickedFile, roomId, onProgress) {
   const maxUploadSize = await getMaxUploadSize();
+  const file = await normalizeImageFile(pickedFile, maxUploadSize);
   if (maxUploadSize && file.size > maxUploadSize) {
     const error = new Error('The file is over the homeserver upload cap');
     error.code = 'FILE_TOO_LARGE';
