@@ -706,8 +706,10 @@ public class MatrixService {
    * created on Matrix as the user, the other participant invited, then it is
    * recorded on the platform and the user's {@code m.direct} account data is
    * updated. When a parallel call records the pair while the room is created on
-   * Matrix, its room is returned, the user's {@code m.direct} updated to it, and the
-   * one just created is left unused; as in
+   * Matrix, its room is returned and the user's {@code m.direct} updated to it.
+   * The room just created is not recorded, but it stays on Matrix: the user is
+   * joined to it and the other participant holds a pending direct-message
+   * invite to it, as for the web chat's own duplicate. As in
    * {@link #createDirectMessagingRoom(Room)}, only the database check and save
    * remain unguarded. The user may open a direct message only where the chat
    * lets them: direct messages are enabled, both users may use the chat
@@ -768,10 +770,12 @@ public class MatrixService {
     // call may have recorded the pair during the room creation on Matrix
     Room existingRoom = matrixRoomStorage.getDirectMessagingRoom(userName, recipient);
     if (existingRoom != null) {
-      LOG.warn("A direct messaging room between {} and {} was recorded while creating one, the room {} created on Matrix is left unused",
+      LOG.warn("A direct messaging room between {} and {} was recorded while creating one: the room {} created on Matrix is not recorded, {} stays joined to it and {} invited to it",
                userName,
                recipient,
-               roomId);
+               roomId,
+               userName,
+               recipient);
       updateDirectRoomsAccountData(userName);
       return existingRoom;
     }
