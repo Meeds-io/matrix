@@ -1302,6 +1302,43 @@ class MatrixServiceTest extends MatrixBaseTest {
   }
 
   /**
+   * Two first messages at once: the other call records the room while this one
+   * creates its own on Matrix. The recorded room is reused and no second row is
+   * saved, so the pair keeps resolving to a single room, and the asker's
+   * {@code m.direct} names that room.
+   */
+  @Test
+  void sendDirectMessageReusesTheRoomRecordedWhileCreatingOne() throws Exception {
+    setMatrixId("ghost", "ghost");
+    setMatrixId("jame", "jame");
+    String recordedRoomId = "!recordedMeanwhile:matrix.exo.tn";
+    String unusedRoomId = "!createdTwice:matrix.exo.tn";
+    when(matrixHttpClient.createDirectMessagingRoom(eq("@jame:matrix.exo.tn"), anyString())).thenAnswer(invocation -> {
+      Room parallel = new Room();
+      parallel.setRoomId(recordedRoomId);
+      parallel.setFirstParticipant("jame");
+      parallel.setSecondParticipant("ghost");
+      matrixService.createDirectMessagingRoom(parallel);
+      return unusedRoomId;
+    });
+    when(matrixHttpClient.sendMessage(eq("!recordedMeanwhile"), eq("hi"), anyString(), anyString())).thenReturn("$race");
+    try {
+      assertEquals("$race", matrixService.sendDirectMessage("ghost", "jame", "hi"));
+      assertEquals(recordedRoomId, matrixService.getDirectMessagingRoom("ghost", "jame").getRoomId());
+      assertNull(matrixService.getById(unusedRoomId, true));
+      @SuppressWarnings("unchecked")
+      ArgumentCaptor<Map<String, String[]>> accountData = ArgumentCaptor.forClass(Map.class);
+      verify(matrixHttpClient).setDirectRoomsAccountData(eq("@ghost:matrix.exo.tn"), accountData.capture(), anyString());
+      assertArrayEquals(new String[] { recordedRoomId }, accountData.getValue().get("@jame:matrix.exo.tn"));
+    } finally {
+      if (matrixService.getById(unusedRoomId, true) != null) {
+        matrixService.deleteRoom(unusedRoomId);
+      }
+      matrixService.deleteRoom(recordedRoomId);
+    }
+  }
+
+  /**
    * The refusals, each before anything is created on Matrix: a blank or the
    * user's own username, an unknown user, a recipient without a chat account,
    * direct messages disabled, and either user outside the chat's restricted
