@@ -16,10 +16,9 @@
 -->
 <template>
   <div
-    class="chat-search-card d-flex align-center clickable text-start pa-3"
+    class="chat-search-card search-result-card d-flex align-center clickable text-start pa-3"
     :class="hover ? 'elevation-2' : 'elevation-0'"
     style="border: 1px solid var(--allPagesBorderColor, #E1E8EE); border-radius: 8px; min-height: 76px; width: 360px; max-width: 100%; transition: box-shadow .2s ease;"
-    @click="open"
     @mouseenter="hover = true"
     @mouseleave="hover = false">
     <v-avatar
@@ -40,9 +39,14 @@
          whole card across the carousel. -->
     <div class="flex-grow-1 overflow-hidden text-start" style="min-width: 0;">
       <div class="d-flex align-center">
-        <span class="text-truncate text-title text-subtitle-1 flex-grow-1 text-start" style="min-width: 0;">
+        <!-- the result's one Tab stop, stretched over the card: it opens the conversation drawer, so it is a button -->
+        <button
+          type="button"
+          class="search-result-link text-truncate text-title text-subtitle-1 flex-grow-1 text-start pa-0"
+          style="min-width: 0;"
+          @click="open">
           {{ conversationTitle }}
-        </span>
+        </button>
         <span
           v-if="formattedDate"
           class="text-caption text-sub-title text-no-wrap ms-2 flex-shrink-0">
