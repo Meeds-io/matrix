@@ -1901,6 +1901,13 @@ export async function buildReplyToObject(messages, eventId) {
 }
 
 export function uploadMatrixFile(file, onProgress) {
+  // On Apple WebKit, a file picked on the device can be sent as an empty body:
+  // the shared upload service hands back a copy held in memory, sent whole.
+  return Vue.prototype.$uploadService.toUploadableFile(file)
+    .then(uploadableFile => sendMatrixFile(file, uploadableFile, onProgress));
+}
+
+function sendMatrixFile(file, uploadableFile, onProgress) {
   return new Promise((resolve, reject) => {
     const uploadUrl = `/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`;
     const xhr = new XMLHttpRequest();
@@ -1927,7 +1934,7 @@ export function uploadMatrixFile(file, onProgress) {
     };
 
     xhr.onerror = () => reject(new Error('Upload error'));
-    xhr.send(file);
+    xhr.send(uploadableFile);
   });
 }
 
