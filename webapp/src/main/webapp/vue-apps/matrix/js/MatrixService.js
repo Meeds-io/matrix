@@ -1901,6 +1901,15 @@ export async function buildReplyToObject(messages, eventId) {
 }
 
 export function uploadMatrixFile(file, onProgress) {
+  // On WebKit 26 and later, a file picked on the device can be sent as an
+  // empty body: the shared upload service hands back a copy held in memory,
+  // sent whole. A platform whose upload service predates it sends the file.
+  const toUploadableFile = Vue.prototype.$uploadService?.toUploadableFile;
+  return (toUploadableFile ? toUploadableFile(file) : Promise.resolve(file))
+    .then(uploadableFile => sendMatrixFile(file, uploadableFile, onProgress));
+}
+
+function sendMatrixFile(file, uploadableFile, onProgress) {
   return new Promise((resolve, reject) => {
     const uploadUrl = `/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`;
     const xhr = new XMLHttpRequest();
@@ -1927,7 +1936,7 @@ export function uploadMatrixFile(file, onProgress) {
     };
 
     xhr.onerror = () => reject(new Error('Upload error'));
-    xhr.send(file);
+    xhr.send(uploadableFile);
   });
 }
 
