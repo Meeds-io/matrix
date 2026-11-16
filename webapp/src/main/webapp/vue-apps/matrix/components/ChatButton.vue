@@ -822,6 +822,9 @@ export default {
       this.messageResults = [];
     },
     sendMessageStatistics(message, room) {
+      // the operation is declared in services/src/main/resources/analytics-collaborative-activities.json:
+      // renaming it stops chat messages counting as collaborative activity (the server stores the declared
+      // module whatever the page sends)
       document.dispatchEvent(new CustomEvent('exo-statistic-message', {
         detail: {
           module: 'Chat',
