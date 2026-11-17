@@ -93,7 +93,7 @@ public class MatrixTemplateBuilder extends AbstractTemplateBuilder {
                                                     .replace("$ROOM", roomName));
     }
     String message = notification.getValueOwnerParameter("MATRIX_MESSAGE_CONTENT");
-    templateContext.put("MESSAGE_CONTENT", message);
+    templateContext.put("MESSAGE_CONTENT", SocialNotificationUtils.withContentColors(templateContext, message));
 
     MessageInfo messageInfo = new MessageInfo();
     // process subject then add the result String to the template context
