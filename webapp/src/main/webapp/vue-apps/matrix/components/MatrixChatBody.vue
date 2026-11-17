@@ -24,7 +24,7 @@
       :max-width="420"
       :min-width="fullPageMode ? 420 : undefined"
       :class="{
-        'transparent': fullPageMode
+        'second-panel-background': fullPageMode
       }"
       class="fill-height overflow-y-auto flex-shrink-1 flex-grow-1 overflow-x-hidden specific-scrollbar">
       <matrix-room-filter-chips />
