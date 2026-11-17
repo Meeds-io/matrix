@@ -44,7 +44,7 @@
   line-height: normal;
   border-radius: 50%;
   line-height: 20px;
-  border: 2px solid #FFFFFF;
+  border: 2px solid @baseBackground;
 }
 
 .matrix-status-online {
@@ -116,7 +116,7 @@
 .meeds-chat-contact-avatar {
   background-size: cover;
   background-position: center;
-  border: 2px solid @white;
+  border: 2px solid @baseBackground;
   z-index: 1;
 }
 .meeds-chat-contact-avatar-name {
@@ -125,7 +125,7 @@
 }
 
 .chat-message-timestamp-chip {
-  background: #F0F0F0BF !important;
+  background: ~"var(--allPagesLightGrey, #F0F0F0BF)" !important;
   opacity: 0.8 !important;
 }
 .chat-message-content-timestamp {
@@ -246,7 +246,7 @@
       max-width: 328px;
     }
     .others-message-text i {
-      color: #20282c;
+      color: @textColor;
     }
     .others-audio-message {
       min-width: 299px;
@@ -265,13 +265,13 @@
 
   .message-reaction-item {
     border-radius: 16px;
-    background: #F0F0F0 0% 0% no-repeat padding-box;
+    background: var(--allPagesLightGrey, #F0F0F0) 0% 0% no-repeat padding-box;
   }
   .current-user-reaction {
     border: 2px solid #476A9C;
   }
   .other-user-reaction {
-    border: 2px solid #FFF;
+    border: 2px solid @baseBackground;
   }
 
   .matrix-chat-send-message-button {
