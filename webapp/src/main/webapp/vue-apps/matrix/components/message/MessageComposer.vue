@@ -81,7 +81,7 @@
       class="d-flex flex-column justify-end">
       <v-btn
         v-if="hasComposerContent"
-        class="ms-2 mb-0_5"
+        class="send-message-button ms-2 mb-0_5"
         icon
         @click="sendMessage">
         <v-icon

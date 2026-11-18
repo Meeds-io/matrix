@@ -22,15 +22,18 @@
       v-if="!hiddenButton"
       id="btnChatButtonNew"
       :title="$t('matrix.chat.button.tooltip')"
+      :class="roomsChecked && 'unread-counts-checked'"
       class="text-xs-center"
       icon
       @click="openDrawer">
       <v-badge
         :value="totalUnreadMessages > 0"
-        :content="totalUnreadMessages <= 99 ? totalUnreadMessages : '99+'"
         color="var(--allPagesBadgePrimaryColor, #d32a2a)"
         flat
         overlap>
+        <template #badge>
+          <span class="chat-unread-count">{{ totalUnreadMessages > 0 ? (totalUnreadMessages <= 99 ? totalUnreadMessages : '99+') : '' }}</span>
+        </template>
         <v-icon size="20" :color="presenceColor">fa-comments</v-icon>
       </v-badge>
     </v-btn>
