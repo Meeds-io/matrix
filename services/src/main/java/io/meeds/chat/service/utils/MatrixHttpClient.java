@@ -198,7 +198,7 @@ public class MatrixHttpClient {
       if (response.statusCode() >= 200 && response.statusCode() < 300) {
         JsonGeneratorImpl jsonGenerator = new JsonGeneratorImpl();
         String roomId = jsonGenerator.createJsonObjectFromString(response.body()).getElement("room_id").getStringValue();
-        return roomId.substring(0, roomId.indexOf(":" + PropertyManager.getProperty(MATRIX_SERVER_NAME)));
+        return MatrixRoomIdUtils.toStoredRoomId(roomId);
       } else {
         if (response.statusCode() == 429) {
           long sleepInMs = new JsonGeneratorImpl().createJsonObjectFromString(response.body())
@@ -485,7 +485,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomId);
     String url =
                PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/state/m.room.name/";
     String payload = """
@@ -525,7 +525,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomId);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/invite";
     String payload = """
@@ -565,7 +565,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomId);
     String fullMatrixUserId = "@%s:%s".formatted(userMatrixId, PropertyManager.getProperty(MATRIX_SERVER_NAME));
 
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/kick";
@@ -607,7 +607,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/join/" + fullRoomId;
     String payload = """
           {
@@ -659,7 +659,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/rooms/" + fullRoomId + "/make_room_admin";
     String payload = """
           {
@@ -699,7 +699,7 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
     String fullUserMatrixId = "@%s:%s".formatted(matrixIdOfUser, PropertyManager.getProperty(MATRIX_SERVER_NAME));
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/joined_members";
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
@@ -726,7 +726,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
@@ -757,7 +757,7 @@ public class MatrixHttpClient {
     }
 
     String payload = roomSettings.toJson();
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
 
@@ -818,7 +818,7 @@ public class MatrixHttpClient {
    * @return true if succeeded otherwise false
    */
   public boolean updateRoomAvatar(String matrixRoomId, String avatarURL, String accessToken) {
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.avatar/";
     String payload = """
@@ -904,7 +904,7 @@ public class MatrixHttpClient {
    * @return true if the operation is successful, false otherwise
    */
   public boolean updateRoomDescription(String matrixRoomId, String description, String accessToken) {
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8) + "/state/m.room.topic/";
     String plainDescription = description.replaceAll("<[^>]*>", "").replace("\n", "");
@@ -947,7 +947,7 @@ public class MatrixHttpClient {
    * @return boolean True if the deletion is successful otherwise False
    */
   public boolean deleteRoom(String matrixRoomId, String accessToken) {
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + "/_synapse/admin/v1/rooms/"
         + URLEncoder.encode(fullRoomId, StandardCharsets.UTF_8);
     String payload = """
@@ -1176,7 +1176,8 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + roomId + "/event/" + eventId;
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + MatrixRoomIdUtils.toFullRoomId(roomId) + "/event/"
+        + eventId;
 
     HttpResponse<String> response = sendHttpGetRequest(url, accessToken);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -1245,7 +1246,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/messages?dir=b&limit="
         + limit;
 
@@ -1400,7 +1401,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL)) || StringUtils.isBlank(roomIdLocalPart)) {
       return null;
     }
-    String fullRoomId = roomIdLocalPart + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomIdLocalPart);
     String baseUrl = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId;
     try {
       HttpResponse<String> nameResponse = sendHttpGetRequest(baseUrl + "/state/m.room.name", accessToken);
@@ -1471,7 +1472,7 @@ public class MatrixHttpClient {
 
     JSONObject filter = new JSONObject().put("limit", limit);
     if (StringUtils.isNotBlank(roomIdLocalPart)) {
-      String fullRoomId = roomIdLocalPart + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+      String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomIdLocalPart);
       filter.put("rooms", new JSONArray().put(fullRoomId));
     }
     JSONObject roomEvents = new JSONObject().put("search_term", query).put("order_by", "recent").put("filter", filter);
@@ -1633,7 +1634,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/send/m.room.message/" + transactionId;
     String payload = new JSONObject().put("msgtype", "m.text").put("body", text).toString();
@@ -1663,8 +1664,7 @@ public class MatrixHttpClient {
     if (StringUtils.isBlank(PropertyManager.getProperty(MATRIX_SERVER_URL))) {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
-    String fullRoomId = matrixRoomId.contains(":") ? matrixRoomId
-                                                   : matrixRoomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
     // the event id is client-supplied and, depending on the room version, may
     // carry ':', '/', '+' or '=' — it is a path segment, so it is encoded
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId + "/receipt/m.read/"

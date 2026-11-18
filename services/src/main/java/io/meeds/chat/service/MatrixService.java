@@ -35,6 +35,7 @@ import io.meeds.chat.service.model.MediaInfo;
 import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.utils.MatrixHttpClient;
+import io.meeds.chat.service.utils.MatrixRoomIdUtils;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
@@ -766,9 +767,8 @@ public class MatrixService {
    * @return the user Identifier
    */
   public String extractRoomId(String fullMatrixUserId) {
-    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    if (fullMatrixUserId.startsWith("!") && fullMatrixUserId.endsWith(serverName)) {
-      return fullMatrixUserId.substring(0, fullMatrixUserId.indexOf(":"));
+    if (fullMatrixUserId.startsWith("!")) {
+      return MatrixRoomIdUtils.toStoredRoomId(fullMatrixUserId);
     }
     return fullMatrixUserId;
   }

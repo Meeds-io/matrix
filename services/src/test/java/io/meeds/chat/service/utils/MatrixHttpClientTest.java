@@ -49,6 +49,9 @@ import static org.mockito.Mockito.*;
 
 class MatrixHttpClientTest {
 
+  // A room id returned by createRoom on matrixdotorg/synapse:v1.165.0 (default room version 12)
+  private static final String ROOM_V12_ID = "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8";
+
   MockedStatic<HTTPHelper> MATRIX_HTTP_HELPER;
 
   String                   jwtToken         = "ThisIsAJWTToken";
@@ -397,6 +400,47 @@ class MatrixHttpClientTest {
   void makeUserAdminInRoom() {
   }
 
+  /**
+   * A room version 12 room id (MSC4291) has no server part: createRoom returns
+   * it unchanged.
+   */
+  @Test
+  void createRoomKeepsRoomVersion12IdUnchanged() throws Exception {
+    when(responseOK.body()).thenReturn("{\"room_id\":\"" + ROOM_V12_ID + "\"}");
+
+    String result = matrixHttpClient.createRoom("Internal Communication", "Discussion room", accessToken);
+
+    assertEquals(ROOM_V12_ID, result);
+  }
+
+  /**
+   * A space room stored without its server part gets it back, a room version 12
+   * id and a direct message's full id are sent unchanged.
+   */
+  @Test
+  void updateRoomSettingsTargetsTheFullRoomIdOfEachStoredShape() throws Exception {
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    matrixRoomPermissions.setUsers(List.of());
+    matrixRoomPermissions.setEvents(new Events("roomName", "50", "50", "50", "50", "50", "50", "50"));
+    when(responseOK.body()).thenReturn("{\"event_id\": \"thisIsAnEventId\"}");
+
+    matrixHttpClient.updateRoomSettings("!legacyRoom", matrixRoomPermissions, accessToken);
+    matrixHttpClient.updateRoomSettings(ROOM_V12_ID, matrixRoomPermissions, accessToken);
+    matrixHttpClient.updateRoomSettings("!dmRoom:matrix.exo.com", matrixRoomPermissions, accessToken);
+
+    String roomsPath = "http://matrix:8008/_matrix/client/v3/rooms/";
+    String statePath = "/state/m.room.power_levels/";
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(eq(roomsPath + "!legacyRoom:matrix.exo.com" + statePath),
+                                                                  anyString(),
+                                                                  anyString()));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(eq(roomsPath + ROOM_V12_ID + statePath),
+                                                                  anyString(),
+                                                                  anyString()));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(eq(roomsPath + "!dmRoom:matrix.exo.com" + statePath),
+                                                                  anyString(),
+                                                                  anyString()));
+  }
+
   @Test
   void getRoomSettings() {
   }
@@ -671,6 +715,34 @@ class MatrixHttpClientTest {
       // sucess
     }
 
+  }
+
+  /**
+   * A space room stored without its server part is read with it, a room
+   * version 12 id as is.
+   */
+  @Test
+  void getEventByIdTargetsTheFullRoomIdOfEachStoredShape() throws Exception {
+    // GET /rooms/{roomId}/event/{eventId} on matrixdotorg/synapse:v1.165.0, in the room version 12 room ROOM_V12_ID
+    String roomV12Event = """
+        {"age":94,"content":{"body":"text","msgtype":"m.text"},"event_id":"$yQrji51h9B9yOwszVe6qJHwBHeGXBdE3eLIYSYrR8oE",\
+        "origin_server_ts":1795030259749,"room_id":"!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8","sender":"@probe:matrix.exo.com",\
+        "type":"m.room.message","unsigned":{"age":94,"membership":"join","transaction_id":"probe-1795030259"},\
+        "user_id":"@probe:matrix.exo.com"}""";
+    // the same response for a room created before room version 12
+    String legacyRoomEvent = roomV12Event.replace(ROOM_V12_ID, "!legacyRoom:matrix.exo.com");
+    when(responseOK.body()).thenReturn(legacyRoomEvent, roomV12Event);
+
+    MatrixMessage legacyRoomMessage = matrixHttpClient.getEventById("eventId", "!legacyRoom", accessToken);
+    MatrixMessage roomV12Message = matrixHttpClient.getEventById("eventId", ROOM_V12_ID, accessToken);
+
+    String roomsPath = "http://matrix:8008/_matrix/client/v3/rooms/";
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(eq(roomsPath + "!legacyRoom:matrix.exo.com/event/eventId"),
+                                                                  anyString()));
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(eq(roomsPath + ROOM_V12_ID + "/event/eventId"), anyString()));
+    assertEquals("!legacyRoom:matrix.exo.com", legacyRoomMessage.getRoomId());
+    assertEquals(ROOM_V12_ID, roomV12Message.getRoomId());
+    assertEquals("text", roomV12Message.getMessageContent());
   }
 
   @Test
