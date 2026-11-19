@@ -873,13 +873,16 @@ class MatrixHttpClientTest {
               },
               "!room4:matrix.exo.com": {
                 "unread_notifications": { "notification_count": 2 }
+              },
+              "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8": {
+                "unread_notifications": { "notification_count": 1 }
               }
             }
           }
         }""");
     List<MatrixUnreadRoom> unreadRooms = matrixHttpClient.getUnreadRooms(accessToken, 20);
-    // room2 has 0 unread and is skipped; room1 and room4 remain
-    assertEquals(2, unreadRooms.size());
+    // room2 has 0 unread and is skipped; room1, room4 and the room version 12 room remain
+    assertEquals(3, unreadRooms.size());
     MatrixUnreadRoom room1 = unreadRooms.stream().filter(r -> "!room1".equals(r.getRoomId())).findFirst().orElseThrow();
     assertEquals(3, room1.getUnreadCount());
     assertEquals(1, room1.getMessages().size());
@@ -887,6 +890,8 @@ class MatrixHttpClientTest {
     MatrixUnreadRoom room4 = unreadRooms.stream().filter(r -> "!room4".equals(r.getRoomId())).findFirst().orElseThrow();
     assertEquals(2, room4.getUnreadCount());
     assertTrue(room4.getMessages().isEmpty());
+    // a room version 12 id has no server part: it is kept whole
+    assertTrue(unreadRooms.stream().anyMatch(r -> "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8".equals(r.getRoomId())));
 
     // No joined rooms -> empty list
     when(responseOK.body()).thenReturn("{\"rooms\":{}}");
@@ -946,6 +951,16 @@ class MatrixHttpClientTest {
                   }
                 },
                 {
+                  "result": {
+                    "type": "m.room.message",
+                    "event_id": "$hit2",
+                    "room_id": "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8",
+                    "sender": "@b:matrix.exo.com",
+                    "origin_server_ts": 1500000000000,
+                    "content": { "body": "found it there", "msgtype": "m.text" }
+                  }
+                },
+                {
                   "rank": 0.42
                 }
               ]
@@ -954,13 +969,15 @@ class MatrixHttpClientTest {
         }""");
     // Unscoped search across all the user's rooms
     List<MatrixMessage> results = matrixHttpClient.searchMessages("found", null, 20, accessToken);
-    assertEquals(1, results.size());
+    assertEquals(2, results.size());
     assertEquals("!room1", results.get(0).getRoomId());
     assertEquals("found it here", results.get(0).getMessageContent());
+    // a room version 12 id has no server part: it is kept whole
+    assertEquals("!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8", results.get(1).getRoomId());
 
     // Scoped search to a single room exercises the room-filter branch
     List<MatrixMessage> scoped = matrixHttpClient.searchMessages("found", "!room1", 20, accessToken);
-    assertEquals(1, scoped.size());
+    assertEquals(2, scoped.size());
 
     // No results / missing categories -> empty list (no NPE)
     when(responseOK.body()).thenReturn("{\"search_categories\":{}}");

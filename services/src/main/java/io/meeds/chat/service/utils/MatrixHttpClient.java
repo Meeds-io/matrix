@@ -1355,7 +1355,6 @@ public class MatrixHttpClient {
     }
     JsonValue joinedRooms = rooms.getElement("join");
     Iterator<String> roomIds = joinedRooms.getKeys();
-    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
     while (roomIds.hasNext()) {
       String fullRoomId = roomIds.next();
       JsonValue room = joinedRooms.getElement(fullRoomId);
@@ -1367,8 +1366,7 @@ public class MatrixHttpClient {
       if (unreadCount <= 0) {
         continue;
       }
-      String roomLocalId = fullRoomId.contains(":" + serverName) ? fullRoomId.substring(0, fullRoomId.indexOf(":" + serverName))
-                                                                 : fullRoomId;
+      String roomLocalId = MatrixRoomIdUtils.toStoredRoomId(fullRoomId);
       List<MatrixMessage> messages = new ArrayList<>();
       JsonValue timeline = room.getElement("timeline");
       if (timeline != null && timeline.getElement("events") != null && timeline.getElement("events").isArray()) {
@@ -1496,10 +1494,9 @@ public class MatrixHttpClient {
     if (results == null || !results.isArray()) {
       return new ArrayList<>();
     }
-    String serverSuffix = ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
     Iterator<JsonValue> hits = results.getElements();
     while (hits.hasNext()) {
-      collectSearchHit(hits.next().getElement("result"), serverSuffix, query, messagesByEventId, editedAwayEventIds);
+      collectSearchHit(hits.next().getElement("result"), query, messagesByEventId, editedAwayEventIds);
     }
     return new ArrayList<>(messagesByEventId.values());
   }
@@ -1511,7 +1508,6 @@ public class MatrixHttpClient {
    * term.
    *
    * @param event the JSON event of the hit, may be {@code null}
-   * @param serverSuffix the {@code :server.name} suffix to strip from the room id
    * @param query the free-text search term the user looked for
    * @param messagesByEventId the collected messages, keyed by the event the client
    *          renders, updated in place
@@ -1519,14 +1515,13 @@ public class MatrixHttpClient {
    *          term, updated in place so their outdated original is skipped too
    */
   private void collectSearchHit(JsonValue event,
-                                String serverSuffix,
                                 String query,
                                 Map<String, MatrixMessage> messagesByEventId,
                                 Set<String> editedAwayEventIds) {
     if (event == null || isRedacted(event)) {
       return;
     }
-    MatrixMessage message = parseMessageEvent(event, extractRoomLocalId(event, serverSuffix));
+    MatrixMessage message = parseMessageEvent(event, extractRoomLocalId(event));
     if (message == null) {
       return;
     }
@@ -1550,19 +1545,18 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Extracts the room local part from a search hit, i.e. the room id without its
-   * {@code :server.name} suffix.
+   * Extracts the room id to store from a search hit
+   * ({@link MatrixRoomIdUtils#toStoredRoomId(String)}).
    *
    * @param event the JSON event of the hit
-   * @param serverSuffix the {@code :server.name} suffix to strip
-   * @return the room local part, or {@code null} when the event carries no room id
+   * @return the room id as stored, or {@code null} when the event carries no room id
    */
-  private String extractRoomLocalId(JsonValue event, String serverSuffix) {
+  private String extractRoomLocalId(JsonValue event) {
     if (event.getElement("room_id") == null) {
       return null;
     }
     String fullRoomId = event.getElement("room_id").getStringValue();
-    return fullRoomId.contains(serverSuffix) ? fullRoomId.substring(0, fullRoomId.indexOf(serverSuffix)) : fullRoomId;
+    return MatrixRoomIdUtils.toStoredRoomId(fullRoomId);
   }
 
   /**
