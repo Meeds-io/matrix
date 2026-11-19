@@ -918,6 +918,19 @@ export async function loadAllMessagesWithOriginalCount(roomId, from = null, to =
   };
 }
 
+// A room id is !<localpart>:<server_name> up to room version 11, and the space
+// rooms the platform created are stored without the server part. From room
+// version 12 (MSC4291) it is !<43 URL-safe base64 characters>, with no server
+// part: it is complete and used as is.
+const HASH_ROOM_ID_PATTERN = /^![A-Za-z0-9_-]{43}$/;
+
+export function toFullRoomId(roomId) {
+  if (!roomId || roomId.includes(':') || HASH_ROOM_ID_PATTERN.test(roomId)) {
+    return roomId;
+  }
+  return `${roomId}:${matrixServerName}`;
+}
+
 export function loadRoomMessages(roomId, from, to) {
   const filter = {'lazy_load_members': true, types: ['m.room.message']};
   const formData = new FormData();
@@ -931,9 +944,7 @@ export function loadRoomMessages(roomId, from, to) {
   formData.append('dir', 'b'); // f: chronological order, b: revers-chronological order
   formData.append('filter', JSON.stringify(filter));
   const params = new URLSearchParams(formData).toString();
-  if (!roomId.includes(':')) {
-    roomId = `${roomId}:${matrixServerName}`;
-  }
+  roomId = toFullRoomId(roomId);
   return fetch(`/_matrix/client/v3/rooms/${roomId}/messages?${params}`, {
     method: 'GET',
     headers: {
@@ -1511,7 +1522,7 @@ export function sendMessage(payload, roomId) {
   let index = localStorage.getItem('matrix_transaction_index') || 1;
   const transactionId = `${new Date().getTime()}-${index}`;
   const eventType = 'm.room.message';
-  roomId = roomId.includes(matrixServerName) ? roomId : `${roomId  }:${  matrixServerName}`;
+  roomId = toFullRoomId(roomId);
   return fetch(`/_matrix/client/v3/rooms/${roomId}/send/${eventType}/${transactionId}`, {
     method: 'PUT',
     headers: {
@@ -1549,9 +1560,7 @@ export async function markRoomAsFullyRead(roomId, eventId) {
     return false;
   }
 
-  if (!roomId.includes(':')) {
-    roomId = `${roomId}:${matrixServerName}`;
-  }
+  roomId = toFullRoomId(roomId);
 
   const resp = await fetch(`/matrix/rest/matrix/rooms/${encodeURIComponent(roomId)}/read?eventId=${encodeURIComponent(eventId)}`, {
     method: 'POST',
