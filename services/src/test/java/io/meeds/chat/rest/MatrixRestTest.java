@@ -39,6 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
@@ -410,6 +411,36 @@ class MatrixRestTest {
     response1.andExpect(status().isOk());
   }
 
+  /**
+   * The id returned to the web client is the one Synapse knows: a room version
+   * 12 id (MSC4291) has no server part and is returned unchanged, a space room
+   * stored without its server part gets it back.
+   */
+  @Test
+  void getRoomByIdReturnsTheFullRoomIdOfEachStoredShape() throws Exception {
+    // A room id returned by createRoom on matrixdotorg/synapse:v1.165.0 (default room version 12)
+    String roomV12Id = "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8";
+    String legacyRoomId = "!legacyRoom";
+    Space space = new Space();
+    space.setDisplayName("Test space");
+    when(spaceService.getSpaceById("1")).thenReturn(space);
+    when(matrixService.canAccess(any(Room.class), anyString())).thenReturn(true);
+    for (String storedRoomId : new String[] { roomV12Id, legacyRoomId }) {
+      Room room = new Room();
+      room.setRoomId(storedRoomId);
+      room.setSpaceId(1L);
+      when(matrixService.getById(storedRoomId)).thenReturn(room);
+      when(matrixService.getById(storedRoomId, true)).thenReturn(room);
+    }
+
+    mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser()).param("roomId", roomV12Id))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.id").value(roomV12Id));
+    mockMvc.perform(get(REST_PATH + "/byRoomId").with(simpleUser()).param("roomId", legacyRoomId))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.id").value(legacyRoomId + ":matrix.meeds.tn"));
+  }
+
   @Test
   void getDirectMessagingRoom() throws Exception {
     String roomId = "!testRoomIdentifier:matrix.meeds.tn";
@@ -500,6 +531,22 @@ class MatrixRestTest {
                                                            .param("roomId", "!testRoom:matrix.meeds.tn")
                                                            .contentType(MediaType.APPLICATION_JSON));
     response.andExpect(status().isOk());
+  }
+
+  /**
+   * A room version 12 id whose hash contains the server name is looked up whole.
+   * The id below was returned by createRoom on matrixdotorg/synapse:v1.165.0 and
+   * ends with "s8".
+   */
+  @Test
+  void getByRoomLooksUpARoomVersion12IdWhole() throws Exception {
+    String roomV12Id = "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8";
+    PropertyManager.setProperty(MATRIX_SERVER_NAME, "s8");
+
+    mockMvc.perform(get(REST_PATH + "/byRoom").with(simpleUser()).param("roomId", roomV12Id))
+           .andExpect(status().isNotFound());
+
+    verify(matrixService).getById(roomV12Id);
   }
 
   @Test

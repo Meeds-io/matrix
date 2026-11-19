@@ -30,6 +30,7 @@ import io.meeds.chat.model.Room;
 import io.meeds.chat.service.ChatNotificationService;
 import io.meeds.chat.service.MatrixSynchronizationService;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
+import io.meeds.chat.service.utils.MatrixRoomIdUtils;
 import io.meeds.chat.service.model.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -332,8 +333,8 @@ public class MatrixRest implements ResourceContainer {
                             @Parameter(description = "The room Id")
                             @RequestParam(name = "roomId")
                             String roomId) {
-    if (StringUtils.isNotBlank(roomId) && roomId.contains(PropertyManager.getProperty(MATRIX_SERVER_NAME))) {
-      roomId = roomId.substring(0, roomId.indexOf(":"));
+    if (StringUtils.isNotBlank(roomId)) {
+      roomId = MatrixRoomIdUtils.toStoredRoomId(roomId);
     }
     Room room = matrixService.getById(roomId);
     if (room == null) {
@@ -739,12 +740,7 @@ public class MatrixRest implements ResourceContainer {
 
   private RoomEntity buildRoomEntityFromRoom(Room room, String currentUserName) {
     RoomEntity roomEntity = new RoomEntity();
-    String roomId = room.getRoomId();
-    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
-    if (!roomId.contains(serverName)) {
-      roomId = roomId + ":" + serverName;
-    }
-    roomEntity.setId(roomId);
+    roomEntity.setId(MatrixRoomIdUtils.toFullRoomId(room.getRoomId()));
     roomEntity.setStatus(room.getStatus());
     if (room.getSpaceId() != null) {
       roomEntity.setSpaceId(room.getSpaceId());
