@@ -60,6 +60,7 @@ import java.util.Map;
 
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_ATTEMPTS;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_CONNECTION_RETRY_DELAY;
+import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_SERVER_NAME;
 import static io.meeds.chat.service.utils.MatrixConstants.SPACE_CHAT_AUTHORIZED;
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.*;
@@ -522,6 +523,25 @@ class MatrixServiceTest extends MatrixBaseTest {
     assertTrue(messages.isEmpty());
     // ...but the interrupt status is preserved so callers up the stack can react to it
     assertTrue(Thread.interrupted(), "The interrupt status must be restored (and is cleared here for the next test)");
+  }
+
+  /**
+   * A room version 12 id has no server part, and its hash may end with a server
+   * name made of URL-safe base64 characters: it is kept whole. The id below was
+   * returned by createRoom on matrixdotorg/synapse:v1.165.0 and ends with "s8".
+   */
+  @Test
+  void extractRoomIdKeepsARoomVersion12IdEndingWithTheServerName() {
+    String roomV12Id = "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8";
+    String serverName = PropertyManager.getProperty(MATRIX_SERVER_NAME);
+    try {
+      PropertyManager.setProperty(MATRIX_SERVER_NAME, "s8");
+      assertEquals(roomV12Id, matrixService.extractRoomId(roomV12Id));
+      assertEquals("!legacyRoom", matrixService.extractRoomId("!legacyRoom:s8"));
+      assertEquals("!dmRoom:other.server", matrixService.extractRoomId("!dmRoom:other.server"));
+    } finally {
+      PropertyManager.setProperty(MATRIX_SERVER_NAME, serverName);
+    }
   }
 
   @Test
