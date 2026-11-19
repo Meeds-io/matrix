@@ -34,9 +34,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -441,6 +444,158 @@ class MatrixHttpClientTest {
                                                                   anyString()));
   }
 
+  // m.room.create events read with ?format=event from matrixdotorg/synapse:v1.165.0
+  private static final String CREATE_EVENT_V12 =
+      "{\"content\":{\"room_version\":\"12\"},\"event_id\":\"$gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio\","
+      + "\"origin_server_ts\":1795080405377,\"room_id\":\"!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio\","
+      + "\"sender\":\"@probe:matrix.exo.com\",\"state_key\":\"\",\"type\":\"m.room.create\",\"unsigned\":{\"age\":1224}}";
+
+  private static final String CREATE_EVENT_V12_ADDITIONAL_CREATOR =
+      "{\"content\":{\"additional_creators\":[\"@bob:matrix.exo.com\"],\"room_version\":\"12\"},"
+      + "\"event_id\":\"$cu4-_9nU4BM1sJhPGcLS8vTIgE5xC4Nmnc8f2mPlwfQ\",\"origin_server_ts\":1795080405838,"
+      + "\"room_id\":\"!cu4-_9nU4BM1sJhPGcLS8vTIgE5xC4Nmnc8f2mPlwfQ\",\"sender\":\"@probe:matrix.exo.com\","
+      + "\"state_key\":\"\",\"type\":\"m.room.create\",\"unsigned\":{\"age\":852}}";
+
+  private static final String CREATE_EVENT_V11 =
+      "{\"content\":{\"room_version\":\"11\"},\"event_id\":\"$yf9MYMZPouxLJ1A_LwGifSP9aPExy3xb2Kcir7M62lY\","
+      + "\"origin_server_ts\":1795080406230,\"room_id\":\"!LDnGjVkoeSLuWGwsiP:matrix.exo.com\","
+      + "\"sender\":\"@probe:matrix.exo.com\",\"state_key\":\"\",\"type\":\"m.room.create\",\"unsigned\":{\"age\":549}}";
+
+  private JSONObject sendPowerLevelsWithCreateEvent(String roomId, int createStatus, String createEvent, String... users)
+                                                                                                            throws Exception {
+    HttpResponse<String> createResponse = mock(HttpResponse.class);
+    when(createResponse.statusCode()).thenReturn(createStatus);
+    when(createResponse.body()).thenReturn(createEvent);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("/state/m.room.create/?format=event"), anyString(), any(Duration.class)))
+                      .thenReturn(createResponse);
+    when(responseOK.body()).thenReturn("{\"event_id\": \"thisIsAnEventId\"}");
+
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    matrixRoomPermissions.setUsers(java.util.Arrays.stream(users).map(user -> new MatrixUserPermission(user, "50")).toList());
+    matrixRoomPermissions.setEvents(new Events("roomName", "50", "50", "50", "50", "50", "50", "50"));
+    matrixRoomPermissions.setUserDefault("0");
+    matrixRoomPermissions.setEventsDefault("0");
+    matrixRoomPermissions.setStateDefault("50");
+    matrixRoomPermissions.setBan("50");
+    matrixRoomPermissions.setKick("50");
+    matrixRoomPermissions.setRedact("50");
+    matrixRoomPermissions.setInvite("100");
+    matrixRoomPermissions.setHistorical("100");
+    matrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, accessToken);
+
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(contains("/state/m.room.power_levels/"),
+                                                                  anyString(),
+                                                                  payload.capture()));
+    return new JSONObject(payload.getValue()).getJSONObject("users");
+  }
+
+  /**
+   * Synapse refuses a room version 12 power levels event listing a creator in
+   * its users ("Creator user ... must not appear in content.users").
+   */
+  @Test
+  void updateRoomSettingsLeavesTheCreatorOutOfARoomVersion12Room() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio",
+                                                      200,
+                                                      CREATE_EVENT_V12,
+                                                      "@probe:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@carol:matrix.exo.com"), users.keySet());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(eq("http://matrix:8008/_matrix/client/v3/rooms/"
+        + "!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio/state/m.room.create/?format=event"), anyString(), eq(Duration.ofSeconds(10))));
+  }
+
+  @Test
+  void updateRoomSettingsLeavesTheAdditionalCreatorsOutOfARoomVersion12Room() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!cu4-_9nU4BM1sJhPGcLS8vTIgE5xC4Nmnc8f2mPlwfQ",
+                                                      200,
+                                                      CREATE_EVENT_V12_ADDITIONAL_CREATOR,
+                                                      "@bob:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@carol:matrix.exo.com"), users.keySet());
+  }
+
+  @Test
+  void updateRoomSettingsLeavesTheCreatorOutOfAnUnstableRoomVersionWithCreatorPower() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio",
+                                                      200,
+                                                      CREATE_EVENT_V12.replace("\"room_version\":\"12\"",
+                                                                               "\"room_version\":\"org.matrix.hydra.11\""),
+                                                      "@probe:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@carol:matrix.exo.com"), users.keySet());
+  }
+
+  @Test
+  void updateRoomSettingsSendsTheUsersUnchangedWhenTheCreateEventIsNotJson() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio",
+                                                      200,
+                                                      "<html>Bad gateway</html>",
+                                                      "@probe:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@probe:matrix.exo.com", "@carol:matrix.exo.com"), users.keySet());
+  }
+
+  /**
+   * Up to room version 11 the creator's power comes from the users map: leaving
+   * it out would demote the admin user to users_default.
+   */
+  @Test
+  void updateRoomSettingsKeepsTheCreatorInARoomVersion11Room() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!LDnGjVkoeSLuWGwsiP",
+                                                      200,
+                                                      CREATE_EVENT_V11,
+                                                      "@probe:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@probe:matrix.exo.com", "@carol:matrix.exo.com"), users.keySet());
+  }
+
+  @Test
+  void updateRoomSettingsSendsTheUsersUnchangedWhenTheCreateEventCannotBeRead() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio",
+                                                      403,
+                                                      "{\"errcode\":\"M_FORBIDDEN\"}",
+                                                      "@probe:matrix.exo.com",
+                                                      "@carol:matrix.exo.com");
+    assertEquals(Set.of("@probe:matrix.exo.com", "@carol:matrix.exo.com"), users.keySet());
+  }
+
+  @Test
+  void updateRoomSettingsDoesNotReadTheCreateEventWhenNoUserIsSent() throws Exception {
+    JSONObject users = sendPowerLevelsWithCreateEvent("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio", 200, CREATE_EVENT_V12);
+    assertTrue(users.isEmpty());
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpGetRequest(contains("m.room.create"), anyString(), any(Duration.class)),
+                              never());
+  }
+
+  @Test
+  void updateRoomSettingsSendsTheUsersUnchangedWhenTheCreateEventReadTimesOut() throws Exception {
+    assertUsersSentUnchangedWhenTheCreateEventReadThrows(new HttpTimeoutException("request timed out"));
+  }
+
+  @Test
+  void updateRoomSettingsSendsTheUsersUnchangedWhenTheCreateEventReadFails() throws Exception {
+    assertUsersSentUnchangedWhenTheCreateEventReadThrows(new java.net.ConnectException("Connection refused"));
+  }
+
+  private void assertUsersSentUnchangedWhenTheCreateEventReadThrows(IOException failure) throws Exception {
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("m.room.create"), anyString(), any(Duration.class)))
+                      .thenThrow(failure);
+    when(responseOK.body()).thenReturn("{\"event_id\": \"thisIsAnEventId\"}");
+    MatrixRoomPermissions matrixRoomPermissions = new MatrixRoomPermissions();
+    matrixRoomPermissions.setUsers(List.of(new MatrixUserPermission("@probe:matrix.exo.com", "100")));
+    matrixRoomPermissions.setEvents(new Events("roomName", "50", "50", "50", "50", "50", "50", "50"));
+
+    assertEquals("thisIsAnEventId",
+                 matrixHttpClient.updateRoomSettings("!gJ84KwPFIuxJtsJ2QBAJ9Vno_JtK--kVs7bH5C0xEio",
+                                                     matrixRoomPermissions,
+                                                     accessToken));
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    MATRIX_HTTP_HELPER.verify(() -> HTTPHelper.sendHttpPutRequest(anyString(), anyString(), payload.capture()));
+    assertEquals(Set.of("@probe:matrix.exo.com"), new JSONObject(payload.getValue()).getJSONObject("users").keySet());
+  }
+
   @Test
   void getRoomSettings() {
   }
@@ -456,6 +611,11 @@ class MatrixHttpClientTest {
     Events events = new Events("roomName", "50", "50", "50", "50", "50", "50", "50");
     matrixRoomPermissions.setEvents(events);
 
+    HttpResponse<String> createResponse = mock(HttpResponse.class);
+    when(createResponse.statusCode()).thenReturn(200);
+    when(createResponse.body()).thenReturn(CREATE_EVENT_V11);
+    MATRIX_HTTP_HELPER.when(() -> HTTPHelper.sendHttpGetRequest(contains("m.room.create"), anyString(), any(Duration.class)))
+                      .thenReturn(createResponse);
     when(responseOK.body()).thenReturn("{\"event_id\": \"thisIsAnEventId\"}");
     String result = matrixHttpClient.updateRoomSettings(roomId, matrixRoomPermissions, accessToken);
     assertNotNull(result);

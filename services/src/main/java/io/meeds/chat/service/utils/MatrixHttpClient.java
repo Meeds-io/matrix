@@ -25,6 +25,7 @@ import org.apache.commons.codec.digest.HmacAlgorithms;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
+import io.meeds.chat.model.MatrixUserPermission;
 import org.exoplatform.commons.utils.PropertyManager;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -34,6 +35,7 @@ import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Component;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -51,6 +54,13 @@ import static io.meeds.chat.service.utils.MatrixConstants.*;
 @Component
 public class MatrixHttpClient {
   private static final Log    LOG                   = ExoLogger.getLogger(MatrixHttpClient.class.toString());
+
+  /** Bound of the read of a room's create event made before its power levels are updated. */
+  private static final Duration    CREATE_EVENT_READ_TIMEOUT            = Duration.ofSeconds(10);
+
+  /** Unstable room versions on which Synapse gives the room creators unlimited power (MSC4289). */
+  private static final Set<String> UNSTABLE_CREATOR_POWER_ROOM_VERSIONS = Set.of("org.matrix.hydra.11",
+                                                                                 "org.matrix.msc4242.12");
 
   /** Marker Matrix prepends to the fallback body of an edit event ("* the new text"). */
   private static final String EDIT_FALLBACK_PREFIX  = "* ";
@@ -744,7 +754,11 @@ public class MatrixHttpClient {
   }
 
   /**
-   * Updates the room settings
+   * Updates the room settings. From room version 12 (MSC4289) the creators of
+   * a room have unlimited power and Synapse refuses a power levels event whose
+   * users map lists one of them, so they are left out of the users sent for
+   * such a room. In an older room the users map is sent unchanged: its
+   * creator's power comes from that map.
    *
    * @param matrixRoomId the Id of the room
    * @return MatrixRoomPermissions updated room settings
@@ -756,11 +770,17 @@ public class MatrixHttpClient {
       throw new IllegalArgumentException(MATRIX_SERVER_URL_IS_REQUIRED);
     }
 
-    String payload = roomSettings.toJson();
     String fullRoomId = MatrixRoomIdUtils.toFullRoomId(matrixRoomId);
+    String payload = withoutRoomCreators(fullRoomId, roomSettings, accessToken).toJson();
     String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
         + "/state/m.room.power_levels/";
+    return putRoomSettings(url, matrixRoomId, payload, accessToken);
+  }
 
+  private String putRoomSettings(String url,
+                                 String matrixRoomId,
+                                 String payload,
+                                 String accessToken) throws IOException, InterruptedException, JsonException {
     HttpResponse<String> response = sendHttpPutRequest(url, accessToken, payload);
     if (response.statusCode() >= 200 && response.statusCode() < 300) {
       LOG.info("Permissions of room  {} were successfully updated !", matrixRoomId);
@@ -776,13 +796,96 @@ public class MatrixHttpClient {
                  matrixRoomId,
                  sleepInMs);
         Thread.sleep(sleepInMs);
-        return updateRoomSettings(matrixRoomId, roomSettings, accessToken);
+        return putRoomSettings(url, matrixRoomId, payload, accessToken);
       } else {
         throw new RuntimeException("Error updating room permissions of %s ,Matrix server returned HTTP %s error %s".formatted(matrixRoomId,
                                                                                                                               String.valueOf(response.statusCode()),
                                                                                                                               response.body()));
       }
     }
+  }
+
+  private MatrixRoomPermissions withoutRoomCreators(String fullRoomId,
+                                                    MatrixRoomPermissions roomSettings,
+                                                    String accessToken) throws InterruptedException {
+    if (roomSettings.getUsers() == null || roomSettings.getUsers().isEmpty()) {
+      return roomSettings;
+    }
+    Set<String> creators = getCreatorsWithUnlimitedPower(fullRoomId, accessToken);
+    if (creators.isEmpty()) {
+      return roomSettings;
+    }
+    List<MatrixUserPermission> users = roomSettings.getUsers()
+                                                   .stream()
+                                                   .filter(userPermission -> !creators.contains(userPermission.getUserName()))
+                                                   .toList();
+    return new MatrixRoomPermissions(users,
+                                     roomSettings.getUserDefault(),
+                                     roomSettings.getEvents(),
+                                     roomSettings.getEventsDefault(),
+                                     roomSettings.getStateDefault(),
+                                     roomSettings.getBan(),
+                                     roomSettings.getKick(),
+                                     roomSettings.getRedact(),
+                                     roomSettings.getInvite(),
+                                     roomSettings.getHistorical());
+  }
+
+  /**
+   * @return the creator and the additional creators of the room when its room
+   *         version gives them unlimited power, an empty set otherwise or when
+   *         the room's create event cannot be read in full within
+   *         {@link #CREATE_EVENT_READ_TIMEOUT}
+   */
+  private Set<String> getCreatorsWithUnlimitedPower(String fullRoomId, String accessToken) throws InterruptedException {
+    String url = PropertyManager.getProperty(MATRIX_SERVER_URL) + ROOMS_API_PATH + fullRoomId
+        + "/state/m.room.create/?format=event";
+    HttpResponse<String> response;
+    try {
+      response = sendHttpGetRequest(url, accessToken, CREATE_EVENT_READ_TIMEOUT);
+    } catch (IOException e) {
+      LOG.warn("Could not read the creators of room {} within {}", fullRoomId, CREATE_EVENT_READ_TIMEOUT, e);
+      return Set.of();
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      LOG.warn("Could not read the creators of room {}, Matrix server returned HTTP {} error {}",
+               fullRoomId,
+               String.valueOf(response.statusCode()),
+               response.body());
+      return Set.of();
+    }
+    try {
+      JSONObject createEvent = new JSONObject(response.body());
+      JSONObject content = createEvent.optJSONObject("content");
+      if (content == null || !hasCreatorPower(content.optString("room_version"))) {
+        return Set.of();
+      }
+      Set<String> creators = new HashSet<>();
+      if (StringUtils.isNotBlank(createEvent.optString("sender"))) {
+        creators.add(createEvent.optString("sender"));
+      }
+      JSONArray additionalCreators = content.optJSONArray("additional_creators");
+      if (additionalCreators != null) {
+        for (int index = 0; index < additionalCreators.length(); index++) {
+          creators.add(additionalCreators.optString(index));
+        }
+      }
+      return creators;
+    } catch (JSONException e) {
+      LOG.warn("Could not read the creators of room {} from its create event", fullRoomId, e);
+      return Set.of();
+    }
+  }
+
+  /**
+   * @param roomVersion the room version of a room's create event
+   * @return true when the room version gives the room creators unlimited power
+   *         (MSC4289): room version 12 and later, and the unstable versions
+   *         Synapse enables it on
+   */
+  private static boolean hasCreatorPower(String roomVersion) {
+    return UNSTABLE_CREATOR_POWER_ROOM_VERSIONS.contains(roomVersion)
+        || (StringUtils.isNumeric(roomVersion) && roomVersion.length() <= 9 && Integer.parseInt(roomVersion) >= 12);
   }
 
   public String uploadFile(String fileName, String mimeType, byte[] imageBytes, String accessToken) {
