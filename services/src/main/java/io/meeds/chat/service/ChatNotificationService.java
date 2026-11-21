@@ -194,6 +194,10 @@ public class ChatNotificationService {
       LOG.debug("Chat push for {} in {}: unknown room, ignored", userName, roomId);
       return;
     }
+    if (room.getSpaceId() != null && !isRoomMember(userName, room)) {
+      LOG.debug("Chat push for {} in {}: recipient is not a member of the room's space, ignored", userName, roomId);
+      return;
+    }
     MatrixMessage message = resolveMessage(room, eventId, roomId, pushKey);
     if (message == null) {
       // not an m.room.message event (reaction, state event...) or unresolvable

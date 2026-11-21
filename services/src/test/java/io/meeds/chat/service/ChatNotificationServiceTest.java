@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.meeds.chat.MatrixBaseTest;
 import io.meeds.chat.model.MatrixMessage;
 import io.meeds.chat.model.Room;
+import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.permlink.service.PermanentLinkService;
 import io.meeds.pwa.model.PwaDirectNotificationBuilder;
 import io.meeds.pwa.model.PwaNotificationMessage;
@@ -72,6 +73,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   @Autowired
   PwaNotificationService             pwaNotificationService;
+
+  @Autowired
+  MatrixRoomStorage                  matrixRoomStorage;
 
   @Autowired
   WebNotificationService             webNotificationService;
@@ -229,6 +233,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     String senderIdOnMatrix = matrixService.saveUserAccount(demoIdentity, true);
     Space space = getSpaceInstance(4);
     spacesToDelete.add(space);
+    spaceService.addMember(space, "john");
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
 
     when(matrixHttpClient.getEventById("evt1", roomId, accessToken))
@@ -348,6 +353,108 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     verify(mockedPwaNotificationService, times(3)).scheduleDirectNotification(eq("john"), anyString(), anyLong(), allBuilders.capture());
     assertNull(allBuilders.getAllValues().get(2).build("device1"));
     assertNull(allBuilders.getAllValues().get(2).build("device2"));
+  }
+
+  @Test
+  void spaceRoomPushIsIgnoredForAUserWhoNeverJoinedTheSpace() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    Space space = getSpaceInstance(5);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    mockMentionOf("john", roomId, "evtNeverJoined");
+
+    int mentions = pushAndCountMentionNotifications("evtNeverJoined", roomId, "john");
+
+    assertEquals(0, mentions);
+    verify(mockedPwaNotificationService, never()).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+  }
+
+  @Test
+  void spaceRoomPushIsIgnoredOnceTheUserLeftTheSpace() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    Space space = getSpaceInstance(6);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    mockMentionOf("raul", roomId, "evtMember");
+
+    int mentionsAsMember = pushAndCountMentionNotifications("evtMember", roomId, "raul");
+
+    assertEquals(1, mentionsAsMember);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("raul"), anyString(), anyLong(), any());
+
+    spaceService.removeMember(space, "raul");
+    mockMentionOf("raul", roomId, "evtRemoved");
+
+    int mentionsAfterRemoval = pushAndCountMentionNotifications("evtRemoved", roomId, "raul");
+
+    assertEquals(0, mentionsAfterRemoval);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+  }
+
+  @Test
+  void spaceRoomPushIsIgnoredWhenTheSpaceOfTheRoomIsGone() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    Space space = getSpaceInstance(7);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    mockMentionOf("demo", roomId, "evtGoneSpace");
+    spaceService.deleteSpace(space);
+
+    int mentions = pushAndCountMentionNotifications("evtGoneSpace", roomId, "demo");
+
+    assertEquals(0, mentions);
+    verify(mockedPwaNotificationService, never()).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+  }
+
+  @Test
+  void directMessageRoomPushStillNotifiesItsParticipant() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    String dmRoomId = "!dmRoom91503:matrix.meeds.tn";
+    matrixRoomStorage.saveDirectMessagingRoom("demo", "tom", dmRoomId);
+    mockMentionOf("demo", dmRoomId, "evtDm");
+
+    int mentions = pushAndCountMentionNotifications("evtDm", dmRoomId, "demo");
+
+    assertEquals(1, mentions);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("demo"), anyString(), anyLong(), any());
+  }
+
+  private PwaNotificationService mockPwaAndAvailableUser() {
+    lenient().when(userStateModel.getStatus()).thenReturn("available");
+    lenient().when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
+    PwaNotificationService mockedPwaNotificationService = mock(PwaNotificationService.class);
+    lenient().when(mockedPwaNotificationService.canReceiveDirectNotifications(anyString(), anyString())).thenReturn(true);
+    ReflectionTestUtils.setField(chatNotificationService, "pwaNotificationService", mockedPwaNotificationService);
+    return mockedPwaNotificationService;
+  }
+
+  private void mockMentionOf(String userName, String roomId, String eventId) throws Exception {
+    matrixService.saveUserAccount(identityManager.getOrCreateUserIdentity(userName), true);
+    String senderIdOnMatrix = matrixService.saveUserAccount(identityManager.getOrCreateUserIdentity("mary"), true);
+    MatrixMessage message = new MatrixMessage(eventId,
+                                              roomId,
+                                              "m.room.message",
+                                              "This is a chat message",
+                                              "m.text",
+                                              senderIdOnMatrix,
+                                              List.of("@" + userName + ":matrix.meeds.tn"),
+                                              123456789);
+    lenient().when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(message);
+  }
+
+  private int pushAndCountMentionNotifications(String eventId, String roomId, String userName) {
+    NotificationContext notificationContext = mock(NotificationContext.class);
+    NotificationExecutor notificationExecutor = mock(NotificationExecutor.class);
+    NotificationCommand notificationCommand = mock(NotificationCommand.class);
+    lenient().when(notificationContext.getNotificationExecutor()).thenReturn(notificationExecutor);
+    lenient().when(notificationContext.makeCommand(any(PluginKey.class))).thenReturn(notificationCommand);
+    lenient().when(notificationExecutor.with(notificationCommand)).thenReturn(notificationExecutor);
+    lenient().when(notificationExecutor.execute(notificationContext)).thenReturn(true);
+    try (MockedStatic<NotificationContextImpl> notificationContextImpl = mockStatic(NotificationContextImpl.class)) {
+      notificationContextImpl.when(NotificationContextImpl::cloneInstance).thenReturn(notificationContext);
+      chatNotificationService.onMatrixPushReceived(eventId, roomId, userName, "pushKey");
+    }
+    return mockingDetails(notificationExecutor).getInvocations().stream()
+                                               .filter(invocation -> "execute".equals(invocation.getMethod().getName()))
+                                               .toList()
+                                               .size();
   }
 
   @Test
