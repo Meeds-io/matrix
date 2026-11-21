@@ -395,12 +395,38 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     Space space = getSpaceInstance(7);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
     mockMentionOf("demo", roomId, "evtGoneSpace");
-    spaceService.deleteSpace(space);
+    // the Matrix room deletion fails: the room row outlives the space
+    when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(false);
+    try {
+      spaceService.deleteSpace(space);
 
-    int mentions = pushAndCountMentionNotifications("evtGoneSpace", roomId, "demo");
+      int mentions = pushAndCountMentionNotifications("evtGoneSpace", roomId, "demo");
 
-    assertEquals(0, mentions);
-    verify(mockedPwaNotificationService, never()).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+      assertEquals(0, mentions);
+      verify(mockedPwaNotificationService, never()).scheduleDirectNotification(anyString(), anyString(), anyLong(), any());
+    } finally {
+      when(matrixHttpClient.deleteRoom(anyString(), anyString())).thenReturn(true);
+      matrixService.deleteRoom(roomId);
+    }
+  }
+
+  @Test
+  void bufferedSpaceRoomPopupIsCancelledOnceTheUserLeftTheSpace() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    LocaleConfigImpl localeConfig = new LocaleConfigImpl();
+    localeConfig.setLocale(Locale.ENGLISH);
+    localeConfig.setOrientation(Orientation.LT);
+    lenient().when(mockedPwaNotificationService.getLocaleConfig(anyString())).thenReturn(localeConfig);
+    Space space = getSpaceInstance(8);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    mockMentionOf("raul", roomId, "evtBuffered");
+    pushAndCountMentionNotifications("evtBuffered", roomId, "raul");
+    ArgumentCaptor<PwaDirectNotificationBuilder> builders = ArgumentCaptor.forClass(PwaDirectNotificationBuilder.class);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("raul"), anyString(), anyLong(), builders.capture());
+
+    spaceService.removeMember(space, "raul");
+
+    assertNull(builders.getValue().build("device1"));
   }
 
   @Test

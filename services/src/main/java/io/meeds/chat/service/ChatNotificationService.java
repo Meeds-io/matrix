@@ -474,6 +474,17 @@ public class ChatNotificationService {
       LOG.debug("Chat popup for {} in {} on device {}: no pending messages, cancelled", userName, roomId, subscriptionId);
       return null;
     }
+    // membership can end between the push and the fire: a user who left the
+    // space receives no popup of its room, and its buffered messages are dropped
+    Room room = matrixService.getById(roomId);
+    if (room != null && room.getSpaceId() != null && !isRoomMember(userName, room)) {
+      LOG.debug("Chat popup for {} in {} on device {}: recipient is no longer a member of the room's space, cancelled",
+                userName,
+                roomId,
+                subscriptionId);
+      pendingMessages.remove(pendingKey(userName, roomId));
+      return null;
+    }
     // the durable read watermark is the fire-time guard's authoritative input
     // (a read recorded on another node or before a restart is seen here)
     long readWatermark = getReadWatermark(userName, roomId);
