@@ -474,11 +474,11 @@ public class ChatNotificationService {
       LOG.debug("Chat popup for {} in {} on device {}: no pending messages, cancelled", userName, roomId, subscriptionId);
       return null;
     }
-    // membership can end between the push and the fire: a user who left the
-    // space receives no popup of its room, and its buffered messages are dropped
+    // the room can be gone, or its membership end, between the push and the
+    // fire: no popup is shown for it, and its buffered messages are dropped
     Room room = matrixService.getById(roomId);
-    if (room != null && room.getSpaceId() != null && !isRoomMember(userName, room)) {
-      LOG.debug("Chat popup for {} in {} on device {}: recipient is no longer a member of the room's space, cancelled",
+    if (room == null || (room.getSpaceId() != null && !isRoomMember(userName, room))) {
+      LOG.debug("Chat popup for {} in {} on device {}: room is gone or recipient is no longer a member of its space, cancelled",
                 userName,
                 roomId,
                 subscriptionId);

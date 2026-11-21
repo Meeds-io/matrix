@@ -442,6 +442,42 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("demo"), anyString(), anyLong(), any());
   }
 
+  @Test
+  void bufferedSpaceRoomPopupIsCancelledOnceItsRoomIsGone() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    Space space = getSpaceInstance(9);
+    String roomId = matrixService.getRoomBySpace(space).getRoomId();
+    mockMentionOf("raul", roomId, "evtRoomGone");
+    pushAndCountMentionNotifications("evtRoomGone", roomId, "raul");
+    ArgumentCaptor<PwaDirectNotificationBuilder> builders = ArgumentCaptor.forClass(PwaDirectNotificationBuilder.class);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("raul"), anyString(), anyLong(), builders.capture());
+
+    spaceService.deleteSpace(space);
+
+    assertNull(builders.getValue().build("device1"));
+  }
+
+  @Test
+  void bufferedDirectMessagePopupIsStillBuiltAtFireTime() throws Exception {
+    PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    LocaleConfigImpl localeConfig = new LocaleConfigImpl();
+    localeConfig.setLocale(Locale.ENGLISH);
+    localeConfig.setOrientation(Orientation.LT);
+    lenient().when(mockedPwaNotificationService.getLocaleConfig(anyString())).thenReturn(localeConfig);
+    UserPortalConfigService mockedPortalConfigService = mock(UserPortalConfigService.class);
+    lenient().when(mockedPortalConfigService.getDefaultPath("demo")).thenReturn("/portal/dw/stream");
+    lenient().when(mockedPortalConfigService.getMetaPortal()).thenReturn("dw");
+    ReflectionTestUtils.setField(chatNotificationService, "portalConfigService", mockedPortalConfigService);
+    String dmRoomId = "!dmRoomFire91503:matrix.meeds.tn";
+    matrixRoomStorage.saveDirectMessagingRoom("demo", "mary", dmRoomId);
+    mockMentionOf("demo", dmRoomId, "evtDmFire");
+    pushAndCountMentionNotifications("evtDmFire", dmRoomId, "demo");
+    ArgumentCaptor<PwaDirectNotificationBuilder> builders = ArgumentCaptor.forClass(PwaDirectNotificationBuilder.class);
+    verify(mockedPwaNotificationService, times(1)).scheduleDirectNotification(eq("demo"), anyString(), anyLong(), builders.capture());
+
+    assertNotNull(builders.getValue().build("device1"));
+  }
+
   private PwaNotificationService mockPwaAndAvailableUser() {
     lenient().when(userStateModel.getStatus()).thenReturn("available");
     lenient().when(userSetting.isSpaceMuted(anyLong())).thenReturn(false);
