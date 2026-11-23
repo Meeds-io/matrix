@@ -51,6 +51,7 @@ import static io.meeds.chat.service.ChatNotificationService.USER_CHAT_NOTIFICATI
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_MENTION_RECEIVED_NOTIFICATION_PLUGIN;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ROOM_ID;
 import static io.meeds.chat.service.utils.MatrixConstants.MATRIX_ROOM_MEMBER;
+import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -445,6 +446,12 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
   @Test
   void bufferedSpaceRoomPopupIsCancelledOnceItsRoomIsGone() throws Exception {
     PwaNotificationService mockedPwaNotificationService = mockPwaAndAvailableUser();
+    // the locale is stubbed as in the sibling test: without its guard the build then goes on to the popup, so that
+    // only the assertion on the cancelled popup stops it
+    LocaleConfigImpl localeConfig = new LocaleConfigImpl();
+    localeConfig.setLocale(Locale.ENGLISH);
+    localeConfig.setOrientation(Orientation.LT);
+    lenient().when(mockedPwaNotificationService.getLocaleConfig(anyString())).thenReturn(localeConfig);
     Space space = getSpaceInstance(9);
     String roomId = matrixService.getRoomBySpace(space).getRoomId();
     mockMentionOf("raul", roomId, "evtRoomGone");
@@ -489,6 +496,12 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
 
   private void mockMentionOf(String userName, String roomId, String eventId) throws Exception {
     matrixService.saveUserAccount(identityManager.getOrCreateUserIdentity(userName), true);
+    // saveUserAccount never overwrites a Matrix id already stored: the profile of a user is shared by the whole
+    // suite, so another test class may have left another id on it, and the message mentions the one it holds
+    String receiverIdOnMatrix = matrixService.getUserFullMatrixID((String) identityManager.getOrCreateUserIdentity(userName)
+                                                                                          .getProfile()
+                                                                                          .getProperties()
+                                                                                          .get(USER_MATRIX_ID));
     String senderIdOnMatrix = matrixService.saveUserAccount(identityManager.getOrCreateUserIdentity("mary"), true);
     MatrixMessage message = new MatrixMessage(eventId,
                                               roomId,
@@ -496,7 +509,7 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
                                               "This is a chat message",
                                               "m.text",
                                               senderIdOnMatrix,
-                                              List.of("@" + userName + ":matrix.meeds.tn"),
+                                              List.of(receiverIdOnMatrix),
                                               123456789);
     lenient().when(matrixHttpClient.getEventById(eventId, roomId, accessToken)).thenReturn(message);
   }
