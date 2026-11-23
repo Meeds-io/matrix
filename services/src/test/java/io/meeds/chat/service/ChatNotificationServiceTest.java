@@ -117,6 +117,9 @@ class ChatNotificationServiceTest extends MatrixBaseTest {
     lenient().when(userStateService.getUserState(anyString())).thenReturn(userStateModel);
     lenient().when(userSettingService.get(anyString())).thenReturn(userSetting);
     ReflectionTestUtils.setField(chatNotificationService, "settingService", settingService);
+    // every test room shares one Matrix id, and the service is a suite-wide singleton: the popups a test
+    // buffered, and the devices they covered, would otherwise cancel those of the next test whatever its guards do
+    ((Map<?, ?>) ReflectionTestUtils.getField(chatNotificationService, "pendingMessages")).clear();
     ReflectionTestUtils.setField(ChatNotificationService.class, "userStateService", null);
     ReflectionTestUtils.setField(ChatNotificationService.class, "userSettingService", null);
   }
