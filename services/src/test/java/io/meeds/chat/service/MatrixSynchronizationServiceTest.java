@@ -36,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.List;
 
 import static io.meeds.chat.service.utils.MatrixConstants.USER_MATRIX_ID;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,12 +54,15 @@ class MatrixSynchronizationServiceTest {
 
   private OrganizationService  organizationService;
 
+  private MatrixAgentPusherService agentPusherService;
+
   @BeforeEach
   void setUp() throws Exception {
     spaceService = mock(SpaceService.class);
     identityManager = mock(IdentityManager.class);
     matrixService = mock(MatrixService.class);
     organizationService = mock(OrganizationService.class);
+    agentPusherService = mock(MatrixAgentPusherService.class);
     UserHandler userHandler = mock(UserHandler.class);
     matrixSynchronizationService = mock(MatrixSynchronizationService.class);
     ListAccess<Identity> userIdentitiesListAccess = mock(ListAccess.class);
@@ -132,7 +136,8 @@ class MatrixSynchronizationServiceTest {
     matrixSynchronizationService = new MatrixSynchronizationService(matrixService,
                                                                     spaceService,
                                                                     identityManager,
-                                                                    organizationService);
+                                                                    organizationService,
+                                                                    agentPusherService);
 
   }
 
@@ -158,5 +163,60 @@ class MatrixSynchronizationServiceTest {
   void synchronizeUsers() throws JsonException, IOException, InterruptedException {
     matrixSynchronizationService.synchronizeUsers();
     verify(matrixService, times(6)).updateUserAvatar(any(), anyString());
+  }
+
+  /** The accounts of a declared kind get a chat account, whatever the restriction. */
+  @Test
+  void synchronizeUsersIncludesTheDeclaredKindsGroups() throws Exception {
+    when(matrixService.getRestrictedGroups()).thenReturn(new String[] { "/platform/externals" });
+    when(matrixService.getAccountKindGroups()).thenReturn(List.of("/platform/agents", "/platform/externals"));
+    Identity leaIdentity = new Identity("lea");
+    leaIdentity.setRemoteId("lea");
+    leaIdentity.setProfile(new Profile(leaIdentity));
+    when(identityManager.getOrCreateUserIdentity("lea")).thenReturn(leaIdentity);
+    ListAccess<User> agents = mock(ListAccess.class);
+    when(agents.getSize()).thenReturn(1);
+    when(agents.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("lea") });
+    when(organizationService.getUserHandler().findUsersByGroupId("/platform/agents")).thenReturn(agents);
+
+    matrixSynchronizationService.synchronizeUsers();
+
+    verify(organizationService.getUserHandler(), times(1)).findUsersByGroupId("/platform/externals");
+    verify(organizationService.getUserHandler(), times(1)).findUsersByGroupId("/platform/agents");
+    verify(organizationService.getUserHandler(), never()).findUsersByGroupId("/platform/users");
+    verify(matrixService).saveUserAccount(leaIdentity, true);
+  }
+
+  /**
+   * A worker the synchronization gives an account gets its pusher turn at
+   * once, and the members of the other groups queue none.
+   */
+  @Test
+  void synchronizeUsersQueuesThePusherTurnOfTheDeclaredKindsMembers() throws Exception {
+    when(matrixService.getRestrictedGroups()).thenReturn(new String[] { "/platform/externals" });
+    when(matrixService.getAccountKindGroups()).thenReturn(List.of("/platform/agents"));
+    Identity leaIdentity = new Identity("lea");
+    leaIdentity.setRemoteId("lea");
+    leaIdentity.setProfile(new Profile(leaIdentity));
+    when(identityManager.getOrCreateUserIdentity("lea")).thenReturn(leaIdentity);
+    when(matrixService.saveUserAccount(leaIdentity, true)).thenReturn("@lea:matrix.exo.tn");
+    ListAccess<User> agents = mock(ListAccess.class);
+    when(agents.getSize()).thenReturn(1);
+    when(agents.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("lea") });
+    when(organizationService.getUserHandler().findUsersByGroupId("/platform/agents")).thenReturn(agents);
+    Identity bobIdentity = new Identity("bob");
+    bobIdentity.setRemoteId("bob");
+    bobIdentity.setProfile(new Profile(bobIdentity));
+    when(identityManager.getOrCreateUserIdentity("bob")).thenReturn(bobIdentity);
+    when(matrixService.saveUserAccount(bobIdentity, true)).thenReturn("@bob:matrix.exo.tn");
+    ListAccess<User> externals = mock(ListAccess.class);
+    when(externals.getSize()).thenReturn(1);
+    when(externals.load(anyInt(), anyInt())).thenReturn(new User[] { new UserImpl("bob") });
+    when(organizationService.getUserHandler().findUsersByGroupId("/platform/externals")).thenReturn(externals);
+
+    matrixSynchronizationService.synchronizeUsers();
+
+    verify(agentPusherService).enqueueIfDesired("lea");
+    verify(agentPusherService, never()).enqueueIfDesired("bob");
   }
 }

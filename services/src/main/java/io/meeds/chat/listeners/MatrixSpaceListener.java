@@ -25,6 +25,7 @@ import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.model.MatrixRoomPermissions;
 import io.meeds.chat.model.MatrixUserPermission;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.exception.ObjectNotFoundException;
@@ -56,6 +57,9 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
 
   @Autowired
   private MatrixService    matrixService;
+
+  @Autowired
+  private MatrixAgentPusherService agentPusherService;
 
   @Autowired
   private SpaceService     spaceService;
@@ -143,12 +147,10 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
     }
     Space space = event.getSpace();
     String userId = event.getTarget();
-    String[] restrictedGroupOfUsers = this.matrixService.getRestrictedGroups();
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
     String matrixIdOfUser = matrixService.getMatrixIdForUser(userId);
     try {
-      if (StringUtils.isBlank(matrixIdOfUser) && (restrictedGroupOfUsers == null || restrictedGroupOfUsers.length == 0
-          || (this.matrixService.isUserMemberOfGroups(userId, restrictedGroupOfUsers))) && !userId.equals(matrixUserAdmin)) {
+      if (StringUtils.isBlank(matrixIdOfUser) && !userId.equals(matrixUserAdmin) && matrixService.isChatUser(userId)) {
         Identity user;
         user = identityManager.getOrCreateUserIdentity(userId);
         matrixIdOfUser = matrixService.saveUserAccount(user, true);
@@ -158,6 +160,11 @@ public class MatrixSpaceListener extends SpaceListenerPlugin {
       if (room != null && StringUtils.isNotBlank(room.getRoomId()) && StringUtils.isNotBlank(matrixIdOfUser)) {
         matrixService.joinUserToRoom(room.getRoomId(), matrixIdOfUser);
 
+      }
+      if (StringUtils.isNotBlank(matrixIdOfUser)) {
+        // a digital worker joining a space gets its pusher at once, whether this
+        // join or its creation made its Matrix account; a person queues nothing
+        agentPusherService.enqueueIfDesired(userId);
       }
     } catch (Exception e) {
       if (e instanceof InterruptedException) {

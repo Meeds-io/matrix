@@ -22,6 +22,7 @@ import io.meeds.chat.model.Room;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import io.meeds.chat.service.utils.MatrixConstants;
+import io.meeds.chat.service.MatrixAgentPusherService;
 import io.meeds.chat.service.MatrixService;
 import org.exoplatform.commons.utils.ListAccess;
 import org.exoplatform.commons.utils.PropertyManager;
@@ -59,6 +60,9 @@ public class MatrixUserListener extends UserEventListener {
   @Autowired
   private SpaceService        spaceService;
 
+  @Autowired
+  private MatrixAgentPusherService agentPusherService;
+
   @PostConstruct
   public void init() {
     this.organizationService.getUserHandler().addUserEventListener(this);
@@ -70,10 +74,7 @@ public class MatrixUserListener extends UserEventListener {
       return;
     }
     String matrixUserAdmin = PropertyManager.getProperty(MATRIX_ADMIN_USERNAME);
-    String[] matrixRestrictedGroups = matrixService.getRestrictedGroups();
-    if ((matrixRestrictedGroups != null && matrixRestrictedGroups.length > 0
-        && !this.matrixService.isUserMemberOfGroups(user.getUserName(), matrixRestrictedGroups))
-        || matrixUserAdmin.equals(user.getUserName())) {
+    if (matrixUserAdmin.equals(user.getUserName()) || !matrixService.isChatUser(user.getUserName())) {
       return;
     }
     try {
@@ -124,6 +125,8 @@ public class MatrixUserListener extends UserEventListener {
           } catch (Exception e) {
             LOG.error("Can not create the user {} on Matrix", user.getUserName(), e);
           }
+          // a re-enabled digital worker gets its pusher back without waiting for the scheduled job
+          agentPusherService.enqueueIfDesired(user.getUserName());
         }
       }
     }

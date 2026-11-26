@@ -36,15 +36,19 @@ import io.meeds.chat.service.model.SpaceTemplateSetting;
 import io.meeds.chat.service.utils.AsyncTaskUtils;
 import io.meeds.chat.service.utils.MatrixHttpClient;
 import io.meeds.chat.service.utils.MatrixRoomIdUtils;
+import io.meeds.chat.service.utils.MatrixException;
 import io.meeds.chat.service.utils.MatrixUnauthorizedException;
+import io.meeds.chat.service.utils.MatrixUserCall;
 import io.meeds.chat.storage.MatrixRoomStorage;
 import io.meeds.portal.navigation.model.TopbarApplication;
 import io.meeds.portal.navigation.service.NavigationConfigurationService;
+import io.meeds.social.core.identity.service.AccountKindService;
 import io.meeds.social.space.template.model.SpaceTemplate;
 import io.meeds.social.space.template.model.SpaceTemplateFilter;
 import io.meeds.social.space.template.service.SpaceTemplateService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.exoplatform.commons.ObjectAlreadyExistsException;
 import org.exoplatform.commons.api.notification.service.setting.PluginSettingService;
@@ -80,12 +84,15 @@ import org.exoplatform.social.core.storage.api.IdentityStorage;
 import org.exoplatform.ws.frameworks.json.impl.JsonException;
 import org.exoplatform.ws.frameworks.json.impl.JsonGeneratorImpl;
 import org.exoplatform.ws.frameworks.json.value.JsonValue;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
@@ -119,6 +126,9 @@ public class MatrixService {
 
   @Autowired
   private SpaceTemplateService           spaceTemplateService;
+
+  @Autowired
+  private AccountKindService             accountKindService;
 
   /**
    * -- GETTER -- Checks if the Matrix service is available
@@ -692,8 +702,174 @@ public class MatrixService {
   }
 
   /**
+   * Returns the direct messaging room between a user and another one, and
+   * creates it when it does not exist yet, as the web chat does: the room is
+   * created on Matrix as the user, the other participant invited, then it is
+   * recorded on the platform and the user's {@code m.direct} account data is
+   * updated. When a parallel call records the pair while the room is created on
+   * Matrix, its room is returned and the user's {@code m.direct} updated to it.
+   * The room just created is not recorded, but it stays on Matrix: the user is
+   * joined to it and the other participant holds a pending direct-message
+   * invite to it, as for the web chat's own duplicate. As in
+   * {@link #createDirectMessagingRoom(Room)}, only the database check and save
+   * remain unguarded. The user may open a direct message only where the chat
+   * lets them: direct messages are enabled, both users may use the chat
+   * ({@link #isChatUser(String)}), and the other participant is an enabled user
+   * with a chat account.
+   *
+   * @param userName the username of the user opening the conversation
+   * @param recipientUserName the username of the other participant
+   * @return the direct messaging room
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why: direct messages disabled, a user outside the
+   *           chat, a disabled or deleted recipient, or one with no chat account
+   * @throws IllegalArgumentException when a username is blank or both are the
+   *           same
+   * @throws Exception any failure of the room creation on Matrix
+   */
+  public Room getOrCreateDirectMessagingRoom(String userName, String recipientUserName) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(recipientUserName)) {
+      throw new IllegalArgumentException("chat.directMessage.usernameRequired");
+    }
+    ChatSettingsEntity chatSettings = loadChatSettings();
+    if (chatSettings != null && !chatSettings.isPrivateRoomsEnabled()) {
+      throw new IllegalAccessException("Direct messages are disabled");
+    }
+    if (!isChatUser(userName)) {
+      throw new IllegalAccessException("User " + userName + " has no access to the chat");
+    }
+    Identity recipientIdentity = identityManager.getOrCreateUserIdentity(recipientUserName);
+    if (recipientIdentity == null) {
+      throw new ObjectNotFoundException("No user " + recipientUserName);
+    }
+    // the username as the platform stores it, whatever the case the caller typed
+    String recipient = recipientIdentity.getRemoteId();
+    if (userName.equals(recipient)) {
+      throw new IllegalArgumentException("chat.directMessage.selfNotAllowed");
+    }
+    if (recipientIdentity.isDeleted() || !recipientIdentity.isEnable()) {
+      throw new IllegalAccessException("User " + recipient + " is not an active user");
+    }
+    if (!isChatUser(recipient)) {
+      throw new IllegalAccessException("User " + recipient + " has no access to the chat");
+    }
+    Room room = matrixRoomStorage.getDirectMessagingRoom(userName, recipient);
+    if (room != null) {
+      return room;
+    }
+    String recipientMatrixId = getMatrixIdForUser(recipient);
+    if (StringUtils.isBlank(recipientMatrixId)) {
+      throw new IllegalAccessException("User " + recipient + " has no chat account");
+    }
+    String fullRecipientMatrixId = toFullMatrixUserId(recipientMatrixId);
+    String roomId = callAsUserOrThrow(userName,
+                                      null,
+                                      accessToken -> matrixHttpClient.createDirectMessagingRoom(fullRecipientMatrixId,
+                                                                                                accessToken));
+    // re-read right before saving, as createDirectMessagingRoom does: a parallel
+    // call may have recorded the pair during the room creation on Matrix
+    Room existingRoom = matrixRoomStorage.getDirectMessagingRoom(userName, recipient);
+    if (existingRoom != null) {
+      LOG.warn("A direct messaging room between {} and {} was recorded while creating one: the room {} created on Matrix is not recorded, {} stays joined to it and {} invited to it",
+               userName,
+               recipient,
+               roomId,
+               userName,
+               recipient);
+      updateDirectRoomsAccountData(userName);
+      return existingRoom;
+    }
+    room = matrixRoomStorage.saveDirectMessagingRoom(userName, recipient, roomId);
+    updateDirectRoomsAccountData(userName);
+    return room;
+  }
+
+  /**
+   * Sends a text message to another user <strong>as the given user</strong>, in
+   * their direct messaging room, which is created first when they have none.
+   * Used by the {@code send_direct_message} MCP tool.
+   *
+   * @param userName the username of the user sending the message
+   * @param recipientUserName the username of the recipient
+   * @param text the plain text message to send
+   * @return the created event id, or {@code null} when the text is blank or the
+   *         message could not be sent
+   * @throws ObjectNotFoundException when no user has that username
+   * @throws IllegalAccessException when the user may not message that user, the
+   *           message saying why
+   * @throws IllegalArgumentException when a username is blank or both are the
+   *           same
+   * @throws Exception any failure of the room creation on Matrix
+   */
+  public String sendDirectMessage(String userName, String recipientUserName, String text) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(text)) {
+      return null;
+    }
+    Room room = getOrCreateDirectMessagingRoom(userName, recipientUserName);
+    return sendMessage(userName, room.getRoomId(), text);
+  }
+
+  /**
+   * Builds the {@code m.direct} account data of a user from the direct
+   * messaging rooms the platform records: each room id keyed by the full
+   * Matrix id of the other participant.
+   *
+   * @param userName the username of the user
+   * @return the user's direct rooms, by the other participant's full Matrix id
+   */
+  private Map<String, String[]> getDirectRoomsAccountData(String userName) {
+    Map<String, String[]> directRooms = new HashMap<>();
+    for (Room room : getMatrixDMRoomsOfUser(userName)) {
+      String other = userName.equals(room.getFirstParticipant()) ? room.getSecondParticipant() : room.getFirstParticipant();
+      Identity otherIdentity = identityManager.getOrCreateUserIdentity(other);
+      Object otherMatrixId = otherIdentity == null ? null : otherIdentity.getProfile().getProperty(USER_MATRIX_ID);
+      if (otherMatrixId != null && StringUtils.isNotBlank(otherMatrixId.toString())) {
+        directRooms.put(toFullMatrixUserId(otherMatrixId.toString()), new String[] { room.getRoomId() });
+      }
+    }
+    return directRooms;
+  }
+
+  /**
+   * Writes the user's direct rooms into their {@code m.direct} account data on
+   * Matrix, so that Matrix clients list the rooms as direct messages. A failure
+   * is logged and does not undo the room it follows.
+   *
+   * @param userName the username of the user
+   */
+  private void updateDirectRoomsAccountData(String userName) {
+    String matrixId = getMatrixIdForUser(userName);
+    if (StringUtils.isBlank(matrixId)) {
+      return;
+    }
+    Map<String, String[]> directRooms = getDirectRoomsAccountData(userName);
+    boolean updated = callAsUser(userName, false, accessToken -> {
+      matrixHttpClient.setDirectRoomsAccountData(toFullMatrixUserId(matrixId), directRooms, accessToken);
+      return true;
+    });
+    if (!updated) {
+      LOG.warn("Could not update the direct rooms account data of user {}", userName);
+    }
+  }
+
+  /**
+   * Completes a Matrix user id stored as its local part with the server name; a
+   * full id is returned as is.
+   *
+   * @param matrixId the Matrix user id, local part or full id
+   * @return the full Matrix user id
+   */
+  private String toFullMatrixUserId(String matrixId) {
+    if (matrixId.startsWith("@") && matrixId.contains(":")) {
+      return matrixId;
+    }
+    return "@" + matrixId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
+  }
+
+  /**
    * Loads all the one to one rooms of a defined user
-   * 
+   *
    * @param user the username of the user
    * @return List of Room
    */
@@ -906,6 +1082,52 @@ public class MatrixService {
   }
 
   /**
+   * Reads one message event with the administrator account, every request
+   * bounded by {@code timeout}: the administrator login, when its token is not
+   * cached yet, and the read. Propagates every failure. A room ID stored as its
+   * local part is completed with the server name, as the send and history
+   * reads do; a full room ID is read as given.
+   *
+   * @param eventId the event ID
+   * @param roomId the room ID, as its local part or in full
+   * @param timeout the timeout of each request
+   * @return the message, null when the event is missing or not an
+   *         {@code m.room.message}
+   * @throws Exception when the login or the read fails or times out
+   */
+  public MatrixMessage getRoomEventOrThrow(String eventId, String roomId, Duration timeout) throws Exception { // NOSONAR
+    MatrixMessage message = matrixHttpClient.getEventById(eventId, MatrixRoomIdUtils.toFullRoomId(roomId), getMatrixAccessToken(timeout), timeout);
+    return message != null && "m.room.message".equals(message.getType()) ? message : null;
+  }
+
+  /**
+   * Finds the platform user of a Matrix id like {@link #findUserByMatrixId},
+   * every request bounded by {@code timeout} (the administrator login, when its
+   * token is not cached yet, and the user read) and every failure propagated.
+   *
+   * @param userMatrixId the Matrix id
+   * @param timeout the timeout of each request
+   * @return the platform login, null when no platform user has the Matrix
+   *         account's email
+   * @throws Exception when the login or the read fails or times out
+   */
+  public String findUserByMatrixIdOrThrow(String userMatrixId, Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userMatrixId)) {
+      throw new IllegalArgumentException("the user Matrix ID is required");
+    }
+    String simplifiedMatrixId = extractUserId(userMatrixId);
+    String cached = userMatrixIdsCache.get(simplifiedMatrixId);
+    if (cached != null) {
+      return cached;
+    }
+    String userName = findUserNameByEmail(matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken(timeout), timeout));
+    if (userName != null) {
+      userMatrixIdsCache.put(simplifiedMatrixId, userName);
+    }
+    return userName;
+  }
+
+  /**
    * Retrieves the message related to the event ID
    *
    * @param eventId the event ID
@@ -963,19 +1185,10 @@ public class MatrixService {
       return userMatrixIdsCache.get(simplifiedMatrixId);
     }
     try {
-      String userAsJson = matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken());
-      Iterator<JsonValue> jsonIterator = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson)
-                                                                .getElement("threepids")
-                                                                .getElements();
-      while (jsonIterator.hasNext()) {
-        JsonValue threePids = jsonIterator.next();
-        if ("email".equals(threePids.getElement("medium").getStringValue())) {
-          User user = getUserByEmail(threePids.getElement("address").getStringValue());
-          if (user != null) {
-            userMatrixIdsCache.put(userMatrixId, user.getUserName());
-            return user.getUserName();
-          }
-        }
+      String userName = findUserNameByEmail(matrixHttpClient.getUser(userMatrixId, getMatrixAccessToken()));
+      if (userName != null) {
+        userMatrixIdsCache.put(userMatrixId, userName);
+        return userName;
       }
     } catch (InterruptedException interruptedException) {
       Thread.currentThread().interrupt();
@@ -1021,6 +1234,31 @@ public class MatrixService {
    */
   public String cleanMatrixUsername(String userName) {
     return userName.replaceAll("[^a-zA-Z0-9=_\\-\\.\\/+]+", "-").toLowerCase();
+  }
+
+  /**
+   * Tells whether a user may have a chat account: chat is restricted to no
+   * group, the user is a member of one of the restricted groups, or the user's
+   * account is of a kind an add-on declares (a digital worker), which uses
+   * chat wherever chat is restricted.
+   *
+   * @param userName the user name
+   * @return true when the user may have a chat account
+   * @throws Exception when the user's memberships cannot be read
+   */
+  public boolean isChatUser(String userName) throws Exception { // NOSONAR
+    String[] restrictedGroups = getRestrictedGroups();
+    return restrictedGroups.length == 0 || isUserMemberOfGroups(userName, restrictedGroups)
+        || accountKindService.computeAccountKind(userName) != null;
+  }
+
+  /**
+   * Lists the groups of the account kinds the add-ons declare.
+   *
+   * @return the groups' ids, never null
+   */
+  public List<String> getAccountKindGroups() {
+    return accountKindService.getPlugins().stream().map(plugin -> plugin.getGroupId()).toList();
   }
 
   /**
@@ -1285,7 +1523,7 @@ public class MatrixService {
       }
       String other = userName.equals(room.getFirstParticipant()) ? room.getSecondParticipant()
                                                                  : room.getFirstParticipant();
-      conversations.add(new ChatConversation(room.getRoomId(), "dm", getUserDisplayName(other), null));
+      conversations.add(new ChatConversation(room.getRoomId(), "dm", getUserDisplayName(other), null, other));
     }
 
     // Space rooms the user is a member of
@@ -1299,7 +1537,8 @@ public class MatrixService {
             conversations.add(new ChatConversation(room.getRoomId(),
                                                    "space",
                                                    space.getDisplayName(),
-                                                   Long.valueOf(space.getId())));
+                                                   Long.valueOf(space.getId()),
+                                                   null));
           }
         }
       }
@@ -1307,6 +1546,43 @@ public class MatrixService {
       LOG.warn("Could not list space conversations for user {}", userName, e);
     }
     return conversations;
+  }
+
+  /**
+   * Lists the conversations the given user participates in, as
+   * {@link #getUserConversations(String)} does, keeping those of a type and
+   * those whose title, or for a direct message the other participant's
+   * username, contains a text. The match ignores case and accents.
+   *
+   * @param userName the Meeds username
+   * @param type {@code "dm"} or {@code "space"} to keep one type only, blank to
+   *          keep both
+   * @param query the text to look for, blank to keep every conversation
+   * @param limit the maximum number of conversations to return, {@code null}
+   *          for no maximum
+   * @return the matching conversations, never {@code null}
+   */
+  public List<ChatConversation> getUserConversations(String userName, String type, String query, Integer limit) {
+    String normalizedQuery = normalizeForMatch(query);
+    return getUserConversations(userName).stream()
+                                         .filter(conversation -> StringUtils.isBlank(type)
+                                             || type.trim().equalsIgnoreCase(conversation.getType()))
+                                         .filter(conversation -> normalizedQuery.isEmpty()
+                                             || normalizeForMatch(conversation.getTitle()).contains(normalizedQuery)
+                                             || normalizeForMatch(conversation.getUserName()).contains(normalizedQuery))
+                                         .limit(limit == null ? Long.MAX_VALUE : Math.max(1, limit))
+                                         .toList();
+  }
+
+  /**
+   * Prepares a text for a case and accent insensitive match.
+   *
+   * @param text the text, possibly {@code null}
+   * @return the trimmed text without accents in lower case, empty for a blank
+   *         text
+   */
+  private String normalizeForMatch(String text) {
+    return StringUtils.isBlank(text) ? "" : StringUtils.stripAccents(text.trim()).toLowerCase(Locale.ROOT);
   }
 
   private String getUserDisplayName(String userName) {
@@ -1323,6 +1599,7 @@ public class MatrixService {
   /**
    * Reads one event back with the user's own Matrix identity, so an event of a
    * room the administrator account cannot see (a direct message) resolves too.
+   * A room ID stored as its local part is completed with the server name.
    *
    * @param userName the platform user
    * @param roomId the room (local or full id)
@@ -1330,7 +1607,8 @@ public class MatrixService {
    * @return the event, or null when it cannot be read
    */
   public MatrixMessage getRoomEventAsUser(String userName, String roomId, String eventId) {
-    return callAsUser(userName, null, accessToken -> matrixHttpClient.getEventById(eventId, roomId, accessToken));
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomId);
+    return callAsUser(userName, null, accessToken -> matrixHttpClient.getEventById(eventId, fullRoomId, accessToken));
   }
 
   /**
@@ -1362,19 +1640,38 @@ public class MatrixService {
    * @return the user's Matrix access token, or {@code null}
    */
   private String getUserAccessToken(String userName, boolean forceRefresh) throws JsonException, IOException, InterruptedException {
+    return getUserAccessToken(userName, null, forceRefresh, null);
+  }
+
+  /**
+   * Returns a Matrix access token for the given Meeds user like
+   * {@link #getUserAccessToken(String, boolean)}; a login it needs is bounded
+   * by {@code timeout}, unbounded when null.
+   *
+   * @param userName the Meeds username
+   * @param knownMatrixId the user's Matrix id, null to read it from the profile
+   * @param forceRefresh whether to bypass the cache and mint a new token
+   * @param timeout the login request timeout, null for none
+   * @return the user's Matrix access token, or {@code null}
+   */
+  private String getUserAccessToken(String userName,
+                                    String knownMatrixId,
+                                    boolean forceRefresh,
+                                    Duration timeout) throws JsonException, IOException, InterruptedException {
     if (!forceRefresh) {
       String cachedToken = userAccessTokensCache.get(userName);
       if (StringUtils.isNotBlank(cachedToken)) {
         return cachedToken;
       }
     }
-    String matrixId = getMatrixIdForUser(userName);
+    String matrixId = StringUtils.isBlank(knownMatrixId) ? getMatrixIdForUser(userName) : knownMatrixId;
     if (StringUtils.isBlank(matrixId)) {
       return null;
     }
     String matrixLocalPart = extractUserId(matrixId);
     String jwtToken = getJWTSessionToken(matrixLocalPart);
-    String accessToken = matrixHttpClient.getAccessToken(jwtToken);
+    String accessToken = timeout == null ? matrixHttpClient.getAccessToken(jwtToken)
+                                         : matrixHttpClient.getAccessToken(jwtToken, timeout);
     if (StringUtils.isNotBlank(accessToken)) {
       userAccessTokensCache.put(userName, accessToken);
     }
@@ -1392,7 +1689,7 @@ public class MatrixService {
    * @param operation the operation to run with a valid access token
    * @return the operation result, or {@code fallback}
    */
-  private <T> T callAsUser(String userName, T fallback, UserMatrixCall<T> operation) {
+  private <T> T callAsUser(String userName, T fallback, MatrixUserCall<T> operation) {
     try {
       String accessToken = getUserAccessToken(userName, false);
       if (StringUtils.isBlank(accessToken)) {
@@ -1412,6 +1709,61 @@ public class MatrixService {
   }
 
   /**
+   * Executes a Matrix operation on behalf of the given user like
+   * {@link #callAsUser}, but propagates every failure instead of answering a
+   * fallback, so a caller tells a timeout or an error from an empty result. A
+   * login it needs is bounded by {@code timeout}; the operation bounds its own
+   * requests. A token Synapse rejects (HTTP 401) is refreshed once and the
+   * operation retried once.
+   *
+   * @param <T> the operation result type
+   * @param userName the Meeds username acting
+   * @param timeout the login request timeout
+   * @param operation the operation to run with a valid access token
+   * @return the operation result
+   * @throws MatrixException when the user has no Matrix account
+   * @throws Exception any failure of the login or of the operation
+   */
+  public <T> T callAsUserOrThrow(String userName, Duration timeout, MatrixUserCall<T> operation) throws Exception { // NOSONAR
+    return callAsUserOrThrow(userName, null, timeout, operation);
+  }
+
+  /**
+   * Executes a Matrix operation on behalf of the given user like
+   * {@link #callAsUserOrThrow(String, Duration, MatrixUserCall)}, with the
+   * user's Matrix id as the caller knows it: a listener's request may not have
+   * committed the profile write that stores it yet.
+   *
+   * @param <T> the operation result type
+   * @param userName the Meeds username acting
+   * @param matrixId the user's Matrix id, null to read it from the profile
+   * @param timeout the login request timeout
+   * @param operation the operation to run with a valid access token
+   * @return the operation result
+   * @throws MatrixException when the user has no Matrix account
+   * @throws Exception any failure of the login or of the operation
+   */
+  public <T> T callAsUserOrThrow(String userName,
+                                 String matrixId,
+                                 Duration timeout,
+                                 MatrixUserCall<T> operation) throws Exception { // NOSONAR
+    String accessToken = getUserAccessToken(userName, matrixId, false, timeout);
+    if (StringUtils.isBlank(accessToken)) {
+      throw new MatrixException("User " + userName + " has no Matrix account");
+    }
+    try {
+      return operation.call(accessToken);
+    } catch (MatrixUnauthorizedException unauthorized) {
+      LOG.debug("Matrix access token for user {} is no longer valid, refreshing and retrying", userName);
+      String refreshedToken = getUserAccessToken(userName, matrixId, true, timeout);
+      if (StringUtils.isBlank(refreshedToken)) {
+        throw new MatrixException("User " + userName + " has no Matrix account");
+      }
+      return operation.call(refreshedToken);
+    }
+  }
+
+  /**
    * Runs the operation with the given access token and, if Synapse rejects the
    * token (HTTP 401), refreshes it once and retries. Extracted from
    * {@link #callAsUser} so the retry stays a flat, single-purpose block.
@@ -1426,7 +1778,7 @@ public class MatrixService {
    */
   private <T> T callWithTokenRefresh(String userName,
                                      T fallback,
-                                     UserMatrixCall<T> operation,
+                                     MatrixUserCall<T> operation,
                                      String accessToken) throws Exception { // NOSONAR
     try {
       return operation.call(accessToken);
@@ -1438,11 +1790,6 @@ public class MatrixService {
       }
       return operation.call(refreshedToken);
     }
-  }
-
-  @FunctionalInterface
-  private interface UserMatrixCall<T> {
-    T call(String accessToken) throws Exception; // NOSONAR
   }
 
   /**
@@ -1462,33 +1809,62 @@ public class MatrixService {
       return Collections.emptyList();
     }
     String normalizedRoomId = extractRoomId(roomId);
-    boolean isParticipant = getUserConversations(userName).stream()
-                                                          .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
-    if (!isParticipant) {
+    if (!isParticipant(userName, normalizedRoomId)) {
       LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
       return Collections.emptyList();
     }
     int effectiveLimit = Math.clamp(limit, 1, 200);
-    return callAsUser(userName, Collections.<ChatMessage> emptyList(), accessToken -> {
-      List<MatrixMessage> matrixMessages = matrixHttpClient.getRoomMessages(normalizedRoomId, effectiveLimit, accessToken);
-      List<ChatMessage> messages = new ArrayList<>();
-      for (MatrixMessage matrixMessage : matrixMessages) {
-        messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
-                                     matrixMessage.getMessageContent(),
-                                     matrixMessage.getTimeStamp()));
-      }
-      // The client API returns events newest-first (dir=b); flip to chronological.
-      Collections.reverse(messages);
-      return messages;
-    });
+    return callAsUser(userName,
+                      Collections.<ChatMessage> emptyList(),
+                      accessToken -> toChronologicalMessages(matrixHttpClient.getRoomMessages(normalizedRoomId,
+                                                                                              effectiveLimit,
+                                                                                              accessToken)));
+  }
+
+  /**
+   * Returns the most recent messages of a conversation like
+   * {@link #getRoomMessages(String, String, int)}, every request bounded by
+   * {@code timeout} and every failure propagated: a timeout, an unreachable
+   * Matrix or a user without a Matrix account is thrown, so the caller tells it
+   * from a conversation with nothing to read. A user who does not participate in
+   * the conversation reads nothing, as in the unbounded read.
+   *
+   * @param userName the Meeds username acting
+   * @param roomId the Matrix room id of the conversation, local part or full id
+   * @param limit the maximum number of messages to return (clamped to [1, 200])
+   * @param timeout the bound of each request
+   * @return the conversation messages, edits merged, oldest first, never
+   *         {@code null}
+   * @throws Exception any failure of the login or of the read
+   */
+  public List<ChatMessage> getRoomMessages(String userName,
+                                           String roomId,
+                                           int limit,
+                                           Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId)) {
+      return Collections.emptyList();
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    if (!isParticipant(userName, normalizedRoomId)) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to read its messages", userName, normalizedRoomId);
+      return Collections.emptyList();
+    }
+    int effectiveLimit = Math.clamp(limit, 1, 200);
+    return callAsUserOrThrow(userName,
+                             timeout,
+                             accessToken -> toChronologicalMessages(matrixHttpClient.getRoomMessages(normalizedRoomId,
+                                                                                                     effectiveLimit,
+                                                                                                     accessToken,
+                                                                                                     timeout)));
   }
 
   /**
    * Returns the unread conversations of the given user, read <strong>as that
    * user</strong> via a Matrix {@code /sync}, so only the rooms the user has
    * joined are considered. Each entry carries the unread count and the recent
-   * messages, with a human readable title resolved from the user's conversations.
-   * Used by the {@code get_unread_chat_messages} MCP tool.
+   * messages, edits merged into the message they replace as in the room read,
+   * with a human readable title resolved from the user's conversations. Used
+   * by the {@code get_unread_chat_messages} MCP tool.
    *
    * @param userName the Meeds username acting
    * @return the user's unread conversations, never {@code null}
@@ -1506,13 +1882,10 @@ public class MatrixService {
       }
       List<ChatUnread> unread = new ArrayList<>();
       for (MatrixUnreadRoom unreadRoom : matrixHttpClient.getUnreadRooms(accessToken, 20)) {
-        List<ChatMessage> messages = new ArrayList<>();
-        // The /sync timeline is already in chronological order (oldest first).
-        for (MatrixMessage matrixMessage : unreadRoom.getMessages()) {
-          messages.add(new ChatMessage(extractUserId(matrixMessage.getSender()),
-                                       matrixMessage.getMessageContent(),
-                                       matrixMessage.getTimeStamp()));
-        }
+        // the /sync timeline is oldest first, the merge of edits reads newest first
+        List<MatrixMessage> newestFirst = new ArrayList<>(unreadRoom.getMessages());
+        Collections.reverse(newestFirst);
+        List<ChatMessage> messages = toChronologicalMessages(newestFirst);
         unread.add(new ChatUnread(unreadRoom.getRoomId(),
                                   titlesByRoomId.get(unreadRoom.getRoomId()),
                                   unreadRoom.getUnreadCount(),
@@ -1550,6 +1923,63 @@ public class MatrixService {
     return callAsUser(userName,
                       null,
                       accessToken -> matrixHttpClient.sendMessage(normalizedRoomId, text, UUID.randomUUID().toString(), accessToken));
+  }
+
+  /**
+   * Posts a reply <strong>as the given user</strong>, quoting the event it
+   * answers and mentioning the given Matrix users, with the content the web
+   * composer sends: {@code m.in_reply_to}, an HTML {@code formatted_body} and
+   * {@code m.mentions}. The mentions are exactly {@code mentionedMatrixIds},
+   * chosen by the caller, never read from the text. The transaction id is
+   * derived from the replied-to event and the user, so Synapse posts a reply
+   * retried with the same access token once; a retry after the token was
+   * refreshed is a new device, and Synapse posts it again. The request is bounded by {@code timeout} and a failure is
+   * thrown.
+   *
+   * @param userName the Meeds username replying
+   * @param roomId the Matrix room id of the conversation, local part or full id
+   * @param body the plain text body
+   * @param formattedBody the HTML body, null or blank to send the plain body
+   *          only
+   * @param inReplyToEventId the event id the reply answers
+   * @param mentionedMatrixIds the Matrix ids the reply mentions
+   * @param timeout the bound of each request
+   * @return the created event id, or {@code null} when nothing was sent because
+   *         an argument is blank or the user does not participate in the
+   *         conversation
+   * @throws Exception any failure of the login or of the send
+   */
+  public String sendReply(String userName,
+                          String roomId,
+                          String body,
+                          String formattedBody,
+                          String inReplyToEventId,
+                          List<String> mentionedMatrixIds,
+                          Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(userName) || StringUtils.isBlank(roomId) || StringUtils.isBlank(body)
+        || StringUtils.isBlank(inReplyToEventId)) {
+      return null;
+    }
+    String normalizedRoomId = extractRoomId(roomId);
+    if (!isParticipant(userName, normalizedRoomId)) {
+      LOG.warn("User {} is not a participant of conversation {}, refusing to send a reply", userName, normalizedRoomId);
+      return null;
+    }
+    JSONObject content = new JSONObject().put("msgtype", "m.text").put("body", body);
+    if (StringUtils.isNotBlank(formattedBody)) {
+      content.put("format", "org.matrix.custom.html").put("formatted_body", formattedBody);
+    }
+    content.put("m.relates_to", new JSONObject().put("m.in_reply_to", new JSONObject().put("event_id", inReplyToEventId)));
+    content.put("m.mentions",
+                new JSONObject().put("user_ids", new JSONArray(mentionedMatrixIds == null ? List.of() : mentionedMatrixIds)));
+    String transactionId = DigestUtils.sha256Hex(inReplyToEventId + ":" + userName);
+    return callAsUserOrThrow(userName,
+                             timeout,
+                             accessToken -> matrixHttpClient.sendMessage(normalizedRoomId,
+                                                                         content,
+                                                                         transactionId,
+                                                                         accessToken,
+                                                                         timeout));
   }
 
   /**
@@ -1671,5 +2101,117 @@ public class MatrixService {
       }
       return results;
     });
+  }
+
+  /**
+   * Returns the administrator's Matrix access token, logging in, bounded by
+   * {@code timeout}, when it is not cached yet.
+   *
+   * @param timeout the login request timeout
+   * @return the token
+   * @throws Exception when the login fails or times out
+   */
+  private String getMatrixAccessToken(Duration timeout) throws Exception { // NOSONAR
+    if (StringUtils.isBlank(this.matrixAccessToken)) {
+      String jwtAccessToken = this.getJWTSessionToken(PropertyManager.getProperty(MATRIX_ADMIN_USERNAME));
+      this.matrixAccessToken = matrixHttpClient.getAccessToken(jwtAccessToken, timeout);
+    }
+    return this.matrixAccessToken;
+  }
+
+  /**
+   * Finds the platform user whose email is one of a Matrix user's email
+   * identifiers.
+   *
+   * @param userAsJson the Matrix user's details
+   * @return the login, null when no platform user matches
+   * @throws Exception when the details cannot be parsed or the users read
+   */
+  private String findUserNameByEmail(String userAsJson) throws Exception { // NOSONAR
+    JsonValue threePidsElement = new JsonGeneratorImpl().createJsonObjectFromString(userAsJson).getElement("threepids");
+    Iterator<JsonValue> jsonIterator = threePidsElement == null ? Collections.emptyIterator() : threePidsElement.getElements();
+    while (jsonIterator.hasNext()) {
+      JsonValue threePids = jsonIterator.next();
+      if ("email".equals(threePids.getElement("medium").getStringValue())) {
+        User user = getUserByEmail(threePids.getElement("address").getStringValue());
+        if (user != null) {
+          return user.getUserName();
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Tells whether a conversation, given by its local-part room id, is one of
+   * the user's conversations. Both sides of the comparison go through
+   * {@link #extractRoomId(String)}: a space room is stored as its local part, a
+   * direct message with its server name.
+   *
+   * @param userName the Meeds username
+   * @param normalizedRoomId the room id as {@link #extractRoomId(String)}
+   *          returns it
+   * @return true when the user's conversations contain the room
+   */
+  private boolean isParticipant(String userName, String normalizedRoomId) {
+    return getUserConversations(userName).stream()
+                                         .anyMatch(conversation -> normalizedRoomId.equals(extractRoomId(conversation.getRoomId())));
+  }
+
+  /**
+   * Maps the events of a room read, newest first, to the messages a client
+   * renders, oldest first: each {@code m.replace} edit is merged into the event
+   * it replaces, which is kept once under its own event id. An edit is applied
+   * only when its sender is the original's sender; among several, the latest
+   * {@code origin_server_ts} wins. An edit whose original is not in the page
+   * (older than it, or redacted) is dropped, as is an edit of another sender.
+   *
+   * @param events the {@code m.room.message} events, newest first
+   * @return the merged messages, oldest first
+   */
+  private List<ChatMessage> toChronologicalMessages(List<MatrixMessage> events) {
+    Map<String, MatrixMessage> originals = new HashMap<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() == null && event.getEventId() != null) {
+        originals.put(event.getEventId(), event);
+      }
+    }
+    Map<String, MatrixMessage> latestEdits = new HashMap<>();
+    for (MatrixMessage event : events) {
+      MatrixMessage original = event.getReplacedEventId() == null ? null : originals.get(event.getReplacedEventId());
+      if (original != null && Objects.equals(original.getSender(), event.getSender())) {
+        latestEdits.merge(original.getEventId(),
+                          event,
+                          (known, candidate) -> candidate.getTimeStamp() > known.getTimeStamp() ? candidate : known);
+      }
+    }
+    List<ChatMessage> messages = new ArrayList<>();
+    for (MatrixMessage event : events) {
+      if (event.getReplacedEventId() != null) {
+        continue;
+      }
+      MatrixMessage edit = event.getEventId() == null ? null : latestEdits.get(event.getEventId());
+      messages.add(new ChatMessage(extractUserId(event.getSender()),
+                                   edit == null ? event.getMessageContent() : editedText(edit),
+                                   event.getTimeStamp()));
+    }
+    // The client API returns events newest-first (dir=b); flip to chronological.
+    Collections.reverse(messages);
+    return messages;
+  }
+
+  /**
+   * Returns the text an {@code m.replace} event gives its original: the body of
+   * its {@code m.new_content}, or, for a client that sent none, its own body
+   * without the {@code "* "} marker Matrix prepends.
+   *
+   * @param edit the {@code m.replace} event
+   * @return the replacement text
+   */
+  private String editedText(MatrixMessage edit) {
+    if (edit.getEditedContent() != null) {
+      return edit.getEditedContent();
+    }
+    return StringUtils.removeStart(edit.getMessageContent(), "* ");
   }
 }
