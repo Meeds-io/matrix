@@ -425,6 +425,9 @@ class MatrixServiceTest extends MatrixBaseTest {
     verify(matrixHttpClient).getEventById(eq("$event"), eq("!abc:matrix.exo.tn"), anyString(), eq(timeout));
     assertSame(message, matrixService.getRoomEventOrThrow("$event", "!def:other.server", timeout));
     verify(matrixHttpClient).getEventById(eq("$event"), eq("!def:other.server"), anyString(), eq(timeout));
+    // a room version 12 id has no server part and is read as given
+    assertSame(message, matrixService.getRoomEventOrThrow("$event", "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8", timeout));
+    verify(matrixHttpClient).getEventById(eq("$event"), eq("!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8"), anyString(), eq(timeout));
   }
 
   /**
@@ -441,6 +444,11 @@ class MatrixServiceTest extends MatrixBaseTest {
     when(matrixHttpClient.getEventById(eq("$read"), eq("!abc:matrix.exo.tn"), anyString())).thenReturn(message);
 
     assertSame(message, matrixService.getRoomEventAsUser("dragon", "!abc", "$read"));
+
+    // a room version 12 id has no server part and is read as given
+    MatrixMessage roomV12Message = new MatrixMessage();
+    when(matrixHttpClient.getEventById(eq("$read"), eq("!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8"), anyString())).thenReturn(roomV12Message);
+    assertSame(roomV12Message, matrixService.getRoomEventAsUser("dragon", "!-GWecwzq27coEHKwQSgJnr2PzFDU_Pm6opoUwNkL_s8", "$read"));
   }
 
   /**

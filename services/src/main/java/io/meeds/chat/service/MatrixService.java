@@ -1096,7 +1096,7 @@ public class MatrixService {
    * @throws Exception when the login or the read fails or times out
    */
   public MatrixMessage getRoomEventOrThrow(String eventId, String roomId, Duration timeout) throws Exception { // NOSONAR
-    MatrixMessage message = matrixHttpClient.getEventById(eventId, toFullRoomId(roomId), getMatrixAccessToken(timeout), timeout);
+    MatrixMessage message = matrixHttpClient.getEventById(eventId, MatrixRoomIdUtils.toFullRoomId(roomId), getMatrixAccessToken(timeout), timeout);
     return message != null && "m.room.message".equals(message.getType()) ? message : null;
   }
 
@@ -1607,7 +1607,7 @@ public class MatrixService {
    * @return the event, or null when it cannot be read
    */
   public MatrixMessage getRoomEventAsUser(String userName, String roomId, String eventId) {
-    String fullRoomId = toFullRoomId(roomId);
+    String fullRoomId = MatrixRoomIdUtils.toFullRoomId(roomId);
     return callAsUser(userName, null, accessToken -> matrixHttpClient.getEventById(eventId, fullRoomId, accessToken));
   }
 
@@ -2140,18 +2140,6 @@ public class MatrixService {
       }
     }
     return null;
-  }
-
-  /**
-   * Completes a room ID stored as its local part with the server name, since
-   * Synapse finds an event only under its full room ID; a full room ID is
-   * returned as given.
-   *
-   * @param roomId the room ID, as its local part or in full
-   * @return the full room ID
-   */
-  private String toFullRoomId(String roomId) {
-    return roomId.contains(":") ? roomId : roomId + ":" + PropertyManager.getProperty(MATRIX_SERVER_NAME);
   }
 
   /**
