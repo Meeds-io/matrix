@@ -25,8 +25,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.meeds.chat.service.utils.MatrixConstants.*;
 
@@ -44,6 +49,38 @@ public class HTTPHelper {
     HttpClient client = newHttpClient();
     HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header(AUTHORIZATION, BEARER + token).GET().build();
     return client.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  /**
+   * @param requestTimeout how long to wait for the whole response, headers and
+   *          body; past it the request is cancelled and the call fails with an
+   *          {@link HttpTimeoutException}
+   */
+  protected static HttpResponse<String> sendHttpGetRequest(String url,
+                                                           String token,
+                                                           Duration requestTimeout) throws IOException, InterruptedException {
+    HttpClient client = newHttpClient();
+    HttpRequest request = HttpRequest.newBuilder()
+                                     .uri(URI.create(url))
+                                     .header(AUTHORIZATION, BEARER + token)
+                                     .timeout(requestTimeout)
+                                     .GET()
+                                     .build();
+    CompletableFuture<HttpResponse<String>> response = client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    try {
+      return response.get(requestTimeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      response.cancel(true);
+      throw new HttpTimeoutException("No complete response within " + requestTimeout);
+    } catch (InterruptedException e) {
+      response.cancel(true);
+      throw e;
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof IOException ioException) {
+        throw ioException;
+      }
+      throw new IOException(e.getCause());
+    }
   }
 
   protected static HttpResponse<String> sendHttpPostRequest(String url, String token, String contentAsJson) throws IOException,
